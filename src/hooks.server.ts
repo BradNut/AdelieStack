@@ -22,7 +22,7 @@ const apiClient: Handle = async ({ event, resolve }) => {
 	/* ----------------------------- Auth functions ----------------------------- */
 	async function getAuthedUser() {
     const { data } = await api.users.me.$get().then(parseApiResponse);
-    return { user: data?.user, session: data?.session };
+    return data?.user;
   }
 
   async function getAuthedUserOrThrow() {

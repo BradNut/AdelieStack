@@ -25,6 +25,7 @@ export class UsersController extends Controller {
 			.get('/me', async (c) => {
 				const session = c.var.session;
 				const user = session ? await this.usersRepository.findOneByIdOrThrow(session.userId) : null;
+				c.var.logger.info(`Get user: ${JSON.stringify(user)}`);
 				return c.json(user);
 			})
 			.patch('/me', authState('session'), zValidator('form', updateUserDto), async (c) => {

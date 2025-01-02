@@ -11,6 +11,7 @@
 	import HouseIcon from 'lucide-svelte/icons/house';
 	import { page } from '$app/state';
 	import { enhance } from '$app/forms';
+	import ThemeDropdown from '@/components/theme-dropdown.svelte';
 
 	const { children, data } = $props();
 
@@ -86,10 +87,11 @@
 					/>
 				</div>
 			</form>
+			<ThemeDropdown />
 			{#if data.authedUser}
 				{@render userDropdown()}
 			{:else}
-				<Button href="/register">Login</Button>
+				<Button href="/login">Login</Button>
 			{/if}
 		</div>
 	</header>

@@ -1,23 +1,22 @@
-import { signinUsernameDto } from '$lib/dtos/signin-username.dto';
 import { StatusCodes } from '$lib/utils/status-codes';
 import { type Actions, fail } from '@sveltejs/kit';
 import { redirect } from 'sveltekit-flash-message/server';
 import { zod } from 'sveltekit-superforms/adapters';
 import { setError, superValidate } from 'sveltekit-superforms/server';
 import type { PageServerLoad } from './$types';
+import { signinDto } from '@/server/api/dtos/signin.dto';
 
 export const load: PageServerLoad = async (event) => {
-  const { locals } = event;
+  const { locals, parent } = event;
+  const { authedUser } = await parent();
 
-  const { user } = await locals.getAuthedUser();
-
-  if (user) {
+  if (authedUser) {
     console.log('user already signed in');
     const message = { type: 'success', message: 'You are already signed in' } as const;
     throw redirect('/', message, event);
     // redirect(302, '/', message, event)
   }
-  const form = await superValidate(event, zod(signinUsernameDto));
+  const form = await superValidate(event, zod(signinDto));
 
   return {
     form,
@@ -35,7 +34,7 @@ export const actions: Actions = {
       throw redirect('/', message, event);
     }
 
-    const form = await superValidate(event, zod(signinUsernameDto));
+    const form = await superValidate(event, zod(signinDto));
 
     const { error } = await locals.api.login.$post({ json: form.data }).then(locals.parseApiResponse);
     console.log('Login error', error);

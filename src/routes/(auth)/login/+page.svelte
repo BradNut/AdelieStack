@@ -1,40 +1,25 @@
 <script lang="ts">
-	import { Button } from "$components/ui/button";
-	import * as Card from "$components/ui/card";
-	import * as Form from "$components/ui/form";
-	import { Input } from "$components/ui/input";
-	import { boredState } from "$lib/stores/boredState.js";
+	import { Button } from '$lib/components/ui/button';
+	import * as Card from '$lib/components/ui/card';
+	import { Input } from '$lib/components/ui/input';
+	import * as Form from '$lib/components/ui/form';
 	import { receive, send } from "$lib/utils/pageCrossfade";
-	import * as flashModule from "sveltekit-flash-message/client";
+	import { zodClient } from "sveltekit-superforms/adapters";
 	import { superForm } from "sveltekit-superforms/client";
+	import { signinDto } from '@/dtos/signin.dto.js';
 
 	let { data } = $props();
 
-	const superLoginForm = superForm(data.form, {
-		onSubmit: () => boredState.update((n) => ({ ...n, loading: true })),
-		onResult: () => boredState.update((n) => ({ ...n, loading: false })),
-		flashMessage: {
-			module: flashModule,
-			onError: ({ result, flashMessage }) => {
-				// Error handling for the flash message:
-				// - result is the ActionResult
-				// - message is the flash store (not the status message store)
-				const errorMessage = result.error.message;
-				flashMessage.set({ type: "error", message: errorMessage });
-			},
-		},
-		syncFlashMessage: false,
-		taintedMessage: null,
-		// validators: zodClient(signInSchema),
-		// validationMethod: 'oninput',
-		delayMs: 0,
+	const sf_login_password = superForm(data.form, {
+		validators: zodClient(signinDto),
+		resetForm: false
 	});
 
-	const { form: loginForm, enhance } = superLoginForm;
+	const { form: loginForm, enhance: loginEnhance, errors: loginErrors } = sf_login_password;
 </script>
 
 <svelte:head>
-	<title>Bored Game | Login</title>
+	<title>Acme | Login</title>
 </svelte:head>
 
 <div in:receive={{ key: "auth-card" }} out:send={{ key: "auth-card" }}>
@@ -44,8 +29,8 @@
 		</Card.Header>
 		<Card.Content class="grid gap-4">
 			{@render usernamePasswordForm()}
-			<span class="text-center text-sm text-muted-foreground">or sign in with</span>
-			{@render oAuthButtons()}
+			<!-- <span class="text-center text-sm text-muted-foreground">or sign in with</span> -->
+			<!-- {@render oAuthButtons()} -->
 			<p class="px-8 py-4 text-center text-sm text-muted-foreground">
 				By clicking continue, you agree to our
 				<a href="/terms" class="underline underline-offset-4 hover:text-primary"> Terms of Use </a>
@@ -57,18 +42,22 @@
 </div>
 
 {#snippet usernamePasswordForm()}
-	<form method="POST" use:enhance>
-		<Form.Field form={superLoginForm} name="username">
-			<Form.Control let:attrs>
-				<Form.Label for="username">Username</Form.Label>
-				<Input {...attrs} autocomplete="username" bind:value={$loginForm.username} />
+	<form method="POST" use:loginEnhance>
+		<Form.Field form={sf_login_password} name="username">
+			<Form.Control>
+				{#snippet children({ props })}
+					<Form.Label for="username">Username / Email</Form.Label>
+					<Input {...props} autocomplete="username" placeholder="john.doe@example.com" bind:value={$loginForm.username} />
+				{/snippet}
 			</Form.Control>
 			<Form.FieldErrors />
 		</Form.Field>
-		<Form.Field form={superLoginForm} name="password">
-			<Form.Control let:attrs>
-				<Form.Label for="password">Password</Form.Label>
-				<Input {...attrs} autocomplete="current-password" type="password" bind:value={$loginForm.password} />
+		<Form.Field form={sf_login_password} name="password">
+			<Form.Control>
+				{#snippet children({ props })}
+					<Form.Label for="password">Password</Form.Label>
+					<Input {...props} autocomplete="current-password" placeholder={"••••••••"} type="password" bind:value={$loginForm.password} />
+				{/snippet}
 			</Form.Control>
 			<Form.FieldErrors />
 		</Form.Field>
