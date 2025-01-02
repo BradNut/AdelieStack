@@ -3,9 +3,11 @@
 	import { ModeWatcher } from 'mode-watcher';
   import { Toaster } from "$lib/components/ui/sonner";
 
-	let { children } = $props();
+	const { children } = $props();
 </script>
 
 <ModeWatcher />
 <Toaster />
-{@render children()}
+<main class="antialiased">
+	{@render children?.()}
+</main>

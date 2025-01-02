@@ -9,10 +9,10 @@
 	import * as Sheet from '$lib/components/ui/sheet/index.js';
 	import { cn } from '$lib/utils/ui';
 	import HouseIcon from 'lucide-svelte/icons/house';
-	import { page } from '$app/stores';
+	import { page } from '$app/state';
 	import { enhance } from '$app/forms';
 
-	let { children, data } = $props();
+	const { children, data } = $props();
 
 	const routes = [
 		{
@@ -40,7 +40,7 @@
 					href={route.href}
 					class={cn(
 						'text-muted-foreground transition-colors hover:text-foreground',
-						$page.url.pathname === route.href &&
+						page.url.pathname === route.href &&
 							'text-foreground transition-colors hover:text-foreground'
 					)}
 				>
@@ -49,8 +49,8 @@
 			{/each}
 		</nav>
 		<Sheet.Root>
-			<Sheet.Trigger asChild let:builder>
-				<Button variant="outline" size="icon" class="shrink-0 md:hidden" builders={[builder]}>
+			<Sheet.Trigger>
+				<Button variant="outline" size="icon" class="shrink-0 md:hidden">
 					<Menu class="h-5 w-5" />
 					<span class="sr-only">Toggle navigation menu</span>
 				</Button>
@@ -66,7 +66,7 @@
 							href={route.href}
 							class={cn(
 								'text-muted-foreground hover:text-foreground',
-								$page.url.pathname.startsWith(route.href) && 'hover:text-foreground'
+								page.url.pathname.startsWith(route.href) && 'hover:text-foreground'
 							)}
 						>
 							{route.label}
@@ -102,20 +102,22 @@
 
 {#snippet userDropdown()}
 	<DropdownMenu.Root>
-		<DropdownMenu.Trigger asChild let:builder>
-			<Button builders={[builder]} variant="secondary" size="icon" class="rounded-full">
+		<DropdownMenu.Trigger>
+			<Button variant="secondary" size="icon" class="rounded-full">
 				<CircleUser class="h-5 w-5" />
 				<span class="sr-only">Toggle user menu</span>
 			</Button>
 		</DropdownMenu.Trigger>
 		<DropdownMenu.Content align="end">
-			<DropdownMenu.Item href="/settings">Settings</DropdownMenu.Item>
+			<DropdownMenu.Item>
+				<a class="w-full" href="/settings">Settings</a>
+			</DropdownMenu.Item>
 			<DropdownMenu.Separator />
 			<DropdownMenu.Item>
 				<form action="/?/logout" method="POST" use:enhance class="w-full">
 					<button class="w-full cursor-default text-start" type="submit">Logout</button>
-				</form></DropdownMenu.Item
-			>
+				</form>
+			</DropdownMenu.Item>
 		</DropdownMenu.Content>
 	</DropdownMenu.Root>
 {/snippet}
