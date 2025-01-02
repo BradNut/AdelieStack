@@ -8,6 +8,7 @@ import { CredentialsType } from './tables/credentials.table';
 import { UsersRepository } from './users.repository';
 import { UserRolesService } from './user_roles.service';
 import { RoleName } from '../roles/tables/roles.table';
+import { BadRequest } from '../common/utils/exceptions';
 
 @injectable()
 export class UsersService {
@@ -31,8 +32,18 @@ export class UsersService {
     return this.usersRepository.create({ avatar: null, email, username: email });
   }
 
-  async createWithPassword(username: string, password: string, email?: string) {
-    const hashedPassword = await this.tokenService.createHashedToken(password);
+  async createWithPassword(username: string, password: string, email?: string | undefined) {
+    const existingUsername = await this.usersRepository.findOneByUsername(username);
+    if (existingUsername) {
+      throw BadRequest('Could not create user');
+    }
+    if (email) {
+      const existingEmail = await this.usersRepository.findOneByEmail(email);
+      if (existingUsername || existingEmail) {
+        throw BadRequest('Could not create user');
+      }
+    }
+
     return await this.drizzleService.db.transaction(async (trx) => {
       const createdUser = await this.usersRepository.create(
         { username, email: email || '', avatar: null },
@@ -42,6 +53,8 @@ export class UsersService {
       if (!createdUser) {
         return null;
       }
+
+      const hashedPassword = await this.tokenService.createHashedToken(password);
 
       const credentials = await this.credentialsRepository.create(
         {

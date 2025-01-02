@@ -11,11 +11,13 @@ import { browserSessions } from './common/middleware/browser-session.middleware'
 import { IamController } from './iam/iam.controller';
 import configureOpenAPI from './configure-open-api';
 import { pinoLogger } from './common/middleware/pino-logger.middleware';
+import { SignupController } from './signup/signup.controller';
 
 @injectable()
 export class ApplicationController extends RootController {
 	constructor(
 		private iamController = inject(IamController),
+		private signupController = inject(SignupController),
 		private usersController = inject(UsersController)
 	) {
 		super();
@@ -48,7 +50,8 @@ export class ApplicationController extends RootController {
 			.use(pinoLogger())
 			.route('/', this.routes())
 			.route('/iam', this.iamController.routes())
-			.route('/users', this.usersController.routes());
+			.route('/users', this.usersController.routes())
+			.route('/signup', this.signupController.routes());
 
 		configureOpenAPI(app);
 		return app;

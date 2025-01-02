@@ -42,12 +42,16 @@ export const actions: Actions = {
       throw redirect('/', message, event);
     }
 
-    const form = await superValidate(event, zod(signupUsernameEmailDto));
+		const form = await superValidate(event, zod(signupUsernameEmailDto));
+
+		console.log('form data', form.data);
 
     const { error } = await locals.api.signup.$post({ json: form.data }).then(locals.parseApiResponse);
-    if (error) {
+		if (error) {
+			console.log('error', error);
 			form.data.password = '';
-      return setError(form, 'username', 'Unable to log in.');
+			form.data.confirm_password = '';
+      return setError(form, 'username', 'Unable to sign up.');
     }
 
     if (!form.valid) {

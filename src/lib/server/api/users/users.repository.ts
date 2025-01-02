@@ -24,6 +24,10 @@ export class UsersRepository extends DrizzleRepository {
     return db.select().from(users_table).where(eq(users_table.email, email)).then(takeFirst);
   }
 
+  async findOneByUsername(username: string, db = this.drizzle.db) {
+    return db.select().from(users_table).where(eq(users_table.username, username)).then(takeFirst);
+  }
+
   async findOneByIdOrThrow(id: string, db = this.drizzle.db) {
     const user = await this.findOneById(id, db);
     if (!user) throw NotFound('User not found');
