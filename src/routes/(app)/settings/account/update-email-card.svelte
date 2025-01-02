@@ -13,7 +13,7 @@
 	import * as Form from '$lib/components/ui/form';
 	import { superForm } from 'sveltekit-superforms';
 	import * as Dialog from '$lib/components/ui/dialog';
-	import PinInput from '$lib/components/pin-input.svelte';
+	// import PinInput from '$lib/components/pin-input.svelte';
 	import type { updateEmailDto } from '$lib/server/api/dtos/update-email.dto';
 	import type { verifyEmailDto } from '$lib/server/api/dtos/verify-email.dto';
 
@@ -88,7 +88,7 @@
 			<Form.Field form={sf_verifyEmailForm} name="token">
 				<Form.Control let:attrs>
 					<Form.Label />
-					<PinInput {...attrs} bind:value={$verifyEmailFormData.token} placeholder="Token..." />
+					<!-- <PinInput {...attrs} bind:value={$verifyEmailFormData.token} placeholder="Token..." /> -->
 				</Form.Control>
 				<Form.FieldErrors />
 			</Form.Field>

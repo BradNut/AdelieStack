@@ -7,24 +7,41 @@ import type { Security } from '$lib/utils/security';
 // for information about these interfaces
 declare global {
 	namespace App {
-		// interface Error {}
+		interface PageData {
+			flash?: {
+				type: 'success' | 'error' | 'info';
+				message: string;
+				data?: Record<string, unknown>;
+			};
+		}
 		interface Locals {
 			api: ApiClient['api'];
 			parseApiResponse: typeof parseApiResponse;
 			getAuthedUser: () => Promise<Returned<User> | null>;
 			getAuthedUserOrThrow: (redirectTo: string) => Promise<Returned<User>>;
 		}
-
-		// interface PageData {}
 		// interface PageState {}
 		// interface Platform {}
 		namespace Superforms {
 			type Message = {
-				type: 'error' | 'success',
-				text: string
+				type: 'error' | 'success' | 'info';
+				text: string;
 			}
 		}
+		interface Error {
+      code?: string;
+      errorId?: string;
+    }
+	}
+	interface Document {
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		// biome-ignore lint/suspicious/noExplicitAny: <explanation>
+		startViewTransition: (callback: never) => void; // Add your custom property/method here
 	}
 }
 
-export { };
+// THIS IS IMPORTANT!!!
+// biome-ignore lint/complexity/noUselessEmptyExport: <explanation>
+// biome-ignore lint/style/useExportType: <explanation>
+export {};
+
