@@ -10,10 +10,13 @@ import { Controller } from '../common/factories/controllers.factory';
 import { loginRequestDto } from './login-requests/dtos/login-request.dto';
 import { signInEmail } from './login-requests/routes/login.routes';
 import { rateLimit } from '../common/middleware/rate-limit.middleware';
+import { LoggerService } from '../common/services/logger.service';
+import { signinDto } from '../dtos/signin.dto';
 
 @injectable()
 export class IamController extends Controller {
   constructor(
+		private loggerService = inject(LoggerService),
     private loginRequestsService = inject(LoginRequestsService),
     private sessionsService = inject(SessionsService),
   ) {
@@ -22,7 +25,7 @@ export class IamController extends Controller {
 
   routes() {
     return this.controller
-      .post('/login', openApi(signInEmail), authState('none'), zValidator('json', loginRequestDto), rateLimit({ limit: 3, minutes: 1 }), async (c) => {
+      .post('/login', openApi(signInEmail), authState('none'), zValidator('json', signinDto), rateLimit({ limit: 3, minutes: 1 }), async (c) => {
         const session = await this.loginRequestsService.login(c.req.valid('json'));
         await this.sessionsService.setSessionCookie(session);
         return c.json({ message: 'welcome' });

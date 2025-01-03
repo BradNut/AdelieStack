@@ -14,13 +14,15 @@ export default async function seed(db: NodePgDatabase<typeof schema>) {
   const adminRole = await db.select().from(schema.roles_table).where(eq(schema.roles_table.name, 'admin'));
   const userRole = await db.select().from(schema.roles_table).where(eq(schema.roles_table.name, 'user'));
 
+	const adminUsername = process.env.ADMIN_USERNAME !== undefined && process.env.ADMIN_USERNAME !== ''
+			? `${process.env.ADMIN_USERNAME}` : 'admin';
   const adminUser = await db
     .insert(schema.users_table)
     .values({
-      username: `${process.env.ADMIN_USERNAME}`,
+      username: adminUsername,
       email: '',
-      first_name: 'Brad',
-      last_name: 'S',
+      first_name: 'Admin',
+      last_name: 'Admin',
     })
     .returning()
     .onConflictDoNothing();

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/stores';
-	import { cn } from '$lib/utils/ui';
+	import { cn } from '@/utils/ui';
 
 	let { children } = $props();
 </script>

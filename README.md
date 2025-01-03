@@ -1,8 +1,6 @@
-# Sveltekit - Taro Stack
+# Sveltekit - Adelie Stack
 
-## ❗ Important
-
-If you forked this repository before May 27th, you'll want to view commit `653e2c2`. There was an issue with the Hono context not correctly parsing routes.
+This stack is a cloned and modified version of GitHub user [Rykuno](https://github.com/rykuno)'s [TofeStack](https://github.com/Rykuno/TofuStack).
 
 ## ❔ What
 
@@ -11,7 +9,8 @@ A scalable, testable, extensible, template for Sveltekit.
 Sveltekit is awesome, but sometimes you need a bit more capability in the backend than what frameworks like
 NextJS & Sveltekit can deliver.
 
-To remedy this, I've attatched a fully fletched backend to run on the Sveltekit process and forward all API requests to it and paired it with some architectural patterns.
+To remedy this, I've attached a fully fleshed out backend to run on the Sveltekit process and forward all API requests 
+to it and paired it with some architectural patterns.
 
 `/api/[...slugs]`
 
@@ -23,23 +22,29 @@ export const GET: RequestHandler = ({ request }) => app.fetch(request);
 export const PUT: RequestHandler = ({ request }) => app.fetch(request);
 export const DELETE: RequestHandler = ({ request }) => app.fetch(request);
 export const POST: RequestHandler = ({ request }) => app.fetch(request);
+export const fallback: RequestHandler = ({ request }) => app.fetch(request);
 ```
 
 ## Local Setup
 
 1. Make sure Docker is running
 2. Copy the `.env.example` file and rename to `.env`
-3. `pnpm install`
-4. `pnpm initialize`(this will start the docker-compose and run the initial database migration.)
-5. `pnpm dev`
+3. Ensure that DB_SEEDING and DB_MIGRATING are set to `true` in the `.env` for this first run.
+4. `pnpm install`
+5. The database extension `citext` is being used to allow for case-insensitive string matching. To install the extension run `CREATE EXTENSION IF NOT EXISTS citext;` or add inside an additional drizzle SQL file for startup to use.
+6. `pnpm initialize` (this will start the docker-compose and run the initial database migration.)
+7. `pnpm dev`
+8. Ensure that DB_SEEDING and DB_MIGRATING are set back to `false` in the `.env` after initial set up.
 
 No additional setup is required, zero api keys, zero services to signup for, zero cost.
 
 ## How to Use
 
-This is **not** supposed to serve as an all batteries included ["production boilerplate"](https://github.com/ixartz/Next-js-Boilerplate) with 200 useless sponsored features that get in your way. Templates that do this are ANYTHING but "production" and "quick start".
+This is **not** supposed to serve as an all batteries included ["production boilerplate"](https://github.com/ixartz/Next-js-Boilerplate) with 200 useless sponsored features that get in your way.
+Templates that do this are ANYTHING but "production" and "quick start".
 
-This is stack is designed to be library agnostic. The philosophy here is to boostrap the concrete, repetitive, and time consuming tasks that every application will need reguardless of what you're building.
+This is stack is designed to be library agnostic. The philosophy here is to boostrap the concrete, repetitive, 
+and time-consuming tasks that every application will need regardless of what you're building.
 
 **So - fork this repo, add your favorite libraries, and build out your own "more opinionated" personal template tailored to you**!
 
@@ -50,21 +55,23 @@ This is stack is designed to be library agnostic. The philosophy here is to boos
 - 🟢 Custom Fetch Wrapper
 - 🟢 Deployment Template
 - 🟠 Authentication
-  - 🟢 Email/Passkey
+  - 🟢 Email / Passkey
+  - 🟢 Username / Email and Password
   - 🔴 OAuth
-  - 🟢 Email Update/Verifiaction
+  - 🟢 Email Update / Verification
   - 🟢 Rate limiter
 
 ## Technologies
 
-I'm mostly unopinionated or what technology or libaries someone uses. Wanna [uwu'ify](https://www.npmjs.com/package/owoifyx) your entire fucking app? Go for it.
+I'm mostly un-opinionated of what technology or libraries someone uses. Wanna [uwu'ify](https://www.npmjs.com/package/owoifyx) your entire app? Go for it.
 
-That being said, there are some libaries that embody my philosophies of building software more than others,
+That being said, there are some libraries that embody my philosophies of building software more than others,
 
-- [Lucia](https://lucia-auth.com): Hits the right level of abstraction for me. Hand me the tools to build a secure authentication system and let me implement it to suite my needs
-- [Drizzle](https://orm.drizzle.team/) - Drizzle advertises itself as an ORM but I think its deceptive. Its a query builder with a migration client. Everytime I've used an ORM, I find myself fighting it for sometimes the simplist of use cases. Drizzle just gives you type-safety while querying SQL in a native fashion. Learn SQL, not ORMs.
-- [Hono](https://hono.dev/): Fast, lightweight, and built on **web standards**; meaning it can run anywhere you're Sveltekit app can. It's essentially a better, newer, and ironically more stable Express.JS. This provides us an extreemely good foundation to cleanly build ontop of without having to teardown first. It has a zod adapter for validating DTO's which can be shared with the frontend too.
-- [Sveltekit](https://kit.svelte.dev/): After trying Vue, React, Next, and pretty much every frontend framework in the JS ecosystem, its safe to say I vastly prefer Svelte and its priority of building on **web standards**.
+- [Oslo-project](https://oslojs.dev/): Used for implementing crypto, encoding, hashing, and more in the authentication layer.
+- [ArcticJS](https://arcticjs.dev/): Arctic is a collection of OAuth 2.0 clients for popular providers. It only supports the authorization code grant type and intended to be used server-side.
+- [Drizzle](https://orm.drizzle.team/) - Drizzle advertises itself as an ORM, but I think its deceptive. It's a query builder with a migration client. Everytime I've used an ORM, I find myself fighting it for sometimes the simplest of use cases. Drizzle just gives you type-safety while querying SQL in a native fashion. Learn SQL, not ORMs.
+- [Hono](https://hono.dev/): Fast, lightweight, and built on **web standards**; meaning it can run anywhere you're SvelteKit app can. It's essentially a better, newer, and ironically more stable Express.JS. This provides us a perfect foundation to cleanly build on top of without having to teardown first. It has a zod adapter for validating DTO's which can be shared with the frontend too.
+- [SvelteKit](https://svelte.dev/docs/kit/introduction): After trying Vue, React, Next, and pretty much every frontend framework in the JS ecosystem, it's safe to say I vastly prefer Svelte and its priority of building on **web standards**.
 
 ## Architecture
 
@@ -106,6 +113,6 @@ For example, if you want to group folders by domain(DDD), you simply drag and dr
 
 ## Testing
 
-Testing probably isn't first and foremost when creating an app. Thats fine. You should not be spending time writing tests if your app is mutable.
+Testing probably isn't first and foremost when creating an app. That's fine. You should not be spending time writing tests if your app is mutable.
 
-BUT, a good stack should be **testable** when the time to solidify a codebase arrives. I created this stack with that pinciple in mind. I've provided a examples of how to write these tests under `authentication.service.test.ts` or `users.service.test.ts`
+BUT, a good stack should be **testable** when the time to solidify a codebase arrives. I created this stack with that principle in mind. I've provided a examples of how to write these tests under `authentication.service.test.ts` or `users.service.test.ts`

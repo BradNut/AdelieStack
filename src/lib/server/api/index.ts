@@ -9,6 +9,8 @@ extendZodWithOpenApi(z);
 const applicationController = new Container().get(ApplicationController);
 const applicationModule = new Container().get(ApplicationModule);
 
+export const app = applicationModule.app();
+
 /* ------------------------------ startServer ------------------------------ */
 export function startServer() {
 	return applicationModule.start();

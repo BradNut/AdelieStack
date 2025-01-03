@@ -8,14 +8,14 @@
 </script>
 
 <script lang="ts">
-	import * as Card from '$lib/components/ui/card';
-	import { Input } from '$lib/components/ui/input';
-	import * as Form from '$lib/components/ui/form';
+	import * as Card from '@/components/ui/card';
+	import { Input } from '@/components/ui/input';
+	import * as Form from '@/components/ui/form';
 	import { superForm } from 'sveltekit-superforms';
-	import * as Dialog from '$lib/components/ui/dialog';
+	import * as Dialog from '@/components/ui/dialog';
 	// import PinInput from '$lib/components/pin-input.svelte';
-	import type { updateEmailDto } from '$lib/server/api/dtos/update-email.dto';
-	import type { verifyEmailDto } from '$lib/server/api/dtos/verify-email.dto';
+	import type { updateEmailDto } from '@/server/api/dtos/update-email.dto';
+	import type { verifyEmailDto } from '@/server/api/dtos/verify-email.dto';
 
 	/* ---------------------------------- props --------------------------------- */
 	let { updateEmailForm, verifyEmailForm }: UpdateEmailCardProps = $props();

@@ -1,6 +1,6 @@
 import { zod } from "sveltekit-superforms/adapters";
 import { fail, setError, superValidate } from "sveltekit-superforms";
-import { StatusCodes } from "$lib/constants/status-codes.js";
+import { StatusCodes } from "@/constants/status-codes.js";
 import { updateEmailFormSchema, verifyEmailFormSchema } from "./schemas.js";
 
 export let load = async (event) => {

@@ -12,7 +12,7 @@ export function pinoLogger() {
 			{
 				level: configService.envs.LOG_LEVEL || "info",
 			},
-			configService.envs.NODE_ENV === "production" ? undefined : pretty(),
+			configService.envs.NODE_ENV === "production" ? undefined : pretty({ colorize: true }),
 		),
 	});
 }

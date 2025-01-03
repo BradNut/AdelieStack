@@ -1,7 +1,6 @@
 import { ApiClient } from '$lib/server/api';
-import type { User } from 'lucia';
-import { parseApiResponse } from '$lib/utils/api'
-import type { Security } from '$lib/utils/security';
+import type { User } from '$lib/server/api/users/tables/users.table';
+import { parseApiResponse } from '$lib/utils/api';
 
 // See https://kit.svelte.dev/docs/types#app
 // for information about these interfaces
@@ -20,8 +19,6 @@ declare global {
 			getAuthedUser: () => Promise<Returned<User> | null>;
 			getAuthedUserOrThrow: (redirectTo: string) => Promise<Returned<User>>;
 		}
-		// interface PageState {}
-		// interface Platform {}
 		namespace Superforms {
 			type Message = {
 				type: 'error' | 'success' | 'info';

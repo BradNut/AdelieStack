@@ -102,6 +102,6 @@ export class UsersService {
       throw new Error('Password credentials not found');
     }
     const { password } = data;
-    return this.tokenService.verifyHashedToken(credential.secret_data, password);
+    return this.tokenService.verifyHashedToken(password, credential.secret_data);
   }
 }

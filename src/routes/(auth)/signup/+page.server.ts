@@ -17,7 +17,7 @@ const signUpDefaults = {
 export const load = async (event) => {
 	const { locals } = event;
 
-  const { user } = await locals.getAuthedUser();
+  const user = await locals.getAuthedUser();
 
   if (user) {
     const message = { type: 'success', message: 'You are already signed in' } as const;
@@ -35,7 +35,7 @@ export const actions: Actions = {
 	default: async (event) => {
     const { locals } = event;
 
-    const { user } = await locals.getAuthedUser();
+		const user = await locals.getAuthedUser();
 
     if (user) {
       const message = { type: 'success', message: 'You are already signed in' } as const;

@@ -7,7 +7,7 @@ import type { PageServerLoad } from './$types';
 import { signinDto } from '@/server/api/dtos/signin.dto';
 
 export const load: PageServerLoad = async (event) => {
-  const { locals, parent } = event;
+  const { parent } = event;
   const { authedUser } = await parent();
 
   if (authedUser) {
@@ -27,7 +27,7 @@ export const actions: Actions = {
   default: async (event) => {
     const { locals } = event;
 
-    const { user } = await locals.getAuthedUser();
+    const user = await locals.getAuthedUser();
 
     if (user) {
       const message = { type: 'success', message: 'You are already signed in' } as const;
@@ -36,11 +36,11 @@ export const actions: Actions = {
 
     const form = await superValidate(event, zod(signinDto));
 
-    const { error } = await locals.api.login.$post({ json: form.data }).then(locals.parseApiResponse);
+    const { error } = await locals.api.iam.login.$post({ json: form.data }).then(locals.parseApiResponse);
     console.log('Login error', error);
     if (error) {
       console.log('Setting error');
-      return setError(form, 'username', 'An error occurred while logging in.');
+      return setError(form, 'identifier', 'An error occurred while logging in.');
     }
 
     if (!form.valid) {
@@ -50,26 +50,26 @@ export const actions: Actions = {
       });
     }
 
-    form.data.username = '';
+    form.data.identifier = '';
     form.data.password = '';
 
-    const { error: totpCredentialError, data } = await locals.api.mfa.totp.$get().then(locals.parseApiResponse);
-    if (totpCredentialError || !data) {
-      return setError(form, 'username', totpCredentialError ?? 'Something went wrong. Please try again.');
-    }
+    // const { error: totpCredentialError, data } = await locals.api.mfa.totp.$get().then(locals.parseApiResponse);
+    // if (totpCredentialError || !data) {
+    //   return setError(form, 'identifier', totpCredentialError ?? 'Something went wrong. Please try again.');
+    // }
 
-    const { totpCredential } = data;
-    console.log('totpCredential', totpCredential);
-    if (!totpCredential) {
-      const message = { type: 'success', message: 'Signed In!' } as const;
-      redirect(302, '/', message, event);
-    } else if (totpCredential?.type === 'totp' && totpCredential?.secret_data && totpCredential?.secret_data !== '') {
-      console.log('redirecting to TOTP page');
-      const message = { type: 'success', message: 'Please enter your TOTP code.' } as const;
-      redirect(302, '/totp', message, event);
-    } else {
-      return setError(form, 'username', 'Something went wrong. Please try again.');
-    }
+    // const { totpCredential } = data;
+    // console.log('totpCredential', totpCredential);
+    // if (!totpCredential) {
+    //   const message = { type: 'success', message: 'Signed In!' } as const;
+    //   redirect(302, '/', message, event);
+    // } else if (totpCredential?.type === 'totp' && totpCredential?.secret_data && totpCredential?.secret_data !== '') {
+    //   console.log('redirecting to TOTP page');
+    //   const message = { type: 'success', message: 'Please enter your TOTP code.' } as const;
+    //   redirect(302, '/totp', message, event);
+    // } else {
+    //   return setError(form, 'identifier', 'Something went wrong. Please try again.');
+    // }
 
     redirect(StatusCodes.TEMPORARY_REDIRECT, '/');
   },

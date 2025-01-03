@@ -6,7 +6,7 @@
 	import { receive, send } from "$lib/utils/pageCrossfade";
 	import { zodClient } from "sveltekit-superforms/adapters";
 	import { superForm } from "sveltekit-superforms/client";
-	import { signinDto } from '@/dtos/signin.dto.js';
+	import { signinDto } from '@/dtos/signin.dto';
 
 	let { data } = $props();
 
@@ -28,26 +28,26 @@
 			<Card.Title class="text-2xl">Log into your account</Card.Title>
 		</Card.Header>
 		<Card.Content class="grid gap-4">
-			{@render usernamePasswordForm()}
+			{@render usernameEmailForm()}
 			<!-- <span class="text-center text-sm text-muted-foreground">or sign in with</span> -->
 			<!-- {@render oAuthButtons()} -->
 			<p class="px-8 py-4 text-center text-sm text-muted-foreground">
 				By clicking continue, you agree to our
 				<a href="/terms" class="underline underline-offset-4 hover:text-primary"> Terms of Use </a>
 				and
-				<a href="/privacy" class="underline underline-offset-4 hover:text-primary"> Privacy Policy </a>.
+				<a href="/privacy-policy" class="underline underline-offset-4 hover:text-primary"> Privacy Policy </a>.
 			</p>
 		</Card.Content>
 	</Card.Root>
 </div>
 
-{#snippet usernamePasswordForm()}
+{#snippet usernameEmailForm()}
 	<form method="POST" use:loginEnhance>
-		<Form.Field form={sf_login_password} name="username">
+		<Form.Field form={sf_login_password} name="identifier">
 			<Form.Control>
 				{#snippet children({ props })}
-					<Form.Label for="username">Username / Email</Form.Label>
-					<Input {...props} autocomplete="username" placeholder="john.doe@example.com" bind:value={$loginForm.username} />
+					<Form.Label for="identifier">Username / Email</Form.Label>
+					<Input {...props} autocomplete="username" placeholder="john.doe@example.com" bind:value={$loginForm.identifier} />
 				{/snippet}
 			</Form.Control>
 			<Form.FieldErrors />

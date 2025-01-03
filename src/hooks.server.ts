@@ -8,6 +8,9 @@ import { i18n } from './lib/i18n';
 const handleParaglide: Handle = i18n.handle();
 
 export const app = await startServer();
+// export const init: ServerInit = async () => {
+// 	await startServer();
+// };
 
 const apiClient: Handle = async ({ event, resolve }) => {
 	/* ------------------------------ Register api ------------------------------ */
@@ -22,7 +25,8 @@ const apiClient: Handle = async ({ event, resolve }) => {
 	/* ----------------------------- Auth functions ----------------------------- */
 	async function getAuthedUser() {
     const { data } = await api.users.me.$get().then(parseApiResponse);
-    return data?.user;
+		console.log('data', data);
+    return data || null;
   }
 
   async function getAuthedUserOrThrow() {
@@ -30,7 +34,7 @@ const apiClient: Handle = async ({ event, resolve }) => {
     if (!data || !data.user) {
       throw redirect(StatusCodes.TEMPORARY_REDIRECT, '/');
     }
-    return data?.user;
+    return data || null;
   }
 
 	/* ------------------------------ Set contexts ------------------------------ */

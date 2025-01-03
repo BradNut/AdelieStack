@@ -38,7 +38,7 @@ export class TokensService {
     return this.hashingService.hash(token);
   }
 
-  async verifyHashedToken(hashedToken: string, token: string) {
-    return this.hashingService.compare(hashedToken, token);
+  async verifyHashedToken(token: string, hashedToken: string) {
+    return this.hashingService.compare(token, hashedToken);
   }
 }

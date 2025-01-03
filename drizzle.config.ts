@@ -1,16 +1,28 @@
-import type { Config } from 'drizzle-kit';
+import { defineConfig } from 'drizzle-kit';
 
-export default {
-	out: './src/lib/server/api/databases/postgres/migrations',
-	schema: './src/lib/server/api/databases/postgres/tables/*.table.ts',
+/* ------------------------------- !IMPORTANT ------------------------------- */
+/* ---------------- Before running migrations or generations ---------------- */
+/* ------------------ make sure to build the project first ------------------ */
+/* -------------------------------------------------------------------------- */
+
+export default defineConfig({
+	out: './drizzle',
+	schema: './src/lib/server/api/databases/postgres/drizzle-schema.ts',
 	breakpoints: false,
 	strict: true,
+	verbose: true,
 	dialect: 'postgresql',
+	casing: 'snake_case',
 	dbCredentials: {
-		url: process.env.DATABASE_URL!
+		host: process.env.DATABASE_HOST || 'localhost',
+		port: Number(process.envDATABASE_PORT) || 5432,
+		user: process.envDATABASE_USER,
+		password: process.envDATABASE_PASSWORD,
+		database: process.envDATABASE_DB || 'acme',
+		ssl: process.envDATABASE_HOST !== 'localhost',
 	},
 	migrations: {
 		table: 'migrations',
 		schema: 'public'
 	}
-} satisfies Config;
+});

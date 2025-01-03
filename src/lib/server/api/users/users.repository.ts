@@ -1,7 +1,7 @@
 import { injectable } from '@needle-di/core';
 import { takeFirst, takeFirstOrThrow } from '../common/utils/drizzle';
 import { users_table } from './tables/users.table';
-import { eq, type InferSelectModel } from 'drizzle-orm';
+import { eq, or, type InferSelectModel } from 'drizzle-orm';
 import { NotFound } from '../common/utils/exceptions';
 import { DrizzleRepository } from '../common/factories/drizzle-repository.factory';
 
@@ -18,6 +18,14 @@ type Update = Partial<Create>;
 export class UsersRepository extends DrizzleRepository {
   async findOneById(id: string, db = this.drizzle.db) {
     return db.select().from(users_table).where(eq(users_table.id, id)).then(takeFirst);
+  }
+
+  async findOneByEmailOrUsername(identifier: string, db = this.drizzle.db) {
+    return db
+      .select()
+      .from(users_table)
+      .where(or(eq(users_table.email, identifier), eq(users_table.username, identifier)))
+      .then(takeFirst);
   }
 
   async findOneByEmail(email: string, db = this.drizzle.db) {

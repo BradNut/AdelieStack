@@ -1,7 +1,7 @@
 import {z} from "zod";
 
 export const signinDto = z.object({
-	username: z
+	identifier: z
 		.string()
 		.trim()
 		.min(3, { message: 'Must be at least 3 characters' })
