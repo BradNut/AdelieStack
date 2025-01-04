@@ -1,22 +1,22 @@
 import { inject, injectable } from '@needle-di/core';
 import { zValidator } from '@hono/zod-validator';
 import { openApi } from 'hono-zod-openapi';
-import { createLoginRequestDto } from '../iam/login-requests/dtos/create-login-request.dto';
+import { createLoginRequestDto } from '../../../dtos/login/create-login-request.dto';
 import { LoginRequestsService } from '../iam/login-requests/login-requests.service';
-import { verifyLoginRequestDto } from '../iam/login-requests/dtos/verify-login-request.dto';
+import { verifyLoginRequestDto } from '../../../dtos/login/verify-login-request.dto';
 import { SessionsService } from '../iam/sessions/sessions.service';
 import { authState } from '../common/middleware/auth.middleware';
 import { Controller } from '../common/factories/controllers.factory';
-import { loginRequestDto } from './login-requests/dtos/login-request.dto';
+import { loginRequestDto } from '../../../dtos/login/login-request.dto';
 import { signInEmail } from './login-requests/routes/login.routes';
 import { rateLimit } from '../common/middleware/rate-limit.middleware';
 import { LoggerService } from '../common/services/logger.service';
-import { signinDto } from '../dtos/signin.dto';
+import { signinDto } from '../../../dtos/login/signin.dto';
 
 @injectable()
 export class IamController extends Controller {
   constructor(
-		private loggerService = inject(LoggerService),
+    private loggerService = inject(LoggerService),
     private loginRequestsService = inject(LoginRequestsService),
     private sessionsService = inject(SessionsService),
   ) {

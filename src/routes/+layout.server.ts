@@ -1,7 +1,9 @@
-export const load = async ({ locals }) => {
+import { loadFlash } from "sveltekit-flash-message/server";
+
+export const load = loadFlash(async ({ locals }) => {
   const authedUser = await locals.getAuthedUser();
-  console.log('authedUser', authedUser)
+
   return {
-    authedUser
-  }
-}
+    authedUser,
+  };
+});

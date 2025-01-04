@@ -1,7 +1,7 @@
 import { StatusCodes } from '$lib/utils/status-codes';
 import { defineOpenApiOperation } from 'hono-zod-openapi';
 import { createErrorSchema } from 'stoker/openapi/schemas';
-import { loginRequestDto } from '../dtos/login-request.dto';
+import { loginRequestDto } from '../../../../../dtos/login/login-request.dto';
 
 export const signInEmail = defineOpenApiOperation({
   tags: ['Login'],

@@ -1,5 +1,4 @@
-// import { app } from '$lib/server/api';
-import {app} from '../../../hooks.server';
+import { app } from '../../../hooks.server';
 import type { RequestHandler } from '@sveltejs/kit';
 
 export const GET: RequestHandler = ({ request }) => app.request(request);

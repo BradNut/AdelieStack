@@ -4,7 +4,8 @@ import { redirect } from 'sveltekit-flash-message/server';
 import { zod } from 'sveltekit-superforms/adapters';
 import { setError, superValidate } from 'sveltekit-superforms/server';
 import type { PageServerLoad } from './$types';
-import { signinDto } from '@/server/api/dtos/signin.dto';
+import { signinDto } from '@/dtos/login/signin.dto';
+import { SHOW_OAUTH_BUTTONS } from '$env/static/private';
 
 export const load: PageServerLoad = async (event) => {
   const { parent } = event;
@@ -16,10 +17,11 @@ export const load: PageServerLoad = async (event) => {
     throw redirect('/', message, event);
     // redirect(302, '/', message, event)
   }
-  const form = await superValidate(event, zod(signinDto));
+  const loginForm = await superValidate(event, zod(signinDto));
 
   return {
-    form,
+    loginForm,
+    showOAuthButtons: SHOW_OAUTH_BUTTONS === 'true',
   };
 };
 
@@ -34,25 +36,28 @@ export const actions: Actions = {
       throw redirect('/', message, event);
     }
 
-    const form = await superValidate(event, zod(signinDto));
+    const loginForm = await superValidate(event, zod(signinDto));
 
-    const { error } = await locals.api.iam.login.$post({ json: form.data }).then(locals.parseApiResponse);
+    const { error } = await locals.api.iam.login.$post({ json: loginForm.data }).then(locals.parseApiResponse);
     console.log('Login error', error);
     if (error) {
+      loginForm.data.password = '';
       console.log('Setting error');
-      return setError(form, 'identifier', 'An error occurred while logging in.');
+      return setError(loginForm, 'identifier', 'An error occurred while logging in.');
     }
 
-    if (!form.valid) {
-      form.data.password = '';
+    if (!loginForm.valid) {
+      loginForm.data.password = '';
       return fail(400, {
-        form,
+        loginForm,
       });
     }
 
-    form.data.identifier = '';
-    form.data.password = '';
+    loginForm.data.identifier = '';
+    loginForm.data.password = '';
 
+    const message = { type: 'success', message: 'Signed In!' } as const;
+    redirect(302, '/', message, event);
     // const { error: totpCredentialError, data } = await locals.api.mfa.totp.$get().then(locals.parseApiResponse);
     // if (totpCredentialError || !data) {
     //   return setError(form, 'identifier', totpCredentialError ?? 'Something went wrong. Please try again.');
@@ -70,7 +75,5 @@ export const actions: Actions = {
     // } else {
     //   return setError(form, 'identifier', 'Something went wrong. Please try again.');
     // }
-
-    redirect(StatusCodes.TEMPORARY_REDIRECT, '/');
   },
 };

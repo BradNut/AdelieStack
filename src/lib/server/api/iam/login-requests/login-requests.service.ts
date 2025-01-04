@@ -9,9 +9,9 @@ import { CredentialsRepository } from '../../users/credentials.repository';
 import { UsersRepository } from '../../users/users.repository';
 import { UsersService } from '../../users/users.service';
 import { SessionsService } from '../sessions/sessions.service';
-import type { CreateLoginRequestDto } from './dtos/create-login-request.dto';
-import type { SignInDto } from '../../dtos/signin.dto';
-import type { VerifyLoginRequestDto } from './dtos/verify-login-request.dto';
+import type { CreateLoginRequestDto } from '../../../../dtos/login/create-login-request.dto';
+import type { SignInDto } from '../../../../dtos/login/signin.dto';
+import type { VerifyLoginRequestDto } from '../../../../dtos/login/verify-login-request.dto';
 import { LoginRequestsRepository } from './login-requests.repository';
 import { LoggerService } from '../../common/services/logger.service';
 

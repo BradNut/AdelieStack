@@ -15,11 +15,10 @@ const signUpDefaults = {
 };
 
 export const load = async (event) => {
-	const { locals } = event;
+  const { parent } = event;
+  const { authedUser } = await parent();
 
-  const user = await locals.getAuthedUser();
-
-  if (user) {
+  if (authedUser) {
     const message = { type: 'success', message: 'You are already signed in' } as const;
     throw redirect('/', message, event);
   }
@@ -32,25 +31,24 @@ export const load = async (event) => {
 };
 
 export const actions: Actions = {
-	default: async (event) => {
+  default: async (event) => {
     const { locals } = event;
+    const authedUser = await locals.getAuthedUser();
 
-		const user = await locals.getAuthedUser();
-
-    if (user) {
+    if (authedUser) {
       const message = { type: 'success', message: 'You are already signed in' } as const;
       throw redirect('/', message, event);
     }
 
-		const form = await superValidate(event, zod(signupUsernameEmailDto));
+    const form = await superValidate(event, zod(signupUsernameEmailDto));
 
-		console.log('form data', form.data);
+    console.log('form data', form.data);
 
     const { error } = await locals.api.signup.$post({ json: form.data }).then(locals.parseApiResponse);
-		if (error) {
-			console.log('error', error);
-			form.data.password = '';
-			form.data.confirm_password = '';
+    if (error) {
+      console.log('error', error);
+      form.data.password = '';
+      form.data.confirm_password = '';
       return setError(form, 'username', 'Unable to sign up.');
     }
 

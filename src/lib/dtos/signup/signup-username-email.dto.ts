@@ -1,4 +1,4 @@
-import { refinePasswords } from '../validations/account';
+import { refinePasswords } from '../../validations/account';
 import { z } from 'zod';
 
 export const signupUsernameEmailDto = z

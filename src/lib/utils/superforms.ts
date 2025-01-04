@@ -2,7 +2,7 @@ import { toast } from "svelte-sonner";
 import { message, type ErrorStatus, type SuperForm, type SuperValidated } from "sveltekit-superforms";
 
 export type Message = {
-  type: 'error' | 'success',
+  type: 'error' | 'success' | 'info',
   text: string
 }
 
