@@ -23,26 +23,24 @@
 	<title>Acme | Login</title>
 </svelte:head>
 
-<div in:receive={{ key: "auth-card" }} out:send={{ key: "auth-card" }}>
-	<Card.Root class="mx-auto mt-24 max-w-sm">
-		<Card.Header>
-			<Card.Title class="text-2xl">Log into your account</Card.Title>
-		</Card.Header>
-		<Card.Content class="grid gap-4">
-			{@render usernameEmailForm()}
-			{#if showOAuthButtons}
-				<span class="text-center text-sm text-muted-foreground">or sign in with</span>
-				{@render oAuthButtons()}
-			{/if}
-			<p class="px-8 py-4 text-center text-sm text-muted-foreground">
-				By clicking continue, you agree to our
-				<a href="/terms" class="underline underline-offset-4 hover:text-primary"> Terms of Use </a>
-				and
-				<a href="/privacy-policy" class="underline underline-offset-4 hover:text-primary"> Privacy Policy </a>.
-			</p>
-		</Card.Content>
-	</Card.Root>
-</div>
+<Card.Root class="mx-auto mt-24 max-w-sm">
+	<Card.Header>
+		<Card.Title class="text-2xl">Log into your account</Card.Title>
+	</Card.Header>
+	<Card.Content class="grid gap-4">
+		{@render usernameEmailForm()}
+		{#if showOAuthButtons}
+			<span class="text-center text-sm text-muted-foreground">or sign in with</span>
+			{@render oAuthButtons()}
+		{/if}
+		<p class="px-8 py-4 text-center text-sm text-muted-foreground">
+			By clicking continue, you agree to our
+			<a href="/terms" class="underline underline-offset-4 hover:text-primary"> Terms of Use </a>
+			and
+			<a href="/privacy-policy" class="underline underline-offset-4 hover:text-primary"> Privacy Policy </a>.
+		</p>
+	</Card.Content>
+</Card.Root>
 
 {#snippet usernameEmailForm()}
 	<form method="POST" use:loginEnhance>

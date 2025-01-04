@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { page } from "$app/state";
+	import ThemeDropdown from "$lib/components/theme-dropdown.svelte";
 	import { Button } from "$lib/components/ui/button";
 	import Logo from "@/components/logo.svelte";
 
@@ -11,6 +12,7 @@
 		<Logo />
 	</a>
 	<div class="auth-buttons">
+		<ThemeDropdown />
 		{#if page.url.pathname !== "/login"}
 			<Button href="/login" variant="ghost">Login</Button>
 		{/if}
@@ -34,7 +36,7 @@
 			</blockquote>
 		</div>
 	</div>
-	<div>
+	<div class="auth-form">
 		{@render children()}
 	</div>
 </div>
@@ -103,6 +105,9 @@
 
 	:global(.auth-buttons) {
 		position: absolute;
+		display: flex;
+		place-items: center;
+		gap: 0.2rem;
 		top: 1rem;
 		right: 1rem;
 

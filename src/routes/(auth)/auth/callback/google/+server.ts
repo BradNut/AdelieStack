@@ -1,6 +1,6 @@
-import { StatusCodes } from '$lib/utils/status-codes';
 import type { RequestEvent } from '@sveltejs/kit';
 import { redirect } from 'sveltekit-flash-message/server';
+import { StatusCodes } from '$lib/utils/status-codes';
 
 export async function GET(event: RequestEvent): Promise<Response> {
   const { locals, url } = event;

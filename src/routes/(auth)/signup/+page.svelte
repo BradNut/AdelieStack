@@ -24,21 +24,19 @@ const { form: signupForm, errors: signupErrors, enhance: signupEnhance } = sf_si
 	<title>Acme | Sign Up</title>
 </svelte:head>
 
-<div in:receive={{ key: 'auth-card' }} out:send={{ key: 'auth-card' }}>
-	<Card.Root class="mx-auto mt-24 max-w-sm">
-		<Card.Header>
-			<Card.Title class="text-2xl">Signup for an account</Card.Title>
-		</Card.Header>
-		<Card.Content>
-			<div class="grid gap-4">
-				{@render signUpForm()}
-			</div>
-			<div class="mt-4 text-center text-sm">
-				By registering, you agree to our <a href="##" class="underline">Terms of Service</a>
-			</div>
-		</Card.Content>
-	</Card.Root>
-</div>
+<Card.Root class="mx-auto mt-24 max-w-sm">
+	<Card.Header>
+		<Card.Title class="text-2xl">Signup for an account</Card.Title>
+	</Card.Header>
+	<Card.Content>
+		<div class="grid gap-4">
+			{@render signUpForm()}
+		</div>
+		<div class="mt-4 text-center text-sm">
+			By registering, you agree to our <a href="##" class="underline">Terms of Service</a>
+		</div>
+	</Card.Content>
+</Card.Root>
 
 {#snippet signUpForm()}
 	<form method="POST" action="/signup" use:signupEnhance class="grid gap-2 mt-4">
