@@ -1,3 +1,7 @@
+export const alreadySignedInMessage = {
+	type: 'success',
+	message: 'You are already signed in',
+} as const;
 export const notSignedInMessage = {
 	type: 'error',
 	message: 'You are not signed in',

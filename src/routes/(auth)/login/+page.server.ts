@@ -38,19 +38,19 @@ export const actions: Actions = {
 
     const loginForm = await superValidate(event, zod(signinDto));
 
+    if (!loginForm.valid) {
+      loginForm.data.password = '';
+      return fail(StatusCodes.BAD_REQUEST, {
+        loginForm,
+      });
+    }
+
     const { error } = await locals.api.iam.login.$post({ json: loginForm.data }).then(locals.parseApiResponse);
     console.log('Login error', error);
     if (error) {
       loginForm.data.password = '';
       console.log('Setting error');
       return setError(loginForm, 'identifier', 'An error occurred while logging in.');
-    }
-
-    if (!loginForm.valid) {
-      loginForm.data.password = '';
-      return fail(400, {
-        loginForm,
-      });
     }
 
     loginForm.data.identifier = '';
