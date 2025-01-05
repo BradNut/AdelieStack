@@ -1,21 +1,22 @@
-<script context="module" lang="ts">
-	import type { SuperValidated, Infer } from 'sveltekit-superforms';
+<script module lang="ts">
+import type { Infer, SuperValidated } from 'sveltekit-superforms';
 
-	interface UpdateEmailCardProps {
-		updateEmailForm: SuperValidated<Infer<typeof updateEmailDto>>;
-		verifyEmailForm: SuperValidated<Infer<typeof verifyEmailDto>>;
-	}
+interface UpdateEmailCardProps {
+  updateEmailForm: SuperValidated<Infer<typeof updateEmailDto>>;
+  verifyEmailForm: SuperValidated<Infer<typeof verifyEmailDto>>;
+}
 </script>
 
 <script lang="ts">
-	import * as Card from '@/components/ui/card';
-	import { Input } from '@/components/ui/input';
+	import { Button } from '$lib/components/ui/button/index.js';
+	import * as Card from '$lib/components/ui/card/index.js';
+	import { Input } from '$lib/components/ui/input/index.js';
 	import * as Form from '@/components/ui/form';
 	import { superForm } from 'sveltekit-superforms';
 	import * as Dialog from '@/components/ui/dialog';
-	// import PinInput from '$lib/components/pin-input.svelte';
-	import type { updateEmailDto } from '@/server/api/dtos/update-email.dto';
-	import type { verifyEmailDto } from '@/server/api/dtos/verify-email.dto';
+	import * as InputOTP from '$lib/components/ui/input-otp/index.js';
+	import type { updateEmailDto } from '$lib/dtos/update-email.dto';
+	import type { verifyEmailDto } from '$lib/dtos/verify-email.dto';
 
 	/* ---------------------------------- props --------------------------------- */
 	let { updateEmailForm, verifyEmailForm }: UpdateEmailCardProps = $props();
@@ -60,9 +61,11 @@
 	<Card.Content>
 		<form method="POST" action="?/updateEmail" use:updateEmailFormEnhance>
 			<Form.Field form={sf_updateEmailForm} name="email">
-				<Form.Control let:attrs>
-					<Form.Label>Email</Form.Label>
-					<Input {...attrs} bind:value={$updateEmailFormData.email} />
+				<Form.Control>
+					{#snippet children({ props })}
+						<Form.Label>Email</Form.Label>
+						<Input {...props} bind:value={$updateEmailFormData.email} />
+					{/snippet}
 				</Form.Control>
 				<Form.Description />
 				<Form.FieldErrors />
@@ -70,7 +73,9 @@
 		</form>
 	</Card.Content>
 	<Card.Footer class="border-t px-6 py-4">
-		<Form.Button on:click={() => submitEmailForm()}>Submit</Form.Button>
+		<Form.Button>
+			<button onclick={() => submitEmailForm()}>Submit</button>
+		</Form.Button>
 	</Card.Footer>
 </Card.Root>
 
@@ -86,15 +91,27 @@
 		</Dialog.Header>
 		<form method="POST" action="?/verifyEmail" use:verifyEmailFormEnhance>
 			<Form.Field form={sf_verifyEmailForm} name="token">
-				<Form.Control let:attrs>
-					<Form.Label />
-					<!-- <PinInput {...attrs} bind:value={$verifyEmailFormData.token} placeholder="Token..." /> -->
+				<Form.Control>
+						{#snippet children({ props })}
+						<InputOTP.Root maxlength={6} {...props} bind:value={$verifyEmailFormData.token}>
+							{#snippet children({ cells })}
+								<InputOTP.Group>
+									{#each cells as cell}
+										<InputOTP.Slot {cell} />
+									{/each}
+								</InputOTP.Group>
+							{/snippet}
+						</InputOTP.Root>
+					{/snippet}
 				</Form.Control>
 				<Form.FieldErrors />
 			</Form.Field>
 		</form>
 		<Dialog.Footer>
-			<Form.Button on:click={() => verifyEmailFormSubmit()}>Verify</Form.Button>
+			<Button variant="outline">Cancel</Button>
+			<Form.Button onclick={() => verifyEmailFormSubmit()}>
+				Verify
+			</Form.Button>
 		</Dialog.Footer>
 	</Dialog.Content>
 </Dialog.Root>

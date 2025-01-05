@@ -45,6 +45,10 @@
 	const { form: newPasswordFormData, enhance: newPasswordEnhance } = sf_new_password;
 </script>
 
+<svelte:head>
+	<title>Acme | Reset Password</title>
+</svelte:head>
+
 <Card.Root class="mx-auto max-w-sm">
 	<Card.Header>
 		<Card.Title class="text-2xl">Reset Password</Card.Title>

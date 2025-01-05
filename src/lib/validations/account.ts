@@ -1,11 +1,11 @@
-import { z } from 'zod'
+import type { z } from "zod";
 
-export const refinePasswords = async function (confirm_password: string, password: string, ctx: z.RefinementCtx) {
+export const refinePasswords = async (confirm_password: string, password: string, ctx: z.RefinementCtx) => {
 	comparePasswords(confirm_password, password, ctx)
 	checkPasswordStrength(password, ctx)
 }
 
-const comparePasswords = async function (confirm_password: string, password: string, ctx: z.RefinementCtx) {
+const comparePasswords = async (confirm_password: string, password: string, ctx: z.RefinementCtx) => {
 	if (confirm_password !== password) {
 		ctx.addIssue({
 			code: 'custom',
@@ -15,19 +15,19 @@ const comparePasswords = async function (confirm_password: string, password: str
 	}
 }
 
-const checkPasswordStrength = async function (password: string, ctx: z.RefinementCtx) {
+const checkPasswordStrength = async (password: string, ctx: z.RefinementCtx) => {
 	const minimumLength = password.length < 8
 	const maximumLength = password.length > 128
 	const containsUppercase = (ch: string) => /[A-Z]/.test(ch)
 	const containsLowercase = (ch: string) => /[a-z]/.test(ch)
 	const containsSpecialChar = (ch: string) => /[`!@#$%^&*()_\-+=\[\]{};':"\\|,.<>\/?~ ]/.test(ch)
-	let countOfUpperCase = 0,
-		countOfLowerCase = 0,
-		countOfNumbers = 0,
-		countOfSpecialChar = 0
+	let countOfUpperCase = 0;
+	let countOfLowerCase = 0;
+	let countOfNumbers = 0;
+	let countOfSpecialChar = 0;
 	for (let i = 0; i < password.length; i++) {
 		const char = password.charAt(i)
-		if (!isNaN(+char)) {
+		if (!Number.isNaN(+char)) {
 			countOfNumbers++
 		} else if (containsUppercase(char)) {
 			countOfUpperCase++
