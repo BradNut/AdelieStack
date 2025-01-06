@@ -30,6 +30,7 @@ export class IamController extends Controller {
   routes() {
     return this.controller
       .post('/login', openApi(signInEmail), authState('none'), zValidator('json', signinDto), rateLimit({ limit: 3, minutes: 1 }), async (c) => {
+        this.loggerService.log.info(`Login with identifier: ${c.req.valid('json').identifier}`);
         const session = await this.loginRequestsService.login(c.req.valid('json'));
         await this.sessionsService.setSessionCookie(session);
         return c.json({ message: 'welcome' });

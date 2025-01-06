@@ -5,9 +5,9 @@ import { authState } from '../common/middleware/auth.middleware';
 import { zValidator } from '@hono/zod-validator';
 import { updateUserDto } from './dtos/update-user.dto';
 import { EmailChangeRequestsService } from './email-change-requests/email-change-requests.service';
-import { updateEmailDto } from './dtos/update-email.dto';
+import { updateEmailDto } from '$lib/dtos/settings/update-email.dto';
 import { UsersRepository } from './users.repository';
-import { verifyEmailDto } from './dtos/verify-email.dto';
+import { verifyEmailDto } from '$lib/dtos/settings/verify-email.dto';
 import { rateLimit } from '../common/middleware/rate-limit.middleware';
 
 @injectable()
@@ -39,6 +39,7 @@ export class UsersController extends Controller {
 				zValidator('json', updateEmailDto),
 				rateLimit({ limit: 5, minutes: 15 }),
 				async (c) => {
+					c.var.logger.info(`Request email change: ${c.req.valid('json').email}`);
 					await this.emailChangeRequestsService.requestEmailChange(
 						c.var.session.userId,
 						c.req.valid('json').email

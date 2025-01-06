@@ -13,7 +13,9 @@ type UnauthedReturnType = typeof unauthed;
 export function authState(state: 'session'): AuthedReturnType;
 export function authState(state: 'none'): UnauthedReturnType;
 export function authState(state: AuthStates): AuthedReturnType | UnauthedReturnType {
-  if (state === 'session') return authed;
+  if (state === 'session') {
+    return authed;
+  }
   return unauthed;
 }
 

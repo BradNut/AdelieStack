@@ -6,11 +6,13 @@ import { EmailChangeNoticeEmail } from '../../mail/templates/email-change-notice
 import { BadRequest } from '../../common/utils/exceptions';
 import { UsersRepository } from '../users.repository';
 import { VerificationCodesService } from '../../common/services/verification-codes.service';
+import { LoggerService } from '../../common/services/logger.service';
 
 @injectable()
 export class EmailChangeRequestsService {
   constructor(
     private emailChangeRequetsRepository = inject(EmailChangeRequestsRepository),
+    private loggerService = inject(LoggerService),
     private verificationCodesService = inject(VerificationCodesService),
     private mailerService = inject(MailerService),
     private usersRepository = inject(UsersRepository)
@@ -44,19 +46,24 @@ export class EmailChangeRequestsService {
       to: requestedEmail,
       template: new EmailChangeRequestEmail(verificationCode)
     });
+    this.loggerService.log.info(`Email change request sent to ${requestedEmail}`);
   }
 
   async verifyEmailChange(userId: string, verificationCode: string) {
     // Get the email change request
     const emailChangeRequest = await this.emailChangeRequetsRepository.get(userId);
-    if (!emailChangeRequest) throw BadRequest('Bad Request');
+    if (!emailChangeRequest) {
+      throw BadRequest('Bad Request');
+    }
 
     // Verify the verification code
     const isValid = await this.verificationCodesService.verify({
       verificationCode,
       hashedVerificationCode: emailChangeRequest.hashedCode
     });
-    if (!isValid) throw BadRequest('Bad Request');
+    if (!isValid) {
+      throw BadRequest('Bad Request');
+    }
 
     // Update the account's email
     await this.usersRepository.update(userId, {

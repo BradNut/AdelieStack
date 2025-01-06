@@ -1,12 +1,3 @@
-<script module lang="ts">
-import type { Infer, SuperValidated } from 'sveltekit-superforms';
-
-interface UpdateEmailCardProps {
-  updateEmailForm: SuperValidated<Infer<typeof updateEmailDto>>;
-  verifyEmailForm: SuperValidated<Infer<typeof verifyEmailDto>>;
-}
-</script>
-
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button/index.js';
 	import * as Card from '$lib/components/ui/card/index.js';
@@ -15,28 +6,32 @@ interface UpdateEmailCardProps {
 	import { superForm } from 'sveltekit-superforms';
 	import * as Dialog from '@/components/ui/dialog';
 	import * as InputOTP from '$lib/components/ui/input-otp/index.js';
-	import type { updateEmailDto } from '$lib/dtos/update-email.dto';
-	import type { verifyEmailDto } from '$lib/dtos/verify-email.dto';
+	import type { UpdateEmailDto } from '$lib/dtos/settings/update-email.dto';
+	import type { VerifyEmailDto } from '$lib/dtos/settings/verify-email.dto';
 
 	/* ---------------------------------- props --------------------------------- */
-	let { updateEmailForm, verifyEmailForm }: UpdateEmailCardProps = $props();
+	let { updateEmailForm, verifyEmailForm }: { updateEmailForm: UpdateEmailDto; verifyEmailForm: VerifyEmailDto } = $props();
 
 	/* ---------------------------------- state --------------------------------- */
-	let verifyTokenDialogOpen = $state(false);
+	let verifyDialogOpen = $state(false);
 
 	/* ---------------------------------- forms --------------------------------- */
 	const sf_updateEmailForm = superForm(updateEmailForm, {
 		resetForm: false,
 		onUpdated: ({ form }) => {
-			if (!form.valid) return;
-			verifyTokenDialogOpen = true;
+			if (!form.valid) {
+				return;
+			}
+			verifyDialogOpen = true;
 		}
 	});
 
 	const sf_verifyEmailForm = superForm(verifyEmailForm, {
 		onUpdated: ({ form }) => {
-			if (!form.valid) return;
-			verifyTokenDialogOpen = false;
+			if (!form.valid) {
+				return;
+			}
+			verifyDialogOpen = false;
 		}
 	});
 
@@ -80,7 +75,7 @@ interface UpdateEmailCardProps {
 </Card.Root>
 
 <!-- Dialogs -->
-<Dialog.Root bind:open={verifyTokenDialogOpen}>
+<Dialog.Root bind:open={verifyDialogOpen}>
 	<Dialog.Content>
 		<Dialog.Header>
 			<Dialog.Title>Verify Email</Dialog.Title>
@@ -90,10 +85,10 @@ interface UpdateEmailCardProps {
 			</Dialog.Description>
 		</Dialog.Header>
 		<form method="POST" action="?/verifyEmail" use:verifyEmailFormEnhance>
-			<Form.Field form={sf_verifyEmailForm} name="token">
+			<Form.Field form={sf_verifyEmailForm} name="code">
 				<Form.Control>
 						{#snippet children({ props })}
-						<InputOTP.Root maxlength={6} {...props} bind:value={$verifyEmailFormData.token}>
+						<InputOTP.Root maxlength={6} {...props} bind:value={$verifyEmailFormData.code}>
 							{#snippet children({ cells })}
 								<InputOTP.Group>
 									{#each cells as cell}
