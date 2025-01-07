@@ -6,8 +6,9 @@
 	import { superForm } from 'sveltekit-superforms';
 	import * as Dialog from '@/components/ui/dialog';
 	import * as InputOTP from '$lib/components/ui/input-otp/index.js';
-	import type { UpdateEmailDto } from '$lib/dtos/settings/update-email.dto';
-	import type { VerifyEmailDto } from '$lib/dtos/settings/verify-email.dto';
+	import { updateEmailDto, type UpdateEmailDto } from '$lib/dtos/settings/email/update-email.dto';
+	import { verifyEmailDto, type VerifyEmailDto } from '$lib/dtos/settings/email/verify-email.dto';
+	import { zodClient } from 'sveltekit-superforms/adapters';
 
 	/* ---------------------------------- props --------------------------------- */
 	let { updateEmailForm, verifyEmailForm }: { updateEmailForm: UpdateEmailDto; verifyEmailForm: VerifyEmailDto } = $props();
@@ -18,6 +19,7 @@
 	/* ---------------------------------- forms --------------------------------- */
 	const sf_updateEmailForm = superForm(updateEmailForm, {
 		resetForm: false,
+		validators: zodClient(updateEmailDto),
 		onUpdated: ({ form }) => {
 			if (!form.valid) {
 				return;
@@ -27,6 +29,7 @@
 	});
 
 	const sf_verifyEmailForm = superForm(verifyEmailForm, {
+		validators: zodClient(verifyEmailDto),
 		onUpdated: ({ form }) => {
 			if (!form.valid) {
 				return;
@@ -59,7 +62,7 @@
 				<Form.Control>
 					{#snippet children({ props })}
 						<Form.Label>Email</Form.Label>
-						<Input {...props} bind:value={$updateEmailFormData.email} />
+						<Input type="email" autocomplete="email" {...props} bind:value={$updateEmailFormData.email} />
 					{/snippet}
 				</Form.Control>
 				<Form.Description />
@@ -68,8 +71,8 @@
 		</form>
 	</Card.Content>
 	<Card.Footer class="border-t px-6 py-4">
-		<Form.Button>
-			<button onclick={() => submitEmailForm()}>Submit</button>
+		<Form.Button onclick={() => submitEmailForm()}>
+			Submit
 		</Form.Button>
 	</Card.Footer>
 </Card.Root>
