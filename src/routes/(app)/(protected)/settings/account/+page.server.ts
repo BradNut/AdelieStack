@@ -1,11 +1,11 @@
-import { zod } from 'sveltekit-superforms/adapters';
-import { fail, setError, superValidate } from 'sveltekit-superforms';
-import { StatusCodes } from '@/constants/status-codes.js';
 import { updateEmailDto } from '$lib/dtos/settings/email/update-email.dto.js';
 import { verifyEmailDto } from '$lib/dtos/settings/email/verify-email.dto.js';
-import { redirect } from 'sveltekit-flash-message/server';
-import { notSignedInMessage } from '$lib/utils/flashMessages.js';
 import { changePasswordDto } from '$lib/dtos/settings/password/change-password.dto';
+import { notSignedInMessage } from '$lib/utils/flashMessages.js';
+import { StatusCodes } from '@/constants/status-codes.js';
+import { redirect } from 'sveltekit-flash-message/server';
+import { fail, setError, superValidate } from 'sveltekit-superforms';
+import { zod } from 'sveltekit-superforms/adapters';
 
 export const load = async (event) => {
   const { parent } = event;
@@ -52,19 +52,27 @@ export const actions = {
 			return fail(StatusCodes.BAD_REQUEST, { changePasswordForm });
 		}
 
-		const { error } = await locals.api.users.me.password.$put({ json: changePasswordForm.data }).then(locals.parseApiResponse);
+		const data = await locals.api.users.me.password.$put({ json: changePasswordForm.data }).then(locals.parseApiResponse);
+		const { error, response } = data;
+		const { status }: { status: StatusCodes } = response;
+		console.log('data', data);
 		console.log('error', error);
 		if (error) {
-			if (error.status === StatusCodes.UNPROCESSABLE_ENTITY) {
+			console.log('status', status);
+			console.log(StatusCodes.UNPROCESSABLE_ENTITY === status);
+			console.log(StatusCodes.BAD_REQUEST === status);
+			console.log(StatusCodes.UNAUTHORIZED === status);
+			if (status === StatusCodes.UNPROCESSABLE_ENTITY) {
 				return setError(changePasswordForm, 'confirm_password', 'Confirm password does not match');
-			} else if (error.status === StatusCodes.BAD_REQUEST) {
-				return setError(changePasswordForm, 'password', error.message);
-			} else if (error.status === StatusCodes.FORBIDDEN) {
-				return setError(changePasswordForm, 'password', error.message);
-			} else {
-    		console.log('error', error);
-    		return setError(changePasswordForm, 'password', error);
-  		}
+			} else if (status === StatusCodes.BAD_REQUEST) {
+				return setError(changePasswordForm, 'current_password', 'Current password is incorrect');
+			} else if (status === StatusCodes.UNAUTHORIZED) {
+				return setError(changePasswordForm, 'current_password', 'Current password is incorrect');
+			} else if (status === StatusCodes.TOO_MANY_REQUESTS) {
+				return setError(changePasswordForm, 'current_password', 'You have tried to change your password too many times. Please try again later.');
+			}
+			console.log('error', error);
+			return setError(changePasswordForm, 'current_password', error);
 		}
 		return { changePasswordForm };
 	},

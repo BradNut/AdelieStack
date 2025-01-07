@@ -48,12 +48,15 @@ export class UsersController extends Controller {
       })
       .put('/me/password', authState('session'), zValidator('json', changePasswordDto), rateLimit({ limit: 5, minutes: 15 }), async (c) => {
         const { current_password, new_password, confirm_password } = c.req.valid('json');
+				c.var.logger.debug(`Update password: ${current_password} ${new_password} ${confirm_password}`);
         if (new_password !== confirm_password) {
+					c.var.logger.error(`Password mismatch: ${new_password} !== ${confirm_password}`);
           return c.json({ error: 'Passwords do not match' }, StatusCodes.UNPROCESSABLE_ENTITY);
         }
         try {
           const correctPassword = await this.usersService.verifyPassword(c.var.session.userId, { password: current_password });
           if (!correctPassword) {
+						c.var.logger.error('Incorrect password');
             return c.json({ error: 'Unable to update password' }, StatusCodes.UNAUTHORIZED);
           }
           await this.usersService.updatePassword(c.var.session.userId, new_password);
