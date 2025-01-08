@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { page } from '$app/stores';
+	import { page } from '$app/state';
 	import { cn } from '@/utils/ui';
 
 	let { children } = $props();
@@ -17,11 +17,11 @@
 	>
 		<a
 			href="/settings"
-			class={cn($page.url.pathname === '/settings' && 'font-semibold text-primary')}>Profile</a
+			class={cn(page.url.pathname === '/settings' && 'font-semibold text-primary')}>Profile</a
 		>
 		<a
 			href="/settings/account"
-			class={cn($page.url.pathname === '/settings/account' && 'font-semibold text-primary')}
+			class={cn(page.url.pathname === '/settings/account' && 'font-semibold text-primary')}
 			>Account</a
 		>
 	</nav>

@@ -8,7 +8,7 @@ import { DrizzleRepository } from '../common/factories/drizzle-repository.factor
 /* -------------------------------------------------------------------------- */
 /*                                    Types                                   */
 /* -------------------------------------------------------------------------- */
-type Create = Pick<InferSelectModel<typeof users_table>, 'avatar' | 'email' | 'username'>;
+type Create = Pick<InferSelectModel<typeof users_table>, 'avatar' | 'email' | 'username' | 'first_name' | 'last_name'>;
 type Update = Partial<Create>;
 
 /* -------------------------------------------------------------------------- */
@@ -38,7 +38,9 @@ export class UsersRepository extends DrizzleRepository {
 
   async findOneByIdOrThrow(id: string, db = this.drizzle.db) {
     const user = await this.findOneById(id, db);
-    if (!user) throw NotFound('User not found');
+    if (!user) {
+      throw NotFound('User not found');
+    }
     return user;
   }
 

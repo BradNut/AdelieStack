@@ -12,6 +12,7 @@ import { rateLimit } from '../common/middleware/rate-limit.middleware';
 import { changePasswordDto } from '$lib/dtos/settings/password/change-password.dto';
 import { StatusCodes } from '$lib/constants/status-codes';
 import { SessionsService } from '../iam/sessions/sessions.service';
+import { updateProfileDto } from '$lib/dtos/settings/profile/update-profile.dto';
 
 @injectable()
 export class UsersController extends Controller {
@@ -67,6 +68,18 @@ export class UsersController extends Controller {
           console.error('Error updating password', error);
           return c.json({ error: 'Unable to update password' }, StatusCodes.INTERNAL_SERVER_ERROR);
         }
+      })
+      .put('/me/profile', authState('session'), zValidator('json', updateProfileDto), async (c) => {
+        c.var.logger.debug(`Update profile: ${JSON.stringify(c.req.valid('json'))}`);
+        await this.usersService.update(c.var.session.userId, c.req.valid('json'));
+        const user = await this.usersRepository.findOneByIdOrThrow(c.var.session.userId);
+        return c.json(user);
+      })
+      .delete('/me', authState('session'), async (c) => {
+        await this.usersService.delete(c.var.session.userId);
+        await this.sessionsService.invalidateSession('');
+        this.sessionsService.deleteSessionCookie();
+        return c.json({ message: 'User deleted' });
       });
   }
 }

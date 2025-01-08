@@ -48,4 +48,13 @@ export class UserRolesService {
       trx,
     );
   }
+
+  async removeAllRolesFromUser(userId: string, trx: Transaction | null = null) {
+    if (!trx) {
+      return this.userRolesRepository.deleteAllByUserId(userId);
+    }
+
+    return this.userRolesRepository.deleteAllByUserId(userId, trx);
+
+  }
 }

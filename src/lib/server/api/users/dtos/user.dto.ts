@@ -6,6 +6,9 @@ const ACCEPTED_FILE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp
 export const userDto = z.object({
 	id: z.string(),
 	email: z.string().email(),
+	first_name: z.string().trim().min(1, { message: 'Must be at least 1 characters' }).max(50, { message: 'Must be less than 50 characters' }),
+	last_name: z.string().trim().min(1, { message: 'Must be at least 1 characters' }).max(50, { message: 'Must be less than 50 characters' }),
+	username: z.string().trim().min(3, { message: 'Must be at least 3 characters' }).max(50, { message: 'Must be less than 50 characters' }),
 	avatar: z
 		.instanceof(File)
 		.optional()

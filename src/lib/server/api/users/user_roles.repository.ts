@@ -36,4 +36,8 @@ export class UserRolesRepository {
   async delete(id: string, db = this.drizzle.db) {
     return db.delete(user_roles_table).where(eq(user_roles_table.id, id)).returning().then(takeFirstOrThrow);
   }
+
+  async deleteAllByUserId(userId: string, db = this.drizzle.db) {
+    return db.delete(user_roles_table).where(eq(user_roles_table.user_id, userId));
+  }
 }

@@ -9,27 +9,33 @@ import { UsersRepository } from './users.repository';
 import { UserRolesService } from './user_roles.service';
 import { RoleName } from '../roles/tables/roles.table';
 import { BadRequest } from '../common/utils/exceptions';
+import { LoggerService } from '../common/services/logger.service';
+import type { UpdateProfileDto } from '$lib/dtos/settings/profile/update-profile.dto';
 
 @injectable()
 export class UsersService {
   constructor(
     private drizzleService = inject(DrizzleService),
     private credentialsRepository = inject(CredentialsRepository),
+    private loggerService = inject(LoggerService),
     private usersRepository = inject(UsersRepository),
     private userRoleService = inject(UserRolesService),
     private storageService = inject(StorageService),
     private tokenService = inject(TokensService)
   ) {}
 
-  async update(userId: string, updateUserDto: UpdateUserDto) {
+  async update(userId: string, updateUserDto: UpdateProfileDto) {
+    let key: string | null = null;
     if (updateUserDto?.avatar) {
-      const { key } = await this.storageService.upload({ file: updateUserDto.avatar });
-      await this.usersRepository.update(userId, { avatar: key });
+      const response = await this.storageService.upload({ file: updateUserDto.avatar });
+      key = response?.key;
     }
+    this.loggerService.log.info(`Updating user ${userId}, with avatar: ${key}, first_name: ${updateUserDto?.first_name}, last_name: ${updateUserDto?.last_name}`);
+    await this.usersRepository.update(userId, { avatar: key, first_name: updateUserDto?.first_name ?? '', last_name: updateUserDto?.last_name ?? '' });
   }
 
   async createEmail(email: string) {
-    return this.usersRepository.create({ avatar: null, email, username: email });
+    return this.usersRepository.create({ avatar: null, email, username: email, first_name: '', last_name: '' });
   }
 
   async createWithPassword(username: string, password: string, email?: string | undefined) {
@@ -46,7 +52,7 @@ export class UsersService {
 
     return await this.drizzleService.db.transaction(async (trx) => {
       const createdUser = await this.usersRepository.create(
-        { username, email: email || '', avatar: null },
+        { username, email: email || '', avatar: null, first_name: '', last_name: '' },
         trx,
       );
 
@@ -103,5 +109,13 @@ export class UsersService {
     }
     const { password } = data;
     return this.tokenService.verifyHashedToken(password, credential.secret_data);
+  }
+
+  async delete(userId: string) {
+    return await this.drizzleService.db.transaction(async (trx) => {
+      const deletedUser = await this.usersRepository.delete(userId, trx);
+      // await this.userRoleService.removeAllRolesFromUser(userId, trx);
+      return deletedUser;
+    });
   }
 }

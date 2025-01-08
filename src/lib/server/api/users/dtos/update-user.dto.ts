@@ -3,7 +3,9 @@ import { userDto } from './user.dto';
 
 export const updateUserDto = userDto
   .pick({
-    avatar: true
+    avatar: true,
+    first_name: true,
+    last_name: true
   })
   .optional();
 
