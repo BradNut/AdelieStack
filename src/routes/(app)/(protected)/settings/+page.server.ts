@@ -5,6 +5,7 @@ import { fail, message, setError, superValidate } from 'sveltekit-superforms/ser
 import { zod } from 'sveltekit-superforms/adapters';
 import { updateProfileDto } from '$lib/dtos/settings/profile/update-profile.dto';
 import type { Actions } from '@sveltejs/kit';
+import { StatusCodes } from '$lib/constants/status-codes';
 
 export const load: PageServerLoad = async (event) => {
   const { parent } = event;
@@ -62,4 +63,24 @@ export const actions: Actions = {
 
     return message(form, profileUpdatedMessage);
   },
+  deleteAccount: async (event) => {
+    const { locals } = event;
+    const authedUser = await locals.getAuthedUser();
+
+    if (!authedUser) {
+      throw redirect(302, '/login', notSignedInMessage, event);
+    }
+
+    const { error } = await locals.api.users.me.$delete().then(locals.parseApiResponse);
+
+    if (error) {
+      console.log('error', error);
+    }
+
+    const accountDeletedMessage = {
+      type: 'success',
+      message: 'Account deleted! 🎊',
+    };
+    redirect(StatusCodes.SEE_OTHER, '/')
+  }
 };

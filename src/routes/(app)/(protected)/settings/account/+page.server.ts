@@ -55,24 +55,19 @@ export const actions = {
 		const data = await locals.api.users.me.password.$put({ json: changePasswordForm.data }).then(locals.parseApiResponse);
 		const { error, response } = data;
 		const { status }: { status: StatusCodes } = response;
-		console.log('data', data);
-		console.log('error', error);
 		if (error) {
-			console.log('status', status);
-			console.log(StatusCodes.UNPROCESSABLE_ENTITY === status);
-			console.log(StatusCodes.BAD_REQUEST === status);
-			console.log(StatusCodes.UNAUTHORIZED === status);
-			if (status === StatusCodes.UNPROCESSABLE_ENTITY) {
-				return setError(changePasswordForm, 'confirm_password', 'Confirm password does not match');
-			} else if (status === StatusCodes.BAD_REQUEST) {
-				return setError(changePasswordForm, 'current_password', 'Current password is incorrect');
-			} else if (status === StatusCodes.UNAUTHORIZED) {
-				return setError(changePasswordForm, 'current_password', 'Current password is incorrect');
-			} else if (status === StatusCodes.TOO_MANY_REQUESTS) {
-				return setError(changePasswordForm, 'current_password', 'You have tried to change your password too many times. Please try again later.');
-			}
-			console.log('error', error);
-			return setError(changePasswordForm, 'current_password', error);
+			switch (status) {
+        case StatusCodes.UNPROCESSABLE_ENTITY:
+          return setError(changePasswordForm, 'confirm_password', 'Confirm password does not match');
+        case StatusCodes.BAD_REQUEST:
+          return setError(changePasswordForm, 'current_password', 'Current password is incorrect');
+        case StatusCodes.UNAUTHORIZED:
+          return setError(changePasswordForm, 'current_password', 'Current password is incorrect');
+        case StatusCodes.TOO_MANY_REQUESTS:
+          return setError(changePasswordForm, 'current_password', 'You have tried to change your password too many times. Please try again later.');
+        default:
+          return setError(changePasswordForm, 'current_password', error);
+      }
 		}
 		return { changePasswordForm };
 	},

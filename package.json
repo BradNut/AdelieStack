@@ -57,7 +57,7 @@
 		"lucide-svelte": "^0.469.0",
 		"mode-watcher": "^0.5.0",
 		"storybook": "^8.4.7",
-		"svelte": "^5.16.5",
+		"svelte": "^5.16.6",
 		"svelte-check": "^4.0.0",
 		"svelte-meta-tags": "^4.0.4",
 		"svelte-preprocess": "^6.0.3",

@@ -3,7 +3,7 @@
 	import * as Form from "$lib/components/ui/form";
 	import { Input } from "$lib/components/ui/input";
 	import { updateProfileDto, type UpdateProfileDto } from "$lib/dtos/settings/profile/update-profile.dto.js";
-	import { fileProxy, superForm } from "sveltekit-superforms/client";
+	import { superForm } from "sveltekit-superforms/client";
 	import { zodClient } from "sveltekit-superforms/adapters";
 	import * as flashModule from "sveltekit-flash-message/client";
 
@@ -23,13 +23,7 @@
 		enhance: updateProfileEnhance,
 		submit: updateProfileFormSubmit,
 	} = sf_update_profile;
-
-	const avatar = fileProxy(updateProfileFormData, "avatar");
 </script>
-
-<svelte:head>
-	<title>Acme | Settings</title>
-</svelte:head>
 
 <Card.Root>
 	<Card.Header>
