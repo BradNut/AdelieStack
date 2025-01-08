@@ -51,9 +51,15 @@ export const actions: Actions = {
     const { error } = await locals.api.users.me.profile.$put({ json: form.data }).then(locals.parseApiResponse);
 
     if (error) {
-      return setError(form, 'username', error);
+			console.log('error', error);
+      return setError(form, 'username', error.message);
     }
 
-    return message(form, { text: 'Profile updated', type: 'success' });
+		const profileUpdatedMessage = {
+			type: 'success',
+			message: 'Profile updated! 🎊',
+		};
+
+    return message(form, profileUpdatedMessage);
   },
 };

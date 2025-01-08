@@ -70,7 +70,6 @@ export class UsersController extends Controller {
         }
       })
       .put('/me/profile', authState('session'), zValidator('json', updateProfileDto), async (c) => {
-        c.var.logger.debug(`Update profile: ${JSON.stringify(c.req.valid('json'))}`);
         await this.usersService.update(c.var.session.userId, c.req.valid('json'));
         const user = await this.usersRepository.findOneByIdOrThrow(c.var.session.userId);
         return c.json(user);

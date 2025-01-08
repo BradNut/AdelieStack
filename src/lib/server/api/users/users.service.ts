@@ -25,13 +25,19 @@ export class UsersService {
   ) {}
 
   async update(userId: string, updateUserDto: UpdateProfileDto) {
-    let key: string | null = null;
-    if (updateUserDto?.avatar) {
-      const response = await this.storageService.upload({ file: updateUserDto.avatar });
-      key = response?.key;
+    // let key: string | null = null;
+    // if (updateUserDto?.avatar) {
+    //   const response = await this.storageService.upload({ file: updateUserDto.avatar });
+    //   key = response?.key;
+    // }
+    const currentUser = await this.usersRepository.findOneByIdOrThrow(userId);
+    if (currentUser?.username !== updateUserDto?.username) {
+      const existingUserWithUsername = await this.usersRepository.findOneByUsername(updateUserDto.username);
+      if (existingUserWithUsername) {
+        throw BadRequest('Username already exists');
+      }
     }
-    this.loggerService.log.info(`Updating user ${userId}, with avatar: ${key}, first_name: ${updateUserDto?.first_name}, last_name: ${updateUserDto?.last_name}`);
-    await this.usersRepository.update(userId, { avatar: key, first_name: updateUserDto?.first_name ?? '', last_name: updateUserDto?.last_name ?? '' });
+    await this.usersRepository.update(userId, { avatar: null, first_name: updateUserDto?.first_name ?? '', last_name: updateUserDto?.last_name ?? '' });
   }
 
   async createEmail(email: string) {
