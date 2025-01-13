@@ -1,6 +1,6 @@
 <script>
 	import '../app.css';
-	import { page as pageStore } from '$app/stores';
+	import { page } from '$app/state';
 	import { getFlash } from 'sveltekit-flash-message';
 	import { ModeWatcher } from 'mode-watcher';
   import { Toaster } from "$lib/components/ui/sonner";
@@ -12,7 +12,7 @@
 
 	const { data, children } = $props();
 
-	const flash = getFlash(pageStore, {
+	const flash = getFlash(page, {
 		clearOnNavigate: true,
 		clearAfterMs: 3000,
 		clearArray: true,
