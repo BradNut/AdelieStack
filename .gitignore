@@ -1,6 +1,10 @@
 test-results
 node_modules
 
+# IDE
+.idea
+.fleet
+
 # Output
 .output
 .vercel
