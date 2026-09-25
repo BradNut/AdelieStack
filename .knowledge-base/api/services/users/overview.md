@@ -2,31 +2,47 @@
 
 ## Purpose
 
-Manages user profiles, preferences, and account information beyond authentication. Handles user CRUD operations, profile updates, and user-related queries.
+Manages the current user's own profile, credentials, and account lifecycle. Every endpoint is
+self-service — there is no admin-facing user management API.
 
 ## Responsibilities
 
-- User profile management (name, email, avatar)
-- User preferences and settings
-- User search and listing (admin)
-- Account deactivation/deletion
-- User statistics and activity
+- Fetching the current user's profile
+- Updating profile fields and account-level fields
+- Email-change request/verify flow
+- Password change
+- Account deletion
 
-## Core Features
+## Core Features (real endpoints)
 
-- Get user profile by ID
-- Update user profile
-- List users (admin, with pagination/filtering)
-- Search users by name/email
-- Deactivate/reactivate accounts
-- Delete user accounts (GDPR compliance)
+All routes are defined in
+`apps/api/src/lib/server/api/users/users.controller.ts` and are mounted under `/me`:
+
+- `GET /me` — return the current session's user record.
+- `PATCH /me` — update account fields (`multipart/form-data`, via `updateUserDto`); avatar is
+  accepted in the form but not otherwise processed by this handler.
+- `PUT /me/profile` — update profile fields (`updateProfileDto`).
+- `PUT /me/password` — change password; verifies the current password, then invalidates the
+  session and clears the session cookie so the user re-authenticates.
+- `POST /me/email/request` — request an email change (rate-limited, 5 per 15 minutes); delegates
+  to `EmailChangeRequestsService`.
+- `POST /me/email/verify` — verify an email-change code (rate-limited, 5 per 15 minutes).
+- `DELETE /me` — delete the current user's account, then invalidate the session and clear the
+  session cookie.
+
+There is no user listing, search, filtering, pagination, deactivation/reactivation, or
+GDPR-specific deletion workflow — `DELETE /me` is a direct delete of the caller's own account.
 
 ## Integration Points
 
-- **IAM Service**: Current user profile (`/me`)
-- **Donations Service**: User donation history
-- **Requests Service**: User puzzle requests
-- **Storage Service**: Avatar uploads
+- **IAM Service**: sessions (`SessionsService`) are invalidated and the session cookie cleared
+  after password change and account deletion; `authState('session')` middleware guards all
+  mutating routes.
+- **Email Change Requests**: `EmailChangeRequestsService` handles the request/verify email-change
+  flow.
+
+There is no Donations service, Requests service, or admin user-management surface in this
+codebase.
 
 ## Related Documentation
 

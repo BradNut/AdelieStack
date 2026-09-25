@@ -32,7 +32,7 @@
 ### Infrastructure Services
 
 #### PostgreSQL Database
-- **Purpose**: Primary data store for users, puzzles, donations, requests
+- **Purpose**: Primary data store for users, roles, sessions, and account/auth records
 - **ORM**: Drizzle with type-safe queries
 - **Migrations**: Managed via `drizzle-kit`
 - **Connection**: Pooled connections with lazy initialization
@@ -44,20 +44,21 @@
 - **Use Cases**: User sessions, API rate limits, temporary data
 
 #### SeaweedFS Object Storage
-- **Purpose**: S3-compatible file storage for puzzle images and attachments
+- **Purpose**: S3-compatible object storage for user-uploaded files
 - **Integration**: AWS SDK v3
-- **Features**: S3 API on `:8333`; public-read granted via `docker/seaweedfs/s3-config.json`
-- **Security**: ClamAV antivirus scanning on upload
+- **Features**: S3 API on `:8333`; public-read granted via `docker/seaweedfs/s3-config.json`;
+  server-side image resizing via `sharp` (`storage/images.service.ts`)
+- **Security**: no antivirus scanning is wired up — see ClamAV note below
 
 #### Mailpit
 - **Purpose**: Email testing and delivery in development
 - **Integration**: SMTP transport
 - **Use Cases**: Password reset, verification emails, notifications
 
-#### ClamAV
-- **Purpose**: Antivirus scanning for uploaded files
-- **Integration**: ClamAV daemon via TCP socket
-- **Process**: Scan before storage, reject infected files
+#### ClamAV (unused dependency)
+- **Status**: `clamscan` is listed as a dependency in `apps/api/package.json` but is not
+  imported or referenced anywhere in `apps/api/src`. There is no antivirus scanning in the
+  upload path today — this is a declared dependency, not a shipped feature.
 
 #### Spotlight
 - **Purpose**: Error tracking and application monitoring
@@ -67,8 +68,9 @@
 ## Deployment Architecture
 
 ### Coolify Deployment
-- **Platform**: Self-hosted Coolify instance
-- **Build**: Turbo monorepo build with `--filter=@secondchance/api`
+- **Platform**: Self-hosted Coolify instance (Nixpacks or Docker build — see
+  `apps/api/nixpacks.toml` / `apps/api/Dockerfile`)
+- **Build**: Turbo/pnpm build scoped with `--filter @adelie/api...`
 - **Container**: Docker with Node.js runtime
 - **Environment**: Production environment variables via Coolify secrets
 
@@ -89,7 +91,8 @@
 ## Network Architecture
 
 ### URL Structure
-- **Production**: `https://secondchancepuzzles.com/api`
+- **Production**: no fixed public domain is documented in this repo; the API listens on port
+  3001 behind Coolify (see [deployment runbook](./runbooks/deployment.md))
 - **Local Development**: `http://localhost:3000`
 - **API Proxy**: Web app proxies `/api/*` to API service
 
@@ -112,7 +115,7 @@
 
 ### Authentication Flow
 1. User submits credentials
-2. Validate against database (bcrypt hash)
+2. Validate against database (Argon2 hash via `HashingService`)
 3. Create session in Redis
 4. Return session cookie
 5. Subsequent requests include session cookie
@@ -121,10 +124,11 @@
 ### File Upload Flow
 1. Client uploads file via multipart form
 2. API receives and validates file type/size
-3. ClamAV scans file for viruses
-4. If clean, upload to the storage bucket
-5. Store metadata in PostgreSQL
-6. Return file URL to client
+3. Upload to the storage bucket (image files may be resized via `sharp` first)
+4. Store metadata in PostgreSQL
+5. Return file URL to client
+
+> No virus-scanning step exists in this flow today (see ClamAV note above).
 
 ## Monitoring & Observability
 

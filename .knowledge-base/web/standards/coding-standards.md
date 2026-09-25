@@ -7,7 +7,7 @@
 <script lang="ts">
   // 1. Imports - External packages first, then internal
   import { Button } from '$lib/components/ui/button';
-  import { formatDate } from '$lib/utils/format-date';
+  import { cn } from '$lib/utils';
 
   // 2. Type definitions
   interface Props {
@@ -204,15 +204,13 @@ import { db } from '$lib/server/db'; // ERROR!
 ### Shared Code
 ```typescript
 // ✅ Shared utilities (no server dependencies)
-// src/lib/utils/format-date.ts
-export function formatDate(date: Date): string {
-  return date.toLocaleDateString();
+// src/lib/utils/helpers.ts
+export function ciEquals(a: string, b: string) {
+  return a.localeCompare(b, undefined, { sensitivity: 'base' }) === 0;
 }
 
-// ✅ Shared constants
-// src/lib/constants/validation.ts
-export const MAX_NAME_LENGTH = 100;
-export const MIN_PASSWORD_LENGTH = 8;
+// ✅ Shared constants — reuse from @adelie/shared before adding new literals
+import { MAX_NAME_LENGTH, MIN_PASSWORD_LENGTH } from '@adelie/shared';
 ```
 
 ### Client-Only Code
@@ -305,52 +303,56 @@ export function trackEvent(name: string) {
 ```typescript
 // +page.server.ts
 import { fail } from '@sveltejs/kit';
-import { z } from 'zod';
-
-const schema = z.object({
-  email: z.string().email(),
-  password: z.string().min(8)
-});
+import { zod4 } from 'sveltekit-superforms/adapters';
+import { setError, superValidate } from 'sveltekit-superforms/server';
+import { StatusCodes, updateEmailDto } from '@adelie/shared';
+import { honoClient, parseApiResponse } from '$lib/utils/api';
 
 export const actions = {
-  default: async ({ request, fetch }) => {
-    const data = await request.formData();
-    const parsed = schema.safeParse({
-      email: data.get('email'),
-      password: data.get('password')
-    });
+  updateEmail: async ({ request, fetch }) => {
+    const updateEmailForm = await superValidate(request, zod4(updateEmailDto));
 
-    if (!parsed.success) {
-      return fail(400, {
-        errors: parsed.error.flatten().fieldErrors
-      });
+    if (!updateEmailForm.valid) {
+      return fail(StatusCodes.BAD_REQUEST, { updateEmailForm });
     }
 
-    // Process form...
-    return { success: true };
+    const { error } = await parseApiResponse(
+      await honoClient(fetch).users.me.email.request.$post({ json: updateEmailForm.data })
+    );
+
+    if (error) {
+      return setError(updateEmailForm, 'email', 'Unable to update email.');
+    }
+
+    return { updateEmailForm };
   }
 };
 ```
+
+See [Data Fetching](./data-fetching.md) — `honoClient`/`parseApiResponse` from `$lib/utils/api.ts`
+is the standard way to call the API from `load`/actions; branch on `error`/`status`, since
+`parseApiResponse` never throws for non-2xx responses.
 
 ## Load Functions
 
 ### Server Load
 ```typescript
 // +page.server.ts
-export async function load({ fetch, params, cookies }) {
-  // Has access to server-side APIs
-  const session = cookies.get('session');
+import { error } from '@sveltejs/kit';
+import { honoClient, parseApiResponse } from '$lib/utils/api';
 
-  const response = await fetch(`/api/puzzles/${params.id}`, {
-    headers: { cookie: `session=${session}` }
-  });
+export async function load({ fetch }) {
+  // Has access to server-side APIs and SvelteKit's cookie-aware fetch
+  const { data, error: apiError, status } = await parseApiResponse(
+    await honoClient(fetch).users.me.$get()
+  );
 
-  if (!response.ok) {
-    throw error(404, 'Puzzle not found');
+  if (apiError) {
+    error(status, 'Unable to load account');
   }
 
   return {
-    puzzle: await response.json()
+    user: data
   };
 }
 ```
@@ -358,12 +360,14 @@ export async function load({ fetch, params, cookies }) {
 ### Universal Load
 ```typescript
 // +page.ts
-export async function load({ fetch, params }) {
+import { honoClient, parseApiResponse } from '$lib/utils/api';
+
+export async function load({ fetch }) {
   // Runs on both server and client
-  const response = await fetch(`/api/puzzles/${params.id}`);
+  const { data } = await parseApiResponse(await honoClient(fetch).users.me.$get());
 
   return {
-    puzzle: await response.json()
+    user: data
   };
 }
 ```
@@ -373,27 +377,34 @@ export async function load({ fetch, params }) {
 ### Error Pages
 ```svelte
 <!-- +error.svelte -->
-<script>
-  import { page } from '$app/stores';
+<script lang="ts">
+  import { page } from '$app/state';
 </script>
 
 <div class="flex min-h-screen items-center justify-center">
   <div class="text-center">
-    <h1 class="text-4xl font-bold">{$page.status}</h1>
-    <p class="text-gray-600">{$page.error?.message}</p>
+    <h1 class="text-4xl font-bold">{page.status}</h1>
+    <p class="text-gray-600">{page.error?.message}</p>
   </div>
 </div>
 ```
 
-### Try-Catch in Load
+`$app/state` is the current SvelteKit (2.12+) convention — `page` is a runed object (read its
+fields directly, no `$` prefix), unlike the deprecated `$app/stores` reactive store.
+
+### Error Branching in Load
 ```typescript
+import { error } from '@sveltejs/kit';
+import { honoClient, parseApiResponse } from '$lib/utils/api';
+
 export async function load({ fetch }) {
-  try {
-    const response = await fetch('/api/data');
-    return { data: await response.json() };
-  } catch (err) {
-    throw error(500, 'Failed to load data');
+  const { data, error: apiError, status } = await parseApiResponse(await honoClient(fetch).users.me.$get());
+
+  if (apiError) {
+    error(status, 'Failed to load data');
   }
+
+  return { data };
 }
 ```
 
@@ -463,7 +474,7 @@ describe('UserCard', () => {
 
 <input
   type="search"
-  aria-label="Search puzzles"
+  aria-label="Search users"
   placeholder="Search..."
 />
 ```
@@ -490,3 +501,5 @@ describe('UserCard', () => {
 ## Related Documentation
 
 - [Core Principles](../core-principles.md)
+- [Data Fetching](./data-fetching.md)
+- [Testing Standards](./testing-standards.md)

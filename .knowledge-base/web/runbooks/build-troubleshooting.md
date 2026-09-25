@@ -9,11 +9,14 @@
 Fix: use `build:low-mem` instead of `build`:
 
 ```bash
-pnpm --filter @secondchance/web build:low-mem
+pnpm --filter @adelie/web build:low-mem
 # Sets VIPS_CONCURRENCY=1 UV_THREADPOOL_SIZE=2
 ```
 
-Docker already uses `build:low-mem`. Nixpacks uses plain `build` — if OOM, add resource limits in Coolify or switch to Docker build method.
+The real `apps/web/Dockerfile` does **not** use `build:low-mem` — its `build` stage runs plain
+`pnpm --filter @adelie/web run build`. Nixpacks also uses plain `build`. If either build OOMs,
+switch the build command to `build:low-mem` (Dockerfile or Nixpacks build phase) or add resource
+limits in Coolify.
 
 ### Native dep compile error (`sharp`, `libvips`)
 
@@ -23,13 +26,13 @@ If Docker build fails on `sharp`:
 
 ```bash
 # Verify base image has libs
-docker run --rm node:22-alpine apk add vips-dev build-base
+docker run --rm node:24-alpine apk add vips-dev build-base
 ```
 
 ### TypeScript / svelte-check errors
 
 ```bash
-pnpm --filter @secondchance/web check
+pnpm --filter @adelie/web check
 ```
 
 Fails = type errors or boundary violations. Fix root cause — do not add `@ts-ignore`.
@@ -38,7 +41,7 @@ Fails = type errors or boundary violations. Fix root cause — do not add `@ts-i
 
 ```bash
 pnpm install --frozen-lockfile
-pnpm --filter @secondchance/web sync  # svelte-kit sync regenerates $types
+pnpm --filter @adelie/web sync  # svelte-kit sync regenerates $types
 ```
 
 ### Paraglide / i18n compile error
@@ -53,16 +56,32 @@ ls apps/web/messages/
 ### Turbo cache stale
 
 ```bash
-pnpm turbo run build --filter=@secondchance/web --force
+pnpm turbo run build --filter=@adelie/web --force
 ```
 
 ## Local Build Verify
 
 ```bash
-pnpm --filter @secondchance/web build
-pnpm --filter @secondchance/web start
+pnpm --filter @adelie/web build
+pnpm --filter @adelie/web start
 curl -I http://localhost:3000/
 ```
+
+**This will fail as written.** `start` runs `node build` directly (see `apps/web/package.json`),
+with no varlock wrapper. The production build's SSR entry requires varlock to inject the resolved
+env at boot; running it without `varlock run` fails immediately with `initVarlockEnv failed`
+(verified locally — this is the same requirement documented in
+[Deployment](./deployment.md#docker-appswebdockerfile) for the Docker image's `CMD`). To actually
+verify a local production build, run it through varlock instead:
+
+```bash
+pnpm --filter @adelie/web build
+cd apps/web && ./node_modules/.bin/varlock run -- node build
+curl -I http://localhost:3000/   # or the PORT/HOST from your .env
+```
+
+Fixing `start` to invoke `varlock run` for you (instead of documenting the workaround) would be a
+worthwhile follow-up in `apps/web/package.json`.
 
 ## Related
 

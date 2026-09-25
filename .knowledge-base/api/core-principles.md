@@ -46,15 +46,19 @@
 ## Code Organization
 
 ### Service Structure
+
+Modules under `apps/api/src/lib/server/api/` are flat, not nested by layer:
+
 ```
-services/
-  {service-name}/
-    routes/          # Hono route handlers
-    services/        # Business logic
-    repositories/    # Data access layer
-    validations/     # Zod schemas
-    types/           # TypeScript interfaces
+<module>/
+  <module>.controller.ts   # Hono route handlers
+  <module>.service.ts      # Business logic
+  <module>.repository.ts   # Data access layer
+  tables/                  # Drizzle table definitions
+  dtos/                    # Request/response DTOs
 ```
+
+See `apps/api/AGENTS.md`'s "Local Map" section for the authoritative file-path conventions.
 
 ### Naming Conventions
 - **Files**: kebab-case (e.g., `user-service.ts`)

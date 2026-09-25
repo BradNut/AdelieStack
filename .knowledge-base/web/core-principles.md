@@ -146,70 +146,18 @@ let doubled = $derived(count * 2);
 let fullName = $derived(`${user.firstName} ${user.lastName}`);
 ```
 
-### Global State
-Use SvelteKit stores for global state:
-```typescript
-// stores/user.ts
-import { writable } from 'svelte/store';
-
-export const currentUser = writable(null);
-```
-
 ### Server State
-Use load functions for server data:
-```typescript
-// +page.server.ts
-export async function load({ fetch }) {
-  const response = await fetch('/api/users/me');
-  const user = await response.json();
-  return { user };
-}
-```
+`event.locals.api` (a `honoClient` wired up in `hooks.server.ts`) is available to every server
+`load`/action; there is no global writable store for user/session state. See
+[Data Fetching](./standards/data-fetching.md) for the full pattern, including
+`honoClient`/`parseApiResponse`.
 
 ## Data Fetching
 
-### Server Load Functions
-```typescript
-// +page.server.ts
-export async function load({ fetch, params }) {
-  const puzzle = await fetch(`/api/puzzles/${params.id}`);
-  return {
-    puzzle: await puzzle.json()
-  };
-}
-```
-
-### Client Load Functions
-```typescript
-// +page.ts
-export async function load({ fetch }) {
-  // Runs on both server and client
-  const response = await fetch('/api/public/puzzles');
-  return {
-    puzzles: await response.json()
-  };
-}
-```
-
-### Form Actions
-```typescript
-// +page.server.ts
-export const actions = {
-  default: async ({ request, fetch }) => {
-    const data = await request.formData();
-    const response = await fetch('/api/puzzles', {
-      method: 'POST',
-      body: data
-    });
-
-    if (!response.ok) {
-      return fail(400, { error: 'Failed to create puzzle' });
-    }
-
-    return { success: true };
-  }
-};
-```
+Data fetching goes over Hono RPC via `honoClient`/`parseApiResponse` (`$lib/utils/api.ts`), not
+raw `fetch('/api/...')`. Full decision, examples, and the browser-side proxy pattern are
+documented in [Data Fetching](./standards/data-fetching.md) — read that file rather than
+duplicating examples here.
 
 ## Error Handling
 
@@ -252,8 +200,8 @@ const HeavyComponent = lazy(() => import('./HeavyComponent.svelte'));
 ### Image Optimization
 ```svelte
 <img
-  src="/images/puzzle.jpg"
-  alt="Puzzle"
+  src="/images/hero.jpg"
+  alt="Hero"
   loading="lazy"
   decoding="async"
   width="800"
@@ -292,7 +240,7 @@ test('user can login', async ({ page }) => {
   await page.fill('[name="email"]', 'user@example.com');
   await page.fill('[name="password"]', 'password');
   await page.click('button[type="submit"]');
-  await expect(page).toHaveURL('/dashboard');
+  await expect(page).toHaveURL('/');
 });
 ```
 

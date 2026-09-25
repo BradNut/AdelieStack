@@ -10,18 +10,41 @@ Push to `main` → Coolify auto-builds → replaces container on success.
 
 ## Nixpacks (`apps/web/nixpacks.toml`)
 
-- Node 22, apt: `libvips-dev build-essential` (sharp deps)
-- Install: `pnpm install --frozen-lockfile`
-- Build: `pnpm turbo run build --filter=@secondchance/web`
-- Start: `pnpm --filter @secondchance/web start`
+- Node 22, apt: `libvips-dev libvips-tools build-essential libpng-dev libjpeg-dev zlib1g-dev`
+  (sharp / `@sveltejs/enhanced-img` build deps)
+- Install: `corepack enable && corepack prepare pnpm@10.26.0 --activate`, then
+  `pnpm install --frozen-lockfile --filter @adelie/web...`
+- Build: `pnpm --filter @adelie/web run build`
+- Start: `pnpm --filter @adelie/web start`
+
+PUBLIC_-prefixed vars (e.g. `PUBLIC_IMAGE_URI`, required by `apps/web/.env.schema`) are inlined
+into the client bundle at build time via `$env/static/public`, so they must be set as build-time
+variables on the platform, not only at runtime.
 
 ## Docker (`apps/web/Dockerfile`)
 
-Two-stage: `node:22-alpine` builder → runner. Uses `build:low-mem` (VIPS concurrency capped — prevents OOM).
+Five stages, `node:24-alpine` throughout: `base` (pnpm via corepack) → `manifests` (copy
+package.json/lockfile only, for install caching) → `build` (full install + `pnpm --filter
+@adelie/web run build`) → `prod-deps` (production-only install) → `runtime` (prod deps + adapter-node
+build output, runs as non-root `node` user).
 
-```bash
-pnpm --filter @secondchance/web build:low-mem
+`PUBLIC_IMAGE_URI` is a required build arg (`--build-arg PUBLIC_IMAGE_URI=...`) since it's inlined
+into the client bundle at build time.
+
+### Runtime requires `varlock run`
+
+The runtime image's `CMD` is:
+
 ```
+["./node_modules/.bin/varlock", "run", "--", "node", "build"]
+```
+
+This is not optional. The SSR build's varlock integration validates/resolves the runtime env
+against `.env.schema` on boot and expects to be launched through `varlock run` — it injects a
+serialized env blob the build reads at startup. Running the build directly with `node build`
+(skipping `varlock run`) fails immediately with `initVarlockEnv failed` (verified locally). If you
+are deploying via a platform that doesn't honor the Dockerfile `CMD` as-is, you must still invoke
+the app through `varlock run -- node build`, not `node build` alone.
 
 ## Required Env Before Deploy
 

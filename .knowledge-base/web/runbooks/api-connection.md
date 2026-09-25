@@ -28,15 +28,10 @@ If timeout: network/DNS issue between containers. Check Coolify service networki
 
 ### 3. Check proxy handler
 
-`src/routes/api/[...slug]/+server.ts` — forwards all methods. Inspect for recent changes.
-
-### 4. WebAuthn / passkey endpoint
-
-`src/routes/api/webauthn/` has its own handlers. These call the API directly via `API_PROXY_BASE_URL`. Same network check applies.
-
-### 5. Check-password endpoint
-
-`src/routes/api/check-password/` — separate route, not proxied through `[...slug]`. Inspect `+server.ts` for its target URL.
+`src/routes/api/[...slug]/+server.ts` — forwards all methods. Inspect for recent changes. This is
+the **only** route under `apps/web/src/routes/api/` (plus its `tests/` folder) — there are no
+separate per-feature proxy routes (e.g. no webauthn or check-password handlers); every `/api/*`
+request goes through this single catch-all.
 
 ## Common Fixes
 

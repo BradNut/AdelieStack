@@ -2,127 +2,103 @@
 
 ## Purpose
 
-The IAM service handles all authentication and access management functionality for the Second Chance Puzzles platform. It provides secure user authentication, session management, password operations, and multi-step authentication flows.
+The IAM service owns email/password authentication, email-code login and password reset,
+and Redis-backed session lifecycle for the AdelieStack API (`@adelie/api`). It does not own
+user registration, profile management beyond session-derived identity, MFA, or roles/permissions.
 
 ## Responsibilities
 
-- User authentication (login/logout)
-- Session management and validation
-- Password reset and change operations
-- Multi-step authentication flows
-- Passkey-based authentication
-- Two-factor authentication integration
-- User profile management (`/me` endpoint)
+- Password login (`POST /login`)
+- Passwordless email-code login request/verify (`POST /login/request`, `POST /login/verify`)
+- Logout (`POST /logout`)
+- Password reset request/verify/complete (`POST /password/reset/request`,
+  `POST /password/reset/verify`, `POST /password/reset`)
+- Session creation, validation, extension, and invalidation (Redis-backed)
+
+`GET /api/users/me` (current-user profile) is owned by the Users service, not IAM.
 
 ## Key Concepts
 
-### Authentication Flow
-1. User submits credentials
-2. Credentials validated against database
-3. Session created in Redis
-4. Session cookie returned to client
-5. Subsequent requests validated via session
+### Password Login Flow
+1. Client submits `identifier` (username or email) and `password` to `POST /login`.
+2. `LoginRequestsService.login` looks up the user, loads their `PASSWORD` credential, and
+   verifies it with `HashingService` (Argon2).
+3. On success, `SessionsService.createSession` writes a session to Redis and the controller
+   sets a signed session cookie.
+
+### Email-Code Login Flow
+1. Client posts an email to `POST /login/request`; `LoginRequestsService.sendVerificationCode`
+   generates a 6-character code, hashes it, stores it in Redis via `LoginRequestsRepository`,
+   and emails it with `MailerService`.
+2. Client posts the email + code to `POST /login/verify`; on a valid code the existing user is
+   logged in, or a new user is created (`UsersService.createEmail`) and logged in — this is the
+   only signup path reachable through IAM routes.
 
 ### Session Management
-- Sessions stored in Redis for fast access
-- Configurable session expiration
-- Automatic cleanup of expired sessions
-- Session rotation on privilege changes
-
-### Multi-Step Authentication
-- Support for progressive authentication
-- Step-based verification (email, password, MFA)
-- State management across authentication steps
+- Sessions are stored in Redis (`SessionsRepository`, keyed by session id) with a TTL derived
+  from `expiresAt`.
+- `SessionsService.validateSession` extends (re-persists) a session when fewer than 15 days of
+  its 30-day lifetime remain ("fresh" sessions get their cookie re-set).
+- The session cookie is a signed cookie (`hono/cookie`) named `session`, `httpOnly`, `sameSite: lax`,
+  and `secure` only when `ENV === 'prod'`.
 
 ## Technology Stack
 
-- **Framework**: Hono
-- **Session Store**: Redis (ioredis)
-- **Password Hashing**: bcrypt
-- **Validation**: Zod schemas
-- **Database**: PostgreSQL via Drizzle ORM
+- **Framework**: Hono, via `IamController` (`Controller` factory) mounted at `/api/iam`
+- **Session Store**: Redis (`ioredis`, via `RedisRepository`)
+- **Password Hashing**: Argon2 (`argon2` package, wrapped by `HashingService`)
+- **Validation**: Zod schemas from `@adelie/shared` (`zValidator` / `@hono/zod-validator`)
+- **Database**: PostgreSQL via Drizzle ORM (`users_table`, `credentials_table`)
 
 ## Service Structure
 
 ```
-iam/
-├── routes/
-│   ├── auth-step.routes.ts       # Multi-step auth flow
-│   ├── login.routes.ts            # Standard login
-│   ├── passkey-login.routes.ts   # Passkey authentication
-│   ├── password-reset.routes.ts  # Password reset flow
-│   ├── sessions.routes.ts        # Session management
-│   ├── two-factor.routes.ts      # 2FA integration
-│   └── me.routes.ts              # Current user profile
-├── services/
-│   ├── auth.service.ts           # Core authentication logic
-│   ├── session.service.ts        # Session operations
-│   └── password.service.ts       # Password operations
-├── repositories/
-│   └── user.repository.ts        # User data access
-├── validations/
-│   └── auth.validation.ts        # Auth input schemas
-└── types/
-    └── auth.types.ts             # TypeScript interfaces
+apps/api/src/lib/server/api/iam/
+├── iam.controller.ts                 # mounts /api/iam routes
+├── login-requests/
+│   ├── login-requests.repository.ts  # Redis-backed login-code storage
+│   ├── login-requests.service.ts     # password + email-code login logic
+│   └── routes/login.routes.ts        # OpenAPI operation for POST /login
+├── reset-password-requests/
+│   ├── reset-password-requests.repository.ts
+│   └── reset-password-requests.service.ts
+└── sessions/
+    ├── sessions.repository.ts        # Redis-backed session storage
+    ├── sessions.service.ts           # cookie + session lifecycle
+    └── dtos/                         # create-session-dto, session.dto
 ```
 
-## Core Features
-
-### Login
-- Email/password authentication
-- Passkey (WebAuthn) authentication
-- Rate limiting on failed attempts
-- Account lockout protection
-
-### Session Management
-- Create/validate/destroy sessions
-- Session refresh
-- Multi-device session support
-- Session activity tracking
-
-### Password Operations
-- Password reset via email
-- Password change (authenticated)
-- Password strength validation
-- Secure password hashing
-
-### User Profile
-- Get current user information
-- Update user profile
-- Account settings management
+There are no passkey, WebAuthn, 2FA/MFA, auth-step, or audit modules under `iam/`.
 
 ## Security Considerations
 
-- Passwords hashed with bcrypt (12 rounds)
-- Sessions stored in Redis with expiration
-- Rate limiting on authentication endpoints
-- CSRF protection on state-changing operations
-- Secure session cookies (HttpOnly, Secure, SameSite)
+- Passwords hashed with Argon2 (`argon2` npm package), not bcrypt.
+- Sessions stored in Redis with a TTL matching `expiresAt`.
+- `POST /login` is rate-limited (3 requests/minute, keyed by session user or `x-forwarded-for` +
+  route) via `rateLimit` middleware (`hono-rate-limiter` + `rate-limit-redis`).
+- Session cookies are signed, `httpOnly`, `sameSite: lax`, and `secure` in production.
+- No account lockout, CSRF token, or audit-logging mechanism exists in this module.
 
 ## Dependencies
 
 ### Internal
-- `@secondchance/shared` - Shared constants and types
-- Database service (Drizzle)
-- Redis service (session storage)
-- Email service (password reset)
+- `@adelie/shared` - Zod DTOs (`signinDto`, `createLoginRequestDto`, etc.) and `StatusCodes`
+- `UsersRepository` / `UsersService` / `CredentialsRepository` (Users service) - credential and
+  user lookups
+- `RedisService` (session storage, rate limiting)
+- `MailerService` (login-code and reset-code emails)
 
 ### External
-- `bcrypt` - Password hashing
-- `ioredis` - Redis client
-- `zod` - Input validation
-- `hono` - Web framework
-
-## Integration Points
-
-- **MFA Service**: Two-factor authentication verification
-- **Email Service**: Password reset emails
-- **Audit Service**: Authentication event logging
-- **User Service**: User profile data
+- `argon2` - password hashing
+- `ioredis` (via `RedisRepository`) - Redis client
+- `zod` - input validation
+- `hono`, `hono-rate-limiter`, `rate-limit-redis` - web framework and rate limiting
 
 ## Related Documentation
 
 - [API Documentation](./api-doc.md)
 - [Business Processes](./business-processes.md)
+- [Context](./context.md)
 - [Data Model](./data-model.md)
+- [Dependencies](./dependencies.md)
 - [Runbook](./runbook.md)

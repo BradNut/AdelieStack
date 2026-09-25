@@ -19,20 +19,24 @@
 ```
 
 ### Password Security
-- **Hashing**: bcrypt with salt rounds ≥ 10
+- **Hashing**: Argon2 (via the `argon2` package), using library defaults
 - **Minimum Length**: 8 characters
 - **Complexity**: Enforce strong passwords
 - **Storage**: Never store plaintext passwords
 - **Reset**: Time-limited reset tokens
 
+Hashing is centralized in `HashingService`
+(`apps/api/src/lib/server/api/common/services/hashing.service.ts`); callers should not import
+`argon2` directly.
+
 ```typescript
-import bcrypt from 'bcrypt';
+import { hash, verify } from 'argon2';
 
 // Hash password
-const hashedPassword = await bcrypt.hash(password, 12);
+const hashedPassword = await hash(password);
 
 // Verify password
-const isValid = await bcrypt.compare(password, hashedPassword);
+const isValid = await verify(hashedPassword, password);
 ```
 
 ## Authorization
@@ -284,13 +288,23 @@ await auditLog.create({
 
 ## Multi-Factor Authentication (MFA)
 
-### Supported Methods
-- **TOTP** - Time-based one-time passwords (Google Authenticator, Authy)
-- **Passkeys** - WebAuthn/FIDO2 passwordless authentication
-- **Security Keys** - Hardware security keys (YubiKey)
-- **Recovery Codes** - Backup codes for account recovery
+MFA is **scaffolded but stubbed**, not a working feature — see
+[MFA service overview](../services/mfa/overview.md) for the current state. `apps/api/src/lib/server/api/mfa/`
+has a controller endpoint that always returns `501 Not Implemented`, a TOTP service stub whose
+methods return `false`/throw, and two unused Drizzle tables (`two_factor`, `recovery_codes`). No
+passkey, WebAuthn, or security-key code exists anywhere in the API.
 
-### MFA Enforcement
+### Planned Methods (not implemented)
+- **TOTP** - Time-based one-time passwords, intended to build on the existing `@oslojs/otp`
+  dependency
+- **Recovery Codes** - Backup codes for account recovery, backed by the existing `recovery_codes`
+  table
+
+`@oslojs/webauthn` is listed in `apps/api/package.json` but no MFA code imports or calls it today;
+no passkey/WebAuthn route, controller, or hardware-security-key support exists anywhere in the
+API and none should be assumed to exist.
+
+### MFA Enforcement (planned)
 - Optional for regular users
 - Required for admin accounts
 - Enforce on sensitive operations

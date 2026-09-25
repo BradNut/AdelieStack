@@ -7,13 +7,13 @@
 ```bash
 # 1. Edit schema in src/lib/server/api/databases/postgres/schema/
 # 2. Generate migration SQL
-pnpm --filter @secondchance/api db:generate
+pnpm --filter @adelie/api db:generate
 
 # 3. Review generated SQL in drizzle/
 git diff drizzle/
 
 # 4. Apply to local DB
-pnpm --filter @secondchance/api db:migrate
+pnpm --filter @adelie/api db:migrate
 ```
 
 ## Production Migrations
@@ -23,7 +23,7 @@ Docker startup runs `DB_MIGRATING=true pnpm db:migrate` automatically before sta
 Nixpacks deployment: migrations do **not** run automatically. Must run manually or via Coolify pre-deploy hook:
 
 ```bash
-pnpm --filter @secondchance/api db:migrate
+pnpm --filter @adelie/api db:migrate
 ```
 
 ## Commands
@@ -39,7 +39,7 @@ pnpm --filter @secondchance/api db:migrate
 ## Seeding
 
 ```bash
-DB_SEEDING=true ADMIN_USERNAME=admin ADMIN_PASSWORD=<pw> pnpm --filter @secondchance/api db:seed
+DB_SEEDING=true ADMIN_USERNAME=admin ADMIN_PASSWORD=<pw> pnpm --filter @adelie/api db:seed
 ```
 
 Or set `DB_SEEDING=true` in env and restart Docker container (seed runs after migrate).

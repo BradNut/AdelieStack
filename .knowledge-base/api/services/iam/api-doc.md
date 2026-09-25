@@ -1,384 +1,178 @@
 # IAM API Documentation
 
+All routes are defined by `IamController.routes()`
+(`apps/api/src/lib/server/api/iam/iam.controller.ts`) and mounted at `/api/iam` in
+`ApplicationController.registerControllers()`. Responses are plain JSON objects — there is no
+`{data, error}` envelope. Validation failures from `zValidator` return Hono/Zod's standard
+422 (`Unprocessable Entity`) shape; thrown domain errors (`BadRequest`, `Unauthorized`) go through
+the shared `onError` handler.
+
 ## Endpoints
 
-### Authentication
+### POST /api/iam/login
 
-#### POST /api/auth/login
-Authenticate user with email and password.
+Authenticate with an identifier (username or email) and password.
 
-**Request:**
+**Auth state:** `none` (must not already be logged in)
+**Rate limit:** 3 requests/minute (see [Dependencies](./dependencies.md))
+
+**Request** (`signinDto` from `@adelie/shared`):
 ```typescript
 {
-  "email": "user@example.com",
-  "password": "SecurePassword123"
+  identifier: string; // username or email, trimmed
+  password: string;   // non-empty
 }
 ```
 
 **Response (200):**
 ```typescript
-{
-  "data": {
-    "user": {
-      "id": "user_123",
-      "email": "user@example.com",
-      "name": "John Doe"
-    },
-    "requiresMfa": false
-  }
-}
+{ "message": "welcome" }
 ```
+The session cookie is set as a side effect (`SessionsService.setSessionCookie`).
 
-**Response (401):**
-```typescript
-{
-  "error": {
-    "code": "INVALID_CREDENTIALS",
-    "message": "Invalid email or password"
-  }
-}
-```
-
-**Rate Limit:** 5 requests per minute per IP
+**Errors:** `BadRequest` ("Invalid credentials") when the identifier isn't found, no password
+credential exists, or the password doesn't match.
 
 ---
 
-#### POST /api/auth/logout
-Logout current user and destroy session.
+### POST /api/iam/login/request
 
-**Request:** No body required
+Send a one-time email verification code to start passwordless/new-account login.
+
+**Auth state:** `none`
+
+**Request** (`createLoginRequestDto`):
+```typescript
+{ email: string; } // z.string().email()
+```
 
 **Response (200):**
 ```typescript
-{
-  "data": {
-    "success": true
-  }
-}
+{ "message": "welcome" }
 ```
 
 ---
 
-#### POST /api/auth/passkey/login
-Authenticate user with passkey (WebAuthn).
+### POST /api/iam/login/verify
 
-**Request:**
+Verify the emailed code. Logs in an existing user, or creates a new user (email-only account)
+and logs them in — this is the only signup path reachable through IAM routes.
+
+**Auth state:** `none`
+
+**Request** (`verifyLoginRequestDto`):
 ```typescript
 {
-  "credential": {
-    "id": "credential_id",
-    "rawId": "...",
-    "response": {
-      "authenticatorData": "...",
-      "clientDataJSON": "...",
-      "signature": "..."
-    },
-    "type": "public-key"
-  }
+  email: string;
+  code: string; // fixed length, VERIFICATION_CODE_LENGTH
 }
 ```
 
 **Response (200):**
 ```typescript
-{
-  "data": {
-    "user": {
-      "id": "user_123",
-      "email": "user@example.com",
-      "name": "John Doe"
-    }
-  }
-}
+{ "message": "welcome" }
 ```
+
+**Errors:** `BadRequest` ("Invalid code") if no pending request exists for the email or the code
+doesn't match.
 
 ---
 
-### Password Management
+### POST /api/iam/logout
 
-#### POST /api/auth/password/reset-request
-Request password reset email.
+Invalidate the current session and clear the session cookie.
 
-**Request:**
+**Response (200):**
+```typescript
+{ "message": "logout" }
+```
+
+Note: the controller currently calls `invalidateSession('')` rather than the caller's actual
+session id — the cookie is cleared regardless via `deleteSessionCookie()`.
+
+---
+
+### POST /api/iam/password/reset/request
+
+Request a password-reset email code.
+
+**Auth state:** `none`
+
+**Request** (`resetPasswordEmailDto`):
+```typescript
+{ email: string; } // trimmed, email format, max 64 chars
+```
+
+**Response (200):**
+```typescript
+{ "message": "success" }
+```
+
+If no user matches the email, the service silently returns (no error, no email sent).
+
+---
+
+### POST /api/iam/password/reset/verify
+
+Verify a password-reset code.
+
+**Auth state:** `none`
+
+**Request** (`resetPasswordCodeDto`):
 ```typescript
 {
-  "email": "user@example.com"
+  email: string; // trimmed, email format
+  code: string;  // trimmed, exactly 6 characters
 }
 ```
 
 **Response (200):**
 ```typescript
-{
-  "data": {
-    "message": "If the email exists, a reset link has been sent"
-  }
-}
+{ "message": "success" }
 ```
 
-**Note:** Always returns success to prevent email enumeration.
+**Errors:** `BadRequest` ("Invalid code") or `BadRequest` ("Unable to reset password") if no user
+exists for the email.
 
 ---
 
-#### POST /api/auth/password/reset
-Reset password with token from email.
+### POST /api/iam/password/reset
 
-**Request:**
+Set a new password after a verified reset.
+
+**Auth state:** `none`
+
+**Request** (`resetPasswordNewPasswordDto`):
 ```typescript
 {
-  "token": "reset_token_from_email",
-  "newPassword": "NewSecurePassword123"
+  email: string;            // trimmed, email format
+  password: string;         // non-empty
+  confirm_password: string; // must match password (superRefine)
 }
 ```
 
 **Response (200):**
 ```typescript
-{
-  "data": {
-    "success": true
-  }
-}
+{ "message": "welcome" }
 ```
 
-**Response (400):**
-```typescript
-{
-  "error": {
-    "code": "INVALID_TOKEN",
-    "message": "Invalid or expired reset token"
-  }
-}
-```
+**Errors:** `BadRequest` ("Passwords do not match") or `BadRequest` ("Unable to reset password")
+if no user exists for the email.
 
 ---
 
-#### POST /api/auth/password/change
-Change password (requires authentication).
+## Related, non-IAM endpoints
 
-**Request:**
-```typescript
-{
-  "currentPassword": "OldPassword123",
-  "newPassword": "NewSecurePassword123"
-}
-```
-
-**Response (200):**
-```typescript
-{
-  "data": {
-    "success": true
-  }
-}
-```
-
-**Response (401):**
-```typescript
-{
-  "error": {
-    "code": "INVALID_PASSWORD",
-    "message": "Current password is incorrect"
-  }
-}
-```
-
----
-
-### Session Management
-
-#### GET /api/auth/sessions
-Get all active sessions for current user.
-
-**Response (200):**
-```typescript
-{
-  "data": [
-    {
-      "id": "session_123",
-      "createdAt": "2024-01-01T00:00:00Z",
-      "lastActivity": "2024-01-01T12:00:00Z",
-      "ipAddress": "192.168.1.1",
-      "userAgent": "Mozilla/5.0...",
-      "current": true
-    }
-  ]
-}
-```
-
----
-
-#### DELETE /api/auth/sessions/:sessionId
-Revoke a specific session.
-
-**Response (200):**
-```typescript
-{
-  "data": {
-    "success": true
-  }
-}
-```
-
----
-
-#### DELETE /api/auth/sessions
-Revoke all sessions except current.
-
-**Response (200):**
-```typescript
-{
-  "data": {
-    "revokedCount": 3
-  }
-}
-```
-
----
-
-### User Profile
-
-#### GET /api/auth/me
-Get current authenticated user profile.
-
-**Response (200):**
-```typescript
-{
-  "data": {
-    "id": "user_123",
-    "email": "user@example.com",
-    "name": "John Doe",
-    "roles": ["user"],
-    "mfaEnabled": true,
-    "createdAt": "2024-01-01T00:00:00Z",
-    "updatedAt": "2024-01-01T00:00:00Z"
-  }
-}
-```
-
-**Response (401):**
-```typescript
-{
-  "error": {
-    "code": "UNAUTHORIZED",
-    "message": "Authentication required"
-  }
-}
-```
-
----
-
-#### PATCH /api/auth/me
-Update current user profile.
-
-**Request:**
-```typescript
-{
-  "name": "Jane Doe",
-  "email": "newemail@example.com"
-}
-```
-
-**Response (200):**
-```typescript
-{
-  "data": {
-    "id": "user_123",
-    "email": "newemail@example.com",
-    "name": "Jane Doe",
-    "updatedAt": "2024-01-01T12:00:00Z"
-  }
-}
-```
-
----
-
-### Multi-Step Authentication
-
-#### POST /api/auth/step
-Progress through multi-step authentication flow.
-
-**Request:**
-```typescript
-{
-  "step": "email",
-  "data": {
-    "email": "user@example.com"
-  }
-}
-```
-
-**Response (200):**
-```typescript
-{
-  "data": {
-    "nextStep": "password",
-    "requiresMfa": false
-  }
-}
-```
-
----
-
-## Validation Schemas
-
-### Login Schema
-```typescript
-{
-  email: string (email format),
-  password: string (min 8 characters)
-}
-```
-
-### Password Reset Request Schema
-```typescript
-{
-  email: string (email format)
-}
-```
-
-### Password Reset Schema
-```typescript
-{
-  token: string (required),
-  newPassword: string (min 8 characters)
-}
-```
-
-### Password Change Schema
-```typescript
-{
-  currentPassword: string (required),
-  newPassword: string (min 8 characters)
-}
-```
-
-### Profile Update Schema
-```typescript
-{
-  name?: string (1-100 characters),
-  email?: string (email format)
-}
-```
-
-## Error Codes
-
-| Code | Status | Description |
-|------|--------|-------------|
-| `INVALID_CREDENTIALS` | 401 | Email or password incorrect |
-| `ACCOUNT_LOCKED` | 403 | Too many failed login attempts |
-| `INVALID_TOKEN` | 400 | Reset token invalid or expired |
-| `INVALID_PASSWORD` | 401 | Current password incorrect |
-| `EMAIL_EXISTS` | 409 | Email already in use |
-| `RATE_LIMIT_EXCEEDED` | 429 | Too many requests |
-| `UNAUTHORIZED` | 401 | Authentication required |
-| `SESSION_EXPIRED` | 401 | Session has expired |
+- `GET /api/users/me` — current-user profile, owned by `UsersController`, not IAM.
+- `GET /healthz`, `GET /rate-limit` — top-level health/rate-limit probes on
+  `ApplicationController`, not under `/api/iam`.
 
 ## Rate Limits
 
 | Endpoint | Limit |
 |----------|-------|
-| `POST /api/auth/login` | 5 requests/minute per IP |
-| `POST /api/auth/password/reset-request` | 3 requests/hour per IP |
-| `POST /api/auth/password/reset` | 5 requests/hour per IP |
-| Other endpoints | 100 requests/minute per user |
+| `POST /api/iam/login` | 3 requests/minute, keyed by session user id (or `x-forwarded-for`) + route |
+| All other IAM endpoints | none applied in `iam.controller.ts` |
 
 ## Related Documentation
 

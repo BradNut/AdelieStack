@@ -10,67 +10,55 @@
 - **DELETE** - Remove resource (idempotent)
 
 ### URL Structure
+
+Routes are **not versioned**. Each controller is mounted at a fixed base path under `/api` in
+`apps/api/src/lib/server/api/application.controller.ts` (e.g. `.route('/iam', ...)`,
+`.route('/users', ...)`, `.route('/signup', ...)`), and route handlers add the remaining path:
+
 ```
-/api/{version}/{resource}/{id}/{sub-resource}
+/api/{controller-base}/{path}
 ```
 
-Examples:
-- `GET /api/v1/users` - List users
-- `GET /api/v1/users/:id` - Get specific user
-- `POST /api/v1/users` - Create user
-- `PATCH /api/v1/users/:id` - Update user
-- `DELETE /api/v1/users/:id` - Delete user
-- `GET /api/v1/users/:id/donations` - Get user's donations
+Examples (from `iam/iam.controller.ts`, `users/users.controller.ts`, `signup/signup.controller.ts`):
+- `POST /api/iam/login` - Sign in with email/password
+- `POST /api/iam/logout` - Sign out
+- `POST /api/iam/password/reset/request` - Request a password reset code
+- `GET /api/users/me` - Get the current user
+- `PATCH /api/users/me` - Update the current user (form data)
+- `PUT /api/users/me/password` - Change the current user's password
+- `DELETE /api/users/me` - Delete the current user
+- `POST /api/signup` - Create an account
 
 ## Response Format
 
+Controllers return plain JSON via `c.json(...)` — there is no `{data, meta}` / `{error}`
+envelope. Success responses are the resource (or a `{ message: string }` acknowledgement)
+returned directly; error responses are `c.json({ error: string }, statusCode)` with an HTTP
+status from the shared `StatusCodes` constant (`@adelie/shared`).
+
 ### Success Response
 ```typescript
+// GET /api/users/me -> c.json(user)
 {
-  "data": {
-    "id": "123",
-    "name": "Example",
-    "email": "user@example.com"
-  },
-  "meta": {
-    "timestamp": "2024-01-01T00:00:00Z"
-  }
+  "id": "123",
+  "name": "Example",
+  "email": "user@example.com"
 }
 ```
 
-### List Response with Pagination
+### Acknowledgement Response
 ```typescript
+// POST /api/iam/logout -> c.json({ message: 'logout' })
 {
-  "data": [
-    { "id": "1", "name": "Item 1" },
-    { "id": "2", "name": "Item 2" }
-  ],
-  "meta": {
-    "page": 1,
-    "pageSize": 20,
-    "total": 100,
-    "hasMore": true
-  }
+  "message": "logout"
 }
 ```
 
 ### Error Response
 ```typescript
+// c.json({ error: 'Passwords do not match' }, StatusCodes.UNPROCESSABLE_ENTITY)
 {
-  "error": {
-    "code": "VALIDATION_ERROR",
-    "message": "Invalid input data",
-    "details": [
-      {
-        "field": "email",
-        "message": "Invalid email format"
-      }
-    ]
-  },
-  "meta": {
-    "timestamp": "2024-01-01T00:00:00Z",
-    "requestId": "req_123abc"
-  }
+  "error": "Passwords do not match"
 }
 ```
 
@@ -95,58 +83,18 @@ Examples:
 - **502 Bad Gateway** - Upstream service error
 - **503 Service Unavailable** - Service temporarily unavailable
 
-## Pagination
+## Pagination, Filtering, Sorting
 
-### Query Parameters
-```
-GET /api/v1/users?page=1&pageSize=20
-```
-
-### Cursor-Based Pagination
-```
-GET /api/v1/users?cursor=abc123&limit=20
-```
-
-Response:
-```typescript
-{
-  "data": [...],
-  "meta": {
-    "nextCursor": "xyz789",
-    "hasMore": true
-  }
-}
-```
-
-## Filtering & Sorting
-
-### Filtering
-```
-GET /api/v1/users?role=admin&status=active
-```
-
-### Sorting
-```
-GET /api/v1/users?sortBy=createdAt&order=desc
-```
-
-### Combined
-```
-GET /api/v1/users?role=admin&sortBy=name&order=asc&page=1&pageSize=20
-```
+Not currently implemented — no controller accepts `page`, `cursor`, `sortBy`, or filter query
+parameters today. If a listing endpoint is added, validate query parameters with a Zod schema
+(see [Query Parameter Validation](#query-parameter-validation) below) rather than inventing a
+new convention.
 
 ## Versioning
 
-### URL Versioning (Current)
-```
-/api/v1/users
-/api/v2/users
-```
-
-### Header Versioning (Future)
-```
-Accept: application/vnd.secondchance.v1+json
-```
+Routes are **not versioned**. There is no `/v1`/`/v2` prefix and no `Accept` header
+versioning scheme; a route's path (e.g. `/api/iam/login`, `/api/users/me`) is the stable
+contract.
 
 ## Request Validation
 
@@ -180,14 +128,14 @@ const querySchema = z.object({
 ### Session-Based Authentication
 ```typescript
 // Request with session cookie
-GET /api/v1/users/me
+GET /api/users/me
 Cookie: session=abc123xyz
 ```
 
 ### Authorization Header (Future)
 ```typescript
 // Request with bearer token
-GET /api/v1/users/me
+GET /api/users/me
 Authorization: Bearer <token>
 ```
 
@@ -209,21 +157,17 @@ X-RateLimit-Reset: 1640000000
 ```
 
 ### Response on Limit Exceeded
-```typescript
-{
-  "error": {
-    "code": "RATE_LIMIT_EXCEEDED",
-    "message": "Too many requests. Please try again later.",
-    "retryAfter": 60
-  }
-}
-```
+Rate limiting is implemented with `hono-rate-limiter` + a Redis store (see
+`common/middleware/rate-limit.middleware.ts`), applied per-route (e.g. login, password
+reset/change, email change). It returns HTTP 429 with the library's default body, using the
+`RateLimit-*` headers (`standardHeaders: 'draft-6'`) rather than the `X-RateLimit-*` headers
+shown above.
 
 ## CORS
 
 ### Allowed Origins
-- Production: `https://secondchancepuzzles.com`
-- Development: `http://localhost:5173`
+- Configured via the `ORIGIN` environment variable (see `apps/api/.env.schema`)
+- Development default: `http://localhost:5173`
 
 ### Allowed Methods
 - GET, POST, PATCH, DELETE, OPTIONS
@@ -251,7 +195,7 @@ Content-Type: application/json; charset=utf-8
 
 ### Idempotency Keys (Future)
 ```
-POST /api/v1/donations
+POST /api/signup
 Idempotency-Key: unique-key-123
 ```
 
@@ -279,43 +223,27 @@ If-None-Match: "abc123"
 ## File Uploads
 
 ### Multipart Form Data
+The one real example today is the avatar field on the update-profile endpoint
+(`users.controller.ts`), validated with `zValidator('form', updateUserDto)` and stored via
+`StorageService` (SeaweedFS/S3-compatible):
+
 ```typescript
-POST /api/v1/puzzles/:id/images
+PATCH /api/users/me
 Content-Type: multipart/form-data
 
 {
-  "file": <binary>,
-  "description": "Puzzle box image"
+  "avatar": <binary>,
+  ...other profile fields
 }
 ```
 
-### Response
-```typescript
-{
-  "data": {
-    "url": "https://storage.secondchancepuzzles.com/puzzles/123/image.jpg",
-    "size": 1024000,
-    "mimeType": "image/jpeg"
-  }
-}
-```
+The endpoint returns the updated user object (see [Response Format](#response-format)), not a
+separate `{data: {url, size, mimeType}}` upload response.
 
-## Webhooks (Future)
+## Webhooks
 
-### Webhook Payload
-```typescript
-POST https://client-webhook-url.com/webhook
-X-Webhook-Signature: sha256=abc123
-
-{
-  "event": "donation.created",
-  "data": {
-    "id": "123",
-    "amount": 25.00
-  },
-  "timestamp": "2024-01-01T00:00:00Z"
-}
-```
+Not implemented. There is no outbound webhook mechanism in this codebase; do not document one as
+current or planned without an issue driving it.
 
 ## API Documentation
 
@@ -329,7 +257,7 @@ X-Webhook-Signature: sha256=abc123
 /**
  * Create a new user
  * 
- * @route POST /api/v1/users
+ * @route POST /api/users
  * @param {CreateUserInput} body - User creation data
  * @returns {User} 201 - Created user
  * @throws {ValidationError} 400 - Invalid input

@@ -1,345 +1,178 @@
 # IAM Data Model
 
-## Database Schema
+## Database Schema (PostgreSQL via Drizzle)
 
-### Users Table (Partial - IAM-relevant fields)
+IAM does not define its own tables. It reads/writes the Users service's tables, re-exported via
+`apps/api/src/lib/server/api/databases/postgres/drizzle-schema.ts`.
+
+### `users_table`
+
+`apps/api/src/lib/server/api/users/tables/users.table.ts`:
 
 ```typescript
-// apps/api/src/lib/server/api/databases/schema/users.ts
-export const users = pgTable('users', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  email: varchar('email', { length: 255 }).notNull().unique(),
-  emailVerified: boolean('email_verified').default(false),
-  passwordHash: varchar('password_hash', { length: 255 }),
-  name: varchar('name', { length: 100 }),
-  
-  // Account status
-  isActive: boolean('is_active').default(true),
-  isLocked: boolean('is_locked').default(false),
-  lockedUntil: timestamp('locked_until'),
-  
-  // Timestamps
-  createdAt: timestamp('created_at').defaultNow(),
-  updatedAt: timestamp('updated_at').defaultNow(),
-  lastLoginAt: timestamp('last_login_at'),
-  
-  // Security
-  failedLoginAttempts: integer('failed_login_attempts').default(0),
-  lastFailedLoginAt: timestamp('last_failed_login_at'),
+export const users_table = pgTable('users', {
+  id: id().primaryKey().$defaultFn(() => generateId()),
+  username: text().unique().notNull(),
+  email: citext().unique().notNull(),
+  first_name: text(),
+  last_name: text(),
+  email_verified: boolean().default(false),
+  mfa_enabled: boolean().notNull().default(false),
+  avatar: text(),
+  ...timestamps, // created_at, updated_at (timestamptz, not-null, default now)
 });
 ```
 
-**Indexes:**
-- `users_email_idx` on `email` (unique)
-- `users_id_idx` on `id` (primary key)
+- `id` is a `text` column populated by `generateId()` (not a Postgres `uuid`/`serial`).
+- `email` uses a custom `citext` type (case-insensitive unique).
+- There are no lockout fields (`is_active`, `is_locked`, `locked_until`,
+  `failed_login_attempts`, `last_failed_login_at`, etc.) and no `name`/`password_hash` columns.
+- `mfa_enabled` is a flag on the user row, but IAM itself never reads or writes it.
 
-**Constraints:**
-- `email` must be unique
-- `passwordHash` can be null (for passkey-only accounts)
+`publicUserColumns` (same file) excludes nothing sensitive beyond omitting relations — there is
+no separate password field on this table to exclude, since passwords live in `credentials_table`.
 
----
+### `credentials_table`
 
-### Passkeys Table
+`apps/api/src/lib/server/api/users/tables/credentials.table.ts`:
 
 ```typescript
-export const passkeys = pgTable('passkeys', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  userId: uuid('user_id').references(() => users.id).notNull(),
-  credentialId: varchar('credential_id', { length: 255 }).notNull().unique(),
-  publicKey: text('public_key').notNull(),
-  counter: bigint('counter', { mode: 'number' }).default(0),
-  
-  // Device info
-  deviceName: varchar('device_name', { length: 100 }),
-  transports: json('transports').$type<string[]>(),
-  
-  // Timestamps
-  createdAt: timestamp('created_at').defaultNow(),
-  lastUsedAt: timestamp('last_used_at'),
+export enum CredentialsType {
+  SECRET = 'secret',
+  PASSWORD = 'password',
+  TOTP = 'totp',
+  HOTP = 'hotp',
+}
+
+export const credentials_table = pgTable('credentials', {
+  id: id().primaryKey().$defaultFn(() => generateId()),
+  user_id: id().notNull().references(() => users_table.id, { onDelete: 'cascade' }),
+  type: text().notNull().default(CredentialsType.PASSWORD),
+  secret_data: text().notNull(),
+  ...timestamps,
 });
 ```
 
-**Indexes:**
-- `passkeys_user_id_idx` on `userId`
-- `passkeys_credential_id_idx` on `credentialId` (unique)
+- `CredentialsType` is defined **locally** in this file (a TypeScript `enum`), not imported from
+  `@adelie/shared`. A similarly-named but distinct `CredentialsType` const object exists in
+  `packages/shared/src/domain/credentials-type.ts` (values `PASSKEY`, `SECURITY_KEY`, `TOTP`,
+  `PASSWORD`) for the MFA/passkey domain — the two are not interchangeable; IAM code
+  (`credentials.repository.ts`, `users.service.ts`) imports the table-local enum.
+- `secret_data` holds the Argon2 hash for `type: PASSWORD` credentials (the value IAM compares
+  against in `LoginRequestsService.login`).
+- One user can have multiple credential rows (one per `type`); there is no unique constraint
+  tying `user_id` + `type` at the schema level, but repository methods
+  (`findPasswordCredentialsByUserId`, `findTOTPCredentialsByUserId`) assume at most one per type.
+- There is no passkeys table anywhere in the schema.
 
-**Relationships:**
-- `userId` → `users.id` (foreign key)
+### Relations
 
----
+```
+users_table (1) ──< (N) credentials_table   (credentials_table.user_id → users_table.id, cascade delete)
+users_table (1) ──< (N) user_roles_table    (not used by IAM)
+```
 
-## Redis Data Structures
+## Redis Data Structures (IAM-owned)
 
-### Session Storage
+### Session Storage (`SessionsRepository`, prefix `session`)
 
-**Key Pattern:** `session:{sessionId}`
-
-**Value (JSON):**
+**Value** (`CreateSessionDto`, Zod-validated on read):
 ```typescript
 {
-  userId: string;
-  createdAt: number; // Unix timestamp
-  lastActivity: number; // Unix timestamp
-  expiresAt: number; // Unix timestamp
-  ipAddress: string;
-  userAgent: string;
-  deviceInfo?: {
-    browser: string;
-    os: string;
-    device: string;
-  };
-}
-```
-
-**TTL:** 7 days (default) or 30 days (remember me)
-
----
-
-### Rate Limiting
-
-**Key Pattern:** `ratelimit:login:{ipAddress}`
-
-**Value:** Integer (attempt count)
-
-**TTL:** 60 seconds (1 minute window)
-
----
-
-**Key Pattern:** `ratelimit:reset:{ipAddress}`
-
-**Value:** Integer (attempt count)
-
-**TTL:** 3600 seconds (1 hour window)
-
----
-
-### Account Lockout
-
-**Key Pattern:** `lockout:{userId}`
-
-**Value (JSON):**
-```typescript
-{
-  attempts: number;
-  lockedUntil: number; // Unix timestamp
-  reason: string;
-}
-```
-
-**TTL:** 3600 seconds (1 hour)
-
----
-
-### Password Reset Tokens
-
-**Key Pattern:** `reset:{token}`
-
-**Value (JSON):**
-```typescript
-{
-  userId: string;
-  email: string;
-  createdAt: number;
-  expiresAt: number;
-}
-```
-
-**TTL:** 3600 seconds (1 hour)
-
----
-
-### Temporary MFA Tokens
-
-**Key Pattern:** `mfa:temp:{token}`
-
-**Value (JSON):**
-```typescript
-{
-  userId: string;
-  createdAt: number;
-  expiresAt: number;
-}
-```
-
-**TTL:** 300 seconds (5 minutes)
-
----
-
-## TypeScript Interfaces
-
-### User (IAM Context)
-
-```typescript
-export interface User {
-  id: string;
-  email: string;
-  emailVerified: boolean;
-  name: string | null;
-  isActive: boolean;
-  isLocked: boolean;
-  lockedUntil: Date | null;
-  createdAt: Date;
-  updatedAt: Date;
-  lastLoginAt: Date | null;
-}
-```
-
-### Session
-
-```typescript
-export interface Session {
   id: string;
   userId: string;
-  createdAt: Date;
-  lastActivity: Date;
+  createdAt: Date; // z.coerce.date()
   expiresAt: Date;
-  ipAddress: string;
-  userAgent: string;
-  deviceInfo?: DeviceInfo;
 }
+```
+**TTL:** seconds-from-now computed as `expiresAt - now` at write time; entries with a
+non-positive TTL are not written (`sessions.repository.ts`).
 
-export interface DeviceInfo {
-  browser: string;
-  os: string;
-  device: string;
+### Login Request Storage (`LoginRequestsRepository`, similar shape for
+`ResetPasswordRequestsRepository`)
+
+**Value:**
+```typescript
+{
+  email: string;
+  hashedCode: string; // Argon2 hash of the 6-character verification code
 }
 ```
 
-### Passkey
+There is no separate "rate limit" or "account lockout" Redis structure owned by IAM — the only
+rate limiting is the generic `rateLimit` middleware, backed by `rate-limit-redis`, applied to
+`POST /login`.
+
+## TypeScript DTOs (IAM-relevant, from `@adelie/shared`)
 
 ```typescript
-export interface Passkey {
-  id: string;
-  userId: string;
-  credentialId: string;
-  publicKey: string;
-  counter: number;
-  deviceName: string | null;
-  transports: string[] | null;
-  createdAt: Date;
-  lastUsedAt: Date | null;
-}
+// packages/shared/src/dtos/login/signin.dto.ts
+export const signinDto = z.object({
+  identifier: z.string().trim().min(MIN_USERNAME_LENGTH).max(MAX_USERNAME_LENGTH),
+  password: z.string().trim().min(1),
+});
+
+// packages/shared/src/dtos/login/create-login-request.dto.ts
+export const createLoginRequestDto = z.object({ email: z.string().email() });
+
+// packages/shared/src/dtos/login/verify-login-request.dto.ts
+export const verifyLoginRequestDto = z.object({
+  email: z.string().email(),
+  code: z.string().length(VERIFICATION_CODE_LENGTH),
+});
+
+// packages/shared/src/dtos/reset-password/reset-password-email.dto.ts
+export const resetPasswordEmailDto = z.object({ email: z.string().trim().email().max(64) });
+
+// packages/shared/src/dtos/reset-password/reset-password-token.dto.ts
+export const resetPasswordCodeDto = z.object({
+  email: z.string().trim().email(),
+  code: z.string().trim().min(6).max(6),
+});
+
+// packages/shared/src/dtos/reset-password/reset-password-new-password.dto.ts
+export const resetPasswordNewPasswordDto = z.object({
+  email: z.string().trim().email(),
+  password: z.string().trim().min(1),
+  confirm_password: z.string().trim().min(1),
+}).superRefine(/* password === confirm_password */);
 ```
 
-### Authentication Request/Response
-
-```typescript
-export interface LoginRequest {
-  email: string;
-  password: string;
-  rememberMe?: boolean;
-}
-
-export interface LoginResponse {
-  user: User;
-  requiresMfa: boolean;
-  tempToken?: string; // If MFA required
-}
-
-export interface PasskeyLoginRequest {
-  credential: PublicKeyCredential;
-}
-
-export interface PasswordResetRequest {
-  email: string;
-}
-
-export interface PasswordResetConfirm {
-  token: string;
-  newPassword: string;
-}
-
-export interface PasswordChangeRequest {
-  currentPassword: string;
-  newPassword: string;
-}
-```
-
-## Data Relationships
-
-```
-users (1) ──< (N) passkeys
-  │
-  │ (referenced by)
-  │
-  ├─ sessions (Redis)
-  ├─ password_reset_tokens (Redis)
-  ├─ rate_limits (Redis)
-  └─ lockout_records (Redis)
-```
+`SessionDto` and `CreateSessionDto` (local to `iam/sessions/dtos/`) are shown under Redis Data
+Structures above.
 
 ## Data Lifecycle
 
 ### Session Lifecycle
-1. **Creation**: User successfully authenticates
-2. **Active**: Session validated on each request, lastActivity updated
-3. **Expiration**: TTL expires in Redis, session auto-deleted
-4. **Revocation**: User logs out or admin revokes, session deleted immediately
+1. **Creation**: on successful login (password or email-code) — 30-day expiry.
+2. **Active**: revalidated on every request; extended (new 30-day expiry, cookie re-set) when
+   fewer than 15 days remain.
+3. **Expiration**: on read, an expired session is deleted from Redis and treated as absent.
+4. **Revocation**: `POST /logout` deletes the session and clears the cookie. There is no
+   "revoke all sessions" or multi-device session listing anywhere in this module.
 
-### Password Reset Token Lifecycle
-1. **Creation**: User requests password reset
-2. **Active**: Token valid for 1 hour
-3. **Consumption**: Token used to reset password, immediately deleted
-4. **Expiration**: TTL expires, token auto-deleted
-
-### Rate Limit Lifecycle
-1. **First Request**: Counter created with value 1
-2. **Subsequent Requests**: Counter incremented
-3. **Limit Exceeded**: Requests blocked until TTL expires
-4. **Reset**: TTL expires, counter deleted
-
-## Data Validation
-
-### Email Validation
-- Format: RFC 5322 compliant
-- Lowercase normalization
-- Maximum length: 255 characters
-- Uniqueness enforced at database level
-
-### Password Validation
-- Minimum length: 8 characters
-- Maximum length: 128 characters
-- Complexity requirements enforced
-- Never stored in plaintext
-- Hashed with bcrypt (12 rounds)
-
-### Session ID Validation
-- Format: UUID v4
-- Cryptographically random
-- Unique per session
-- HttpOnly cookie storage
+### Login/Reset Request Lifecycle
+1. **Creation**: `sendVerificationCode` / `sendResetPasswordCode` overwrite any prior pending
+   request for the email.
+2. **Consumption**: a successful `verify` call deletes the stored code immediately (single use).
+3. There is no explicit TTL set on these Redis keys in the reviewed code — they persist until
+   overwritten or explicitly deleted.
 
 ## Data Security
 
-### Sensitive Fields
-- `passwordHash`: Never returned in API responses
-- `sessionId`: HttpOnly cookie only
-- `resetToken`: Single-use, time-limited
-
-### Encryption
-- Passwords: bcrypt hashing (one-way)
-- Session cookies: Signed and encrypted
-- Reset tokens: Cryptographically random
-
-### Data Retention
-- Sessions: 7-30 days (configurable)
-- Reset tokens: 1 hour
-- Rate limit data: 1 minute to 1 hour
-- Audit logs: Indefinite (separate service)
+- Passwords are never stored in plaintext; `secret_data` on `credentials_table` holds an Argon2
+  hash produced by `HashingService`.
+- Session ids are opaque, generated by `generateId()`, and only ever transmitted inside a signed,
+  `httpOnly` cookie.
+- Verification codes are hashed with Argon2 before being persisted to Redis; the plaintext code
+  is only ever sent by email.
 
 ## Migration Considerations
 
-### Adding New Fields
-- Use Drizzle migrations (`drizzle-kit generate`)
-- Never manually edit migration SQL
-- Test migrations on staging first
-- Plan for backward compatibility
-
-### Schema Changes
-- Add fields as nullable initially
-- Backfill data if needed
-- Make non-nullable after backfill
-- Update TypeScript types
+- Use Drizzle migrations (`drizzle-kit generate`); never hand-edit migration SQL or
+  `drizzle/meta/**`.
+- `users_table` and `credentials_table` are owned by the Users service — schema changes there
+  should go through that service's docs/tests, not IAM's.
 
 ## Related Documentation
 

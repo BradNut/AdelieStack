@@ -85,8 +85,9 @@ Pattern where dependencies are provided to a class rather than created internall
 
 ## Security
 
-**bcrypt**
-Password hashing algorithm used for secure password storage.
+**Argon2**
+Password hashing algorithm used for secure password storage (via the `argon2` package,
+wrapped by `HashingService`). Not bcrypt.
 
 **Salt**
 Random data added to passwords before hashing.
@@ -101,7 +102,7 @@ A random string used for password resets or temporary authentication.
 Temporary URL that grants access to a private S3 object.
 
 **ClamAV**
-Antivirus engine used to scan uploaded files.
+Antivirus engine; listed as a dependency (`clamscan`) but not wired into the upload path.
 
 ## Monitoring & Operations
 

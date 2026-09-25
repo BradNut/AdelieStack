@@ -229,7 +229,7 @@ describe('UserService', () => {
 
 ### Import Order
 1. External packages (React, Hono, etc.)
-2. Internal packages (`@secondchance/*`)
+2. Internal packages (`@adelie/*`)
 3. Absolute imports (`$lib/*`)
 4. Relative imports (`./`, `../`)
 
@@ -239,7 +239,7 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 
 // Internal packages
-import { apiContract } from '@secondchance/api-contract';
+import { apiContract } from '@adelie/api-contract';
 
 // Absolute
 import { db } from '$lib/server/db';

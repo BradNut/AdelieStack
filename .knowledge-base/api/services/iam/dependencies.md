@@ -3,368 +3,178 @@
 ## Internal Dependencies
 
 ### Database Service (Drizzle ORM)
-**Package:** `drizzle-orm`  
+**Package:** `drizzle-orm`
 **Location:** `apps/api/src/lib/server/api/databases/`
 
-**Purpose:** User credential storage and retrieval
+**Purpose:** IAM does not query the database directly; it goes through the Users service's
+repositories (`UsersRepository`, `CredentialsRepository`).
 
-**Usage:**
+**Usage (actual):**
 ```typescript
-import { db } from '$lib/server/api/databases/db';
-import { users } from '$lib/server/api/databases/schema';
-
-// Query user by email
-const user = await db.query.users.findFirst({
-  where: eq(users.email, email)
-});
-
-// Update password
-await db.update(users)
-  .set({ passwordHash: newHash, updatedAt: new Date() })
-  .where(eq(users.id, userId));
+// apps/api/src/lib/server/api/iam/login-requests/login-requests.service.ts
+const existingUser = await this.usersRepository.findOneByEmailOrUsername(identifier);
+const credential = await this.credentialsRepository.findPasswordCredentialsByUserId(existingUser.id);
 ```
 
-**Failure Impact:** Critical - Cannot authenticate users  
-**Retry Strategy:** None - fail fast  
-**Circuit Breaker:** Not implemented
+API source files use relative imports, not the `$lib` alias — IAM code is pulled into the web
+typecheck via the RPC contract and must not depend on API-only path aliases.
+
+**Failure Impact:** Critical - cannot authenticate or reset passwords
+**Retry Strategy:** None - fail fast
 
 ---
 
 ### Redis Service
-**Package:** `ioredis`  
-**Location:** `apps/api/src/lib/server/api/services/redis.service.ts`
+**Package:** `ioredis`
+**Location:** `apps/api/src/lib/server/api/databases/redis/redis.service.ts`
 
-**Purpose:** Session storage, rate limiting, temporary tokens
+**Purpose:** Session storage, short-lived login/reset verification codes, and rate limiting.
 
-**Usage:**
+**Usage (actual, via the repository factory):**
 ```typescript
-import { RedisService } from '$lib/server/api/services/redis.service';
+// apps/api/src/lib/server/api/iam/sessions/sessions.repository.ts
+export class SessionsRepository extends RedisRepository<'session'> {
+  constructor() { super('session'); }
 
-const redis = RedisService.getInstance();
+  async get(id: string) {
+    const response = await this.redis.get({ prefix: this.prefix, key: id });
+    return response ? createSessionDto.parse(JSON.parse(response)) : null;
+  }
 
-// Store session
-await redis.client.setex(
-  `session:${sessionId}`,
-  SESSION_TTL,
-  JSON.stringify(sessionData)
-);
-
-// Get session
-const session = await redis.client.get(`session:${sessionId}`);
-
-// Rate limiting
-const attempts = await redis.client.incr(`ratelimit:login:${ip}`);
-await redis.client.expire(`ratelimit:login:${ip}`, 60);
+  create(createSessionDto: CreateSessionDto) {
+    const ttlSeconds = dayjs(createSessionDto.expiresAt).diff(dayjs(), 'second');
+    if (ttlSeconds <= 0) return Promise.resolve();
+    return this.redis.setWithExpiry({ prefix: this.prefix, key: createSessionDto.id, value: JSON.stringify(createSessionDto), expiry: ttlSeconds });
+  }
+}
 ```
 
-**Configuration:**
-- Lazy connection: `lazyConnect: true`
-- Retry strategy: Exponential backoff
-- Max retries: 3
-
-**Failure Impact:** Critical - Cannot create or validate sessions  
-**Fallback:** None - return 503 Service Unavailable
+**Failure Impact:** Critical - cannot create or validate sessions, cannot rate-limit
+**Fallback:** None - failures propagate as unhandled exceptions to the shared `onError` handler
 
 ---
 
-### Email Service
-**Package:** `nodemailer`  
-**Location:** `apps/api/src/lib/server/api/mail/`
+### Mailer Service
+**Location:** `apps/api/src/lib/server/api/mail/{dev,prod}-mailer.service.ts`
 
-**Purpose:** Send password reset and notification emails
+**Purpose:** Deliver login-verification-code, password-reset-code, and welcome emails.
 
-**Usage:**
+**Usage (actual):**
 ```typescript
-import { EmailService } from '$lib/server/api/mail/email.service';
-
-await emailService.sendPasswordReset({
-  to: user.email,
-  resetUrl: `https://secondchancepuzzles.com/reset?token=${token}`,
-  expiresIn: '1 hour'
-});
-
-await emailService.sendPasswordChanged({
-  to: user.email,
-  timestamp: new Date()
-});
+// apps/api/src/lib/server/api/iam/login-requests/login-requests.service.ts
+await this.mailer.send({ to: email, template: new LoginVerificationEmail(verificationCode) });
 ```
 
-**Failure Impact:** Non-critical - Log error, return success to user  
-**Fallback:** Log error, continue operation  
-**Retry Strategy:** 3 retries with exponential backoff
+**Implementations — be precise here, this is a common source of doc drift:**
+- `DevMailerService` (used in local/dev): posts the rendered email to a local Mailpit-compatible
+  HTTP endpoint (`http://localhost:8025/api/v1/send`) and logs a view URL.
+- `ProdMailerService`: is a **stub**. It only `console.log`s the recipient and template — it does
+  **not** send real email, despite `usesend-js` being listed as a dependency in
+  `apps/api/package.json`. That integration is not wired up. Do not describe this as a working
+  transactional-email integration.
+
+**Failure Impact:** `LoginRequestsService`/`ResetPasswordRequestsService` do not catch mailer
+errors, so a send failure surfaces as a request failure rather than being swallowed.
+
+There is no `nodemailer` dependency anywhere in `apps/api/package.json`.
 
 ---
 
-### MFA Service
-**Location:** `apps/api/src/lib/server/api/mfa/`
+## Not IAM Dependencies (do not describe as IAM-integrated)
 
-**Purpose:** Check MFA status and validate codes
+### MFA
+A `mfa/` module exists (`apps/api/src/lib/server/api/mfa/`, tables `recovery-codes` and
+`two-factor` re-exported via `drizzle-schema.ts`), but no IAM route or service calls into it.
+`users_table.mfa_enabled` is set/read elsewhere, not by IAM. See the MFA service docs for the
+real MFA implementation.
 
-**Usage:**
-```typescript
-import { MfaService } from '$lib/server/api/mfa/mfa.service';
+### Audit
+No audit service/module exists anywhere in `apps/api/src`. There is nothing to integrate with.
 
-// Check if user has MFA enabled
-const mfaEnabled = await mfaService.isEnabled(userId);
-
-// Validate MFA code
-const isValid = await mfaService.validateCode(userId, code);
-```
-
-**Failure Impact:** Critical for MFA-enabled users  
-**Fallback:** None - return error if MFA check fails
-
----
-
-### Audit Service
-**Location:** `apps/api/src/lib/server/api/audit/`
-
-**Purpose:** Log authentication and security events
-
-**Usage:**
-```typescript
-import { AuditService } from '$lib/server/api/audit/audit.service';
-
-await auditService.log({
-  type: 'authentication',
-  action: 'login_success',
-  userId: user.id,
-  ipAddress: req.ip,
-  userAgent: req.headers['user-agent'],
-  metadata: { method: 'password' }
-});
-```
-
-**Failure Impact:** Non-critical - Log error, continue operation  
-**Fallback:** Log to console if service unavailable  
-**Async:** Fire-and-forget (don't block auth flow)
+### WebAuthn / Passkeys
+No `@simplewebauthn/server` dependency and no WebAuthn/passkey code exist anywhere in the
+repository.
 
 ---
 
 ## External Dependencies
 
-### bcrypt
-**Package:** `bcrypt`  
-**Version:** `^5.1.1`
+### Argon2 (not bcrypt)
+**Package:** `argon2`
+**Version:** `^0.44.0` (`apps/api/package.json`)
 
-**Purpose:** Password hashing and verification
+**Purpose:** Password and verification-code hashing.
 
-**Usage:**
+**Usage (actual):**
 ```typescript
-import bcrypt from 'bcrypt';
+// apps/api/src/lib/server/api/common/services/hashing.service.ts
+import { hash, verify } from 'argon2';
 
-// Hash password
-const hash = await bcrypt.hash(password, 12);
-
-// Verify password
-const isValid = await bcrypt.compare(password, hash);
+export class HashingService {
+  hash(data: string) { return hash(data); }
+  compare(data: string, encrypted: string) { return verify(encrypted, data); }
+}
 ```
 
-**Configuration:**
-- Salt rounds: 12
-- Async operations only
+There is no `bcrypt` dependency in `apps/api/package.json`; no bcrypt code exists in this repo.
 
 ---
 
 ### Zod
-**Package:** `zod`  
-**Version:** `^3.22.4`
+**Package:** `zod`
+**Version:** `^4.3.6` (`apps/api/package.json`), imported in DTOs as `zod` or `zod/v4`
 
-**Purpose:** Input validation and schema definition
-
-**Usage:**
-```typescript
-import { z } from 'zod';
-
-const loginSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(8)
-});
-
-const validated = loginSchema.parse(input);
-```
+**Purpose:** Input validation and schema definition for every IAM request body
+(`signinDto`, `createLoginRequestDto`, `verifyLoginRequestDto`, `resetPasswordEmailDto`,
+`resetPasswordCodeDto`, `resetPasswordNewPasswordDto`), all defined in `@adelie/shared`
+(package name `@adelie/shared`, not `@secondchance/shared`).
 
 ---
 
 ### Hono
-**Package:** `hono`  
-**Version:** `^4.x`
+**Package:** `hono`
 
-**Purpose:** Web framework for route handlers
-
-**Usage:**
-```typescript
-import { Hono } from 'hono';
-
-const app = new Hono();
-
-app.post('/api/auth/login', async (c) => {
-  // Handler implementation
-});
-```
+**Purpose:** Web framework. `IamController` extends the shared `Controller` factory
+(`common/factories/controllers.factory.ts`) and is mounted at `/api/iam` in
+`ApplicationController.registerControllers()`.
 
 ---
 
-### @simplewebauthn/server
-**Package:** `@simplewebauthn/server`  
-**Version:** `^9.x`
-
-**Purpose:** WebAuthn/Passkey authentication
-
-**Usage:**
-```typescript
-import { verifyAuthenticationResponse } from '@simplewebauthn/server';
-
-const verification = await verifyAuthenticationResponse({
-  response: credential,
-  expectedChallenge: challenge,
-  expectedOrigin: origin,
-  expectedRPID: rpId,
-  authenticator: {
-    credentialID: passkey.credentialId,
-    credentialPublicKey: passkey.publicKey,
-    counter: passkey.counter
-  }
-});
-```
+### hono-rate-limiter / rate-limit-redis
+**Purpose:** Backs the `rateLimit` middleware applied to `POST /login` (3 requests/minute).
+See `apps/api/src/lib/server/api/common/middleware/rate-limit.middleware.ts`.
 
 ---
 
 ## Shared Constants
 
-### From `@secondchance/shared`
+### From `@adelie/shared`
 ```typescript
-import { CredentialsType } from '@secondchance/shared/constants';
-
-// Use shared constants instead of hardcoded strings
-const credentialType = CredentialsType.PASSWORD;
+import { signinDto, createLoginRequestDto, verifyLoginRequestDto } from '@adelie/shared';
 ```
-
-### From `apps/api/src/lib/constants`
-```typescript
-// Session configuration
-export const SESSION_EXPIRY_DAYS = 7;
-export const SESSION_EXTENDED_DAYS = 30;
-
-// Rate limiting
-export const LOGIN_RATE_LIMIT = 5;
-export const LOGIN_RATE_WINDOW = 60; // seconds
-
-// Password requirements
-export const MIN_PASSWORD_LENGTH = 8;
-export const MAX_PASSWORD_LENGTH = 128;
-export const BCRYPT_ROUNDS = 12;
-```
+IAM code imports DTOs from `@adelie/shared`, not constants named `CredentialsType` — the
+credentials-table `CredentialsType` enum used by IAM's password lookups is defined locally in
+`apps/api/src/lib/server/api/users/tables/credentials.table.ts` and is a different value set
+than the `CredentialsType` const object exported from
+`packages/shared/src/domain/credentials-type.ts` (see [Data Model](./data-model.md)).
 
 ---
 
 ## Environment Variables
 
-Required environment variables for IAM service:
+Real variables read by this module and its direct dependencies, per `apps/api/.env.schema`:
 
 ```bash
-# Database
-DATABASE_URL=postgresql://user:pass@localhost:5432/db
+# Session signing
+SIGNING_SECRET=      # required, sensitive — used to sign the session cookie
+ENV=dev              # dev|prod — controls the cookie's `secure` flag
 
 # Redis
 REDIS_URL=redis://localhost:6379
-
-# Email (Mailpit for dev)
-SMTP_HOST=localhost
-SMTP_PORT=1025
-SMTP_FROM=noreply@secondchancepuzzles.com
-
-# Application
-APP_URL=https://secondchancepuzzles.com
-NODE_ENV=production
-
-# Security
-SESSION_SECRET=<random-secret>
-CSRF_SECRET=<random-secret>
-
-# Optional
-BCRYPT_ROUNDS=12
-SESSION_EXPIRY_DAYS=7
 ```
 
----
-
-## Dependency Injection
-
-### Service Initialization
-```typescript
-export class AuthService {
-  constructor(
-    private readonly db: DatabaseService,
-    private readonly redis: RedisService,
-    private readonly email: EmailService,
-    private readonly audit: AuditService,
-    private readonly mfa: MfaService
-  ) {}
-}
-
-// Factory function
-export function createAuthService() {
-  return new AuthService(
-    DatabaseService.getInstance(),
-    RedisService.getInstance(),
-    EmailService.getInstance(),
-    AuditService.getInstance(),
-    MfaService.getInstance()
-  );
-}
-```
-
----
-
-## Dependency Health Checks
-
-### Database Health
-```typescript
-async function checkDatabaseHealth() {
-  try {
-    await db.execute(sql`SELECT 1`);
-    return { status: 'healthy' };
-  } catch (error) {
-    return { status: 'unhealthy', error: error.message };
-  }
-}
-```
-
-### Redis Health
-```typescript
-async function checkRedisHealth() {
-  try {
-    await redis.client.ping();
-    return { status: 'healthy' };
-  } catch (error) {
-    return { status: 'unhealthy', error: error.message };
-  }
-}
-```
-
----
-
-## Dependency Update Policy
-
-### Security Updates
-- Apply immediately for critical vulnerabilities
-- Test in staging before production
-- Monitor security advisories
-
-### Minor Updates
-- Review changelog
-- Update in development first
-- Run full test suite
-- Deploy to staging
-- Monitor for issues
-
-### Major Updates
-- Plan migration carefully
-- Review breaking changes
-- Update code as needed
-- Comprehensive testing
-- Staged rollout
+There are no `SMTP_*`, `BCRYPT_ROUNDS`, `SESSION_EXPIRY_DAYS`, or `CSRF_SECRET` variables in
+`apps/api/.env.schema`; the mailer implementations do not read SMTP configuration (see above).
 
 ---
 

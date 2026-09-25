@@ -54,30 +54,28 @@
 
 ```
 routes/
-├── (app)/                    # Authenticated app layout
-│   ├── +layout.svelte       # App shell (nav, sidebar)
-│   ├── +layout.server.ts    # Auth check, user data
-│   ├── dashboard/
-│   │   └── +page.svelte     # User dashboard
-│   ├── puzzles/
-│   │   ├── +page.svelte     # Puzzle catalog
-│   │   └── [id]/
-│   │       └── +page.svelte # Puzzle details
-│   ├── donate/
-│   │   └── +page.svelte     # Donation form
-│   └── profile/
-│       └── +page.svelte     # User profile
-├── (auth)/                   # Auth layout (centered)
-│   ├── +layout.svelte       # Auth shell
+├── (app)/
+│   ├── +layout.svelte                    # App shell
+│   ├── +page.svelte / +page.server.ts    # root app page
+│   ├── (public)/
+│   │   ├── privacy-policy/+page.svelte
+│   │   └── terms/+page.svelte
+│   └── (protected)/
+│       └── settings/
+│           ├── +layout.svelte
+│           ├── +page.svelte / +page.server.ts
+│           └── account/+page.svelte / +page.server.ts
+├── (auth)/                               # Auth layout (centered)
+│   ├── +layout.svelte
+│   ├── +layout.server.ts                 # redirect if already authed
 │   ├── login/
-│   │   └── +page.svelte     # Login page
-│   ├── signup/
-│   │   └── +page.svelte     # Signup page
-│   └── reset-password/
-│       └── +page.svelte     # Password reset
-└── api/                      # API proxy routes
-    └── [...path]/
-        └── +server.ts        # Proxy to Hono API
+│   │   ├── +page.svelte / +page.server.ts
+│   │   └── google/+server.ts             # Google OAuth kickoff
+│   ├── signup/+page.svelte / +page.server.ts
+│   ├── password/reset/+page.svelte / +page.server.ts
+│   └── auth/callback/google/+server.ts   # Google OAuth callback
+└── api/
+    └── [...slug]/+server.ts              # Proxy to Hono API
 ```
 
 ### Layout Hierarchy
@@ -85,12 +83,16 @@ routes/
 ```
 +layout.svelte (root)
 ├── (app)/+layout.svelte
-│   ├── dashboard/+page.svelte
-│   ├── puzzles/+page.svelte
-│   └── profile/+page.svelte
+│   ├── +page.svelte
+│   ├── (public)/privacy-policy/+page.svelte
+│   ├── (public)/terms/+page.svelte
+│   └── (protected)/settings/+layout.svelte
+│       ├── +page.svelte
+│       └── account/+page.svelte
 └── (auth)/+layout.svelte
     ├── login/+page.svelte
-    └── signup/+page.svelte
+    ├── signup/+page.svelte
+    └── password/reset/+page.svelte
 ```
 
 ## Data Flow
@@ -98,17 +100,17 @@ routes/
 ### Load Function Flow
 
 ```
-1. Browser requests /puzzles
+1. Browser requests /settings
    ↓
 2. SvelteKit server receives request
    ↓
-3. +layout.server.ts load() runs (auth check)
+3. hooks.server.ts builds event.locals.api (honoClient)
    ↓
-4. +page.server.ts load() runs (fetch puzzles)
+4. +page.server.ts load() runs, calls locals.api.<resource>.$get()
    ↓
-5. API proxy forwards to Hono API
+5. Hono API returns data
    ↓
-6. Hono API returns puzzle data
+6. parseApiResponse normalizes the response
    ↓
 7. SvelteKit renders page with data
    ↓
@@ -126,7 +128,7 @@ routes/
    ↓
 3. Server validates data (Zod)
    ↓
-4. API proxy forwards to Hono API
+4. Action calls locals.api.<resource>.$post() (honoClient)
    ↓
 5. Hono API processes request
    ↓
@@ -139,46 +141,49 @@ routes/
 
 ## API Integration
 
-### API Proxy Pattern
+Two patterns, both over the type-safe `honoClient` from `@adelie/api-contract` — never raw
+`fetch('/api/...')`. Full decision and examples: [Data Fetching](./standards/data-fetching.md).
+
+### Server load/actions — `event.locals.api`
+
+`src/hooks.server.ts` builds a `honoClient` once per request (carrying `x-forwarded-for` and
+`host`) and attaches it to `event.locals`, alongside `parseApiResponse` and auth helpers:
 
 ```typescript
-// routes/api/[...path]/+server.ts
-export async function GET({ params, request, cookies }) {
-  const apiUrl = `${API_BASE_URL}/${params.path}`;
-  
-  const response = await fetch(apiUrl, {
-    headers: {
-      cookie: cookies.get('session')
-    }
-  });
-  
-  return new Response(response.body, {
-    status: response.status,
-    headers: response.headers
-  });
-}
+// src/hooks.server.ts (actual pattern)
+const api: Api = honoClient({
+  fetch: event.fetch,
+  headers: {
+    'x-forwarded-for': event.getClientAddress(),
+    host: event.request.headers.get('host') || '',
+  },
+});
+
+event.locals.api = api;
+event.locals.parseApiResponse = parseApiResponse;
 ```
 
-### Type-Safe API Calls
+`+page.server.ts`/`+layout.server.ts`/actions then call `locals.api.<resource>.$get()` and pass
+the result through `locals.parseApiResponse`.
 
-```typescript
-import { apiContract } from '@secondchance/api-contract';
+### Browser-side — the `/api/[...slug]` proxy
 
-// Type-safe API client
-const response = await fetch('/api/puzzles');
-const puzzles: Puzzle[] = await response.json();
-```
+Code in `src/lib/client/**` or components that must call the API outside a server `load` uses
+`honoClient(fetch)` too; requests are routed through `src/routes/api/[...slug]/+server.ts`, which
+forwards method, headers, cookies, and body to `API_PROXY_BASE_URL` (default
+`http://127.0.0.1:3001`) and returns the upstream response unchanged — it does not read
+individual cookies or reconstruct headers by hand.
 
 ## State Management
 
 ### Server State (Load Functions)
 ```typescript
 // +page.server.ts
+import { honoClient, parseApiResponse } from '$lib/utils/api';
+
 export async function load({ fetch }) {
-  const puzzles = await fetch('/api/puzzles');
-  return {
-    puzzles: await puzzles.json()
-  };
+  const { data } = await parseApiResponse(await honoClient(fetch).users.me.$get());
+  return { user: data };
 }
 ```
 
@@ -194,13 +199,8 @@ export async function load({ fetch }) {
 </script>
 ```
 
-### Global State (Stores)
-```typescript
-// stores/user.ts
-import { writable } from 'svelte/store';
-
-export const currentUser = writable(null);
-```
+There is no global writable store for user/session state; server `load` re-fetches via
+`locals.api` where needed.
 
 ## Build Process
 
@@ -231,36 +231,11 @@ pnpm build
 
 ## Deployment Architecture
 
-### Coolify Deployment
-- **Platform**: Self-hosted Coolify
-- **Build**: Turbo monorepo build
-- **Container**: Docker with Node.js
-- **Adapter**: `@sveltejs/adapter-node`
-
-### Build Steps
-1. Install dependencies (pnpm)
-2. Build API contract package
-3. Build web app with Turbo
-4. Create Docker image
-5. Deploy to Coolify
-6. Health check verification
-
-### Environment Variables
-```bash
-# API configuration
-PUBLIC_API_URL=https://secondchancepuzzles.com/api
-ORIGIN=https://secondchancepuzzles.com
-
-# Feature flags
-PUBLIC_ENABLE_MFA=true
-PUBLIC_ENABLE_DONATIONS=true
-
-# Analytics (optional)
-PUBLIC_ANALYTICS_ID=
-
-# Build configuration
-NODE_ENV=production
-```
+Deployed to Coolify as a Docker container built through the Turbo monorepo, using
+`@sveltejs/adapter-node`. For the actual build steps, environment variables, and rollback
+procedure, see the [Deployment runbook](./runbooks/deployment.md) and
+[Environment Configuration runbook](./runbooks/environment-config.md) — this doc does not
+duplicate them, to avoid drift.
 
 ## Performance Architecture
 
@@ -290,17 +265,34 @@ Cache-Control: private, max-age=300
 ## Security Architecture
 
 ### Content Security Policy
-```typescript
-// hooks.server.ts
-const csp = {
+
+Defined in `apps/web/csp-directives.mjs` and consumed by `svelte.config.js`
+(`kit.csp.directives`); SvelteKit's `csp.mode: 'auto'` hashes the framework's own inline bootstrap
+script, so `script-src` does not need `'unsafe-inline'`:
+
+```javascript
+// apps/web/csp-directives.mjs (actual directives)
+const cspDirectives = {
   'default-src': ["'self'"],
-  'script-src': ["'self'", "'unsafe-inline'"],
+  'base-uri': ["'self'"],
+  'connect-src': ["'self'"],
+  'font-src': ["'self'", 'data:'],
+  'form-action': ["'self'"],
+  'frame-ancestors': ["'self'"],
+  'frame-src': ["'self'"],
+  'img-src': ["'self'", 'data:', 'https://images.unsplash.com' /* + PUBLIC_IMAGE_URI origin */],
+  'manifest-src': ["'self'"],
+  'media-src': ["'self'"],
+  'object-src': ["'none'"],
+  'script-src': ["'self'", "'sha256-...'" /* mode-watcher's FOUC-prevention script */],
   'style-src': ["'self'", "'unsafe-inline'"],
-  'img-src': ["'self'", 'data:', 'https:'],
-  'font-src': ["'self'"],
-  'connect-src': ["'self'", '/api']
+  'worker-src': ["'self'"],
 };
 ```
+
+`style-src` allows `'unsafe-inline'` because Svelte transitions and the static inline `style` in
+`src/app.html` set the `style` attribute at runtime, which the automatic CSP nonce does not cover.
+See the comments in `csp-directives.mjs` for why each entry exists before changing it.
 
 ### CSRF Protection
 - SvelteKit built-in CSRF tokens
@@ -324,18 +316,6 @@ const csp = {
 - Request logging
 - Error logging
 - Performance metrics
-- Health checks
-
-### Health Check Endpoint
-```typescript
-// routes/health/+server.ts
-export async function GET() {
-  return json({
-    status: 'healthy',
-    timestamp: new Date().toISOString()
-  });
-}
-```
 
 ## Scalability Considerations
 

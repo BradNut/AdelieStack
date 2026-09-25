@@ -2,72 +2,47 @@
 
 ## Purpose
 
-Provides multi-factor authentication capabilities including TOTP, passkeys, security keys, and recovery codes for enhanced account security.
+Reserves the space for future multi-factor authentication. Today the service is **scaffolded but
+stubbed**: a controller, a placeholder TOTP service, and two database tables exist, but no MFA
+method can actually be enrolled or verified yet.
 
-## Responsibilities
+## Current State
 
-- TOTP (Time-based One-Time Password) enrollment and verification
-- Passkey (WebAuthn) registration and authentication
-- Security key (FIDO2) management
-- Recovery code generation and validation
-- MFA method management per user
-
-## Key Concepts
-
-### TOTP (Google Authenticator, Authy)
-Time-based one-time passwords using HMAC-based algorithm with 30-second windows.
-
-### Passkeys (WebAuthn)
-Passwordless authentication using public key cryptography and device biometrics.
-
-### Security Keys (YubiKey)
-Hardware-based authentication tokens for phishing-resistant authentication.
-
-### Recovery Codes
-Backup codes for account recovery when primary MFA methods unavailable.
-
-## Technology Stack
-
-- **Framework**: Hono
-- **TOTP**: `otpauth` library
-- **WebAuthn**: `@simplewebauthn/server`
-- **Database**: PostgreSQL via Drizzle ORM
-- **Validation**: Zod schemas
-
-## Core Features
-
-- TOTP enrollment with QR code generation
-- Passkey registration and authentication
-- Security key registration
-- Recovery code generation (one-time use)
-- MFA method listing and removal
-- Backup method enforcement
-
-## Security Considerations
-
-- TOTP secrets encrypted at rest
-- Recovery codes hashed (bcrypt)
-- Rate limiting on verification attempts
-- Require at least one backup method
-- Audit logging for all MFA events
+- `apps/api/src/lib/server/api/mfa/mfa.controller.ts` exposes a single route, `GET /totp`, which
+  always returns `501 Not Implemented` (`{ message: 'MFA not implemented' }`). The file's own
+  comment says the full implementation requires services that don't exist yet (`TotpService`
+  beyond the stub, a `RecoveryCodesService`, and auth middleware for MFA).
+- `apps/api/src/lib/server/api/mfa/totp.service.ts` is a stub: every method either returns
+  `null`/`false` or throws (`verify` always returns `false`, `findOneByUserIdOrThrow` always
+  throws `'TOTP not implemented'`). Its own comment notes it requires a missing
+  `EncryptionService` before secrets could be stored safely.
+- Two Drizzle tables exist under `apps/api/src/lib/server/api/mfa/tables/` but nothing reads or
+  writes them yet:
+  - `two-factor.table.ts` (`two_factor`): `user_id`, `secret`, `enabled`.
+  - `recovery-codes.table.ts` (`recovery_codes`): `user_id`, `code`, `used`.
+- No passkey, WebAuthn, or security-key code exists anywhere in the API.
 
 ## Dependencies
 
-### Internal
-- IAM service (authentication integration)
-- Audit service (event logging)
-- Database service (credential storage)
+### Real, currently unused by MFA logic
 
-### External
-- `otpauth` - TOTP generation
-- `@simplewebauthn/server` - WebAuthn support
-- `qrcode` - QR code generation
+`apps/api/package.json` lists `@oslojs/otp`, `@oslojs/webauthn`, and `uqr` (QR code generation),
+which look like the intended building blocks for TOTP and WebAuthn support, but no MFA code
+imports or calls them today.
 
-## Integration Points
+### Not present
 
-- **IAM Service**: MFA verification during login
-- **User Service**: MFA status in user profile
-- **Audit Service**: MFA enrollment and usage logging
+`otpauth`, `@simplewebauthn/server`, and `qrcode` are not dependencies of this project and are not
+used anywhere in the codebase.
+
+## Planned (not implemented)
+
+- TOTP enrollment/verification built on `@oslojs/otp`, using the `two_factor` table.
+- Recovery codes generation/consumption built on the `recovery_codes` table.
+- An `EncryptionService` to encrypt TOTP secrets at rest before `totp.service.ts` can be filled in.
+- Auth middleware to gate login on a completed MFA challenge.
+
+None of the above should be assumed to exist when reading other docs or code in this repo.
 
 ## Related Documentation
 

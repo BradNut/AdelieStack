@@ -3,277 +3,151 @@
 ## Service Boundaries
 
 ### What IAM Owns
-- User authentication (login/logout)
-- Session lifecycle management
-- Password operations (reset, change)
-- Passkey authentication
-- Multi-step authentication flows
-- Current user profile endpoint (`/me`)
-- Authentication state management
+- Password and email-code login (`POST /login`, `POST /login/request`, `POST /login/verify`)
+- Logout (`POST /logout`)
+- Password reset request/verify/complete
+- Session lifecycle (create, validate/extend, invalidate) via `SessionsService`/`SessionsRepository`
 
 ### What IAM Does NOT Own
-- User registration (owned by Signup service)
-- MFA enrollment and verification (owned by MFA service)
-- User profile management beyond `/me` (owned by Users service)
-- Role and permission definitions (owned by Roles service)
-- Audit logging (owned by Audit service)
+- Current-user profile (`GET /api/users/me`, `PATCH /api/users/me`) — owned by the Users service
+  (`UsersController`)
+- Credential/user persistence — owned by the Users service (`UsersRepository`,
+  `CredentialsRepository`, `UsersService`)
+- MFA (TOTP/recovery codes) — a separate module exists under
+  `apps/api/src/lib/server/api/mfa/` (see the MFA service docs), but it is not wired into any IAM
+  route; IAM does not check or enforce MFA today
+- Roles/permissions — `roles` module, not IAM
+- There is no Audit service/module anywhere in `apps/api/src`; nothing in this repo logs
+  authentication events to a dedicated audit trail
 
 ## Service Dependencies
 
 ### Upstream Dependencies (IAM depends on)
 
-#### Database Service
-- **Purpose**: User credential storage and retrieval
-- **Usage**: Query users by email, update passwords
-- **Failure Impact**: Cannot authenticate users
-- **Fallback**: None - critical dependency
+#### Users service (`UsersRepository`, `CredentialsRepository`, `UsersService`)
+- **Purpose**: user lookup by identifier/email, password-credential lookup, password updates,
+  new-user creation on first email-code login
+- **Failure Impact**: cannot authenticate or reset passwords
+- **Fallback**: none — critical dependency
 
 #### Redis Service
-- **Purpose**: Session storage and rate limiting
-- **Usage**: Store/retrieve sessions, track login attempts
-- **Failure Impact**: Cannot create or validate sessions
-- **Fallback**: None - critical dependency
+- **Purpose**: session storage (`SessionsRepository`), rate limiting (`rateLimit` middleware),
+  and short-lived login/reset verification codes (`LoginRequestsRepository`,
+  `ResetPasswordRequestsRepository`)
+- **Failure Impact**: cannot create/validate sessions, cannot rate-limit, cannot complete
+  login/reset code flows
+- **Fallback**: none — critical dependency
 
-#### Email Service
-- **Purpose**: Password reset and notification emails
-- **Usage**: Send reset links, change confirmations
-- **Failure Impact**: Password reset unavailable
-- **Fallback**: Log error, return success to user
+#### Mailer Service (`MailerService` → dev/prod mailer)
+- **Purpose**: deliver login verification codes, password-reset codes, and welcome emails
+- **Usage**: `LoginRequestsService` and `ResetPasswordRequestsService` call `mailer.send(...)`
+  and do not catch mailer errors — a mailer failure surfaces as a request failure
+- **Note**: in `dev`, this posts to a local Mailpit-compatible endpoint; in `prod`, `ProdMailerService`
+  only `console.log`s and does not actually send mail (see [Dependencies](./dependencies.md))
 
-#### MFA Service
-- **Purpose**: Multi-factor authentication verification
-- **Usage**: Check if MFA required, validate MFA codes
-- **Failure Impact**: Cannot complete MFA-protected logins
-- **Fallback**: None for MFA-enabled accounts
+### Downstream Dependencies (services that depend on IAM)
 
-### Downstream Dependencies (Services that depend on IAM)
+#### `sessionManagement` middleware (used by every request)
+- **Purpose**: resolve `c.var.session` for the whole app
+- **Usage**: reads the session cookie, calls `SessionsService.validateSession`, sets
+  `c.set('session', ...)`
 
-#### All Protected Endpoints
-- **Purpose**: Session validation for authenticated requests
-- **Usage**: Middleware validates session before route handler
-- **Integration**: Session cookie checked on every request
+#### `authState('session')` / `authState('none')` middleware
+- **Purpose**: gate individual routes on the presence/absence of `c.var.session`
+- **Usage**: throws `Unauthorized` when the required state doesn't match
 
-#### User Service
-- **Purpose**: User profile operations
-- **Usage**: Get current user from session
-- **Integration**: User ID from validated session
-
-#### Audit Service
-- **Purpose**: Security event logging
-- **Usage**: Log authentication events
-- **Integration**: Fire-and-forget event emission
+#### Users service
+- **Purpose**: `GET /api/users/me` reads `c.var.session.userId` to look up the current user
+- **Integration**: depends on `sessionManagement` populating the session, not on IAM routes
+  directly
 
 ## Integration Patterns
 
-### Session Validation Middleware
+### Session Validation Middleware (actual code)
 ```typescript
-// Used by all protected routes
-async function requireAuth(c: Context, next: Next) {
-  const sessionId = c.req.cookie('session');
-  
+// apps/api/src/lib/server/api/common/middleware/session-managment.middleware.ts
+export const sessionManagement: MiddlewareHandler = createMiddleware(async (c, next) => {
+  const sessionId = await sessionService.getSessionCookie();
   if (!sessionId) {
-    throw new UnauthorizedError('Authentication required');
+    c.set('session', null);
+    return next();
   }
-  
-  const session = await sessionService.validate(sessionId);
-  
-  if (!session) {
-    throw new UnauthorizedError('Invalid or expired session');
-  }
-  
-  c.set('user', session.user);
-  c.set('sessionId', sessionId);
-  
-  await next();
-}
+  const session = await sessionService.validateSession(sessionId);
+  if (!session) sessionService.deleteSessionCookie();
+  if (session?.fresh) sessionService.setSessionCookie(session);
+  c.set('session', session);
+  return next();
+});
 ```
 
-### MFA Integration
+### Auth State Gate (actual code)
 ```typescript
-// Check if MFA required after password validation
-async function login(email: string, password: string) {
-  const user = await validateCredentials(email, password);
-  
-  // Check with MFA service
-  const mfaEnabled = await mfaService.isEnabled(user.id);
-  
-  if (mfaEnabled) {
-    return {
-      requiresMfa: true,
-      tempToken: generateTempToken(user.id)
-    };
-  }
-  
-  // Create session if no MFA required
-  const session = await sessionService.create(user.id);
-  return { user, session };
-}
+// apps/api/src/lib/server/api/common/middleware/auth.middleware.ts
+const authed: MiddlewareHandler = createMiddleware(async (c, next) => {
+  if (!c.var.session) throw Unauthorized(m.auth_login_required());
+  return next();
+});
 ```
 
-### Audit Logging Integration
-```typescript
-// Log authentication events
-async function logAuthEvent(event: AuthEvent) {
-  try {
-    await auditService.log({
-      type: 'authentication',
-      action: event.action,
-      userId: event.userId,
-      ipAddress: event.ipAddress,
-      userAgent: event.userAgent,
-      success: event.success,
-      timestamp: new Date()
-    });
-  } catch (error) {
-    // Don't fail auth flow if audit logging fails
-    logger.error('Failed to log auth event', { error });
-  }
-}
-```
+There is no MFA-check step, no audit-logging call, and no `requiresMfa`/`tempToken` branch
+anywhere in this code path.
 
 ## Data Flow
 
-### Login Request Flow
+### Password Login
 ```
-Client → IAM Service → Database (user lookup)
-                    → Redis (rate limit check)
-                    → bcrypt (password verify)
-                    → MFA Service (check if enabled)
-                    → Redis (create session)
-                    → Audit Service (log event)
-                    → Client (session cookie)
+Client → IamController → UsersRepository (identifier lookup)
+                       → CredentialsRepository (password credential lookup)
+                       → HashingService/argon2 (verify)
+                       → SessionsRepository via Redis (create session)
+                       → Client (signed session cookie)
 ```
 
-### Session Validation Flow
+### Email-Code Login
 ```
-Client → IAM Middleware → Redis (session lookup)
-                       → Database (user data if needed)
-                       → Route Handler (with user context)
+Client → IamController → LoginRequestsRepository via Redis (store/verify code)
+                       → MailerService (send code)
+                       → UsersService (create user, if new)
+                       → SessionsRepository via Redis (create session)
+                       → Client (signed session cookie)
 ```
 
-### Password Reset Flow
+### Password Reset
 ```
-Client → IAM Service → Database (user lookup)
-                    → Redis (rate limit + store token)
-                    → Email Service (send reset link)
-                    → Client (success response)
-
-[User clicks email link]
-
-Client → IAM Service → Redis (validate token)
-                    → bcrypt (hash new password)
-                    → Database (update password)
-                    → Redis (revoke sessions)
-                    → Email Service (confirmation)
-                    → Audit Service (log event)
-                    → Client (success response)
+Client → IamController → UsersRepository (lookup)
+                       → ResetPasswordRequestsRepository via Redis (store/verify code)
+                       → MailerService (send code)
+                       → UsersService.updatePassword (Argon2 hash + credential upsert)
+                       → Client (success message)
 ```
 
 ## State Management
 
-### Session State (Redis)
+### Session State (Redis, `SessionsRepository`)
 ```typescript
 {
-  sessionId: string;
+  id: string;
   userId: string;
-  createdAt: timestamp;
-  lastActivity: timestamp;
-  expiresAt: timestamp;
-  ipAddress: string;
-  userAgent: string;
+  createdAt: Date;
+  expiresAt: Date; // 30 days from creation/extension
 }
 ```
 
-### Rate Limit State (Redis)
+### Login/Reset Request State (Redis)
 ```typescript
 {
-  key: `ratelimit:login:${ipAddress}`;
-  count: number;
-  expiresAt: timestamp;
-}
-```
-
-### Password Reset Token State (Redis)
-```typescript
-{
-  key: `reset:${token}`;
-  userId: string;
-  expiresAt: timestamp; // 1 hour
+  email: string;
+  hashedCode: string; // Argon2 hash of the emailed verification code
 }
 ```
 
 ## Error Propagation
 
-### Database Errors
-- Connection errors → 500 Internal Server Error
-- Constraint violations → 409 Conflict
-- Not found → 404 Not Found
-
-### Redis Errors
-- Connection errors → 503 Service Unavailable
-- Timeout → 503 Service Unavailable
-
-### External Service Errors
-- Email service failure → Log error, return success (prevent info leak)
-- MFA service failure → 503 Service Unavailable for MFA users
-- Audit service failure → Log error, continue (non-critical)
-
-## Performance Considerations
-
-### Caching Strategy
-- User credentials: Not cached (always fresh from DB)
-- Sessions: Cached in Redis (fast validation)
-- Rate limits: Cached in Redis (fast checks)
-
-### Query Optimization
-- Index on users.email for fast lookup
-- Index on users.id for session validation
-- Redis TTL for automatic cleanup
-
-### Concurrency
-- Session creation: Atomic operations
-- Rate limiting: Redis INCR (atomic)
-- Password updates: Database transactions
-
-## Monitoring & Observability
-
-### Key Metrics
-- Login success/failure rate
-- Session creation rate
-- Password reset request rate
-- Average session duration
-- Rate limit hit rate
-
-### Health Checks
-- Database connectivity
-- Redis connectivity
-- Session validation latency
-- Login endpoint latency
-
-### Alerts
-- High login failure rate (potential attack)
-- Redis connection failures
-- Database connection failures
-- Unusual password reset volume
-
-## Configuration
-
-### Environment Variables
-```bash
-# Session configuration
-SESSION_EXPIRY_DAYS=7
-SESSION_EXTENDED_DAYS=30
-
-# Rate limiting
-LOGIN_RATE_LIMIT=5
-LOGIN_RATE_WINDOW=60
-
-# Password reset
-RESET_TOKEN_EXPIRY_HOURS=1
-
-# Security
-BCRYPT_ROUNDS=12
-```
+- Domain errors are thrown via `BadRequest`/`Unauthorized`/`NotFound` helpers
+  (`common/utils/exceptions.ts`) and handled by the shared `onError` middleware
+  (`application.controller.ts`) — there is no custom per-route error mapping in IAM.
+- Redis/DB connectivity failures propagate as unhandled exceptions to the same `onError` handler;
+  there is no bespoke circuit breaker or fallback in this module.
 
 ## Related Documentation
 

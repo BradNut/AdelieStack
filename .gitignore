@@ -37,3 +37,6 @@ src/lib/paraglide
 
 # Turbo
 .turbo
+
+# Local agent ticket workspace (never committed)
+.issues

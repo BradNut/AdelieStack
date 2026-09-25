@@ -1,338 +1,181 @@
 # IAM Business Processes
 
-## Authentication Workflows
+These flows describe the real implementation in
+`apps/api/src/lib/server/api/iam/{login-requests,reset-password-requests,sessions}`.
 
-### Standard Login Flow
-
-```
-1. User submits email and password
-   ↓
-2. Validate input format (Zod schema)
-   ↓
-3. Rate limit check (Redis)
-   ↓
-4. Query user by email (Database)
-   ↓
-5. Compare password hash (bcrypt)
-   ↓
-6. Check if MFA required
-   ├─ Yes → Return requiresMfa: true
-   └─ No → Continue
-   ↓
-7. Create session (Redis)
-   ↓
-8. Set session cookie
-   ↓
-9. Log authentication event (Audit)
-   ↓
-10. Return user data
-```
-
-### Passkey Login Flow
+## Password Login (`POST /login`)
 
 ```
-1. User initiates passkey login
+1. Client submits { identifier, password }
    ↓
-2. Generate authentication challenge
+2. zValidator validates against signinDto
    ↓
-3. User authenticates with device
+3. Rate limit check (3/min, Redis-backed)
    ↓
-4. Verify WebAuthn credential
+4. UsersRepository.findOneByEmailOrUsername(identifier)
+   ├─ Not found → BadRequest('Invalid credentials')
+   └─ Found → continue
    ↓
-5. Query user by credential ID
+5. CredentialsRepository.findPasswordCredentialsByUserId(userId)
+   ├─ Not found → BadRequest('Invalid credentials')
+   └─ Found → continue
    ↓
-6. Validate signature
+6. HashingService.compare(password, credential.secret_data) (Argon2)
+   ├─ Invalid → BadRequest('Invalid credentials')
+   └─ Valid → continue
    ↓
-7. Create session (Redis)
+7. SessionsService.createSession(userId) — writes session to Redis
    ↓
-8. Set session cookie
+8. Controller sets signed session cookie
    ↓
-9. Log authentication event
-   ↓
-10. Return user data
+9. Return { message: 'welcome' }
 ```
 
-### Multi-Step Authentication Flow
+There is no MFA branch, account lockout, or audit-log step in this flow.
+
+## Email-Code Login Request (`POST /login/request`)
 
 ```
-Step 1: Email Verification
-  - User enters email
-  - Check if email exists
-  - Return next step indicator
-
-Step 2: Password Verification
-  - User enters password
-  - Validate password
-  - Check if MFA required
-  - Return MFA requirement
-
-Step 3: MFA Verification (if required)
-  - User provides MFA code
-  - Validate with MFA service
-  - Create session on success
-
-Step 4: Session Creation
-  - Generate session token
-  - Store in Redis
-  - Return session cookie
+1. Client submits { email }
+   ↓
+2. LoginRequestsRepository.delete(email) — clear any prior pending request
+   ↓
+3. VerificationCodesService generates a 6-char code + Argon2 hash
+   ↓
+4. LoginRequestsRepository.set({ email, hashedCode }) — stored in Redis
+   ↓
+5. MailerService.send(LoginVerificationEmail) with the plaintext code
+   ↓
+6. Return { message: 'welcome' }
 ```
 
-## Password Management Workflows
-
-### Password Reset Request
+## Email-Code Login Verify (`POST /login/verify`)
 
 ```
-1. User submits email
+1. Client submits { email, code }
    ↓
-2. Validate email format
+2. LoginRequestsRepository.get(email)
+   ├─ Not found → BadRequest('Invalid code')
+   └─ Found → continue
    ↓
-3. Rate limit check
+3. VerificationCodesService.verify(code, storedHash) (Argon2 compare)
+   ├─ Invalid → BadRequest('Invalid code')
+   └─ Valid → continue
    ↓
-4. Query user by email
-   ├─ Not found → Return generic success (prevent enumeration)
-   └─ Found → Continue
+4. LoginRequestsRepository.delete(email) — burn the one-time request
    ↓
-5. Generate reset token (cryptographically secure)
+5. UsersRepository.findOneByEmail(email)
+   ├─ Found → SessionsService.createSession(existingUser.id)
+   └─ Not found → UsersService.createEmail(email), send WelcomeEmail,
+                  SessionsService.createSession(newUser.id)
    ↓
-6. Store token with expiration (Redis, 1 hour)
-   ↓
-7. Send reset email (Email service)
-   ↓
-8. Return generic success message
+6. Controller sets signed session cookie; return { message: 'welcome' }
 ```
 
-### Password Reset Completion
+## Password Reset Request (`POST /password/reset/request`)
 
 ```
-1. User clicks email link with token
+1. Client submits { email }
    ↓
-2. User submits new password
+2. UsersRepository.findOneByEmail(email)
+   ├─ Not found → return silently (no error, no email — prevents enumeration)
+   └─ Found → continue
    ↓
-3. Validate token (Redis lookup)
-   ├─ Invalid/Expired → Return error
-   └─ Valid → Continue
+3. ResetPasswordRequestsRepository.delete(email) — clear any prior request
    ↓
-4. Validate new password strength
+4. VerificationCodesService generates a code + Argon2 hash
    ↓
-5. Hash new password (bcrypt)
+5. ResetPasswordRequestsRepository.set({ email, hashedCode }) — stored in Redis
    ↓
-6. Update user password (Database)
+6. MailerService.send(ResetPasswordEmail) with the plaintext code
    ↓
-7. Invalidate reset token (Redis)
-   ↓
-8. Revoke all existing sessions (Redis)
-   ↓
-9. Log password change event (Audit)
-   ↓
-10. Send confirmation email
-   ↓
-11. Return success
+7. Return { message: 'success' }
 ```
 
-### Password Change (Authenticated)
+## Password Reset Verify (`POST /password/reset/verify`)
 
 ```
-1. User submits current and new password
+1. Client submits { email, code }
    ↓
-2. Validate session
+2. ResetPasswordRequestsRepository.get(email)
+   ├─ Not found → BadRequest('Invalid code')
+   └─ Found → continue
    ↓
-3. Verify current password
-   ├─ Invalid → Return error
-   └─ Valid → Continue
+3. VerificationCodesService.verify(code, storedHash)
+   ├─ Invalid → BadRequest('Invalid code')
+   └─ Valid → continue
    ↓
-4. Validate new password strength
+4. ResetPasswordRequestsRepository.delete(email)
    ↓
-5. Hash new password (bcrypt)
+5. UsersRepository.findOneByEmail(email)
+   ├─ Not found → BadRequest('Unable to reset password')
+   └─ Found → return true
    ↓
-6. Update user password (Database)
-   ↓
-7. Revoke other sessions (keep current)
-   ↓
-8. Log password change event (Audit)
-   ↓
-9. Send confirmation email
-   ↓
-10. Return success
+6. Return { message: 'success' }
 ```
 
-## Session Management Workflows
-
-### Session Creation
+## Password Reset Completion (`POST /password/reset`)
 
 ```
-1. User successfully authenticates
+1. Client submits { email, password, confirm_password }
    ↓
-2. Generate session ID (UUID)
+2. resetPasswordNewPasswordDto.superRefine checks password === confirm_password
+   ├─ Mismatch → BadRequest('Passwords do not match')
+   └─ Match → continue
    ↓
-3. Create session data:
-   - User ID
-   - IP address
-   - User agent
-   - Created timestamp
-   - Expiration timestamp
+3. UsersRepository.findOneByEmail(email)
+   ├─ Not found → BadRequest('Unable to reset password')
+   └─ Found → continue
    ↓
-4. Store in Redis with TTL
+4. UsersService.updatePassword(userId, password) — hashes with Argon2, upserts credential
    ↓
-5. Set HttpOnly, Secure cookie
-   ↓
-6. Return session cookie to client
+5. Return { message: 'welcome' }
 ```
 
-### Session Validation
+Note: this handler does not itself re-verify that a reset code was previously confirmed, nor does
+it revoke existing sessions for the user — there is no session-revocation step in this flow.
+
+## Logout (`POST /logout`)
 
 ```
-1. Request received with session cookie
+1. Client calls POST /logout (no body)
    ↓
-2. Extract session ID from cookie
+2. SessionsService.invalidateSession('') — deletes a session by id in Redis
    ↓
-3. Query Redis for session data
-   ├─ Not found → Return 401 Unauthorized
-   └─ Found → Continue
+3. SessionsService.deleteSessionCookie() — clears the cookie regardless
    ↓
-4. Check expiration
-   ├─ Expired → Delete session, return 401
-   └─ Valid → Continue
-   ↓
-5. Update last activity timestamp
-   ↓
-6. Attach user data to request context
-   ↓
-7. Continue to route handler
+4. Return { message: 'logout' }
 ```
 
-### Session Revocation
+## Session Validation (every request, `sessionManagement` middleware)
 
 ```
-Single Session:
-1. User requests session deletion
+1. Read signed "session" cookie → session id
    ↓
-2. Validate current session
+2. No cookie → c.set('session', null), continue
    ↓
-3. Delete target session from Redis
+3. SessionsRepository.get(sessionId) via Redis
+   ├─ Not found → deleteSessionCookie(), c.set('session', null)
+   └─ Found → check expiry
+      ├─ Expired → delete from Redis, treat as not found
+      └─ Valid, <15 days remaining → re-persist with new 30-day expiry, re-set cookie ("fresh")
    ↓
-4. Log session revocation event
+4. c.set('session', session | null)
    ↓
-5. Return success
-
-All Sessions:
-1. User requests logout from all devices
-   ↓
-2. Validate current session
-   ↓
-3. Query all sessions for user
-   ↓
-4. Delete all sessions except current
-   ↓
-5. Log bulk revocation event
-   ↓
-6. Return count of revoked sessions
+5. Routes using authState('session') throw Unauthorized if session is null;
+   routes using authState('none') throw Unauthorized if session is present
 ```
 
-## Business Rules
+## Business Rules (as implemented)
 
-### Password Requirements
-- Minimum 8 characters
-- Must contain at least one uppercase letter
-- Must contain at least one lowercase letter
-- Must contain at least one number
-- Must contain at least one special character
-- Cannot be same as previous password
-- Cannot contain user's email or name
-
-### Session Rules
-- Default expiration: 7 days
-- Extended expiration (remember me): 30 days
-- Sliding window: Activity extends expiration
-- Maximum concurrent sessions: 10 per user
-- Automatic cleanup of expired sessions
-
-### Rate Limiting Rules
-- Login attempts: 5 per minute per IP
-- Password reset requests: 3 per hour per IP
-- Password reset completions: 5 per hour per IP
-- Account lockout: 10 failed attempts in 1 hour
-- Lockout duration: 1 hour
-
-### Account Lockout
-- Triggered after 10 failed login attempts
-- Duration: 1 hour
-- Can be manually unlocked by admin
-- User notified via email
-- Audit log entry created
-
-## Security Considerations
-
-### Password Storage
-- Never store plaintext passwords
-- Use bcrypt with 12 salt rounds
-- Hash on server side only
-- Validate strength before hashing
-
-### Session Security
-- HttpOnly cookies (prevent XSS)
-- Secure flag in production (HTTPS only)
-- SameSite=Lax (CSRF protection)
-- Regenerate session ID on privilege change
-- Clear session on logout
-
-### Token Security
-- Cryptographically secure random tokens
-- Short expiration (1 hour for reset)
-- Single-use tokens
-- Invalidate on use or expiration
-- Store hashed in database
-
-### Audit Trail
-- Log all authentication events
-- Log password changes
-- Log session creation/destruction
-- Log failed login attempts
-- Include IP address and user agent
-
-## Error Handling
-
-### Failed Login
-- Generic error message (prevent enumeration)
-- Increment failed attempt counter
-- Check for account lockout threshold
-- Log failed attempt with IP
-- Return 401 Unauthorized
-
-### Expired Session
-- Delete session from Redis
-- Clear session cookie
-- Return 401 Unauthorized
-- Redirect to login page
-
-### Invalid Reset Token
-- Log suspicious activity
-- Return generic error
-- Do not reveal if token existed
-- Rate limit reset attempts
-
-## Integration Points
-
-### MFA Service
-- Check if user has MFA enabled
-- Validate MFA codes during login
-- Require MFA for sensitive operations
-
-### Email Service
-- Send password reset emails
-- Send password change confirmations
-- Send account lockout notifications
-- Send new device login alerts
-
-### Audit Service
-- Log authentication events
-- Log password changes
-- Log session management events
-- Log security events (lockouts, etc.)
-
-### User Service
-- Query user data
-- Update user profile
-- Check user status (active, locked, etc.)
+- Password field has no server-side minimum-length or complexity rule beyond "non-empty"
+  (`signinDto`); `resetPasswordNewPasswordDto` only requires non-empty + matching confirmation.
+- Verification codes are 6 characters drawn from a look-alike-free alphabet
+  (`23456789ACDEFGHJKLMNPQRSTUVWXYZ`), hashed with Argon2 before storage.
+- Sessions default to a 30-day expiry and are extended (not rotated) when fewer than 15 days
+  remain.
+- `POST /login` is the only endpoint with a rate limit (3/min); the other IAM endpoints have none.
+- There is no account lockout, no audit logging, and no MFA gate in any of these flows.
 
 ## Related Documentation
 
