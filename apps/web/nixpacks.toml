@@ -1,0 +1,31 @@
+# Nixpacks configuration for the AdelieStack web app (SvelteKit, adapter-node).
+# Docs: https://nixpacks.com/docs/configuration/file
+
+[phases.setup]
+nixPkgs = ["nodejs_22"]
+# libvips: sharp / @sveltejs/enhanced-img image processing at build time.
+aptPkgs = ["libvips-dev", "libvips-tools", "build-essential", "libpng-dev", "libjpeg-dev", "zlib1g-dev"]
+
+[phases.install]
+cmds = [
+  "corepack enable && corepack prepare pnpm@10.26.0 --activate",
+  "pnpm install --frozen-lockfile --filter @adelie/web..."
+]
+
+[phases.build]
+# PUBLIC_-prefixed vars (e.g. PUBLIC_IMAGE_URI, required by apps/web/.env.schema)
+# are inlined into the client bundle at build time via `$env/static/public`,
+# so they must be set as build-time variables on the platform, not only at
+# runtime.
+cmds = ["pnpm --filter @adelie/web run build"]
+
+[start]
+cmd = "pnpm --filter @adelie/web start"
+
+[variables]
+NODE_ENV = "production"
+PORT = "3000"
+# Host binding - 0.0.0.0 required for most PaaS/container routing.
+HOST = "0.0.0.0"
+# ORIGIN must be set for SvelteKit SSR (set this to the deployed origin).
+# ORIGIN = "https://example.com"

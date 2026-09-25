@@ -1,0 +1,18 @@
+# Diagrams Directory
+
+This directory contains architecture diagrams, sequence diagrams, and flow charts for the IAM service.
+
+## Recommended Diagrams
+
+- **authentication-flow.mmd** - Mermaid diagram of login flow
+- **session-lifecycle.mmd** - Session creation and validation
+- **password-reset-flow.mmd** - Password reset process
+- **mfa-integration.mmd** - MFA integration points
+- **service-dependencies.mmd** - Service dependency graph
+- **data-flow.mmd** - Data flow through the system
+
+## Tools
+
+- Mermaid.js for text-based diagrams
+- Draw.io for complex architecture diagrams
+- PlantUML for sequence diagrams

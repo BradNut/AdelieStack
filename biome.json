@@ -1,11 +1,14 @@
 {
-	"$schema": "https://biomejs.dev/schemas/1.9.4/schema.json",
+	"$schema": "https://biomejs.dev/schemas/2.5.4/schema.json",
 	"vcs": {
-		"enabled": false,
+		"enabled": true,
 		"clientKind": "git",
-		"useIgnoreFile": false
+		"useIgnoreFile": true
 	},
-	"files": { "ignoreUnknown": false, "ignore": [] },
+	"files": { "ignoreUnknown": false, "includes": ["**"] },
+	"html": {
+		"experimentalFullSupportEnabled": true
+	},
 	"formatter": {
 		"enabled": true,
 		"formatWithErrors": false,
@@ -14,22 +17,40 @@
 		"lineEnding": "lf",
 		"lineWidth": 150,
 		"attributePosition": "auto",
-		"ignore": [
-			"**/.DS_Store",
-			"**/node_modules",
-			"./build",
-			"./.svelte-kit",
-			"./package",
-			"**/.env",
-			"**/.env.*",
-			"**/pnpm-lock.yaml",
-			"**/package-lock.json",
-			"**/yarn.lock",
-			"**/paraglide/**"
+		"includes": [
+			"**",
+			"!**/.DS_Store",
+			"!**/node_modules",
+			"!build",
+			"!.svelte-kit",
+			"!package",
+			"!**/.env",
+			"!**/.env.*",
+			"!**/pnpm-lock.yaml",
+			"!**/package-lock.json",
+			"!**/yarn.lock",
+			"!**/paraglide/**"
 		]
 	},
-	"organizeImports": { "enabled": true },
-	"linter": { "enabled": true, "rules": { "recommended": true } },
+	"assist": { "actions": { "source": { "organizeImports": "on" } } },
+	"linter": {
+		"enabled": true,
+		"rules": {
+			"preset": "recommended",
+			"style": {
+				"noParameterAssign": "error",
+				"useAsConstAssertion": "error",
+				"useDefaultParameterLast": "error",
+				"useEnumInitializers": "error",
+				"useSelfClosingElements": "error",
+				"useSingleVarDeclarator": "error",
+				"noUnusedTemplateLiteral": "error",
+				"useNumberNamespace": "error",
+				"noInferrableTypes": "error",
+				"noUselessElse": "error"
+			}
+		}
+	},
 	"javascript": {
 		"formatter": {
 			"jsxQuoteStyle": "single",
@@ -49,17 +70,9 @@
 			"unsafeParameterDecoratorsEnabled": true
 		}
 	},
-	"overrides": [
-		{
-			"include": ["*.svelte"],
-			"linter": {
-				"rules": {
-					"style": {
-						"useConst": "off",
-						"useImportType": "off"
-					}
-				}
-			}
+	"css": {
+		"parser": {
+			"tailwindDirectives": true
 		}
-	]
+	}
 }

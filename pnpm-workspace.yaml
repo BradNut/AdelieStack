@@ -1,0 +1,12 @@
+packages:
+  - apps/*
+  - packages/*
+
+onlyBuiltDependencies:
+  - "@sentry/cli"
+  - "argon2"
+  - "esbuild"
+  - "msgpackr-extract"
+  - "protobufjs"
+  - "sharp"
+  - "svelte-preprocess"

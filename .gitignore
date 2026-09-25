@@ -10,8 +10,8 @@ node_modules
 .vercel
 .netlify
 .wrangler
-/.svelte-kit
-/build
+.svelte-kit
+build
 
 # OS
 .DS_Store
@@ -22,6 +22,11 @@ Thumbs.db
 .env.*
 !.env.example
 !.env.test
+!.env.schema
+
+# Exclude generated env types (varlock codegen output; run dev/build/start to regenerate)
+apps/api/env.d.ts
+apps/web/env.d.ts
 
 # Vite
 vite.config.js.timestamp-*
@@ -29,3 +34,9 @@ vite.config.ts.timestamp-*
 
 # Paraglide
 src/lib/paraglide
+
+# Turbo
+.turbo
+
+# Local agent ticket workspace (never committed)
+.issues

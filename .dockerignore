@@ -1,0 +1,58 @@
+# Dependencies (reinstalled inside the image)
+**/node_modules
+
+# Build / cache output (rebuilt inside the image)
+**/build
+**/dist
+**/.svelte-kit
+**/.turbo
+**/.vite
+**/coverage
+**/playwright-report
+**/test-results
+**/.pnpm-store
+
+# Generated Paraglide / varlock artifacts (regenerated during the build)
+apps/*/src/lib/paraglide
+apps/*/env.d.ts
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Env files — never bake real values into an image. Schemas are the
+# declared, secret-free source of truth and are safe (and needed) to keep.
+.env
+.env.*
+!.env.schema
+!**/.env.schema
+
+# Docker metadata
+Dockerfile
+**/Dockerfile
+.dockerignore
+**/.dockerignore
+docker-compose*.yml
+
+# Agent / planning artifacts, not needed in the image
+.issues
+.agents
+.knowledge-base
+.claude
+.cursor
+.windsurf
+AGENTS.md
+**/AGENTS.md
+
+# Editor / OS files
+.vscode
+.idea
+*.swp
+*.swo
+.DS_Store
+
+# Docs
+README.md
+ENV_SETUP.md
+*.md

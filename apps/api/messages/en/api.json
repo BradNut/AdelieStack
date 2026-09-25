@@ -1,0 +1,5 @@
+{
+  "$schema": "https://inlang.com/schema/inlang-message-format",
+  "auth_login_required": "You must be logged in to access this resource",
+  "auth_logout_required": "You must be logged out to access this resource"
+}

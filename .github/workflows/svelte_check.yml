@@ -1,0 +1,108 @@
+name: Run_Svelte_Check_on_PRs
+
+on:
+  pull_request:
+    branches:
+      - master
+      - main
+      - development
+
+  workflow_dispatch:
+
+env:
+  # Environment
+  SITE_VERSION: ${{ secrets.SITE_VERSION }}
+  ENVIRONMENT: ${{ secrets.ENVIRONMENT }}
+  DOMAIN: ${{ secrets.DOMAIN }}
+  PORT: ${{ secrets.PORT }}
+  ORIGIN: ${{ secrets.ORIGIN }}
+  # Cloudflare - PUBLIC_ from vars, private from secrets
+  PUBLIC_TURNSTILE_SITE_KEY: ${{ vars.PUBLIC_TURNSTILE_SITE_KEY }}
+  TURNSTILE_SECRET_KEY: ${{ secrets.TURNSTILE_SECRET_KEY }}
+  # Database
+  DATABASE_USER: ${{ secrets.DATABASE_USER }}
+  DATABASE_PASSWORD: ${{ secrets.DATABASE_PASSWORD }}
+  DATABASE_HOST: ${{ secrets.DATABASE_HOST }}
+  DATABASE_PORT: ${{ secrets.DATABASE_PORT }}
+  DATABASE_DB: ${{ secrets.DATABASE_DB }}
+  # Drizzle
+  LOG_LEVEL: ${{ secrets.LOG_LEVEL }}
+  DB_MIGRATING: ${{ secrets.DB_MIGRATING }}
+  DB_SEEDING: ${{ secrets.DB_SEEDING }}
+  ADMIN_USERNAME: ${{ secrets.ADMIN_USERNAME }}
+  ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+  # Emails
+  SITE_NAME: ${{ secrets.SITE_NAME }}
+  SITE_URL: ${{ secrets.SITE_URL }}
+  SUPPORT_EMAIL: ${{ secrets.SUPPORT_EMAIL }}
+  # Redis
+  REDIS_URL: ${{ secrets.REDIS_URL }}
+  # Security
+  ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
+  SIGNING_SECRET: ${{ secrets.SIGNING_SECRET }}
+  MFA_ENCRYPTION_KEY: ${{ secrets.MFA_ENCRYPTION_KEY }}
+  MFA_TOTP_ENABLED: ${{ secrets.MFA_TOTP_ENABLED }}
+  MFA_PASSKEY_ENABLED: ${{ secrets.MFA_PASSKEY_ENABLED }}
+  MFA_SECURITY_KEY_ENABLED: ${{ secrets.MFA_SECURITY_KEY_ENABLED }}
+  SHOW_OAUTH_BUTTONS: ${{ secrets.SHOW_OAUTH_BUTTONS }}
+  # Storage - PUBLIC_ from vars, private from secrets
+  PUBLIC_IMAGE_URI: ${{ vars.PUBLIC_IMAGE_URI }}
+  STORAGE_URL: ${{ secrets.STORAGE_URL }}
+  STORAGE_ACCESS_KEY: ${{ secrets.STORAGE_ACCESS_KEY }}
+  STORAGE_SECRET_KEY: ${{ secrets.STORAGE_SECRET_KEY }}
+  STORAGE_HOST: ${{ secrets.STORAGE_HOST }}
+  STORAGE_PORT: ${{ secrets.STORAGE_PORT }}
+  STORAGE_SSL: ${{ secrets.STORAGE_SSL }}
+  # Multi-tenant storage (bucket namespace)
+  PROJECT_NAME: ${{ secrets.PROJECT_NAME }}
+  # Sentry
+  SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+  SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+  SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
+  SENTRY_URL: ${{ secrets.SENTRY_URL }}
+  SENTRY_BACKEND_URL: ${{ secrets.SENTRY_BACKEND_URL }}
+  # Public - from vars
+  PUBLIC_SITE_NAME: ${{ vars.PUBLIC_SITE_NAME }}
+  PUBLIC_SITE_URL: ${{ vars.PUBLIC_SITE_URL }}
+  PUBLIC_SITE_VERSION: ${{ vars.PUBLIC_SITE_VERSION }}
+  PUBLIC_SUPPORT_EMAIL: ${{ vars.PUBLIC_SUPPORT_EMAIL }}
+  PUBLIC_SENTRY_URL: ${{ vars.PUBLIC_SENTRY_URL }}
+  PUBLIC_UMAMI_URL: ${{ vars.PUBLIC_UMAMI_URL }}
+  PUBLIC_UMAMI_ID: ${{ vars.PUBLIC_UMAMI_ID }}
+  # Antivirus
+  ANTIVIRUS_ENABLED: ${{ secrets.ANTIVIRUS_ENABLED }}
+  CLAMAV_HOST: ${{ secrets.CLAMAV_HOST }}
+  CLAMAV_PORT: ${{ secrets.CLAMAV_PORT }}
+  # Email (Unsend)
+  API_KEY: ${{ secrets.API_KEY }}
+  API_BASE_URL: ${{ secrets.API_BASE_URL }}
+
+jobs:
+  svelte_check:
+    runs-on: ubuntu-latest
+    environment: development
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: pnpm-setup
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Enforce agent rules
+        run: pnpm check:agent-rules
+
+      - name: Generate Paraglide files
+        run: pnpm --filter @adelie/web exec paraglide-js compile --project ./project.inlang --outdir ./src/lib/paraglide
+
+      - name: Run Svelte Check
+        run: pnpm turbo run check --filter=@adelie/web

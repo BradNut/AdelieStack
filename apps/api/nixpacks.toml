@@ -1,0 +1,34 @@
+# Nixpacks configuration for the AdelieStack API (Hono, run directly via tsx).
+# Docs: https://nixpacks.com/docs/configuration/file
+
+[phases.setup]
+nixPkgs = ["nodejs_22"]
+# libvips: sharp image processing. build-essential + friends: argon2/native module builds.
+aptPkgs = ["libvips-dev", "libvips-tools", "build-essential", "libpng-dev", "libjpeg-dev", "zlib1g-dev"]
+
+[phases.install]
+cmds = [
+  "corepack enable && corepack prepare pnpm@10.26.0 --activate",
+  "pnpm install --frozen-lockfile --filter @adelie/api..."
+]
+
+[phases.build]
+# Compiles the Paraglide message modules the API imports at runtime
+# (apps/api/src/lib/paraglide); there is no other build step, the API runs
+# TypeScript directly via tsx.
+cmds = ["pnpm --filter @adelie/api run paraglide:compile"]
+
+[start]
+cmd = "pnpm --filter @adelie/api start"
+
+[variables]
+NODE_ENV = "production"
+# Port configuration - matches dev setup.
+PORT = "3001"
+# Host binding - 0.0.0.0 required for most PaaS/container routing.
+HOST = "0.0.0.0"
+
+# Required at runtime (see apps/api/.env.schema); the platform must supply
+# real values for these and every other variable declared there. Never set
+# secret values here.
+# SIGNING_SECRET = ""
