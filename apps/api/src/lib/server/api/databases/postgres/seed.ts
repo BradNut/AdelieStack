@@ -1,10 +1,10 @@
 import 'dotenv/config';
-import { type Table, getTableName, sql } from 'drizzle-orm';
+import { getTableName, sql, type Table } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
-import * as drizzleSchema from './drizzle-schema';
-import * as seeds from './seeds';
-import * as schema from './drizzle-schema';
 import Pool from 'pg-pool';
+import * as drizzleSchema from './drizzle-schema';
+import * as schema from './drizzle-schema';
+import * as seeds from './seeds';
 
 if (!process.env.DB_SEEDING) {
   throw new Error('You must set DB_SEEDING to "true" when running seeds');

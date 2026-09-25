@@ -1,13 +1,14 @@
-import { deleteCookie, getSignedCookie, setSignedCookie } from 'hono/cookie';
 import { inject, injectable } from '@needle-di/core';
+import dayjs from 'dayjs';
+import relativeTime from 'dayjs/plugin/relativeTime';
+import { deleteCookie, getSignedCookie, setSignedCookie } from 'hono/cookie';
 import { ConfigService } from '../../common/configs/config.service';
+import { RequestContextService } from '../../common/services/request-context.service';
+import { generateId } from '../../common/utils/crypto';
 import type { CreateSessionDto } from './dtos/create-session-dto';
 import type { SessionDto } from './dtos/session.dto';
 import { SessionsRepository } from './sessions.repository';
-import dayjs from 'dayjs';
-import relativeTime from 'dayjs/plugin/relativeTime';
-import { RequestContextService } from '../../common/services/request-context.service';
-import { generateId } from '../../common/utils/crypto';
+
 dayjs.extend(relativeTime);
 
 @injectable()
@@ -17,31 +18,21 @@ export class SessionsService {
   constructor(
     private sessionsRepository = inject(SessionsRepository),
     private requestContextService = inject(RequestContextService),
-    private configService = inject(ConfigService)
+    private configService = inject(ConfigService),
   ) {}
 
   setSessionCookie(session: SessionDto) {
-    return setSignedCookie(
-      this.requestContextService.getContext(),
-      this.sessionCookieName,
-      session.id,
-      this.configService.envs.SIGNING_SECRET,
-      {
-        httpOnly: true,
-        sameSite: 'lax',
-        secure: this.configService.envs.ENV === 'prod',
-        path: '/',
-        expires: session.expiresAt
-      }
-    );
+    return setSignedCookie(this.requestContextService.getContext(), this.sessionCookieName, session.id, this.configService.envs.SIGNING_SECRET, {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: this.configService.envs.ENV === 'prod',
+      path: '/',
+      expires: session.expiresAt,
+    });
   }
 
   async getSessionCookie(): Promise<string | null> {
-    const session = await getSignedCookie(
-      this.requestContextService.getContext(),
-      this.configService.envs.SIGNING_SECRET,
-      this.sessionCookieName
-    );
+    const session = await getSignedCookie(this.requestContextService.getContext(), this.configService.envs.SIGNING_SECRET, this.sessionCookieName);
     if (!session) return null;
     return session;
   }
@@ -55,7 +46,7 @@ export class SessionsService {
       id: this.generateSessionToken(),
       userId,
       createdAt: dayjs().toDate(),
-      expiresAt: dayjs().add(30, 'day').toDate()
+      expiresAt: dayjs().add(30, 'day').toDate(),
     };
 
     await this.sessionsRepository.create(session);
@@ -69,8 +60,16 @@ export class SessionsService {
     // If session does not exist, return null
     if (!existingSession) return null;
 
-    // If session exists, check if it should be extended
-    const shouldExtendSession = dayjs(existingSession.expiresAt).diff(Date.now(), 'day') < 15;
+    // If the session has already expired, reject it and clean up the stale entry
+    const msRemaining = dayjs(existingSession.expiresAt).diff(dayjs());
+    if (msRemaining <= 0) {
+      await this.sessionsRepository.delete(sessionId);
+      return null;
+    }
+
+    // If session exists and is still valid, check if it should be extended
+    const daysRemaining = msRemaining / (1000 * 60 * 60 * 24);
+    const shouldExtendSession = daysRemaining < 15;
 
     // If session should be extended, update the session in the database
     if (shouldExtendSession) {

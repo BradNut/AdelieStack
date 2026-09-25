@@ -1,8 +1,8 @@
-import { CredentialsType, credentials_table } from './tables/credentials.table';
 import { injectable } from '@needle-di/core';
 import { and, eq, type InferSelectModel } from 'drizzle-orm';
-import { takeFirstOrThrow } from '../common/utils/drizzle';
 import { DrizzleRepository } from '../common/factories/drizzle-repository.factory';
+import { takeFirstOrThrow } from '../common/utils/drizzle';
+import { CredentialsType, credentials_table } from './tables/credentials.table';
 
 /* -------------------------------------------------------------------------- */
 /*                                    Types                                   */

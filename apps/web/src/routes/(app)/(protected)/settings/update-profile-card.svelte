@@ -1,16 +1,18 @@
 <script lang="ts">
+	import { type UpdateProfileDto, updateProfileDto } from '@adelie/shared';
+	import * as flashModule from "sveltekit-flash-message/client";
+	import { zod4Client } from "sveltekit-superforms/adapters";
+	import { type SuperValidated, superForm } from "sveltekit-superforms/client";
 	import * as Card from "$lib/components/ui/card";
 	import * as Form from "$lib/components/ui/form";
 	import { Input } from "$lib/components/ui/input";
-	import { updateProfileDto, type UpdateProfileDto } from "$lib/dtos/settings/profile/update-profile.dto.js";
-	import { superForm } from "sveltekit-superforms/client";
-	import { zodClient } from "sveltekit-superforms/adapters";
-	import * as flashModule from "sveltekit-flash-message/client";
 
-	const { updateProfileForm }: { updateProfileForm: UpdateProfileDto } = $props();
+	const { updateProfileForm }: { updateProfileForm: SuperValidated<UpdateProfileDto, App.Superforms.Message> } =
+		$props();
 
+	// svelte-ignore state_referenced_locally
 	const sf_update_profile = superForm(updateProfileForm, {
-		validators: zodClient(updateProfileDto),
+		validators: zod4Client(updateProfileDto),
 		resetForm: false,
 		syncFlashMessage: true,
 		flashMessage: {

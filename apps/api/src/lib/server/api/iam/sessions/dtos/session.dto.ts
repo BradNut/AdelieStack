@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from 'zod/v4';
 
 export const sessionDto = z.object({
   id: z.string(),
@@ -6,6 +6,6 @@ export const sessionDto = z.object({
   expiresAt: z.date(),
   createdAt: z.date(),
   fresh: z.boolean(),
-})
+});
 
 export type SessionDto = z.infer<typeof sessionDto>;

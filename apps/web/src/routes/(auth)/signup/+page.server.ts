@@ -1,8 +1,9 @@
-import { fail, type Actions } from '@sveltejs/kit';
+import { signupUsernameEmailDto } from '@adelie/shared';
+import { type Actions, fail } from '@sveltejs/kit';
 import { redirect } from 'sveltekit-flash-message/server';
-import { zod } from 'sveltekit-superforms/adapters';
+import { zod4 } from 'sveltekit-superforms/adapters';
 import { setError, superValidate } from 'sveltekit-superforms/server';
-import { signupUsernameEmailDto } from '@/server/api/signup/dtos/signup-username-email.dto';
+import type { PageServerLoad } from './$types';
 
 const signUpDefaults = {
   firstName: '',
@@ -14,7 +15,7 @@ const signUpDefaults = {
   terms: true,
 };
 
-export const load = async (event) => {
+export const load: PageServerLoad = async (event) => {
   const { parent } = event;
   const { authedUser } = await parent();
 
@@ -24,7 +25,7 @@ export const load = async (event) => {
   }
 
   return {
-    signupForm: await superValidate(zod(signupUsernameEmailDto), {
+    signupForm: await superValidate(zod4(signupUsernameEmailDto), {
       defaults: signUpDefaults,
     }),
   };
@@ -40,7 +41,7 @@ export const actions: Actions = {
       throw redirect('/', message, event);
     }
 
-    const form = await superValidate(event, zod(signupUsernameEmailDto));
+    const form = await superValidate(event, zod4(signupUsernameEmailDto));
 
     console.log('form data', form.data);
 

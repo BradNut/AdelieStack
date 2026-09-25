@@ -1,11 +1,10 @@
-import { notSignedInMessage } from '$lib/utils/flashMessages';
+import { StatusCodes, updateProfileDto } from '@adelie/shared';
+import { type Actions, fail } from '@sveltejs/kit';
 import { redirect } from 'sveltekit-flash-message/server';
+import { zod4 } from 'sveltekit-superforms/adapters';
+import { message, setError, superValidate } from 'sveltekit-superforms/server';
+import { notSignedInMessage } from '$lib/utils/flashMessages';
 import type { PageServerLoad } from './$types';
-import { fail, message, setError, superValidate } from 'sveltekit-superforms/server';
-import { zod } from 'sveltekit-superforms/adapters';
-import { updateProfileDto } from '$lib/dtos/settings/profile/update-profile.dto';
-import type { Actions } from '@sveltejs/kit';
-import { StatusCodes } from '$lib/constants/status-codes';
 
 export const load: PageServerLoad = async (event) => {
   const { parent } = event;
@@ -17,7 +16,7 @@ export const load: PageServerLoad = async (event) => {
     throw redirect(302, '/login', notSignedInMessage, event);
   }
 
-  const updateProfileForm = await superValidate(zod(updateProfileDto), {
+  const updateProfileForm = await superValidate(event, zod4(updateProfileDto), {
     defaults: {
       first_name: authedUser?.first_name ?? '',
       last_name: authedUser?.last_name ?? '',
@@ -39,7 +38,7 @@ export const actions: Actions = {
       throw redirect(302, '/login', notSignedInMessage, event);
     }
 
-    const form = await superValidate(event, zod(updateProfileDto));
+    const form = await superValidate(event, zod4(updateProfileDto));
 
     if (!form.valid) {
       return fail(400, {
@@ -52,14 +51,14 @@ export const actions: Actions = {
     const { error } = await locals.api.users.me.profile.$put({ json: form.data }).then(locals.parseApiResponse);
 
     if (error) {
-			console.log('error', error);
-      return setError(form, 'username', error.message);
+      console.log('error', error);
+      return setError(form, 'username', typeof error === 'string' ? error : 'An error occurred');
     }
 
-		const profileUpdatedMessage = {
-			type: 'success',
-			message: 'Profile updated! 🎊',
-		};
+    const profileUpdatedMessage = {
+      type: 'success' as const,
+      text: 'Profile updated! 🎊',
+    };
 
     return message(form, profileUpdatedMessage);
   },
@@ -78,9 +77,9 @@ export const actions: Actions = {
     }
 
     const accountDeletedMessage = {
-      type: 'success',
-      message: 'Account deleted! 🎊',
+      type: 'success' as const,
+      text: 'Account deleted! 🎊',
     };
-    redirect(StatusCodes.SEE_OTHER, '/')
-  }
+    redirect(StatusCodes.SEE_OTHER, '/');
+  },
 };

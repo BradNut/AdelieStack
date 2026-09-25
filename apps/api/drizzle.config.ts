@@ -15,11 +15,11 @@ export default defineConfig({
 	casing: 'snake_case',
 	dbCredentials: {
 		host: process.env.DATABASE_HOST || 'localhost',
-		port: Number(process.envDATABASE_PORT) || 5432,
-		user: process.envDATABASE_USER,
-		password: process.envDATABASE_PASSWORD,
-		database: process.envDATABASE_DB || 'acme',
-		ssl: process.envDATABASE_HOST !== 'localhost',
+		port: Number(process.env.DATABASE_PORT) || 5432,
+		user: process.env.DATABASE_USER,
+		password: process.env.DATABASE_PASSWORD,
+		database: process.env.DATABASE_DB || 'acme',
+		ssl: process.env.DATABASE_HOST !== 'localhost',
 	},
 	migrations: {
 		table: 'migrations',

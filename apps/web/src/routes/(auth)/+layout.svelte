@@ -1,8 +1,8 @@
 <script lang="ts">
+	import Logo from "@/components/logo.svelte";
 	import { page } from "$app/state";
 	import ThemeDropdown from "$lib/components/theme-dropdown.svelte";
 	import { Button } from "$lib/components/ui/button";
-	import Logo from "@/components/logo.svelte";
 
 	let { data, children } = $props();
 </script>
@@ -111,7 +111,7 @@
 		top: 1rem;
 		right: 1rem;
 
-		@media (min-width >= 768px) {
+		@media (min-width: 768px) {
 			top: 2rem;
 			right: 2rem;
 		}

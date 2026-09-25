@@ -1,7 +1,7 @@
+import { inject, injectable } from '@needle-di/core';
 import type { Transaction } from '../common/utils/drizzle';
 import { RolesService } from '../roles/roles.service';
 import { type CreateUserRole, UserRolesRepository } from './user_roles.repository';
-import { inject, injectable } from '@needle-di/core';
 
 @injectable()
 export class UserRolesService {
@@ -55,6 +55,5 @@ export class UserRolesService {
     }
 
     return this.userRolesRepository.deleteAllByUserId(userId, trx);
-
   }
 }

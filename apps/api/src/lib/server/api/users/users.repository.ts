@@ -1,9 +1,9 @@
 import { injectable } from '@needle-di/core';
-import { takeFirst, takeFirstOrThrow } from '../common/utils/drizzle';
-import { users_table } from './tables/users.table';
-import { eq, or, type InferSelectModel } from 'drizzle-orm';
-import { NotFound } from '../common/utils/exceptions';
+import { eq, type InferSelectModel, or } from 'drizzle-orm';
 import { DrizzleRepository } from '../common/factories/drizzle-repository.factory';
+import { takeFirst, takeFirstOrThrow } from '../common/utils/drizzle';
+import { NotFound } from '../common/utils/exceptions';
+import { users_table } from './tables/users.table';
 
 /* -------------------------------------------------------------------------- */
 /*                                    Types                                   */

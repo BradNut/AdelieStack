@@ -1,14 +1,14 @@
-import type { EmailTemplate } from "../interfaces/email-template.interface";
+import type { EmailTemplate } from '../interfaces/email-template.interface';
 
 export class EmailChangeNoticeEmail implements EmailTemplate {
-	constructor() {}
+  constructor() {}
 
-	subject(): string {
-		return "Email Change Notice";
-	}
+  subject(): string {
+    return 'Email Change Notice';
+  }
 
-	html() {
-		return /*html*/ `
+  html() {
+    return /*html*/ `
 		<html lang='en'>
 			<head>
 				<meta http-equiv='X-UA-Compatible' content='IE=edge' />
@@ -28,5 +28,5 @@ export class EmailChangeNoticeEmail implements EmailTemplate {
 			</style>
 		</html>
 		`;
-	}
+  }
 }

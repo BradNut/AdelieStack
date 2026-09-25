@@ -1,18 +1,20 @@
 <script lang="ts">
+	import { signinDto } from '@adelie/shared';
+	import { zod4Client } from "sveltekit-superforms/adapters";
+	import { superForm } from "sveltekit-superforms/client";
 	import { Button } from "$lib/components/ui/button";
 	import * as Card from "$lib/components/ui/card";
-	import { Input } from "$lib/components/ui/input";
 	import * as Form from "$lib/components/ui/form";
+	import { Input } from "$lib/components/ui/input";
 	import { receive, send } from "$lib/utils/pageCrossfade";
-	import { zodClient } from "sveltekit-superforms/adapters";
-	import { superForm } from "sveltekit-superforms/client";
-	import { signinDto } from "$lib/dtos/login/signin.dto.js";
 
 	let { data } = $props();
+	// svelte-ignore state_referenced_locally
 	const { showOAuthButtons } = data;
 
+	// svelte-ignore state_referenced_locally
 	const sf_login_password = superForm(data.loginForm, {
-		validators: zodClient(signinDto),
+		validators: zod4Client(signinDto),
 		resetForm: false,
 	});
 
@@ -82,15 +84,6 @@
 
 {#snippet oAuthButtons()}
 	<div class="grid gap-4">
-		<Button href="/login/google" variant="outline" class="w-full flex items-center gap-2">
-			Google
-		</Button>
+		<Button href="/login/google" variant="outline" class="w-full flex items-center gap-2">Google</Button>
 	</div>
 {/snippet}
-
-<style lang="postcss">
-	svg {
-		width: 24px;
-		height: 24px;
-	}
-</style>

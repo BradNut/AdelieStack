@@ -1,5 +1,5 @@
-import { hash, verify } from 'argon2';
 import { injectable } from '@needle-di/core';
+import { hash, verify } from 'argon2';
 
 @injectable()
 export class HashingService {

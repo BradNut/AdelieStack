@@ -28,11 +28,12 @@ export const fallback: RequestHandler = ({ request }) => app.fetch(request);
 ## Local Setup
 
 1. Make sure Docker is running
-2. Copy the `.env.example` file and rename to `.env`
+2. Set up your env files — see [`ENV_SETUP.md`](./ENV_SETUP.md) (each app declares its own
+   variables in `apps/<app>/.env.schema`; copy it to `apps/<app>/.env` and fill in real values)
 3. Ensure that DB_SEEDING and DB_MIGRATING are set to `true` in the `.env` for this first run.
 4. `pnpm install`
 5. The database extension `citext` is being used to allow for case-insensitive string matching. To install the extension run `CREATE EXTENSION IF NOT EXISTS citext;` or add inside an additional drizzle SQL file for startup to use.
-6. `pnpm initialize` (this will start the docker-compose and run the initial database migration.)
+6. `pnpm initialize` (this will start the docker-compose, provision the SeaweedFS storage buckets, and run the initial database migration.) Re-run `pnpm storage:setup` any time to (idempotently) recreate the buckets, e.g. after wiping the `seaweedfs_data` volume.
 7. `pnpm dev`
 8. Ensure that DB_SEEDING and DB_MIGRATING are set back to `false` in the `.env` after initial set up.
 

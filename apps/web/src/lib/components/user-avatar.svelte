@@ -1,5 +1,6 @@
 <script lang="ts" module>
-	import type { HTMLAttributes } from 'svelte/elements';
+	import type { HTMLAttributes } from "svelte/elements";
+
 	interface Props extends HTMLAttributes<HTMLImageElement> {
 		user: {
 			id: string;
@@ -9,15 +10,16 @@
 </script>
 
 <script lang="ts">
-	import { createAvatar } from '@dicebear/core';
-	import { funEmoji } from '@dicebear/collection';
+	import { funEmoji } from "@dicebear/collection";
+	import { createAvatar } from "@dicebear/core";
 
 	const { user, ...props }: Props = $props();
-	const avatar =
+	const avatar = $derived(
 		user.avatar ||
-		createAvatar(funEmoji, {
-			seed: user.id
-		}).toDataUri();
+			createAvatar(funEmoji, {
+				seed: user.id,
+			}).toDataUri(),
+	);
 </script>
 
 <img {...props} src={avatar} />

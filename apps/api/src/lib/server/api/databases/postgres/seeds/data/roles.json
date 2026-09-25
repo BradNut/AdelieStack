@@ -1,11 +1,11 @@
 [
-	{
-		"name": "admin"
-	},
-	{
-		"name": "user"
-	},
-	{
-		"name": "moderator"
-	}
+  {
+    "name": "admin"
+  },
+  {
+    "name": "user"
+  },
+  {
+    "name": "moderator"
+  }
 ]

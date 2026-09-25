@@ -1,9 +1,9 @@
-import { type InferSelectModel, relations, getTableColumns } from 'drizzle-orm';
+import { getTableColumns, type InferSelectModel, relations } from 'drizzle-orm';
 import { boolean, pgTable, text, uuid } from 'drizzle-orm/pg-core';
-import { roles_table } from '../../roles/tables/roles.table';
-import { users_table } from './users.table';
 import { generateId } from '../../common/utils/crypto';
 import { id, timestamps } from '../../common/utils/drizzle';
+import { roles_table } from '../../roles/tables/roles.table';
+import { users_table } from './users.table';
 
 /* -------------------------------------------------------------------------- */
 /*                                    Table                                   */

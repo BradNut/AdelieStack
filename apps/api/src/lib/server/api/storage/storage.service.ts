@@ -1,57 +1,59 @@
 import { inject, injectable } from '@needle-di/core';
+import sharp, { type ResizeOptions } from 'sharp';
 import { ConfigService } from '../common/configs/config.service';
 import { generateId } from '../common/utils/crypto';
-import { Client } from 'minio';
-import sharp, { type ResizeOptions } from 'sharp';
-import { bucketPolicy } from './storage.configs';
-
-type Upload = {
-  file: File;
-  key?: string;
-  resizeOptions?: ResizeOptions;
-};
+import { S3StorageClient } from './s3-storage.client';
+import { BucketVisibility, buildBucketName } from './storage.buckets';
+import type { StoredObject, Upload } from './storage.types';
 
 @injectable()
 export class StorageService {
-  private readonly minioClient: Client;
-  private readonly bucket = 'dev';
+  private client: S3StorageClient | undefined;
 
-  constructor(private configService = inject(ConfigService)) {
-    this.minioClient = new Client({
-      endPoint: this.configService.envs.STORAGE_HOST,
-      port: this.configService.envs.STORAGE_PORT,
-      useSSL: false,
-      accessKey: this.configService.envs.STORAGE_ACCESS_KEY,
-      secretKey: this.configService.envs.STORAGE_SECRET_KEY
-    });
-  }
+  constructor(private readonly configService = inject(ConfigService)) {}
 
+  /** Idempotently ensures the public and private buckets exist. */
   async configure() {
     console.info('configuring storage...');
-    const bucketExists = await this.minioClient.bucketExists(this.bucket);
+    const client = this.getClient();
 
-    if (!bucketExists) {
-      console.info('creating storage bucket...');
-      await this.minioClient.makeBucket(this.bucket);
-      await this.minioClient.setBucketPolicy(this.bucket, JSON.stringify(bucketPolicy));
+    for (const visibility of Object.values(BucketVisibility)) {
+      const bucket = this.bucketFor(visibility);
+      if (!(await client.bucketExists(bucket))) {
+        console.info(`creating storage bucket ${bucket}...`);
+        await client.createBucket(bucket);
+      }
     }
   }
 
-  async upload({ file, resizeOptions, key }: Upload) {
-    let buffer = await this.convertToBuffer(file);
+  async upload({ file, resizeOptions, key, visibility = BucketVisibility.PUBLIC }: Upload) {
+    let buffer: Buffer = await this.convertToBuffer(file);
     if (resizeOptions) {
       buffer = await this.resizeImage(buffer, resizeOptions);
     }
 
     const fileKey = key || generateId();
-    await this.minioClient.putObject(this.bucket, fileKey, buffer, file.size, {
-      'Content-Type': file.type
-    });
+    await this.getClient().putObject(this.bucketFor(visibility), fileKey, buffer, file.type || undefined);
     return { key: fileKey };
   }
 
-  async remove(key: string) {
-    return this.minioClient.removeObject(this.bucket, key);
+  async get(key: string, visibility: BucketVisibility = BucketVisibility.PUBLIC): Promise<StoredObject> {
+    return this.getClient().getObject(this.bucketFor(visibility), key);
+  }
+
+  async remove(key: string, visibility: BucketVisibility = BucketVisibility.PUBLIC) {
+    return this.getClient().removeObject(this.bucketFor(visibility), key);
+  }
+
+  bucketFor(visibility: BucketVisibility): string {
+    const { PROJECT_NAME, ENVIRONMENT } = this.configService.envs;
+    return buildBucketName(PROJECT_NAME, ENVIRONMENT, visibility);
+  }
+
+  // Created on first use so constructing the service never touches storage.
+  private getClient(): S3StorageClient {
+    this.client ??= S3StorageClient.fromEnv(this.configService.envs);
+    return this.client;
   }
 
   private async resizeImage(fileBuffer: Buffer, resizeOptions: ResizeOptions) {

@@ -1,23 +1,24 @@
 <script lang="ts">
-	import * as Alert from '$lib/components/ui/alert/index.js';
-	import { Button } from '$lib/components/ui/button/index.js';
-	import * as Card from '$lib/components/ui/card/index.js';
-	import { Label } from '$lib/components/ui/label/index.js';
-	import { Input } from '$lib/components/ui/input/index.js';
+	import { signupUsernameEmailDto } from '@adelie/shared';
+	import { superForm } from "sveltekit-superforms";
+	import { zod4Client } from "sveltekit-superforms/adapters";
+	import * as Alert from "$lib/components/ui/alert/index.js";
+	import { Button } from "$lib/components/ui/button/index.js";
+	import * as Card from "$lib/components/ui/card/index.js";
+	import * as Form from "$lib/components/ui/form";
+	import { Input } from "$lib/components/ui/input/index.js";
+	import { Label } from "$lib/components/ui/label/index.js";
 	import { receive, send } from "$lib/utils/pageCrossfade";
-	import { superForm } from 'sveltekit-superforms';
-	import * as Form from '$lib/components/ui/form';
-	import { zodClient } from 'sveltekit-superforms/adapters';
-	import { signupUsernameEmailDto } from '$lib/dtos/signup/signup-username-email.dto.js';
 
 	const { data } = $props();
 
+	// svelte-ignore state_referenced_locally
 	const sf_signup = superForm(data.signupForm, {
-	validators: zodClient(signupUsernameEmailDto),
-	resetForm: false,
-});
+		validators: zod4Client(signupUsernameEmailDto),
+		resetForm: false,
+	});
 
-const { form: signupForm, errors: signupErrors, enhance: signupEnhance } = sf_signup;
+	const { form: signupForm, errors: signupErrors, enhance: signupEnhance } = sf_signup;
 </script>
 
 <svelte:head>
@@ -44,7 +45,17 @@ const { form: signupForm, errors: signupErrors, enhance: signupEnhance } = sf_si
 			<Form.Control>
 				{#snippet children({ props })}
 					<Label for="username">Username <small>(required)</small></Label>
-					<Input {...props} type="text" id="username" class={$signupErrors.username && "outline outline-destructive"} name="username" placeholder="Username" autocomplete="username" data-invalid={$signupErrors.username} bind:value={$signupForm.username} />
+					<Input
+						{...props}
+						type="text"
+						id="username"
+						class={$signupErrors.username && "outline outline-destructive"}
+						name="username"
+						placeholder="Username"
+						autocomplete="username"
+						data-invalid={$signupErrors.username}
+						bind:value={$signupForm.username}
+					/>
 				{/snippet}
 			</Form.Control>
 			<Form.FieldErrors />
@@ -53,8 +64,17 @@ const { form: signupForm, errors: signupErrors, enhance: signupEnhance } = sf_si
 			<Form.Control>
 				{#snippet children({ props })}
 					<Label for="password">Password <small>(required)</small></Label>
-					<Input {...props} type="password" id="password" class={$signupErrors.password && "outline outline-destructive"} name="password" placeholder="Password" autocomplete="new-password" data-invalid={$signupErrors.password}
-						bind:value={$signupForm.password} />
+					<Input
+						{...props}
+						type="password"
+						id="password"
+						class={$signupErrors.password && "outline outline-destructive"}
+						name="password"
+						placeholder="Password"
+						autocomplete="new-password"
+						data-invalid={$signupErrors.password}
+						bind:value={$signupForm.password}
+					/>
 				{/snippet}
 			</Form.Control>
 			<Form.FieldErrors />
@@ -63,7 +83,17 @@ const { form: signupForm, errors: signupErrors, enhance: signupEnhance } = sf_si
 			<Form.Control>
 				{#snippet children({ props })}
 					<Label for="confirm_password">Confirm Password <small>(required)</small></Label>
-					<Input {...props} type="password" id="confirm_password" class={$signupErrors.confirm_password && "outline outline-destructive"} name="confirm_password" placeholder="Confirm Password" autocomplete="new-password" data-invalid={$signupErrors.confirm_password} bind:value={$signupForm.confirm_password} />
+					<Input
+						{...props}
+						type="password"
+						id="confirm_password"
+						class={$signupErrors.confirm_password && "outline outline-destructive"}
+						name="confirm_password"
+						placeholder="Confirm Password"
+						autocomplete="new-password"
+						data-invalid={$signupErrors.confirm_password}
+						bind:value={$signupForm.confirm_password}
+					/>
 				{/snippet}
 			</Form.Control>
 			<Form.FieldErrors />
@@ -72,7 +102,17 @@ const { form: signupForm, errors: signupErrors, enhance: signupEnhance } = sf_si
 			<Form.Control>
 				{#snippet children({ props })}
 					<Label for="email">Email</Label>
-					<Input {...props} type="email" id="email" class={$signupErrors.email && "outline outline-destructive"} name="email" placeholder="Email" autocomplete="email" data-invalid={$signupErrors.email} bind:value={$signupForm.email} />
+					<Input
+						{...props}
+						type="email"
+						id="email"
+						class={$signupErrors.email && "outline outline-destructive"}
+						name="email"
+						placeholder="Email"
+						autocomplete="email"
+						data-invalid={$signupErrors.email}
+						bind:value={$signupForm.email}
+					/>
 				{/snippet}
 			</Form.Control>
 			<Form.FieldErrors />

@@ -1,10 +1,10 @@
-import { z } from "zod";
+import { z } from 'zod/v4';
 
 export const createSessionDto = z.object({
   id: z.string(),
   userId: z.string(),
-  createdAt: z.date({ coerce: true }),
-  expiresAt: z.date({ coerce: true }),
+  createdAt: z.coerce.date(),
+  expiresAt: z.coerce.date(),
 });
 
 export type CreateSessionDto = z.infer<typeof createSessionDto>;

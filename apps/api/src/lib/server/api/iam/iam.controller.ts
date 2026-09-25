@@ -1,11 +1,15 @@
-import { resetPasswordCodeDto, resetPasswordEmailDto } from '$lib/dtos/reset-password';
+import {
+  createLoginRequestDto,
+  loginRequestDto,
+  resetPasswordCodeDto,
+  resetPasswordEmailDto,
+  resetPasswordNewPasswordDto,
+  signinDto,
+  verifyLoginRequestDto,
+} from '@adelie/shared';
 import { zValidator } from '@hono/zod-validator';
 import { inject, injectable } from '@needle-di/core';
 import { openApi } from 'hono-zod-openapi';
-import { createLoginRequestDto } from '../../../dtos/login/create-login-request.dto';
-import { loginRequestDto } from '../../../dtos/login/login-request.dto';
-import { signinDto } from '../../../dtos/login/signin.dto';
-import { verifyLoginRequestDto } from '../../../dtos/login/verify-login-request.dto';
 import { Controller } from '../common/factories/controllers.factory';
 import { authState } from '../common/middleware/auth.middleware';
 import { rateLimit } from '../common/middleware/rate-limit.middleware';
@@ -14,7 +18,6 @@ import { LoginRequestsService } from '../iam/login-requests/login-requests.servi
 import { SessionsService } from '../iam/sessions/sessions.service';
 import { signInEmail } from './login-requests/routes/login.routes';
 import { ResetPasswordRequestsService } from './reset-password-requests/reset-password-requests.service';
-import { resetPasswordNewPasswordDto } from '$lib/dtos/reset-password/reset-password-new-password.dto';
 
 @injectable()
 export class IamController extends Controller {
@@ -49,7 +52,7 @@ export class IamController extends Controller {
         this.sessionsService.deleteSessionCookie();
         return c.json({ message: 'logout' });
       })
-      .post("/password/reset", authState('none'), zValidator('json', resetPasswordNewPasswordDto), async (c) => {
+      .post('/password/reset', authState('none'), zValidator('json', resetPasswordNewPasswordDto), async (c) => {
         await this.resetPasswordRequestsService.resetPassword(c.req.valid('json'));
         return c.json({ message: 'welcome' });
       })

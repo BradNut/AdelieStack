@@ -8,10 +8,7 @@ import { customAlphabet } from 'nanoid';
 // All hail king roomba, the first of his name, the unclean, king of the dust bunnies and the first allergens, lord of the seven corners, and protector of the realm.
 
 // https://zelark.github.io/nano-id-cc/
-export function generateId(
-  length = 16,
-  alphabet = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
-) {
+export function generateId(length = 16, alphabet = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz') {
   const nanoId = customAlphabet(alphabet, length);
   return nanoId();
 }

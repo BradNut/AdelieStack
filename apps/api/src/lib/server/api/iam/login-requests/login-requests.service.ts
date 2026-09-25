@@ -1,4 +1,6 @@
+import type { CreateLoginRequestDto, SignInDto, VerifyLoginRequestDto } from '@adelie/shared';
 import { inject, injectable } from '@needle-di/core';
+import { LoggerService } from '../../common/services/logger.service';
 import { TokensService } from '../../common/services/tokens.service';
 import { VerificationCodesService } from '../../common/services/verification-codes.service';
 import { BadRequest } from '../../common/utils/exceptions';
@@ -9,38 +11,34 @@ import { CredentialsRepository } from '../../users/credentials.repository';
 import { UsersRepository } from '../../users/users.repository';
 import { UsersService } from '../../users/users.service';
 import { SessionsService } from '../sessions/sessions.service';
-import type { CreateLoginRequestDto } from '../../../../dtos/login/create-login-request.dto';
-import type { SignInDto } from '../../../../dtos/login/signin.dto';
-import type { VerifyLoginRequestDto } from '../../../../dtos/login/verify-login-request.dto';
 import { LoginRequestsRepository } from './login-requests.repository';
-import { LoggerService } from '../../common/services/logger.service';
 
 @injectable()
 export class LoginRequestsService {
   constructor(
-    private credentialsRepository = inject(CredentialsRepository),
-    private loggerService = inject(LoggerService),
-    private loginRequestsRepository = inject(LoginRequestsRepository),
-    private usersRepository = inject(UsersRepository),
-    private verificationCodesService = inject(VerificationCodesService),
-    private usersService = inject(UsersService),
-    private sessionsService = inject(SessionsService),
-    private tokensService = inject(TokensService),
-    private mailer = inject(MailerService),
+    private readonly credentialsRepository = inject(CredentialsRepository),
+    private readonly loggerService = inject(LoggerService),
+    private readonly loginRequestsRepository = inject(LoginRequestsRepository),
+    private readonly usersRepository = inject(UsersRepository),
+    private readonly verificationCodesService = inject(VerificationCodesService),
+    private readonly usersService = inject(UsersService),
+    private readonly sessionsService = inject(SessionsService),
+    private readonly tokensService = inject(TokensService),
+    private readonly mailer = inject(MailerService),
   ) {}
 
   async login({ identifier, password }: SignInDto) {
     const existingUser = await this.usersRepository.findOneByEmailOrUsername(identifier);
 
     if (!existingUser) {
-      this.loggerService.log.debug('User not found for identifier', identifier);
+      this.loggerService.log.debug({ identifier }, 'User not found for identifier');
       throw BadRequest('Invalid credentials');
     }
 
     const credential = await this.credentialsRepository.findPasswordCredentialsByUserId(existingUser.id);
 
     if (!credential) {
-      this.loggerService.log.debug('Password credential not found for user', existingUser.id);
+      this.loggerService.log.debug({ userId: existingUser.id }, 'Password credential not found for user');
       throw BadRequest('Invalid credentials');
     }
 
@@ -48,8 +46,6 @@ export class LoginRequestsService {
       this.loggerService.log.debug(`Invalid password for user ${existingUser.id}`);
       throw BadRequest('Invalid credentials');
     }
-
-    // const totpCredentials = await this.credentialsRepository.findTOTPCredentialsByUserId(existingUser.id);
 
     return this.authExistingUser({ userId: existingUser.id });
   }

@@ -14,8 +14,7 @@ export default async function seed(db: NodePgDatabase<typeof schema>) {
   const adminRole = await db.select().from(schema.roles_table).where(eq(schema.roles_table.name, 'admin'));
   const userRole = await db.select().from(schema.roles_table).where(eq(schema.roles_table.name, 'user'));
 
-	const adminUsername = process.env.ADMIN_USERNAME !== undefined && process.env.ADMIN_USERNAME !== ''
-			? `${process.env.ADMIN_USERNAME}` : 'admin';
+  const adminUsername = process.env.ADMIN_USERNAME !== undefined && process.env.ADMIN_USERNAME !== '' ? `${process.env.ADMIN_USERNAME}` : 'admin';
   const adminUser = await db
     .insert(schema.users_table)
     .values({
@@ -73,7 +72,7 @@ export default async function seed(db: NodePgDatabase<typeof schema>) {
             throw new Error('Role not found');
           }
           await db.insert(schema.user_roles_table).values({
-          user_id: insertedUser?.id,
+            user_id: insertedUser?.id,
             role_id: foundRole?.id,
             primary: role?.primary,
           });

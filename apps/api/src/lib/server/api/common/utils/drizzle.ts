@@ -1,7 +1,7 @@
-import { customType, timestamp } from 'drizzle-orm/pg-core';
-import { NotFound } from './exceptions';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import * as drizzleSchema from '../../databases/postgres/drizzle-schema';
+import { customType, timestamp } from 'drizzle-orm/pg-core';
+import type * as drizzleSchema from '../../databases/postgres/drizzle-schema';
+import { NotFound } from './exceptions';
 
 /* -------------------------------------------------------------------------- */
 /*                                 Repository                                 */
@@ -27,31 +27,31 @@ export const takeFirstOrThrow = <T>(values: T[]): T => {
 export const citext = customType<{ data: string }>({
   dataType() {
     return 'citext';
-  }
+  },
 });
 
 // custom type for generating an id
 export const id = customType<{ data: string }>({
   dataType() {
     return 'text';
-  }
+  },
 });
 
 // timestamps for created_at and updated_at
 export const timestamps = {
   createdAt: timestamp('created_at', {
     mode: 'date',
-    withTimezone: true
+    withTimezone: true,
   })
     .notNull()
     .defaultNow(),
   updatedAt: timestamp('updated_at', {
     mode: 'date',
-    withTimezone: true
+    withTimezone: true,
   })
     .notNull()
     .defaultNow()
-    .$onUpdateFn(() => new Date())
+    .$onUpdateFn(() => new Date()),
 };
 
-export type Transaction = Parameters<Parameters<NodePgDatabase<typeof drizzleSchema>["transaction"]>[0]>[0];
+export type Transaction = Parameters<Parameters<NodePgDatabase<typeof drizzleSchema>['transaction']>[0]>[0];

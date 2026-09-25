@@ -1,6 +1,6 @@
+import { Container } from '@needle-di/core';
 import type { MiddlewareHandler } from 'hono';
 import { createMiddleware } from 'hono/factory';
-import { Container } from '@needle-di/core';
 import { SessionsService } from '../../iam/sessions/sessions.service';
 
 export const sessionManagement: MiddlewareHandler = createMiddleware(async (c, next) => {

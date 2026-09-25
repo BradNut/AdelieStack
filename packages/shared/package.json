@@ -3,7 +3,18 @@
   "version": "0.0.1",
   "private": true,
   "type": "module",
+  "scripts": {
+    "check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "dayjs": "^1.11.20",
+    "nanoid": "^5.1.9",
+    "zod": "^4.3.6"
+  },
   "exports": {
     ".": "./src/index.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1"
   }
 }

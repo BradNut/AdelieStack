@@ -1,9 +1,9 @@
 import 'dotenv/config';
-import { migrate } from 'drizzle-orm/node-postgres/migrator';
-import * as drizzleSchema from './drizzle-schema';
-import config from '../../../../../../drizzle.config';
-import Pool from 'pg-pool';
 import { drizzle } from 'drizzle-orm/node-postgres';
+import { migrate } from 'drizzle-orm/node-postgres/migrator';
+import Pool from 'pg-pool';
+import config from '../../../../../../drizzle.config';
+import * as drizzleSchema from './drizzle-schema';
 
 if (!config.out) {
   console.error('No migrations folder specified in drizzle.config.ts');

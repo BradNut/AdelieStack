@@ -1,44 +1,46 @@
 <script lang="ts">
-	import { Button } from '$lib/components/ui/button/index.js';
-	import * as Card from '$lib/components/ui/card/index.js';
-	import * as Form from '$lib/components/ui/form/index.js';
-	import * as InputOTP from '$lib/components/ui/input-otp/index.js';
-	import { Input } from '$lib/components/ui/input/index.js';
-	import { resetPasswordCodeDto, resetPasswordEmailDto } from '$lib/dtos/reset-password';
-	import { resetPasswordNewPasswordDto } from '$lib/dtos/reset-password/reset-password-new-password.dto';
-	import { superForm } from 'sveltekit-superforms';
-	import { zodClient } from 'sveltekit-superforms/adapters';
+	import { resetPasswordCodeDto, resetPasswordEmailDto, resetPasswordNewPasswordDto } from '@adelie/shared';
+	import { superForm } from "sveltekit-superforms";
+	import { zod4Client } from "sveltekit-superforms/adapters";
+	import { Button } from "$lib/components/ui/button/index.js";
+	import * as Card from "$lib/components/ui/card/index.js";
+	import * as Form from "$lib/components/ui/form/index.js";
+	import { Input } from "$lib/components/ui/input/index.js";
+	import * as InputOTP from "$lib/components/ui/input-otp/index.js";
 
 	const { data } = $props();
 
-	let resetEmailStep = $state('email-reset');
+	let resetEmailStep = $state("email-reset");
 
+	// svelte-ignore state_referenced_locally
 	const sf_email_reset = superForm(data.emailForm, {
-		validators: zodClient(resetPasswordEmailDto),
+		validators: zod4Client(resetPasswordEmailDto),
 		resetForm: false,
 		onUpdated: ({ form }) => {
 			if (form.valid) {
-				resetEmailStep = 'token-verification';
+				resetEmailStep = "token-verification";
 				$tokenFormData.email = form.data.email;
 			}
 		},
 	});
 
+	// svelte-ignore state_referenced_locally
 	const sf_token_verification = superForm(data.tokenForm, {
-		validators: zodClient(resetPasswordCodeDto),
+		validators: zod4Client(resetPasswordCodeDto),
 		resetForm: false,
 		onUpdated: ({ form }) => {
 			if (form.valid) {
-				resetEmailStep = 'new-password';
+				resetEmailStep = "new-password";
 				$newPasswordFormData.email = form.data.email;
 			}
 		},
 	});
 
+	// svelte-ignore state_referenced_locally
 	const sf_new_password = superForm(data.newPasswordForm, {
-  validators: zodClient(resetPasswordNewPasswordDto),
-  resetForm: false,
-});
+		validators: zod4Client(resetPasswordNewPasswordDto),
+		resetForm: false,
+	});
 
 	const { form: emailFormData, enhance: emailResetEnhance } = sf_email_reset;
 	const { form: tokenFormData, enhance: tokenEnhance } = sf_token_verification;
@@ -56,9 +58,9 @@
 	</Card.Header>
 	<Card.Content>
 		<div class="grid gap-4">
-			{#if resetEmailStep === 'email-reset'}
+			{#if resetEmailStep === "email-reset"}
 				{@render emailForm()}
-			{:else if resetEmailStep === 'token-verification'}
+			{:else if resetEmailStep === "token-verification"}
 				{@render codeForm()}
 			{:else}
 				{@render resetPasswordForm()}
@@ -73,12 +75,7 @@
 			<Form.Control>
 				{#snippet children({ props })}
 					<Form.Label for="email">Email</Form.Label>
-					<Input
-						{...props}
-						type="email"
-						placeholder="you@awesome.com"
-						bind:value={$emailFormData.email}
-					/>
+					<Input {...props} type="email" placeholder="you@awesome.com" bind:value={$emailFormData.email} />
 				{/snippet}
 			</Form.Control>
 			<Form.Description />
@@ -120,13 +117,7 @@
 			<Form.Control>
 				{#snippet children({ props })}
 					<Form.Label for="password">Password</Form.Label>
-					<Input
-						{...props}
-						type="password"
-						id="password"
-						name="password"
-						bind:value={$newPasswordFormData.password}
-					/>
+					<Input {...props} type="password" id="password" name="password" bind:value={$newPasswordFormData.password} />
 				{/snippet}
 			</Form.Control>
 			<Form.FieldErrors />

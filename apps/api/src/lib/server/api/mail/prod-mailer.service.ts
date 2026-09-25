@@ -1,5 +1,5 @@
-import { injectable } from "@needle-di/core";
-import type { Mailer, SendProps } from "./interfaces/mailer.interface";
+import { injectable } from '@needle-di/core';
+import type { Mailer, SendProps } from './interfaces/mailer.interface';
 
 @injectable()
 export class ProdMailerService implements Mailer {

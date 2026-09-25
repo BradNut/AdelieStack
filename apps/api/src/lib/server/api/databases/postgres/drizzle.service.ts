@@ -1,8 +1,8 @@
-import Pool from 'pg-pool';
-import * as drizzleSchema from './drizzle-schema';
 import { inject, injectable } from '@needle-di/core';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
+import Pool from 'pg-pool';
 import { ConfigService } from '../../common/configs/config.service';
+import * as drizzleSchema from './drizzle-schema';
 
 @injectable()
 export class DrizzleService {

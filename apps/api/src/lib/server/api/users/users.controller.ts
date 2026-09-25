@@ -1,26 +1,22 @@
+import { changePasswordDto, StatusCodes, updateEmailDto, updateProfileDto, verifyEmailDto } from '@adelie/shared';
+import { zValidator } from '@hono/zod-validator';
 import { inject, injectable } from '@needle-di/core';
-import { UsersService } from './users.service';
 import { Controller } from '../common/factories/controllers.factory';
 import { authState } from '../common/middleware/auth.middleware';
-import { zValidator } from '@hono/zod-validator';
+import { rateLimit } from '../common/middleware/rate-limit.middleware';
+import { SessionsService } from '../iam/sessions/sessions.service';
 import { updateUserDto } from './dtos/update-user.dto';
 import { EmailChangeRequestsService } from './email-change-requests/email-change-requests.service';
-import { updateEmailDto } from '$lib/dtos/settings/email/update-email.dto';
 import { UsersRepository } from './users.repository';
-import { verifyEmailDto } from '$lib/dtos/settings/email/verify-email.dto';
-import { rateLimit } from '../common/middleware/rate-limit.middleware';
-import { changePasswordDto } from '$lib/dtos/settings/password/change-password.dto';
-import { StatusCodes } from '$lib/constants/status-codes';
-import { SessionsService } from '../iam/sessions/sessions.service';
-import { updateProfileDto } from '$lib/dtos/settings/profile/update-profile.dto';
+import { UsersService } from './users.service';
 
 @injectable()
 export class UsersController extends Controller {
   constructor(
-    private usersService = inject(UsersService),
-    private emailChangeRequestsService = inject(EmailChangeRequestsService),
-    private sessionsService = inject(SessionsService),
-    private usersRepository = inject(UsersRepository),
+    private readonly usersService = inject(UsersService),
+    private readonly emailChangeRequestsService = inject(EmailChangeRequestsService),
+    private readonly sessionsService = inject(SessionsService),
+    private readonly usersRepository = inject(UsersRepository),
   ) {
     super();
   }
@@ -34,8 +30,13 @@ export class UsersController extends Controller {
         return c.json(user);
       })
       .patch('/me', authState('session'), zValidator('form', updateUserDto), async (c) => {
-        await this.usersService.update(c.var.session.userId, c.req.valid('form'));
-        const user = await this.usersRepository.findOneByIdOrThrow(c.var.session.id);
+        const formData = c.req.valid('form');
+        if (!formData) {
+          return c.body('Invalid form data', 400);
+        }
+        const { avatar, ...updateData } = formData;
+        await this.usersService.update(c.var.session.userId, updateData);
+        const user = await this.usersRepository.findOneByIdOrThrow(c.var.session.userId);
         return c.json(user);
       })
       .post('/me/email/request', authState('session'), zValidator('json', updateEmailDto), rateLimit({ limit: 5, minutes: 15 }), async (c) => {
@@ -49,15 +50,15 @@ export class UsersController extends Controller {
       })
       .put('/me/password', authState('session'), zValidator('json', changePasswordDto), rateLimit({ limit: 5, minutes: 15 }), async (c) => {
         const { current_password, new_password, confirm_password } = c.req.valid('json');
-				c.var.logger.debug(`Update password: ${current_password} ${new_password} ${confirm_password}`);
+        c.var.logger.debug(`Update password: ${current_password} ${new_password} ${confirm_password}`);
         if (new_password !== confirm_password) {
-					c.var.logger.error(`Password mismatch: ${new_password} !== ${confirm_password}`);
+          c.var.logger.error(`Password mismatch: ${new_password} !== ${confirm_password}`);
           return c.json({ error: 'Passwords do not match' }, StatusCodes.UNPROCESSABLE_ENTITY);
         }
         try {
           const correctPassword = await this.usersService.verifyPassword(c.var.session.userId, { password: current_password });
           if (!correctPassword) {
-						c.var.logger.error('Incorrect password');
+            c.var.logger.error('Incorrect password');
             return c.json({ error: 'Unable to update password' }, StatusCodes.UNAUTHORIZED);
           }
           await this.usersService.updatePassword(c.var.session.userId, new_password);

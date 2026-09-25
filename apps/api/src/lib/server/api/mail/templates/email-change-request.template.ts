@@ -1,14 +1,14 @@
-import { type EmailTemplate } from "../interfaces/email-template.interface";
+import type { EmailTemplate } from '../interfaces/email-template.interface';
 
 export class EmailChangeRequestEmail implements EmailTemplate {
-	constructor(private readonly token: string) {}
+  constructor(private readonly token: string) {}
 
-	subject(): string {
-		return "Email Verification";
-	}
+  subject(): string {
+    return 'Email Verification';
+  }
 
-	html() {
-		return /*html*/ `
+  html() {
+    return /*html*/ `
 		<html lang='en'>
 			<head>
 				<meta http-equiv='X-UA-Compatible' content='IE=edge' />
@@ -36,5 +36,5 @@ export class EmailChangeRequestEmail implements EmailTemplate {
 			</style>
 		</html>
 		`;
-	}
+  }
 }

@@ -11,25 +11,29 @@ type LoginRequest = { email: string; hashedCode: string };
 /* -------------------------------------------------------------------------- */
 @injectable()
 export class LoginRequestsRepository extends RedisRepository<'login-request'> {
-	async set(args: LoginRequest) {
-		return this.redis.setWithExpiry({
-			prefix: this.prefix,
-			key: args.email.toLowerCase(),
-			value: args.hashedCode,
-			expiry: 60 * 15
-		});
-	}
+  constructor() {
+    super('login-request');
+  }
 
-	delete(email: string) {
-		return this.redis.delete({ prefix: this.prefix, key: email.toLowerCase() });
-	}
+  async set(args: LoginRequest) {
+    return this.redis.setWithExpiry({
+      prefix: this.prefix,
+      key: args.email.toLowerCase(),
+      value: args.hashedCode,
+      expiry: 60 * 15,
+    });
+  }
 
-	async get(email: string): Promise<LoginRequest | null> {
-		const hashedCode = await this.redis.get({
-			prefix: this.prefix,
-			key: email.toLowerCase()
-		});
-		if (!hashedCode) return null;
-		return { email, hashedCode: hashedCode };
-	}
+  delete(email: string) {
+    return this.redis.delete({ prefix: this.prefix, key: email.toLowerCase() });
+  }
+
+  async get(email: string): Promise<LoginRequest | null> {
+    const hashedCode = await this.redis.get({
+      prefix: this.prefix,
+      key: email.toLowerCase(),
+    });
+    if (!hashedCode) return null;
+    return { email, hashedCode: hashedCode };
+  }
 }

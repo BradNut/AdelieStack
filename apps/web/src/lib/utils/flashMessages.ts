@@ -1,16 +1,16 @@
 export const alreadySignedInMessage = {
-	type: 'success',
-	message: 'You are already signed in',
+  type: 'success',
+  message: 'You are already signed in',
 } as const;
 export const notSignedInMessage = {
-	type: 'error',
-	message: 'You are not signed in',
+  type: 'error',
+  message: 'You are not signed in',
 } as const;
 export const forbiddenMessage = {
-	type: 'error',
-	message: 'You are not allowed to access this',
+  type: 'error',
+  message: 'You are not allowed to access this',
 } as const;
 export const signedOutMessage = {
-	type: 'success',
-	message: 'Successfully signed out',
-}
+  type: 'success',
+  message: 'Successfully signed out',
+};

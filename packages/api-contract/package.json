@@ -3,6 +3,9 @@
   "version": "0.0.1",
   "private": true,
   "type": "module",
+  "dependencies": {
+    "hono": "^4.12.15"
+  },
   "exports": {
     ".": "./src/index.ts"
   }

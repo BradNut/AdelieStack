@@ -1,7 +1,7 @@
-import { boolean, pgTable, text } from 'drizzle-orm/pg-core';
 import { getTableColumns, type InferSelectModel, relations } from 'drizzle-orm';
-import { citext, id, timestamps } from '../../common/utils/drizzle';
+import { boolean, pgTable, text } from 'drizzle-orm/pg-core';
 import { generateId } from '../../common/utils/crypto';
+import { citext, id, timestamps } from '../../common/utils/drizzle';
 import { user_roles_table } from './user-roles.table';
 
 /* -------------------------------------------------------------------------- */

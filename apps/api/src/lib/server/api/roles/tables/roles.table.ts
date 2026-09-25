@@ -1,9 +1,8 @@
-import { type InferSelectModel, relations, getTableColumns } from 'drizzle-orm';
+import { getTableColumns, type InferSelectModel, relations } from 'drizzle-orm';
 import { pgTable, text } from 'drizzle-orm/pg-core';
-import { user_roles_table } from '../../users/tables/user-roles.table';
-import { timestamps } from '../../common/utils/drizzle';
-import { id } from '../../common/utils/drizzle';
 import { generateId } from '../../common/utils/crypto';
+import { id, timestamps } from '../../common/utils/drizzle';
+import { user_roles_table } from '../../users/tables/user-roles.table';
 
 export enum RoleName {
   ADMIN = 'admin',
@@ -44,4 +43,3 @@ export const publicRoleColumns = {
   name: roleColumns.name,
   ...timestamps,
 };
-

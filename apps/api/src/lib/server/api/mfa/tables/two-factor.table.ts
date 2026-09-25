@@ -1,8 +1,8 @@
-import { type InferSelectModel, relations, getTableColumns } from 'drizzle-orm';
+import { getTableColumns, type InferSelectModel, relations } from 'drizzle-orm';
 import { boolean, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { generateId } from '../../common/utils/crypto';
 import { id, timestamps } from '../../common/utils/drizzle';
 import { users_table } from '../../users/tables/users.table';
-import { generateId } from '../../common/utils/crypto';
 
 /* -------------------------------------------------------------------------- */
 /*                                    Table                                   */

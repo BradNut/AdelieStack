@@ -1,8 +1,10 @@
-export async function load(event) {
-	const { parent } = event;
-	const { authedUser } = await parent();
+import type { LayoutServerLoad } from './$types';
 
-	return {
-		authedUser,
-	};
-}
+export const load: LayoutServerLoad = async (event) => {
+  const { parent } = event;
+  const { authedUser } = await parent();
+
+  return {
+    authedUser,
+  };
+};

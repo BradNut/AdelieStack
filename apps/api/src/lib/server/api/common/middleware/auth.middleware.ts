@@ -1,7 +1,8 @@
 import type { MiddlewareHandler } from 'hono';
 import { createMiddleware } from 'hono/factory';
-import { Unauthorized } from '../utils/exceptions';
 import type { SessionDto } from '../../iam/sessions/dtos/session.dto';
+import { m } from '../i18n';
+import { Unauthorized } from '../utils/exceptions';
 
 /* ---------------------------------- Types --------------------------------- */
 type AuthStates = 'session' | 'none';
@@ -26,7 +27,7 @@ const authed: MiddlewareHandler<{
   };
 }> = createMiddleware(async (c, next) => {
   if (!c.var.session) {
-    throw Unauthorized('You must be logged in to access this resource');
+    throw Unauthorized(m.auth_login_required());
   }
   return next();
 });
@@ -38,7 +39,7 @@ const unauthed: MiddlewareHandler<{
   };
 }> = createMiddleware(async (c, next) => {
   if (c.var.session) {
-    throw Unauthorized('You must be logged out to access this resource');
+    throw Unauthorized(m.auth_logout_required());
   }
   return next();
 });

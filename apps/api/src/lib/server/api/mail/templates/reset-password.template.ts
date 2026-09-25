@@ -1,14 +1,14 @@
-import type { EmailTemplate } from "../interfaces/email-template.interface"
+import type { EmailTemplate } from '../interfaces/email-template.interface';
 
 export class ResetPasswordEmail implements EmailTemplate {
-	constructor(private readonly code: string) { }
+  constructor(private readonly code: string) {}
 
-	subject(): string {
-		return 'Reset Password'
-	}
+  subject(): string {
+    return 'Reset Password';
+  }
 
-	html() {
-		return /*html*/ `
+  html() {
+    return /*html*/ `
 		<html lang='en'>
 			<head>
 				<meta http-equiv='X-UA-Compatible' content='IE=edge' />
@@ -34,6 +34,6 @@ export class ResetPasswordEmail implements EmailTemplate {
 				.token-subtext { font-size: 12px; margin-top: 0px; }
 			</style>
 		</html>
-		`
-	}
+		`;
+  }
 }

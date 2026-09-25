@@ -1,19 +1,20 @@
 import { inject, injectable } from '@needle-di/core';
-import { generateRandomString, type RandomReader } from "@oslojs/crypto/random";
+import { generateRandomString, type RandomReader } from '@oslojs/crypto/random';
+import { createDate, TimeSpan, type TimeSpanUnit } from '../../../../utils/timespan';
 import { HashingService } from './hashing.service';
-import { createDate, TimeSpan, type TimeSpanUnit } from '$lib/utils/timespan';
 
 @injectable()
 export class TokensService {
-  constructor(private hashingService = inject(HashingService)) {}
+  constructor(private readonly hashingService = inject(HashingService)) {}
 
   generateToken() {
     const alphabet = '23456789ACDEFGHJKLMNPQRSTUVWXYZ'; // alphabet with removed look-alike characters (0, 1, O, I)
     const random: RandomReader = {
       read(bytes) {
-        crypto.getRandomValues(bytes);
-      }
-    }
+        // Type assertion needed: @oslojs/crypto's RandomReader uses ArrayBufferLike, but crypto.getRandomValues expects ArrayBuffer
+        crypto.getRandomValues(bytes as Uint8Array<ArrayBuffer>);
+      },
+    };
     return generateRandomString(random, alphabet, 10);
   }
 

@@ -1,12 +1,12 @@
 import { inject, injectable } from '@needle-di/core';
-import { EmailChangeRequestsRepository } from './email-change-requests.repository';
-import { MailerService } from '../../mail/mailer.service';
-import { EmailChangeRequestEmail } from '../../mail/templates/email-change-request.template';
-import { EmailChangeNoticeEmail } from '../../mail/templates/email-change-notice.template';
-import { BadRequest } from '../../common/utils/exceptions';
-import { UsersRepository } from '../users.repository';
-import { VerificationCodesService } from '../../common/services/verification-codes.service';
 import { LoggerService } from '../../common/services/logger.service';
+import { VerificationCodesService } from '../../common/services/verification-codes.service';
+import { BadRequest } from '../../common/utils/exceptions';
+import { MailerService } from '../../mail/mailer.service';
+import { EmailChangeNoticeEmail } from '../../mail/templates/email-change-notice.template';
+import { EmailChangeRequestEmail } from '../../mail/templates/email-change-request.template';
+import { UsersRepository } from '../users.repository';
+import { EmailChangeRequestsRepository } from './email-change-requests.repository';
 
 @injectable()
 export class EmailChangeRequestsService {
@@ -15,7 +15,7 @@ export class EmailChangeRequestsService {
     private loggerService = inject(LoggerService),
     private verificationCodesService = inject(VerificationCodesService),
     private mailerService = inject(MailerService),
-    private usersRepository = inject(UsersRepository)
+    private usersRepository = inject(UsersRepository),
   ) {}
 
   async requestEmailChange(userId: string, requestedEmail: string) {
@@ -23,14 +23,13 @@ export class EmailChangeRequestsService {
     await this.emailChangeRequetsRepository.delete(userId);
 
     // Generate a new verification code and hash
-    const { verificationCode, hashedVerificationCode } =
-      await this.verificationCodesService.generateCodeWithHash();
+    const { verificationCode, hashedVerificationCode } = await this.verificationCodesService.generateCodeWithHash();
 
     // Create a new email change request
     await this.emailChangeRequetsRepository.set({
       userId,
       requestedEmail,
-      hashedCode: hashedVerificationCode
+      hashedCode: hashedVerificationCode,
     });
 
     // Get the account
@@ -38,13 +37,13 @@ export class EmailChangeRequestsService {
     // Notify the account of the email change request
     await this.mailerService.send({
       to: user.email,
-      template: new EmailChangeNoticeEmail()
+      template: new EmailChangeNoticeEmail(),
     });
 
     // Send the verification code to the newly requested email
     await this.mailerService.send({
       to: requestedEmail,
-      template: new EmailChangeRequestEmail(verificationCode)
+      template: new EmailChangeRequestEmail(verificationCode),
     });
     this.loggerService.log.info(`Email change request sent to ${requestedEmail}`);
   }
@@ -59,7 +58,7 @@ export class EmailChangeRequestsService {
     // Verify the verification code
     const isValid = await this.verificationCodesService.verify({
       verificationCode,
-      hashedVerificationCode: emailChangeRequest.hashedCode
+      hashedVerificationCode: emailChangeRequest.hashedCode,
     });
     if (!isValid) {
       throw BadRequest('Bad Request');
@@ -67,7 +66,7 @@ export class EmailChangeRequestsService {
 
     // Update the account's email
     await this.usersRepository.update(userId, {
-      email: emailChangeRequest.requestedEmail
+      email: emailChangeRequest.requestedEmail,
     });
 
     // Delete the email change request

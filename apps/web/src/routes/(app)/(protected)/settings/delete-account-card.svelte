@@ -1,11 +1,11 @@
 <script lang="ts">
-	import * as Alert from "$lib/components/ui/alert";
-	import * as Card from "$lib/components/ui/card";
-	import * as Form from "$lib/components/ui/form";
-	import * as Dialog from '$lib/components/ui/dialog';
-	import Button from "$lib/components/ui/button/button.svelte";
-	import CircleAlert from 'lucide-svelte/icons/circle-alert';
+	import CircleAlert from '@lucide/svelte/icons/circle-alert';
 	import { enhance } from "$app/forms";
+	import * as Alert from "$lib/components/ui/alert";
+	import Button from "$lib/components/ui/button/button.svelte";
+	import * as Card from "$lib/components/ui/card";
+	import * as Dialog from '$lib/components/ui/dialog';
+	import * as Form from "$lib/components/ui/form";
 
 	let verifyDeleteDialogOpen = $state(false);
 </script>

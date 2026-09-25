@@ -1,20 +1,22 @@
 <script lang="ts">
+	import { type ChangePasswordDto, changePasswordDto } from '@adelie/shared';
+	import CircleAlert from "@lucide/svelte/icons/circle-alert";
+	import { type SuperValidated, superForm } from "sveltekit-superforms";
+	import { zod4Client } from "sveltekit-superforms/adapters";
+	import * as Form from "@/components/ui/form";
 	import * as Alert from "$lib/components/ui/alert/index.js";
 	import * as Card from "$lib/components/ui/card/index.js";
 	import { Input } from "$lib/components/ui/input/index.js";
-	import * as Form from "@/components/ui/form";
-	import { superForm } from "sveltekit-superforms";
-	import CircleAlert from "lucide-svelte/icons/circle-alert";
-	import { changePasswordDto, type ChangePasswordDto } from "$lib/dtos/settings/password/change-password.dto";
-	import { zodClient } from "sveltekit-superforms/adapters";
 
 	/* ---------------------------------- props --------------------------------- */
-	let { changePasswordForm }: { changePasswordForm: ChangePasswordDto } = $props();
+	let { changePasswordForm }: { changePasswordForm: SuperValidated<ChangePasswordDto, App.Superforms.Message> } =
+		$props();
 
 	/* ---------------------------------- forms --------------------------------- */
+	// svelte-ignore state_referenced_locally
 	const sf_changePasswordForm = superForm(changePasswordForm, {
 		resetForm: false,
-		validators: zodClient(changePasswordDto),
+		validators: zod4Client(changePasswordDto),
 	});
 
 	const {
@@ -85,8 +87,6 @@
 		</form>
 	</Card.Content>
 	<Card.Footer class="border-t px-6 py-4">
-		<Form.Button onclick={() => changePasswordFormSubmit()}>
-			Submit
-		</Form.Button>
+		<Form.Button onclick={() => changePasswordFormSubmit()}>Submit</Form.Button>
 	</Card.Footer>
 </Card.Root>

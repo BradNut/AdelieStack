@@ -19,11 +19,11 @@
 </script>
 
 <script lang="ts">
+	import X from "@lucide/svelte/icons/x";
 	import { Dialog as SheetPrimitive, type WithoutChildrenOrChild } from "bits-ui";
-	import X from "lucide-svelte/icons/x";
 	import type { Snippet } from "svelte";
-	import SheetOverlay from "./sheet-overlay.svelte";
 	import { cn } from "$lib/utils.js";
+	import SheetOverlay from "./sheet-overlay.svelte";
 
 	let {
 		ref = $bindable(null),

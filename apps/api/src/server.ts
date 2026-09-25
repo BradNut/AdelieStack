@@ -1,10 +1,21 @@
+import 'varlock/auto-load';
+import './instrument.mjs';
+import 'dotenv/config';
 import { serve } from '@hono/node-server';
-import { startServer } from './lib/server/api';
+import { app } from './lib/server/api';
 
-const app = await startServer();
 const port = Number(process.env.PORT ?? 3001);
+const hostname = process.env.HOST ?? '0.0.0.0';
 
-serve({
-  fetch: app.fetch,
-  port
-});
+const appInstance = await app;
+
+serve(
+  {
+    fetch: appInstance.fetch,
+    port,
+    hostname,
+  },
+  (info: { port: number; address: string }) => {
+    console.log(`API server listening on http://${hostname}:${info.port}`);
+  },
+);

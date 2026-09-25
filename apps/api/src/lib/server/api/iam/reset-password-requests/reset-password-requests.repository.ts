@@ -11,25 +11,29 @@ type ResetPasswordRequest = { email: string; hashedCode: string };
 /* -------------------------------------------------------------------------- */
 @injectable()
 export class ResetPasswordRequestsRepository extends RedisRepository<'password-reset-request'> {
-	async set(args: ResetPasswordRequest) {
-		return this.redis.setWithExpiry({
-			prefix: this.prefix,
-			key: args.email.toLowerCase(),
-			value: args.hashedCode,
-			expiry: 60 * 15
-		});
-	}
+  constructor() {
+    super('password-reset-request');
+  }
 
-	delete(email: string) {
-		return this.redis.delete({ prefix: this.prefix, key: email.toLowerCase() });
-	}
+  async set(args: ResetPasswordRequest) {
+    return this.redis.setWithExpiry({
+      prefix: this.prefix,
+      key: args.email.toLowerCase(),
+      value: args.hashedCode,
+      expiry: 60 * 15,
+    });
+  }
 
-	async get(email: string): Promise<ResetPasswordRequest | null> {
-		const hashedCode = await this.redis.get({
-			prefix: this.prefix,
-			key: email.toLowerCase()
-		});
-		if (!hashedCode) return null;
-		return { email, hashedCode: hashedCode };
-	}
+  delete(email: string) {
+    return this.redis.delete({ prefix: this.prefix, key: email.toLowerCase() });
+  }
+
+  async get(email: string): Promise<ResetPasswordRequest | null> {
+    const hashedCode = await this.redis.get({
+      prefix: this.prefix,
+      key: email.toLowerCase(),
+    });
+    if (!hashedCode) return null;
+    return { email, hashedCode: hashedCode };
+  }
 }
