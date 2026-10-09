@@ -123,7 +123,7 @@
 		</div>
 		{#if !$signupForm.email}
 			<Alert.Root>
-				<Alert.Title level={3}>Heads up!</Alert.Title>
+				<Alert.Title>Heads up!</Alert.Title>
 				<Alert.Description>
 					Without an email address, you won't be able to reset your password. Submit only if you are sure. You can
 					always add this later.
