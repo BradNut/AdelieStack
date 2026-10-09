@@ -9,6 +9,7 @@ const validEnv = {
   DATABASE_DB: 'postgres',
   LOG_LEVEL: 'debug',
   ORIGIN: 'http://localhost:5173',
+  DOMAIN: 'localhost',
   REDIS_URL: 'redis://localhost:6379',
   SIGNING_SECRET: 'secret',
   ENV: 'dev',
@@ -17,6 +18,8 @@ const validEnv = {
   STORAGE_PORT: '8333',
   STORAGE_ACCESS_KEY: 'user',
   STORAGE_SECRET_KEY: 'password',
+  STORAGE_URL: 'http://localhost:8333',
+  PUBLIC_IMAGE_URI: 'http://localhost:8333/adelie-public-development',
 } as const;
 
 describe('envsDto observability vars', () => {
@@ -49,5 +52,34 @@ describe('envsDto observability vars', () => {
 
   it('rejects a non-url Sentry endpoint', () => {
     expect(() => envsDto.parse({ ...validEnv, SENTRY_BACKEND_URL: 'not-a-url' })).toThrow();
+  });
+});
+
+describe('envsDto security switches', () => {
+  it('defaults the rate-limit switches off', () => {
+    const env = envsDto.parse({ ...validEnv });
+    expect(env.TRUST_PROXY).toBe(false);
+    expect(env.DISABLE_RATE_LIMIT).toBe(false);
+  });
+
+  it('coerces the rate-limit switches from strings', () => {
+    const env = envsDto.parse({ ...validEnv, TRUST_PROXY: 'true', DISABLE_RATE_LIMIT: 'true' });
+    expect(env.TRUST_PROXY).toBe(true);
+    expect(env.DISABLE_RATE_LIMIT).toBe(true);
+  });
+});
+
+describe('envsDto required variables', () => {
+  it.each(['DATABASE_USER', 'REDIS_URL', 'SIGNING_SECRET', 'DOMAIN', 'STORAGE_URL', 'PUBLIC_IMAGE_URI'])('rejects env missing %s', (key) => {
+    const { [key]: _omitted, ...rest } = validEnv as Record<string, unknown>;
+    expect(() => envsDto.parse(rest)).toThrow();
+  });
+
+  it('rejects an empty SIGNING_SECRET', () => {
+    expect(() => envsDto.parse({ ...validEnv, SIGNING_SECRET: '' })).toThrow();
+  });
+
+  it('rejects a non-numeric PORT', () => {
+    expect(() => envsDto.parse({ ...validEnv, PORT: 'not-a-number' })).toThrow();
   });
 });

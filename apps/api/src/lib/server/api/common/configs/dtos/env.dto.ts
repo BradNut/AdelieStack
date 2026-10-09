@@ -1,4 +1,5 @@
 import { z } from 'zod/v4';
+import { MailerTransport } from '../../../mail/mailer-transport.constant';
 
 export const envsDto = z.object({
   DATABASE_USER: z.string(),
@@ -10,20 +11,31 @@ export const envsDto = z.object({
   DB_SEEDING: z.stringbool().default(false),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
   ORIGIN: z.string(),
+  DOMAIN: z.string(),
+  HOST: z.string().optional(),
+  // Email transport: 'mailpit' for local dev, 'unsend' for real sending.
+  MAILER_TRANSPORT: z.enum([MailerTransport.MAILPIT, MailerTransport.UNSEND]).default(MailerTransport.MAILPIT),
   REDIS_URL: z.string(),
   SIGNING_SECRET: z.string().min(1, 'SIGNING_SECRET must not be empty'),
   ENV: z.enum(['dev', 'prod']),
   NODE_ENV: z.enum(['development', 'production']).default('development'),
   PORT: z.coerce.number(),
+  ADMIN_USERNAME: z.string().optional(),
+  ADMIN_PASSWORD: z.string().optional(),
   STORAGE_HOST: z.string(),
   STORAGE_PORT: z.coerce.number(),
   STORAGE_ACCESS_KEY: z.string(),
   STORAGE_SECRET_KEY: z.string(),
   STORAGE_SSL: z.stringbool().default(false),
+  STORAGE_URL: z.string(),
+  PUBLIC_IMAGE_URI: z.string(),
   // Storage buckets are named `${PROJECT_NAME}-{public|private}-${ENVIRONMENT}`
   ENVIRONMENT: z.enum(['development', 'staging', 'production']).default('development'),
   PROJECT_NAME: z.string().min(1).default('adelie'),
   SITE_VERSION: z.string().optional(),
+  // Security: trusted-proxy handling and the rate-limit kill switch (see rate-limit middleware).
+  TRUST_PROXY: z.stringbool().default(false),
+  DISABLE_RATE_LIMIT: z.stringbool().default(false),
   // Observability: Sentry + OpenTelemetry.
   SENTRY_BACKEND_URL: z.union([z.url(), z.literal('')]).optional(),
   OTEL_ENABLED: z.stringbool().default(false),
