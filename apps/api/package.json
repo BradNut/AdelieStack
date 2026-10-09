@@ -27,6 +27,7 @@
 		"@biomejs/biome": "2.5.5",
 		"@faker-js/faker": "^10.4.0",
 		"@inlang/paraglide-js": "2.22.0",
+		"@types/clamscan": "^2.4.1",
 		"@types/node": "^24.10.1",
 		"@types/pg": "^8.20.0",
 		"@types/pg-pool": "^2.0.7",
@@ -38,8 +39,6 @@
 	},
 	"dependencies": {
 		"@adelie/shared": "workspace:*",
-		"tsx": "^4.21.0",
-		"varlock": "^1.20.0",
 		"@aws-sdk/client-s3": "^3.1139.0",
 		"@hono/node-server": "^2.0.0",
 		"@hono/otel": "^1.1.1",
@@ -87,8 +86,10 @@
 		"postgres": "^3.4.9",
 		"sharp": "^0.34.4",
 		"stoker": "^2.0.1",
+		"tsx": "^4.21.0",
 		"uqr": "^0.1.3",
 		"usesend-js": "^1.6.3",
+		"varlock": "^1.20.0",
 		"zod": "^4.3.6"
 	}
 }

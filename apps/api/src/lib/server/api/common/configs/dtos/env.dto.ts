@@ -29,6 +29,12 @@ export const envsDto = z.object({
   STORAGE_SSL: z.stringbool().default(false),
   STORAGE_URL: z.string(),
   PUBLIC_IMAGE_URI: z.string(),
+  // Shared secret for authenticating storage object-created webhooks (Bearer token).
+  STORAGE_WEBHOOK_SECRET: z.string().optional(),
+  // Antivirus: scan uploads against a ClamAV (clamd) daemon before persisting.
+  ANTIVIRUS_ENABLED: z.stringbool().default(false),
+  CLAMAV_HOST: z.string().default('localhost'),
+  CLAMAV_PORT: z.coerce.number().default(3310),
   // Storage buckets are named `${PROJECT_NAME}-{public|private}-${ENVIRONMENT}`
   ENVIRONMENT: z.enum(['development', 'staging', 'production']).default('development'),
   PROJECT_NAME: z.string().min(1).default('adelie'),
