@@ -1,0 +1,69 @@
+{
+  "name": "AdelieStack",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {
+      "moby": false
+    },
+    "ghcr.io/w3cj/devcontainer-features/firewall:latest": {
+      "dockerNetworks": true,
+      "githubDomains": true,
+      "githubIps": true,
+      "npmRegistry": true,
+      "vscodeMarketplace": true,
+      "dockerRegistry": true,
+      "hosts": "quay.io"
+    }
+  },
+  "forwardPorts": [5173, 3001, 6006, 5432, 6379, 8333, 8888, 9333, 8025, 1025, 8969, 16686, 4318, 4317, 3310],
+  "portsAttributes": {
+    "5173": { "label": "SvelteKit Web Dev Server" },
+    "3001": { "label": "Hono API" },
+    "6006": { "label": "Storybook" },
+    "5432": { "label": "PostgreSQL" },
+    "6379": { "label": "Redis" },
+    "8333": { "label": "SeaweedFS S3 API" },
+    "8888": { "label": "SeaweedFS Filer UI" },
+    "9333": { "label": "SeaweedFS Master" },
+    "8025": { "label": "Mailpit Web" },
+    "1025": { "label": "Mailpit SMTP" },
+    "8969": { "label": "Sentry Spotlight" },
+    "16686": { "label": "Jaeger UI" },
+    "4318": { "label": "OTLP HTTP Receiver" },
+    "4317": { "label": "OTLP gRPC Receiver" },
+    "3310": { "label": "ClamAV" }
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "svelte.svelte-vscode",
+        "fronterior.biome-monorepo",
+        "yoavbls.pretty-ts-errors",
+        "mikestead.dotenv",
+        "ms-azuretools.vscode-docker",
+        "vitest.explorer",
+        "inlang.vs-code-extension",
+        "bradlc.vscode-tailwindcss",
+        "ms-playwright.playwright"
+      ],
+      "settings": {
+        "editor.defaultFormatter": "fronterior.biome-monorepo",
+        "editor.formatOnSave": true,
+        "editor.codeActionsOnSave": {
+          "quickfix.biome": "explicit",
+          "source.organizeImports.biome": "explicit"
+        },
+        "vitest.disableWorkspaceWarning": true,
+        "svelte.enable-ts-plugin": true,
+        "[svelte]": {
+          "editor.defaultFormatter": "svelte.svelte-vscode"
+        }
+      }
+    }
+  },
+  "postCreateCommand": "CI=true pnpm install",
+  "postStartCommand": "docker compose up -d",
+  "remoteUser": "node"
+}

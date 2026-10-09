@@ -1,0 +1,17 @@
+meta {
+  name: Rate Limit Test
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/api/rate-limit
+  body: none
+  auth: none
+}
+
+docs {
+  Request: GET {{baseUrl}}/api/rate-limit
+
+  Rate limited to 3 requests per minute; call repeatedly to trigger a 429.
+}
