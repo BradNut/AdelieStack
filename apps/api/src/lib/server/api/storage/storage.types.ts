@@ -22,6 +22,27 @@ export type StoredObject = {
   contentType: string | undefined;
 };
 
+/**
+ * Lifecycle of an object's virus scan, recorded as an S3 object tag so access
+ * decisions can be made without re-scanning.
+ */
+export const ScanStatus = {
+  PENDING: 'pending',
+  SCANNING: 'scanning',
+  CLEAN: 'clean',
+  INFECTED: 'infected',
+  ERROR: 'error',
+} as const;
+
+export type ScanStatus = (typeof ScanStatus)[keyof typeof ScanStatus];
+
+/** Object tag keys used to persist scan outcomes on stored objects. */
+export const ScanTag = {
+  STATUS: 'scan-status',
+  TIMESTAMP: 'scan-timestamp',
+  VIRUSES: 'scan-viruses',
+} as const;
+
 export type Upload = {
   file: File;
   key?: string;

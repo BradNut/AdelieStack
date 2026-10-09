@@ -1,0 +1,7 @@
+{
+  "$schema": "https://inlang.com/schema/inlang-message-format",
+  "api_errors_unauthorized": "Nicht autorisiert",
+  "api_errors_forbidden": "Verboten",
+  "api_errors_too_many_requests": "Zu viele Anfragen. Bitte versuchen Sie es später erneut.",
+  "api_errors_internal_error": "Interner Serverfehler"
+}

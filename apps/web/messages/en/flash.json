@@ -1,0 +1,5 @@
+{
+  "$schema": "https://inlang.com/schema/inlang-message-format",
+  "flash_forbidden": "You are not allowed to access this",
+  "flash_error": "An error occurred"
+}

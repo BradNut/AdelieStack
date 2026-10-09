@@ -1,4 +1,14 @@
-import { CreateBucketCommand, DeleteObjectCommand, GetObjectCommand, HeadBucketCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import {
+  CreateBucketCommand,
+  DeleteObjectCommand,
+  GetObjectCommand,
+  GetObjectTaggingCommand,
+  HeadBucketCommand,
+  PutObjectCommand,
+  PutObjectTaggingCommand,
+  S3Client,
+  type Tag,
+} from '@aws-sdk/client-s3';
 import type { StorageClientConfig, StorageClientEnv, StoredObject } from './storage.types';
 
 // SeaweedFS ignores the region, but the AWS SDK requires one to sign requests.
@@ -79,5 +89,25 @@ export class S3StorageClient {
 
   async removeObject(bucket: string, key: string): Promise<void> {
     await this.s3Client.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
+  }
+
+  async setObjectTagging(bucket: string, key: string, tags: Record<string, string>): Promise<void> {
+    const tagSet: Tag[] = Object.entries(tags).map(([Key, Value]) => ({ Key, Value }));
+    await this.s3Client.send(
+      new PutObjectTaggingCommand({
+        Bucket: bucket,
+        Key: key,
+        Tagging: { TagSet: tagSet },
+      }),
+    );
+  }
+
+  async getObjectTagging(bucket: string, key: string): Promise<Record<string, string>> {
+    const result = await this.s3Client.send(new GetObjectTaggingCommand({ Bucket: bucket, Key: key }));
+    const tags: Record<string, string> = {};
+    for (const tag of result.TagSet ?? []) {
+      if (tag.Key) tags[tag.Key] = tag.Value ?? '';
+    }
+    return tags;
   }
 }

@@ -17,7 +17,7 @@
 	<Card.Content>
 		<Alert.Root variant="destructive">
 				<CircleAlert class="size-4" />
-				<Alert.Title level={3}>Heads up!</Alert.Title>
+				<Alert.Title>Heads up!</Alert.Title>
 				<Alert.Description>Deleting your account is a permanent action. Once completed you will be logged out and your account will no longer exist.</Alert.Description>
 			</Alert.Root>
 	</Card.Content>

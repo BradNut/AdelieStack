@@ -13,6 +13,7 @@ import { generateId } from './common/utils/crypto';
 import configureOpenAPI from './configure-open-api';
 import { IamController } from './iam/iam.controller';
 import { SignupController } from './signup/signup.controller';
+import { StorageWebhookController } from './storage/storage-webhook.controller';
 import { UsersController } from './users/users.controller';
 
 @injectable()
@@ -21,6 +22,7 @@ export class ApplicationController extends RootController {
     private readonly iamController = inject(IamController),
     private readonly signupController = inject(SignupController),
     private readonly usersController = inject(UsersController),
+    private readonly storageWebhookController = inject(StorageWebhookController),
   ) {
     super();
   }
@@ -53,6 +55,7 @@ export class ApplicationController extends RootController {
       .route('/iam', this.iamController.routes())
       .route('/users', this.usersController.routes())
       .route('/signup', this.signupController.routes())
+      .route('/storage', this.storageWebhookController.routes())
       .onError(onError)
       .notFound(notFound);
 

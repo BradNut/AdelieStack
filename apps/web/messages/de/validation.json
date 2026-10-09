@@ -1,0 +1,8 @@
+{
+  "$schema": "https://inlang.com/schema/inlang-message-format",
+  "validation_email_invalid": "Ungültige E-Mail-Adresse",
+  "validation_username_invalid": "Ungültiger Benutzername",
+  "validation_password_required": "Passwort erforderlich",
+  "validation_password_invalid": "Ungültiges Passwort",
+  "validation_captcha_invalid": "Ungültiger Captcha, bitte versuchen Sie es erneut."
+}

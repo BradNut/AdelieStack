@@ -81,7 +81,7 @@
 			</Form.Field>
 			<Alert.Root variant="destructive">
 				<CircleAlert class="size-4" />
-				<Alert.Title level={3}>Heads up!</Alert.Title>
+				<Alert.Title>Heads up!</Alert.Title>
 				<Alert.Description>Changing your password will log you out of the current session.</Alert.Description>
 			</Alert.Root>
 		</form>

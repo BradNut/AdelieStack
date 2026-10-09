@@ -1,0 +1,27 @@
+meta {
+  name: Update Profile
+  type: http
+  seq: 2
+}
+
+put {
+  url: {{baseUrl}}/api/users/me/profile
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "first_name": "Test",
+    "last_name": "User",
+    "username": "testuser"
+  }
+}
+
+docs {
+  Request: PUT {{baseUrl}}/api/users/me/profile
+
+  Requires an active session. Set the `sessionCookie` environment variable to
+  authenticate. `username` is required; `first_name` and `last_name` are
+  optional.
+}

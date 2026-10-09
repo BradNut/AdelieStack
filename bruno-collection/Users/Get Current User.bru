@@ -1,0 +1,18 @@
+meta {
+  name: Get Current User
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/api/users/me
+  body: none
+  auth: none
+}
+
+docs {
+  Request: GET {{baseUrl}}/api/users/me
+
+  Returns the authenticated user, or null when there is no active session.
+  Set the `sessionCookie` environment variable to authenticate.
+}
