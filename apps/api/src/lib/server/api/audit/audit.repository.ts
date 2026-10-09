@@ -1,5 +1,5 @@
 import { inject, injectable } from '@needle-di/core';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, lt } from 'drizzle-orm';
 import { takeFirstOrThrow } from '../common/utils/drizzle';
 import { DrizzleService } from '../databases/postgres/drizzle.service';
 import { type AuditLog, audit_log_table, type CreateAuditLog } from './tables/audit_log.table';
@@ -30,5 +30,15 @@ export class AuditRepository {
       where: eq(audit_log_table.actor_user_id, actorUserId),
       orderBy: desc(audit_log_table.createdAt),
     });
+  }
+
+  /**
+   * Delete audit rows created strictly before `cutoff`. Used by the audit
+   * cleanup job to enforce a retention window. Returns the number of rows
+   * removed so callers (and the job) can report how much was pruned.
+   */
+  async deleteOlderThan(cutoff: Date, db = this.drizzle.db): Promise<number> {
+    const deleted = await db.delete(audit_log_table).where(lt(audit_log_table.createdAt, cutoff)).returning({ id: audit_log_table.id });
+    return deleted.length;
   }
 }

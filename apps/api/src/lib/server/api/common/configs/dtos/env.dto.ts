@@ -16,6 +16,9 @@ export const envsDto = z.object({
   // Email transport: 'mailpit' for local dev, 'unsend' for real sending.
   MAILER_TRANSPORT: z.enum([MailerTransport.MAILPIT, MailerTransport.UNSEND]).default(MailerTransport.MAILPIT),
   REDIS_URL: z.string(),
+  // Background jobs: register BullMQ queues/workers on startup. Disable in tests/CI
+  // or one-off processes that must not open a Redis worker connection.
+  JOBS_ENABLED: z.stringbool().default(true),
   SIGNING_SECRET: z.string().min(1, 'SIGNING_SECRET must not be empty'),
   ENV: z.enum(['dev', 'prod']),
   NODE_ENV: z.enum(['development', 'production']).default('development'),
