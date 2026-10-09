@@ -5,6 +5,7 @@ import { notFound, onError, serveEmojiFavicon } from 'stoker/middlewares';
 import { RootController } from './common/factories/controllers.factory';
 import { browserSessions } from './common/middleware/browser-session.middleware';
 import { requestLocale } from './common/middleware/locale.middleware';
+import { otelInstrumentation } from './common/middleware/otel.middleware';
 import { pinoLogger } from './common/middleware/pino-logger.middleware';
 import { rateLimit } from './common/middleware/rate-limit.middleware';
 import { sessionManagement } from './common/middleware/session-managment.middleware';
@@ -40,6 +41,7 @@ export class ApplicationController extends RootController {
   registerControllers() {
     const app = this.controller
       .basePath('/api')
+      .use(otelInstrumentation())
       .use(requestId({ generator: () => generateId() }))
       .use(contextStorage())
       .use(requestLocale)

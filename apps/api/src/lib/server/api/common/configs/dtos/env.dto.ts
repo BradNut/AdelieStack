@@ -23,6 +23,11 @@ export const envsDto = z.object({
   // Storage buckets are named `${PROJECT_NAME}-{public|private}-${ENVIRONMENT}`
   ENVIRONMENT: z.enum(['development', 'staging', 'production']).default('development'),
   PROJECT_NAME: z.string().min(1).default('adelie'),
+  SITE_VERSION: z.string().optional(),
+  // Observability: Sentry + OpenTelemetry.
+  SENTRY_BACKEND_URL: z.union([z.url(), z.literal('')]).optional(),
+  OTEL_ENABLED: z.stringbool().default(false),
+  OTEL_EXPORTER_OTLP_ENDPOINT: z.url().default('http://localhost:4318/v1/traces'),
 });
 
 export type EnvsDto = z.infer<typeof envsDto>;

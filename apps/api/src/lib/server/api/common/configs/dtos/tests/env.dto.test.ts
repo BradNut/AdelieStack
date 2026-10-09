@@ -1,0 +1,53 @@
+import { describe, expect, it } from 'vitest';
+import { envsDto } from '../env.dto';
+
+const validEnv = {
+  DATABASE_USER: 'postgres',
+  DATABASE_PASSWORD: 'postgres',
+  DATABASE_HOST: 'localhost',
+  DATABASE_PORT: '5432',
+  DATABASE_DB: 'postgres',
+  LOG_LEVEL: 'debug',
+  ORIGIN: 'http://localhost:5173',
+  REDIS_URL: 'redis://localhost:6379',
+  SIGNING_SECRET: 'secret',
+  ENV: 'dev',
+  PORT: '3001',
+  STORAGE_HOST: 'localhost',
+  STORAGE_PORT: '8333',
+  STORAGE_ACCESS_KEY: 'user',
+  STORAGE_SECRET_KEY: 'password',
+} as const;
+
+describe('envsDto observability vars', () => {
+  it('defaults OTel off and keeps Sentry optional', () => {
+    const env = envsDto.parse({ ...validEnv });
+    expect(env.OTEL_ENABLED).toBe(false);
+    expect(env.OTEL_EXPORTER_OTLP_ENDPOINT).toBe('http://localhost:4318/v1/traces');
+    expect(env.SENTRY_BACKEND_URL).toBeUndefined();
+  });
+
+  it('coerces OTEL_ENABLED and accepts the Sentry/OTLP urls', () => {
+    const env = envsDto.parse({
+      ...validEnv,
+      OTEL_ENABLED: 'true',
+      OTEL_EXPORTER_OTLP_ENDPOINT: 'http://jaeger:4318/v1/traces',
+      SENTRY_BACKEND_URL: 'https://sentry.example.com/1',
+    });
+    expect(env.OTEL_ENABLED).toBe(true);
+    expect(env.OTEL_EXPORTER_OTLP_ENDPOINT).toBe('http://jaeger:4318/v1/traces');
+    expect(env.SENTRY_BACKEND_URL).toBe('https://sentry.example.com/1');
+  });
+
+  it('allows an empty Sentry url', () => {
+    expect(envsDto.parse({ ...validEnv, SENTRY_BACKEND_URL: '' }).SENTRY_BACKEND_URL).toBe('');
+  });
+
+  it('rejects a non-url OTLP endpoint', () => {
+    expect(() => envsDto.parse({ ...validEnv, OTEL_EXPORTER_OTLP_ENDPOINT: 'not-a-url' })).toThrow();
+  });
+
+  it('rejects a non-url Sentry endpoint', () => {
+    expect(() => envsDto.parse({ ...validEnv, SENTRY_BACKEND_URL: 'not-a-url' })).toThrow();
+  });
+});

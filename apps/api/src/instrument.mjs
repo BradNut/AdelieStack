@@ -1,33 +1,10 @@
 import 'dotenv/config';
-import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
-import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-proto';
-import { resourceFromAttributes } from '@opentelemetry/resources';
-import { NodeSDK } from '@opentelemetry/sdk-node';
-import { ATTR_SERVICE_NAME, ATTR_SERVICE_VERSION } from '@opentelemetry/semantic-conventions';
+import { getDevOnlySentryOptions, startOpenTelemetrySdk } from '@adelie/shared/otel';
 import * as Sentry from '@sentry/node';
 
-// Initialize OpenTelemetry SDK
-const otelEnabled = process.env.OTEL_ENABLED === 'true';
-if (otelEnabled) {
-  const sdk = new NodeSDK({
-    resource: resourceFromAttributes({
-      [ATTR_SERVICE_NAME]: 'adelie-api',
-      [ATTR_SERVICE_VERSION]: process.env.SITE_VERSION || '0.0.1',
-    }),
-    traceExporter: new OTLPTraceExporter({
-      url: process.env.OTEL_EXPORTER_OTLP_ENDPOINT || 'http://localhost:4318/v1/traces',
-    }),
-    instrumentations: [
-      getNodeAutoInstrumentations({
-        // Disable heavy instrumentations to prevent OOM
-        '@opentelemetry/instrumentation-fs': { enabled: false },
-        '@opentelemetry/instrumentation-dns': { enabled: false },
-        '@opentelemetry/instrumentation-net': { enabled: false },
-      }),
-    ],
-  });
-
-  sdk.start();
+// Initialize OpenTelemetry SDK (no-op unless OTEL_ENABLED=true).
+const sdk = startOpenTelemetrySdk({ serviceName: 'adelie-api' });
+if (sdk) {
   console.log('OpenTelemetry SDK initialized for API');
 
   // Graceful shutdown
@@ -40,12 +17,11 @@ if (otelEnabled) {
   });
 }
 
-// Initialize Sentry
+// Initialize Sentry. Spotlight and PII are dev-only.
 Sentry.init({
   dsn: process.env.SENTRY_BACKEND_URL,
   environment: process.env.ENVIRONMENT || 'development',
   tracesSampleRate: 0,
-  sendDefaultPii: true,
   release: `adelie@${process.env.SITE_VERSION || '0.0.1'}`,
-  spotlight: true,
+  ...getDevOnlySentryOptions(process.env.ENVIRONMENT),
 });
