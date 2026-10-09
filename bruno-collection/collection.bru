@@ -1,0 +1,24 @@
+docs {
+  # AdelieStack API
+
+  A generic request collection for the AdelieStack API.
+
+  ## Environments
+
+  - **local** — Local development. `baseUrl` points at the SvelteKit dev
+    server (`http://localhost:5173`), which proxies `/api/*` to the Hono API.
+    Set `baseUrl` to `http://localhost:3001` to hit the API directly.
+
+  ## Authentication
+
+  Session-authenticated endpoints read the `Cookie` header. Set the
+  `sessionCookie` environment variable and the collection-level pre-request
+  script attaches it automatically.
+}
+
+script:pre-request {
+  const sessionCookie = bru.getEnvVar("sessionCookie");
+  if (sessionCookie) {
+    req.setHeader("Cookie", sessionCookie);
+  }
+}
