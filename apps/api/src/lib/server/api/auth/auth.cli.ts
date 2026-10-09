@@ -12,4 +12,6 @@ export const auth = createAuth({
   secret: 'better-auth-cli-placeholder-secret-0000',
   baseURL: 'http://localhost',
   trustedOrigins: [],
+  twoFactorIssuer: 'AdelieStack',
+  mailer: { send: async () => {} },
 });

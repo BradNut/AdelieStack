@@ -47,10 +47,6 @@ env:
   # Security
   ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
   SIGNING_SECRET: ${{ secrets.SIGNING_SECRET }}
-  MFA_ENCRYPTION_KEY: ${{ secrets.MFA_ENCRYPTION_KEY }}
-  MFA_TOTP_ENABLED: ${{ secrets.MFA_TOTP_ENABLED }}
-  MFA_PASSKEY_ENABLED: ${{ secrets.MFA_PASSKEY_ENABLED }}
-  MFA_SECURITY_KEY_ENABLED: ${{ secrets.MFA_SECURITY_KEY_ENABLED }}
   SHOW_OAUTH_BUTTONS: ${{ secrets.SHOW_OAUTH_BUTTONS }}
   # Storage - PUBLIC_ from vars, private from secrets
   PUBLIC_IMAGE_URI: ${{ vars.PUBLIC_IMAGE_URI }}

@@ -109,6 +109,20 @@ describe('envsDto Better Auth variables', () => {
   });
 });
 
+describe('envsDto two-factor issuer', () => {
+  it('defaults TWO_FACTOR_ISSUER to AdelieStack', () => {
+    expect(envsDto.parse({ ...validEnv }).TWO_FACTOR_ISSUER).toBe('AdelieStack');
+  });
+
+  it('accepts a custom issuer', () => {
+    expect(envsDto.parse({ ...validEnv, TWO_FACTOR_ISSUER: 'Acme' }).TWO_FACTOR_ISSUER).toBe('Acme');
+  });
+
+  it('rejects an empty issuer', () => {
+    expect(() => envsDto.parse({ ...validEnv, TWO_FACTOR_ISSUER: '' })).toThrow();
+  });
+});
+
 describe('envsDto seed admin', () => {
   it('keeps ADMIN_EMAIL optional', () => {
     expect(envsDto.parse({ ...validEnv }).ADMIN_EMAIL).toBeUndefined();

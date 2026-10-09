@@ -43,6 +43,13 @@
       "when": 1791565387758,
       "tag": "0005_admin_plugin_roles",
       "breakpoints": false
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1791585135316,
+      "tag": "0006_two_factor_plugin",
+      "breakpoints": false
     }
   ]
 }

@@ -46,10 +46,12 @@ async function promote(userId: string, role: RoleName) {
 
 beforeEach(() => {
   auth = createAuth({
-    database: memoryAdapter({ user: [], session: [], account: [], verification: [] }),
+    database: memoryAdapter({ user: [], session: [], account: [], verification: [], twoFactor: [] }),
     secret: 'test-secret-that-is-at-least-32-characters',
     baseURL: ORIGIN,
     trustedOrigins: [ORIGIN],
+    twoFactorIssuer: 'AdelieStack',
+    mailer: { send: async () => {} },
   });
 });
 

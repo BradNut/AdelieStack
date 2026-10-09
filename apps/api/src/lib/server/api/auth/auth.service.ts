@@ -1,6 +1,7 @@
 import { inject, injectable } from '@needle-di/core';
 import { ConfigService } from '../common/configs/config.service';
 import { DrizzleService } from '../databases/postgres/drizzle.service';
+import { MailerService } from '../mail/mailer.service';
 import { type Auth, createAuth, drizzleAuthDatabase } from './auth.config';
 
 /** Owns the single Better Auth instance, created on first use rather than at import time. */
@@ -11,6 +12,7 @@ export class AuthService {
   constructor(
     private readonly configService = inject(ConfigService),
     private readonly drizzleService = inject(DrizzleService),
+    private readonly mailerService = inject(MailerService),
   ) {}
 
   get auth(): Auth {
@@ -19,6 +21,8 @@ export class AuthService {
       secret: this.configService.envs.BETTER_AUTH_SECRET,
       baseURL: this.configService.envs.BETTER_AUTH_URL,
       trustedOrigins: [this.configService.envs.ORIGIN],
+      twoFactorIssuer: this.configService.envs.TWO_FACTOR_ISSUER,
+      mailer: this.mailerService,
     });
     return this.instance;
   }

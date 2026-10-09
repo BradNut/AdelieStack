@@ -24,6 +24,8 @@ export const envsDto = z.object({
   // the auth endpoints are served from (the web origin, which proxies /api to this server).
   BETTER_AUTH_SECRET: z.string().min(32, 'BETTER_AUTH_SECRET must be at least 32 characters'),
   BETTER_AUTH_URL: z.url(),
+  // Name shown in authenticator apps when a user enrols TOTP two-factor.
+  TWO_FACTOR_ISSUER: z.string().min(1).default('AdelieStack'),
   ENV: z.enum(['dev', 'prod']),
   NODE_ENV: z.enum(['development', 'production']).default('development'),
   PORT: z.coerce.number(),

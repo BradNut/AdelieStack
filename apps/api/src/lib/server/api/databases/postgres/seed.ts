@@ -32,7 +32,7 @@ const db = drizzle(
   },
 );
 
-for (const table of [schema.accounts, schema.audit_log_table, schema.sessions, schema.users, schema.verifications]) {
+for (const table of [schema.accounts, schema.audit_log_table, schema.sessions, schema.twoFactors, schema.users, schema.verifications]) {
   // await db.delete(table); // clear tables without truncating / resetting ids
   await resetTable(db, table);
 }
@@ -42,6 +42,9 @@ const auth = createAuth({
   secret: `${process.env.BETTER_AUTH_SECRET}`,
   baseURL: `${process.env.BETTER_AUTH_URL}`,
   trustedOrigins: [],
+  twoFactorIssuer: 'AdelieStack',
+  // Seeding never sends mail.
+  mailer: { send: async () => {} },
 });
 
 await seeds.users(auth);

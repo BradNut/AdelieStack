@@ -20,6 +20,7 @@ export function buildAuthUser(overrides: Partial<AuthUser> = {}): AuthUser {
     banned: false,
     banReason: null,
     banExpires: null,
+    twoFactorEnabled: false,
     createdAt: TEST_NOW,
     updatedAt: TEST_NOW,
     ...overrides,
