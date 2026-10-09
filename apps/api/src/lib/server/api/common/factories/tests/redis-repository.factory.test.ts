@@ -1,9 +1,23 @@
+import { injectable } from '@needle-di/core';
 import { describe, expect, it } from 'vitest';
 import { RedisService } from '../../../databases/redis/redis.service';
-import { LoginRequestsRepository } from '../../../iam/login-requests/login-requests.repository';
-import { SessionsRepository } from '../../../iam/sessions/sessions.repository';
 import { ConfigService } from '../../configs/config.service';
 import { createTestContainer, mockProvider } from '../../testing/test-container';
+import { RedisRepository } from '../redis-repository.factory';
+
+@injectable()
+class SessionsRepository extends RedisRepository<'session'> {
+  constructor() {
+    super('session');
+  }
+}
+
+@injectable()
+class LoginRequestsRepository extends RedisRepository<'login-request'> {
+  constructor() {
+    super('login-request');
+  }
+}
 
 describe('RedisRepository DI wiring', () => {
   it('shares one RedisService singleton across every repository resolved from the same container', () => {

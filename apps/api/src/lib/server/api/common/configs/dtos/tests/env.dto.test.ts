@@ -12,6 +12,8 @@ const validEnv = {
   DOMAIN: 'localhost',
   REDIS_URL: 'redis://localhost:6379',
   SIGNING_SECRET: 'secret',
+  BETTER_AUTH_SECRET: 'better-auth-secret-at-least-32-chars',
+  BETTER_AUTH_URL: 'http://localhost:5173',
   ENV: 'dev',
   PORT: '3001',
   STORAGE_HOST: 'localhost',
@@ -70,10 +72,13 @@ describe('envsDto security switches', () => {
 });
 
 describe('envsDto required variables', () => {
-  it.each(['DATABASE_USER', 'REDIS_URL', 'SIGNING_SECRET', 'DOMAIN', 'STORAGE_URL', 'PUBLIC_IMAGE_URI'])('rejects env missing %s', (key) => {
-    const { [key]: _omitted, ...rest } = validEnv as Record<string, unknown>;
-    expect(() => envsDto.parse(rest)).toThrow();
-  });
+  it.each(['DATABASE_USER', 'REDIS_URL', 'SIGNING_SECRET', 'BETTER_AUTH_SECRET', 'BETTER_AUTH_URL', 'DOMAIN', 'STORAGE_URL', 'PUBLIC_IMAGE_URI'])(
+    'rejects env missing %s',
+    (key) => {
+      const { [key]: _omitted, ...rest } = validEnv as Record<string, unknown>;
+      expect(() => envsDto.parse(rest)).toThrow();
+    },
+  );
 
   it('rejects an empty SIGNING_SECRET', () => {
     expect(() => envsDto.parse({ ...validEnv, SIGNING_SECRET: '' })).toThrow();
@@ -81,5 +86,25 @@ describe('envsDto required variables', () => {
 
   it('rejects a non-numeric PORT', () => {
     expect(() => envsDto.parse({ ...validEnv, PORT: 'not-a-number' })).toThrow();
+  });
+});
+
+describe('envsDto Better Auth variables', () => {
+  it('accepts a 32+ character secret and a url', () => {
+    const env = envsDto.parse({ ...validEnv });
+    expect(env.BETTER_AUTH_SECRET).toBe(validEnv.BETTER_AUTH_SECRET);
+    expect(env.BETTER_AUTH_URL).toBe('http://localhost:5173');
+  });
+
+  it('rejects a BETTER_AUTH_SECRET shorter than 32 characters', () => {
+    expect(() => envsDto.parse({ ...validEnv, BETTER_AUTH_SECRET: 'x'.repeat(31) })).toThrow();
+  });
+
+  it('rejects an empty BETTER_AUTH_SECRET', () => {
+    expect(() => envsDto.parse({ ...validEnv, BETTER_AUTH_SECRET: '' })).toThrow();
+  });
+
+  it('rejects a non-url BETTER_AUTH_URL', () => {
+    expect(() => envsDto.parse({ ...validEnv, BETTER_AUTH_URL: 'not-a-url' })).toThrow();
   });
 });

@@ -1,9 +1,15 @@
+import { injectable } from '@needle-di/core';
 import { describe, expect, it } from 'vitest';
 import { DrizzleService } from '../../../databases/postgres/drizzle.service';
-import { CredentialsRepository } from '../../../users/credentials.repository';
-import { UsersRepository } from '../../../users/users.repository';
 import { ConfigService } from '../../configs/config.service';
 import { createTestContainer, mockProvider } from '../../testing/test-container';
+import { DrizzleRepository } from '../drizzle-repository.factory';
+
+@injectable()
+class FirstRepository extends DrizzleRepository {}
+
+@injectable()
+class SecondRepository extends DrizzleRepository {}
 
 describe('DrizzleRepository DI wiring', () => {
   it('shares one DrizzleService singleton across every repository resolved from the same container', () => {
@@ -22,13 +28,13 @@ describe('DrizzleRepository DI wiring', () => {
       }),
     );
 
-    const credentials = container.get(CredentialsRepository);
-    const users = container.get(UsersRepository);
+    const first = container.get(FirstRepository);
+    const second = container.get(SecondRepository);
     const drizzleService = container.get(DrizzleService);
 
     // Repository internals are the only way to observe which DrizzleService instance each
     // repository is holding on to, which is exactly what the connection-multiplication bug hid.
-    expect((credentials as unknown as { drizzle: DrizzleService }).drizzle).toBe(drizzleService);
-    expect((users as unknown as { drizzle: DrizzleService }).drizzle).toBe(drizzleService);
+    expect((first as unknown as { drizzle: DrizzleService }).drizzle).toBe(drizzleService);
+    expect((second as unknown as { drizzle: DrizzleService }).drizzle).toBe(drizzleService);
   });
 });

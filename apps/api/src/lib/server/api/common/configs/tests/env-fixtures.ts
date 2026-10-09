@@ -19,6 +19,8 @@ export const validEnvs: Record<string, string> = {
   PORT: '3001',
   REDIS_URL: 'redis://localhost:6379',
   SIGNING_SECRET: 'secret',
+  BETTER_AUTH_SECRET: 'better-auth-secret-at-least-32-chars',
+  BETTER_AUTH_URL: 'http://localhost:5173',
   PROJECT_NAME: 'adelie',
   STORAGE_HOST: 'localhost',
   STORAGE_PORT: '8333',

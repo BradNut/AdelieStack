@@ -20,6 +20,10 @@ export const envsDto = z.object({
   // or one-off processes that must not open a Redis worker connection.
   JOBS_ENABLED: z.stringbool().default(true),
   SIGNING_SECRET: z.string().min(1, 'SIGNING_SECRET must not be empty'),
+  // Better Auth: secret for signing/encrypting auth cookies and tokens, and the public base URL
+  // the auth endpoints are served from (the web origin, which proxies /api to this server).
+  BETTER_AUTH_SECRET: z.string().min(32, 'BETTER_AUTH_SECRET must be at least 32 characters'),
+  BETTER_AUTH_URL: z.url(),
   ENV: z.enum(['dev', 'prod']),
   NODE_ENV: z.enum(['development', 'production']).default('development'),
   PORT: z.coerce.number(),

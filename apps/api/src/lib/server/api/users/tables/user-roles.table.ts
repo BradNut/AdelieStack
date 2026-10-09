@@ -3,7 +3,7 @@ import { boolean, pgTable, text, uuid } from 'drizzle-orm/pg-core';
 import { generateId } from '../../common/utils/crypto';
 import { id, timestamps } from '../../common/utils/drizzle';
 import { roles_table } from '../../roles/tables/roles.table';
-import { users_table } from './users.table';
+import { users } from '../../auth/tables/auth.table';
 
 /* -------------------------------------------------------------------------- */
 /*                                    Table                                   */
@@ -14,7 +14,7 @@ export const user_roles_table = pgTable('user_roles', {
     .$defaultFn(() => generateId()),
   user_id: id()
     .notNull()
-    .references(() => users_table.id, { onDelete: 'cascade' }),
+    .references(() => users.id, { onDelete: 'cascade' }),
   role_id: id()
     .notNull()
     .references(() => roles_table.id, { onDelete: 'cascade' }),
@@ -30,9 +30,9 @@ export const user_role_relations = relations(user_roles_table, ({ one }) => ({
     fields: [user_roles_table.role_id],
     references: [roles_table.id],
   }),
-  user: one(users_table, {
+  user: one(users, {
     fields: [user_roles_table.user_id],
-    references: [users_table.id],
+    references: [users.id],
   }),
 }));
 
