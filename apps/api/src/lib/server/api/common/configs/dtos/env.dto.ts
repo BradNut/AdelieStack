@@ -1,4 +1,5 @@
 import { z } from 'zod/v4';
+import { MailerTransport } from '../../../mail/mailer-transport.constant';
 
 export const envsDto = z.object({
   DATABASE_USER: z.string(),
@@ -12,6 +13,8 @@ export const envsDto = z.object({
   ORIGIN: z.string(),
   DOMAIN: z.string(),
   HOST: z.string().optional(),
+  // Email transport: 'mailpit' for local dev, 'unsend' for real sending.
+  MAILER_TRANSPORT: z.enum([MailerTransport.MAILPIT, MailerTransport.UNSEND]).default(MailerTransport.MAILPIT),
   REDIS_URL: z.string(),
   SIGNING_SECRET: z.string().min(1, 'SIGNING_SECRET must not be empty'),
   ENV: z.enum(['dev', 'prod']),
