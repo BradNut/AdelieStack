@@ -49,6 +49,16 @@ and time-consuming tasks that every application will need regardless of what you
 
 **So - fork this repo, add your favorite libraries, and build out your own "more opinionated" personal template tailored to you**!
 
+## Git Hooks
+
+Plain git hooks in `.githooks/` (no Husky). `pnpm install` runs `prepare`, which sets `core.hooksPath`.
+
+- `pre-commit`: Biome format + lint on staged files, plus the `check:*` guard scripts.
+- `commit-msg`: Conventional Commits subject (`feat(web): ...`).
+- `pre-push`: `turbo check` (type checks) for web and api.
+
+Skip once with `--no-verify`. CI stays the source of truth.
+
 ## Features
 
 - 🟢 Full E2E typesafety
