@@ -1,24 +1,30 @@
-import { eq } from 'drizzle-orm';
-import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
+import { RoleName } from '@adelie/shared';
 import type { Auth } from '../../../auth/auth.config';
-import * as schema from '../drizzle-schema';
 import users from './data/users.json';
 
-export default async function seed(db: NodePgDatabase<typeof schema>, auth: Auth) {
-  console.log('Creating users ...');
-  for (const user of users) {
-    // Sign up through Better Auth so the password is hashed and stored the way it expects.
-    const { user: createdUser } = await auth.api.signUpEmail({
-      body: { name: `${user.first_name} ${user.last_name}`, email: user.email, password: user.password },
-    });
+const DEFAULT_ADMIN_EMAIL = 'admin@example.com';
 
-    for (const role of user.roles) {
-      const foundRole = await db.query.roles_table.findFirst({ where: eq(schema.roles_table.name, role.name) });
-      if (!foundRole) {
-        throw new Error(`Role ${role.name} not found`);
-      }
-      await db.insert(schema.user_roles_table).values({ user_id: createdUser.id, role_id: foundRole.id, primary: role.primary });
-    }
+type SeedUser = { name: string; email: string; password: string; role: RoleName };
+
+/**
+ * Seeds the admin from ADMIN_EMAIL / ADMIN_PASSWORD, then the sample users. Users are created
+ * through the admin plugin's server-side `createUser`, the only path that may set a role.
+ */
+export default async function seed(auth: Auth) {
+  const adminPassword = process.env.ADMIN_PASSWORD;
+  if (!adminPassword) {
+    throw new Error('ADMIN_PASSWORD must be set to seed the admin user');
+  }
+  const admin: SeedUser = {
+    name: 'Admin',
+    email: process.env.ADMIN_EMAIL || DEFAULT_ADMIN_EMAIL,
+    password: adminPassword,
+    role: RoleName.ADMIN,
+  };
+
+  console.log('Creating users ...');
+  for (const user of [admin, ...(users as SeedUser[])]) {
+    await auth.api.createUser({ body: user });
   }
   console.log('Users created.');
 }

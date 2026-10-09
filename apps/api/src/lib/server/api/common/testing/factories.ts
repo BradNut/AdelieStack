@@ -1,3 +1,4 @@
+import { RoleName } from '@adelie/shared';
 import type { AuthSession, AuthUser } from '../../auth/auth.config';
 
 /** Fixed clock for deterministic date assertions; use with `vi.setSystemTime(TEST_NOW)`. */
@@ -15,6 +16,10 @@ export function buildAuthUser(overrides: Partial<AuthUser> = {}): AuthUser {
     email: TEST_EMAIL,
     emailVerified: true,
     image: null,
+    role: RoleName.USER,
+    banned: false,
+    banReason: null,
+    banExpires: null,
     createdAt: TEST_NOW,
     updatedAt: TEST_NOW,
     ...overrides,
@@ -28,6 +33,7 @@ export function buildAuthSession(overrides: Partial<AuthSession> = {}): AuthSess
     userId: TEST_USER_ID,
     ipAddress: null,
     userAgent: null,
+    impersonatedBy: null,
     createdAt: TEST_NOW,
     updatedAt: TEST_NOW,
     expiresAt: new Date(TEST_NOW.getTime() + THIRTY_DAYS_MS),

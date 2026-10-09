@@ -2,7 +2,7 @@ import 'dotenv/config';
 import { getTableName, sql, type Table } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import Pool from 'pg-pool';
-import { createAuth } from '../../auth/auth.config';
+import { createAuth, drizzleAuthDatabase } from '../../auth/auth.config';
 import * as drizzleSchema from './drizzle-schema';
 import * as schema from './drizzle-schema';
 import * as seeds from './seeds';
@@ -32,28 +32,19 @@ const db = drizzle(
   },
 );
 
-for (const table of [
-  schema.accounts,
-  schema.audit_log_table,
-  schema.roles_table,
-  schema.sessions,
-  schema.user_roles_table,
-  schema.users,
-  schema.verifications,
-]) {
+for (const table of [schema.accounts, schema.audit_log_table, schema.sessions, schema.users, schema.verifications]) {
   // await db.delete(table); // clear tables without truncating / resetting ids
   await resetTable(db, table);
 }
 
 const auth = createAuth({
-  db,
+  database: drizzleAuthDatabase(db),
   secret: `${process.env.BETTER_AUTH_SECRET}`,
   baseURL: `${process.env.BETTER_AUTH_URL}`,
   trustedOrigins: [],
 });
 
-await seeds.roles(db);
-await seeds.users(db, auth);
+await seeds.users(auth);
 
 await db.$client.end();
 process.exit();

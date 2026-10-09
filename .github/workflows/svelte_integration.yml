@@ -36,7 +36,7 @@ env:
   LOG_LEVEL: ${{ secrets.LOG_LEVEL }}
   DB_MIGRATING: ${{ secrets.DB_MIGRATING }}
   DB_SEEDING: ${{ secrets.DB_SEEDING }}
-  ADMIN_USERNAME: ${{ secrets.ADMIN_USERNAME }}
+  ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
   ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
   # Emails
   SITE_NAME: ${{ secrets.SITE_NAME }}

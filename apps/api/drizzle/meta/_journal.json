@@ -36,6 +36,13 @@
       "when": 1791564657387,
       "tag": "0004_better_auth_core",
       "breakpoints": false
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1791565387758,
+      "tag": "0005_admin_plugin_roles",
+      "breakpoints": false
     }
   ]
 }

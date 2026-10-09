@@ -108,3 +108,17 @@ describe('envsDto Better Auth variables', () => {
     expect(() => envsDto.parse({ ...validEnv, BETTER_AUTH_URL: 'not-a-url' })).toThrow();
   });
 });
+
+describe('envsDto seed admin', () => {
+  it('keeps ADMIN_EMAIL optional', () => {
+    expect(envsDto.parse({ ...validEnv }).ADMIN_EMAIL).toBeUndefined();
+  });
+
+  it('accepts a valid ADMIN_EMAIL', () => {
+    expect(envsDto.parse({ ...validEnv, ADMIN_EMAIL: 'admin@example.com' }).ADMIN_EMAIL).toBe('admin@example.com');
+  });
+
+  it('rejects an ADMIN_EMAIL that is not an email', () => {
+    expect(() => envsDto.parse({ ...validEnv, ADMIN_EMAIL: 'admin' })).toThrow();
+  });
+});

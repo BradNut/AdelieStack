@@ -27,7 +27,7 @@ export const envsDto = z.object({
   ENV: z.enum(['dev', 'prod']),
   NODE_ENV: z.enum(['development', 'production']).default('development'),
   PORT: z.coerce.number(),
-  ADMIN_USERNAME: z.string().optional(),
+  ADMIN_EMAIL: z.email().optional(),
   ADMIN_PASSWORD: z.string().optional(),
   STORAGE_HOST: z.string(),
   STORAGE_PORT: z.coerce.number(),

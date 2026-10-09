@@ -39,7 +39,7 @@ overrides, gitignored, highest precedence) — never commit real secrets to `.en
 |---|---|---|
 | `DB_MIGRATING` | `false` | Set `true` to run migrations on start (Docker sets this automatically). |
 | `DB_SEEDING` | `false` | Set `true` to run seed after migration. |
-| `ADMIN_USERNAME` | — | Seed admin user login; optional. |
+| `ADMIN_EMAIL` | `admin@example.com` | Seed admin user email; optional. `ADMIN_PASSWORD` is required to seed. |
 | `ADMIN_PASSWORD` | — | Seed admin user password. |
 
 ## Security
