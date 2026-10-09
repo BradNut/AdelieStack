@@ -1,9 +1,21 @@
 import { StatusCodes } from '@adelie/shared';
-import { type Handle, redirect } from '@sveltejs/kit';
+import { getDevOnlySentryOptions } from '@adelie/shared/otel';
+import * as Sentry from '@sentry/sveltekit';
+import { sentryHandle } from '@sentry/sveltekit';
+import { type Handle, type HandleServerError, redirect } from '@sveltejs/kit';
 import { sequence } from '@sveltejs/kit/hooks';
+import { dev } from '$app/environment';
+import { env } from '$env/dynamic/public';
 import { honoClient, parseApiResponse } from '$lib/utils/api';
 import type { Api } from '$lib/utils/types';
 import { i18n } from './lib/i18n';
+
+Sentry.init({
+  dsn: env.PUBLIC_SENTRY_DSN || undefined,
+  environment: dev ? 'development' : 'production',
+  tracesSampleRate: dev ? 1 : 0,
+  ...getDevOnlySentryOptions(dev ? 'development' : 'production'),
+});
 
 const apiClient: Handle = async ({ event, resolve }) => {
   /* ------------------------------ Register api ------------------------------ */
@@ -49,4 +61,12 @@ const apiClient: Handle = async ({ event, resolve }) => {
   return response;
 };
 
-export const handle: Handle = sequence(apiClient, i18n);
+export const handle: Handle = sequence(sentryHandle(), apiClient, i18n);
+
+export const handleError: HandleServerError = ({ error, status, message }) => {
+  const errorId = crypto.randomUUID();
+  if (status !== 404) {
+    Sentry.captureException(error, { tags: { errorId } });
+  }
+  return { message, errorId };
+};
