@@ -9,6 +9,7 @@
     "db:seed": "pnpm --filter @adelie/api db:seed",
     "db:studio": "pnpm --filter @adelie/api db:studio",
     "turbo": "turbo",
+    "prepare": "git config core.hooksPath .githooks || true",
     "dev": "pnpm turbo run dev --filter=@adelie/web --filter=@adelie/api",
     "dev:web": "pnpm --filter @adelie/web dev",
     "dev:api": "pnpm --filter @adelie/api dev",
