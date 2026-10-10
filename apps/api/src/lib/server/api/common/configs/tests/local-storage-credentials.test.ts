@@ -19,7 +19,8 @@ const OrdinaryResponseText = [
   '{"user":{"id":"x","email":"a@b.c"},"token":"t","redirect":false}',
 ];
 
-const credentialSources = ['.env.example', 'apps/api/.env.schema'];
+const credentialSource = 'apps/api/.env.schema';
+const credentialSources = [credentialSource];
 
 describe('local storage credentials', () => {
   it.each(credentialSources)('%s defaults cannot collide with ordinary response text', (file) => {
@@ -32,7 +33,7 @@ describe('local storage credentials', () => {
     }
   });
 
-  it('match between the env example, env schema and the SeaweedFS identity', () => {
+  it('match between the env schema and the SeaweedFS identity', () => {
     const config = JSON.parse(read('docker/seaweedfs/s3-config.json')) as {
       identities: { name: string; credentials?: { accessKey: string; secretKey: string }[] }[];
     };
@@ -45,7 +46,7 @@ describe('local storage credentials', () => {
 
   it('match the setup script defaults', () => {
     const script = read('scripts/setup-seaweedfs.sh');
-    expect(script).toContain(`resolve STORAGE_ACCESS_KEY ${envValue('.env.example', 'STORAGE_ACCESS_KEY')})`);
-    expect(script).toContain(`resolve STORAGE_SECRET_KEY ${envValue('.env.example', 'STORAGE_SECRET_KEY')})`);
+    expect(script).toContain(`resolve STORAGE_ACCESS_KEY ${envValue(credentialSource, 'STORAGE_ACCESS_KEY')})`);
+    expect(script).toContain(`resolve STORAGE_SECRET_KEY ${envValue(credentialSource, 'STORAGE_SECRET_KEY')})`);
   });
 });

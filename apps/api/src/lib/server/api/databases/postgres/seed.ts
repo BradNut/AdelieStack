@@ -1,4 +1,4 @@
-import 'dotenv/config';
+import 'varlock/auto-load';
 import { APP_NAME } from '@adelie/shared';
 import { getTableName, sql, type Table } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
