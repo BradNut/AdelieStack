@@ -57,12 +57,12 @@ export class SessionsRepository extends RedisRepository<'session'> {
 ### Mailer Service
 **Location:** `apps/api/src/lib/server/api/mail/{dev,prod}-mailer.service.ts`
 
-**Purpose:** Deliver login-verification-code, password-reset-code, and welcome emails.
+**Purpose:** Deliver Better Auth emails: email verification, password reset link, and security-event notices.
 
 **Usage (actual):**
 ```typescript
-// apps/api/src/lib/server/api/iam/login-requests/login-requests.service.ts
-await this.mailer.send({ to: email, template: new LoginVerificationEmail(verificationCode) });
+// apps/api/src/lib/server/api/auth/auth.mail.ts
+await mailer.send({ to: user.email, template: new EmailVerificationEmail(url) });
 ```
 
 **Implementations — be precise here, this is a common source of doc drift:**

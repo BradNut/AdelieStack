@@ -1,0 +1,8 @@
+{
+  "$schema": "https://inlang.com/schema/inlang-message-format",
+  "validation_email_invalid": "Correo electrónico inválido",
+  "validation_username_invalid": "Nombre de usuario inválido",
+  "validation_password_required": "La contraseña es obligatoria",
+  "validation_password_invalid": "Contraseña inválida",
+  "validation_captcha_invalid": "Captcha inválido, inténtalo de nuevo."
+}

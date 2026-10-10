@@ -39,7 +39,7 @@ pnpm --filter @adelie/api db:migrate
 ## Seeding
 
 ```bash
-DB_SEEDING=true ADMIN_USERNAME=admin ADMIN_PASSWORD=<pw> pnpm --filter @adelie/api db:seed
+DB_SEEDING=true ADMIN_EMAIL=admin@example.com ADMIN_PASSWORD=<pw> pnpm --filter @adelie/api db:seed
 ```
 
 Or set `DB_SEEDING=true` in env and restart Docker container (seed runs after migrate).

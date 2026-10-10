@@ -1,7 +1,10 @@
 import 'dotenv/config';
+import { APP_NAME } from '@adelie/shared';
 import { getTableName, sql, type Table } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import Pool from 'pg-pool';
+import { AUTH_PLACEHOLDER, createAuth, drizzleAuthDatabase } from '../../auth/auth.config';
+import { ConfigService } from '../../common/configs/config.service';
 import * as drizzleSchema from './drizzle-schema';
 import * as schema from './drizzle-schema';
 import * as seeds from './seeds';
@@ -32,19 +35,31 @@ const db = drizzle(
 );
 
 for (const table of [
-  schema.credentials_table,
-  schema.recovery_codes_table,
-  schema.roles_table,
-  schema.two_factor_table,
-  schema.user_roles_table,
-  schema.users_table,
+  schema.accounts,
+  schema.audit_log_table,
+  schema.passkeys,
+  schema.sessions,
+  schema.twoFactors,
+  schema.users,
+  schema.verifications,
 ]) {
   // await db.delete(table); // clear tables without truncating / resetting ids
   await resetTable(db, table);
 }
 
-await seeds.roles(db);
-await seeds.users(db);
+const auth = createAuth({
+  database: drizzleAuthDatabase(db),
+  secret: `${process.env.BETTER_AUTH_SECRET}`,
+  baseURL: `${process.env.BETTER_AUTH_URL}`,
+  trustedOrigins: [],
+  twoFactorIssuer: APP_NAME,
+  passkey: AUTH_PLACEHOLDER.passkey,
+  // Seeding never sends mail.
+  mailer: { send: async () => {} },
+});
+
+const { ADMIN_EMAIL, ADMIN_PASSWORD } = new ConfigService().envs;
+await seeds.users(auth, { adminEmail: ADMIN_EMAIL, adminPassword: ADMIN_PASSWORD });
 
 await db.$client.end();
 process.exit();

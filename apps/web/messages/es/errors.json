@@ -1,0 +1,12 @@
+{
+  "$schema": "https://inlang.com/schema/inlang-message-format",
+  "errors_not_found_title": "Página no encontrada",
+  "errors_not_found_description": "La página que busca no existe o se ha movido.",
+  "errors_generic_title": "Algo salió mal",
+  "errors_generic_description": "Ocurrió un error inesperado. Inténtelo de nuevo.",
+  "errors_status_label": "Error {status}",
+  "errors_error_id_label": "ID del error",
+  "errors_error_id_hint": "Incluya este ID al contactar con soporte.",
+  "errors_go_home": "Ir al inicio",
+  "errors_try_again": "Intentar de nuevo"
+}

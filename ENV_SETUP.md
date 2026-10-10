@@ -59,6 +59,15 @@ web app only ever reads them through SvelteKit's `$env/static/public` /
 server-only and is read through `$env/dynamic/private` (web) or `process.env` /
 `ConfigService` (API), never imported into client-bundled code.
 
+## Using a password manager
+
+Secrets can come from a password manager instead of a local `.env`. Varlock has plugins for Proton Pass,
+1Password, Bitwarden and others (see <https://varlock.dev/plugins>). With Proton Pass, install
+`@varlock/proton-pass-plugin`, add `@plugin(@varlock/proton-pass-plugin)` and `@initProtonPass(id=prod)` to the
+schema header, and set a variable to `protonPass(prod, pass://<vault>/<item>/<field>)`. This repo does not require
+one: the schema defaults are plain so a fresh clone works. Never commit real `.env*` files; the pre-commit and
+pre-push hooks refuse them.
+
 ## Adding a new variable
 
 1. Add it to the relevant app's `apps/<app>/.env.schema` with `@type`, `@sensitive` (defaults

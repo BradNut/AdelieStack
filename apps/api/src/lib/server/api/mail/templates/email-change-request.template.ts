@@ -1,10 +1,10 @@
 import type { EmailTemplate } from '../interfaces/email-template.interface';
 
 export class EmailChangeRequestEmail implements EmailTemplate {
-  constructor(private readonly token: string) {}
+  constructor(private readonly url: string) {}
 
   subject(): string {
-    return 'Email Verification';
+    return 'Confirm your new email address';
   }
 
   html() {
@@ -16,23 +16,12 @@ export class EmailChangeRequestEmail implements EmailTemplate {
 				<title>Message</title>
 			</head>
 			<body>
-				<p class='title'>Verify your email address</p>
-				<p>
-					Thanks for using example.com. We want to make sure it's really you. Please enter the following
-					verification code when prompted. If you don't have an exmaple.com an account, you can ignore
-					this message.	
-				</p>
-				<div class='center'>
-					<p class='token-title'>Verification Code</p>
-					<p class='token-text'>${this.token}</p>
-					<p class='token-subtext'>(This code is valid for 15 minutes)</p>
-				</div>
+				<p class='title'>Confirm your new email address</p>
+				<p>Confirm this address to make it the email for your account. If you did not ask for this change, you can ignore this message.</p>
+				<p><a href='${this.url}'>Confirm email change</a></p>
 			</body>
 			<style>
-				.title { font-size: 24px; font-weight: 700; } .token-text { font-size: 24px; font-weight: 700;
-				margin-top: 8px; } .token-title { font-size: 18px; font-weight: 700; margin-bottom: 0px; }
-				.center { display: flex; justify-content: center; align-items: center; flex-direction: column;}
-				.token-subtext { font-size: 12px; margin-top: 0px; }
+				.title { font-size: 24px; font-weight: 700; }
 			</style>
 		</html>
 		`;

@@ -275,7 +275,7 @@ script, so `script-src` does not need `'unsafe-inline'`:
 const cspDirectives = {
   'default-src': ["'self'"],
   'base-uri': ["'self'"],
-  'connect-src': ["'self'"],
+  'connect-src': ["'self'" /* + local Spotlight origin when NODE_ENV is development */],
   'font-src': ["'self'", 'data:'],
   'form-action': ["'self'"],
   'frame-ancestors': ["'self'"],
@@ -284,7 +284,7 @@ const cspDirectives = {
   'manifest-src': ["'self'"],
   'media-src': ["'self'"],
   'object-src': ["'none'"],
-  'script-src': ["'self'", "'sha256-...'" /* mode-watcher's FOUC-prevention script */],
+  'script-src': ["'self'"], // SvelteKit adds the per-request nonce
   'style-src': ["'self'", "'unsafe-inline'"],
   'worker-src': ["'self'"],
 };
@@ -292,7 +292,9 @@ const cspDirectives = {
 
 `style-src` allows `'unsafe-inline'` because Svelte transitions and the static inline `style` in
 `src/app.html` set the `style` attribute at runtime, which the automatic CSP nonce does not cover.
-See the comments in `csp-directives.mjs` for why each entry exists before changing it.
+The mode-watcher theme script is a `<script nonce="%sveltekit.nonce%">` in `src/app.html`, filled in by
+`transformPageChunk` in `hooks.server.ts`, so no script hash needs maintaining. `e2e/csp.test.ts` fails on any
+violation. See the comments in `csp-directives.mjs` for why each entry exists before changing it.
 
 ### CSRF Protection
 - SvelteKit built-in CSRF tokens

@@ -1,83 +1,40 @@
-import { eq } from 'drizzle-orm';
-import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { HashingService } from '../../../common/services/hashing.service';
-import * as schema from '../drizzle-schema';
+import { DEFAULT_ADMIN_EMAIL, DEFAULT_ADMIN_NAME, RoleName } from '@adelie/shared';
+import type { Auth } from '../../../auth/auth.config';
 import users from './data/users.json';
 
-type JsonRole = {
+interface SeedUser {
   name: string;
-  primary: boolean;
-};
+  email: string;
+  password: string;
+  role: RoleName;
+}
 
-export default async function seed(db: NodePgDatabase<typeof schema>) {
-  const hashingService = new HashingService();
-  const adminRole = await db.select().from(schema.roles_table).where(eq(schema.roles_table.name, 'admin'));
-  const userRole = await db.select().from(schema.roles_table).where(eq(schema.roles_table.name, 'user'));
+export interface SeedUsersOptions {
+  adminEmail?: string;
+  adminPassword?: string;
+}
 
-  const adminUsername = process.env.ADMIN_USERNAME !== undefined && process.env.ADMIN_USERNAME !== '' ? `${process.env.ADMIN_USERNAME}` : 'admin';
-  const adminUser = await db
-    .insert(schema.users_table)
-    .values({
-      username: adminUsername,
-      email: '',
-      first_name: 'Admin',
-      last_name: 'Admin',
-    })
-    .returning()
-    .onConflictDoNothing();
+/**
+ * Seeds the admin from ADMIN_EMAIL / ADMIN_PASSWORD, then the sample users. The admin is
+ * skipped, with a message, when ADMIN_PASSWORD is unset. Users are created through the admin
+ * plugin's server-side `createUser`, the only path that may set a role.
+ */
+export default async function seed(auth: Pick<Auth, 'api'>, { adminEmail, adminPassword }: SeedUsersOptions = {}) {
+  const seedUsers: SeedUser[] = [...(users as SeedUser[])];
+  if (adminPassword) {
+    seedUsers.unshift({
+      name: DEFAULT_ADMIN_NAME,
+      email: adminEmail || DEFAULT_ADMIN_EMAIL,
+      password: adminPassword,
+      role: RoleName.ADMIN,
+    });
+  } else {
+    console.warn('ADMIN_PASSWORD is not set: skipping the admin user.');
+  }
 
-  await db.insert(schema.credentials_table).values({
-    user_id: adminUser[0].id,
-    type: schema.CredentialsType.PASSWORD,
-    secret_data: await hashingService.hash(`${process.env.ADMIN_PASSWORD}`),
-  });
-
-  await db
-    .insert(schema.user_roles_table)
-    .values({
-      user_id: adminUser[0].id,
-      role_id: adminRole[0].id,
-      primary: true,
-    })
-    .onConflictDoNothing();
-
-  await db
-    .insert(schema.user_roles_table)
-    .values({
-      user_id: adminUser[0].id,
-      role_id: userRole[0].id,
-      primary: false,
-    })
-    .onConflictDoNothing();
-
-  await Promise.all(
-    users.map(async (user) => {
-      const [insertedUser] = await db
-        .insert(schema.users_table)
-        .values({
-          ...user,
-        })
-        .returning();
-      await db.insert(schema.credentials_table).values({
-        user_id: insertedUser?.id,
-        type: schema.CredentialsType.PASSWORD,
-        secret_data: await hashingService.hash(user.password),
-      });
-      await Promise.all(
-        user.roles.map(async (role: JsonRole) => {
-          const foundRole = await db.query.roles_table.findFirst({
-            where: eq(schema.roles_table.name, role.name),
-          });
-          if (!foundRole) {
-            throw new Error('Role not found');
-          }
-          await db.insert(schema.user_roles_table).values({
-            user_id: insertedUser?.id,
-            role_id: foundRole?.id,
-            primary: role?.primary,
-          });
-        }),
-      );
-    }),
-  );
+  console.log('Creating users ...');
+  for (const user of seedUsers) {
+    await auth.api.createUser({ body: user });
+  }
+  console.log('Users created.');
 }

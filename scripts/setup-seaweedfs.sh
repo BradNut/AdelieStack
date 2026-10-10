@@ -28,8 +28,8 @@ Environment (shell overrides .env):
   STORAGE_HOST         S3 host (default: localhost)
   STORAGE_PORT         S3 port (default: 8333)
   STORAGE_SSL          Use https when "true" (default: false)
-  STORAGE_ACCESS_KEY   S3 access key (default: user)
-  STORAGE_SECRET_KEY   S3 secret key (default: password)
+  STORAGE_ACCESS_KEY   S3 access key (default: adelie-local-access-key)
+  STORAGE_SECRET_KEY   S3 secret key (default: adelie-local-secret-key)
   STORAGE_WAIT_SECONDS Seconds to wait for SeaweedFS to accept requests (default: 60)
 EOF
 }
@@ -96,8 +96,8 @@ ENVIRONMENT="$(resolve ENVIRONMENT development)"
 STORAGE_HOST="$(resolve STORAGE_HOST localhost)"
 STORAGE_PORT="$(resolve STORAGE_PORT 8333)"
 STORAGE_SSL="$(resolve STORAGE_SSL false)"
-STORAGE_ACCESS_KEY="$(resolve STORAGE_ACCESS_KEY user)"
-STORAGE_SECRET_KEY="$(resolve STORAGE_SECRET_KEY password)"
+STORAGE_ACCESS_KEY="$(resolve STORAGE_ACCESS_KEY adelie-local-access-key)"
+STORAGE_SECRET_KEY="$(resolve STORAGE_SECRET_KEY adelie-local-secret-key)"
 STORAGE_WAIT_SECONDS="${STORAGE_WAIT_SECONDS:-60}"
 
 if [[ ! "${STORAGE_WAIT_SECONDS}" =~ ^[0-9]+$ ]]; then
