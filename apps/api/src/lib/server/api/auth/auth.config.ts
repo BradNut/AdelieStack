@@ -7,6 +7,7 @@ import { uuidv7 } from '../common/utils/crypto';
 import type * as drizzleSchema from '../databases/postgres/drizzle-schema';
 import type { Mailer } from '../mail/interfaces/mailer.interface';
 import { TwoFactorOtpEmail } from '../mail/templates/two-factor-otp.template';
+import { createAuthMail } from './auth.mail';
 import { ac, roles } from './auth.permissions';
 
 /** Better Auth mounts its handler here; the Hono app routes `${AUTH_BASE_PATH}/*` to it. */
@@ -41,6 +42,7 @@ export function generateAuthId(): string {
  * over the memory adapter in tests).
  */
 export function createAuth({ database, secret, baseURL, trustedOrigins, twoFactorIssuer, mailer }: CreateAuthOptions) {
+  const authMail = createAuthMail(mailer);
   return betterAuth({
     appName: 'AdelieStack',
     secret,
@@ -48,8 +50,17 @@ export function createAuth({ database, secret, baseURL, trustedOrigins, twoFacto
     basePath: AUTH_BASE_PATH,
     trustedOrigins,
     database,
+    emailVerification: {
+      sendOnSignUp: true,
+      sendVerificationEmail: authMail.sendVerificationEmail,
+    },
     emailAndPassword: {
       enabled: true,
+      sendResetPassword: authMail.sendResetPassword,
+      onPasswordReset: authMail.notifyPasswordChanged,
+    },
+    hooks: {
+      after: authMail.afterHook,
     },
     plugins: [
       // Roles live in the user's `role` field. The plugin declares it `input: false`, so no

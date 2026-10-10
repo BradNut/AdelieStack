@@ -1,8 +1,8 @@
-import { createHmac } from 'node:crypto';
 import { memoryAdapter } from 'better-auth/adapters/memory';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SendProps } from '../../mail/interfaces/mailer.interface';
 import { type Auth, createAuth, TWO_FACTOR_OTP_PERIOD_MINUTES } from '../auth.config';
+import { totpCode } from './totp';
 
 const ORIGIN = 'http://localhost:5173';
 const PASSWORD = 'correct-horse-battery';
@@ -37,26 +37,6 @@ function cookiesFrom(res: Response, previous = ''): string {
     jar.set(pair.split('=')[0], pair);
   }
   return [...jar.values()].join('; ');
-}
-
-const BASE32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
-
-function base32Decode(input: string): Buffer {
-  let bits = '';
-  for (const char of input.replace(/=+$/, '')) bits += BASE32.indexOf(char).toString(2).padStart(5, '0');
-  const bytes = bits.match(/.{8}/g) ?? [];
-  return Buffer.from(bytes.map((b) => Number.parseInt(b, 2)));
-}
-
-/** RFC 6238 SHA-1, 6 digits, 30s step: what an authenticator app computes from the enrolment URI. */
-function totpCode(totpURI: string, offsetSteps = 0): string {
-  const secret = base32Decode(new URL(totpURI).searchParams.get('secret') ?? '');
-  const counter = Buffer.alloc(8);
-  counter.writeBigUInt64BE(BigInt(Math.floor(Date.now() / 30_000) + offsetSteps));
-  const hmac = createHmac('sha1', secret).update(counter).digest();
-  const offset = hmac[hmac.length - 1] & 0xf;
-  const value = hmac.readUInt32BE(offset) & 0x7fffffff;
-  return String(value % 1_000_000).padStart(6, '0');
 }
 
 /** Signs up, then enrols TOTP and confirms it with a first code. */
@@ -194,6 +174,7 @@ describe('sign-in with an emailed OTP', () => {
   it('emails the code through the mailer and signs in with it', async () => {
     await signUpWithTotp();
     const { challengeCookie } = await startSignIn();
+    send.mockClear(); // drop the sign-up verification email
 
     const sent = await call('/two-factor/send-otp', { cookie: challengeCookie, body: {} });
     expect(sent.status).toBe(200);
