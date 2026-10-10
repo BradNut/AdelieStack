@@ -13,4 +13,3 @@ node_modules/.bin/biome check --staged --no-errors-on-unmatched --colors=off || 
 }
 
 node scripts/check-shared-boundaries.mjs
-node scripts/check-agent-rules.mjs

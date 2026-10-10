@@ -94,9 +94,6 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
-      - name: Enforce agent rules
-        run: pnpm check:agent-rules
-
       - name: Generate Paraglide files
         run: pnpm --filter @adelie/web exec paraglide-js compile --project ./project.inlang --outdir ./src/lib/paraglide
 

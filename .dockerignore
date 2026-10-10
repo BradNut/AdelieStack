@@ -37,7 +37,6 @@ docker-compose*.yml
 
 # Agent / planning artifacts, not needed in the image
 .issues
-.agents
 .knowledge-base
 .claude
 .cursor
