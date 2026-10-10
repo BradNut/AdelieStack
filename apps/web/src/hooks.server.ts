@@ -3,6 +3,7 @@ import * as Sentry from '@sentry/sveltekit';
 import { sentryHandle } from '@sentry/sveltekit';
 import type { Handle, HandleServerError } from '@sveltejs/kit';
 import { sequence } from '@sveltejs/kit/hooks';
+import { createInitialModeExpression } from 'mode-watcher';
 import { dev } from '$app/environment';
 import { env } from '$env/dynamic/public';
 import { loadSessionUser } from '$lib/server/session-user';
@@ -16,6 +17,10 @@ Sentry.init({
   tracesSampleRate: dev ? 1 : 0,
   ...getDevOnlySentryOptions(dev ? 'development' : 'production'),
 });
+
+/** Marks where app.html expects the pre-paint theme script (it carries SvelteKit's CSP nonce). */
+const MODE_WATCHER_PLACEHOLDER = '/* modewatcher.init */';
+const themeInitScript = createInitialModeExpression();
 
 const apiClient: Handle = async ({ event, resolve }) => {
   /* ------------------------------ Register api ------------------------------ */
@@ -35,7 +40,9 @@ const apiClient: Handle = async ({ event, resolve }) => {
   event.locals.user = isApiProxyRequest ? null : await loadSessionUser(api, event.request.headers.get('cookie'));
 
   /* ----------------------------- Return response ---------------------------- */
-  const response = await resolve(event);
+  const response = await resolve(event, {
+    transformPageChunk: ({ html }) => html.replace(MODE_WATCHER_PLACEHOLDER, () => themeInitScript),
+  });
   return response;
 };
 

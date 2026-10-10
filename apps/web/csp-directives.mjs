@@ -15,17 +15,13 @@
  *   and the static inline `style` attribute in `src/app.html` set the
  *   `style` attribute at runtime; SvelteKit's CSP hashing only covers
  *   `<script>` content, not style attributes.
- * - `mode-watcher`'s dark-mode FOUC-prevention script is injected via
- *   `{@html}` in a `<svelte:head>` block, so SvelteKit's automatic
- *   `csp.mode: 'auto'` nonce (which only covers scripts the framework
- *   renders itself, e.g. the hydration bootstrap) does not apply to it —
- *   verified by inspecting the served HTML, where this script has no
- *   `nonce` attribute and the browser blocks it. Allow-listed by exact
- *   content hash instead, the same approach the reference app uses. The
- *   script's content is fully static (same default `<ModeWatcher />`
- *   config as the reference app), so the hash does not change across
- *   builds; if `<ModeWatcher>`'s props in `src/routes/+layout.svelte`
- *   ever change, recompute the hash from the browser's console error.
+ * - `mode-watcher`'s dark-mode FOUC-prevention script is rendered as a
+ *   `<script nonce="%sveltekit.nonce%">` in `src/app.html`, filled in by
+ *   `transformPageChunk` in `src/hooks.server.ts`. SvelteKit adds that
+ *   request's nonce to `script-src` (`csp.mode: 'auto'`), so no script hash
+ *   is allow-listed: the script body is the bundler-minified
+ *   `setInitialMode`, whose hash changes between builds.
+ * - `connect-src` gains the local Spotlight origin only when `NODE_ENV` is `development`.
  * - `https://images.unsplash.com` is the placeholder hero image on the
  *   auth pages (`src/routes/(auth)/+layout.svelte`); swap this entry for
  *   a self-hosted asset's origin (or drop it) if that image is replaced.
@@ -46,22 +42,33 @@ function imageOrigin() {
 
 const publicImageOrigin = imageOrigin();
 
-/** @type {import('@sveltejs/kit').CspDirectives} */
-const cspDirectives = {
-  'default-src': ["'self'"],
-  'base-uri': ["'self'"],
-  'connect-src': ["'self'"],
-  'font-src': ["'self'", 'data:'],
-  'form-action': ["'self'"],
-  'frame-ancestors': ["'self'"],
-  'frame-src': ["'self'"],
-  'img-src': ["'self'", 'data:', 'https://images.unsplash.com', ...(publicImageOrigin ? [publicImageOrigin] : [])],
-  'manifest-src': ["'self'"],
-  'media-src': ["'self'"],
-  'object-src': ["'none'"],
-  'script-src': ["'self'", "'sha256-94WxU203ItVdYeuHa4UBPQzWANAxvaHV/BgTnRrE/14='"],
-  'style-src': ["'self'", "'unsafe-inline'"],
-  'worker-src': ["'self'"],
-};
+/** Sentry's Spotlight sidecar; the SDK only connects to it in development (see `getDevOnlySentryOptions`). */
+export const SPOTLIGHT_ORIGIN = 'http://localhost:8969';
+
+/**
+ * @param {{ development?: boolean }} [options] `development` adds the local Spotlight origin to `connect-src`.
+ * @returns {import('@sveltejs/kit').CspDirectives}
+ */
+export function createCspDirectives({ development = false } = {}) {
+  return {
+    'default-src': ["'self'"],
+    'base-uri': ["'self'"],
+    'connect-src': ["'self'", ...(development ? [SPOTLIGHT_ORIGIN] : [])],
+    'font-src': ["'self'", 'data:'],
+    'form-action': ["'self'"],
+    'frame-ancestors': ["'self'"],
+    'frame-src': ["'self'"],
+    'img-src': ["'self'", 'data:', 'https://images.unsplash.com', ...(publicImageOrigin ? [publicImageOrigin] : [])],
+    'manifest-src': ["'self'"],
+    'media-src': ["'self'"],
+    'object-src': ["'none'"],
+    'script-src': ["'self'"],
+    'style-src': ["'self'", "'unsafe-inline'"],
+    'worker-src': ["'self'"],
+  };
+}
+
+/** Only an explicit `development` build gets the Spotlight origin; anything else stays strict. */
+const cspDirectives = createCspDirectives({ development: process.env.NODE_ENV === 'development' });
 
 export default cspDirectives;

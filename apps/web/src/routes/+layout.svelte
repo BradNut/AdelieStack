@@ -31,7 +31,8 @@
 </script>
 
 <PageLoadingIndicator />
-<ModeWatcher />
+<!-- The pre-paint theme script is a nonce-d tag in app.html (see hooks.server.ts); a hash would go stale whenever the bundler changes. -->
+<ModeWatcher disableHeadScriptInjection />
 <Toaster />
 
 <main class="antialiased">
