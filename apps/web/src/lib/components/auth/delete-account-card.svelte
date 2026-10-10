@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { deleteAccountDto } from '@adelie/shared';
+	import { AppRoute, deleteAccountDto } from '@adelie/shared';
 	import { toast } from 'svelte-sonner';
 	import { defaults, setError, superForm } from 'sveltekit-superforms';
 	import { zod4, zod4Client } from 'sveltekit-superforms/adapters';
@@ -24,7 +24,7 @@
 			if (error) return setError(form, 'password', authErrorMessage(error, 'Password is incorrect.'));
 			open = false;
 			await refreshSession();
-			await goto('/');
+			await goto(AppRoute.HOME);
 			toast.success('Your account was deleted.');
 		},
 	});

@@ -5,7 +5,11 @@
 	import { toastIfError } from '$lib/client/auth-form';
 	import { Button } from '$lib/components/ui/button';
 
-	let { email, variant = 'outline' }: { email: string; variant?: 'outline' | 'link' } = $props();
+	interface Props {
+		email: string;
+	}
+
+	let { email }: Props = $props();
 
 	let sending = $state(false);
 
@@ -18,4 +22,4 @@
 	}
 </script>
 
-<Button {variant} size="sm" disabled={sending} onclick={resend} data-testid="resend-verification">Resend verification email</Button>
+<Button variant="outline" size="sm" disabled={sending} onclick={resend} data-testid="resend-verification">Resend verification email</Button>

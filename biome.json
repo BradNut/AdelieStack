@@ -74,11 +74,5 @@
     "parser": {
       "tailwindDirectives": true
     }
-  },
-  "overrides": [
-    {
-      "includes": ["apps/web/src/app.html"],
-      "linter": { "rules": { "a11y": { "useValidLang": "off" } } }
-    }
-  ]
+  }
 }

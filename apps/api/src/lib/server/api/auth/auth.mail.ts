@@ -7,40 +7,19 @@ import { PasswordChangedEmail } from '../mail/templates/password-changed.templat
 import { PasswordResetLinkEmail } from '../mail/templates/password-reset-link.template';
 import { RecoveryCodesRegeneratedEmail } from '../mail/templates/recovery-codes-regenerated.template';
 import { RecoveryCodesUsedEmail } from '../mail/templates/recovery-codes-used.template';
+import { CHANGE_EMAIL_REQUEST_TYPE, readVerificationToken } from './auth.verification-token';
 
 /** Auth endpoints whose successful completion triggers a security-event email. */
 export const SecurityEventPath = {
   CHANGE_PASSWORD: '/change-password',
   VERIFY_BACKUP_CODE: '/two-factor/verify-backup-code',
   GENERATE_BACKUP_CODES: '/two-factor/generate-backup-codes',
+  /** Consumes an emailed verification token; an email-change link also ends up here. */
+  VERIFY_EMAIL: '/verify-email',
 } as const;
 
-/** Better Auth endpoint that consumes an emailed verification token. */
-const VERIFY_EMAIL_PATH = '/verify-email';
-
-/** `requestType` Better Auth puts in the token it emails to the new address of an email change. */
-const CHANGE_EMAIL_REQUEST_TYPE = 'change-email-verification';
-
-interface VerificationTokenPayload {
-  /** The address the token was issued for; for an email change, the current (old) address. */
-  email?: string;
-  updateTo?: string;
-  requestType?: string;
-}
-
-/**
- * Reads the claims of a Better Auth verification token without checking its signature. Only use
- * it to pick an email template or after the verify endpoint itself has accepted the token.
- */
-function readVerificationToken(token: string | undefined): VerificationTokenPayload | null {
-  const payload = token?.split('.')[1];
-  if (!payload) return null;
-  try {
-    return JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as VerificationTokenPayload;
-  } catch {
-    return null;
-  }
-}
+/** What an `hooks.after` handler receives. */
+type AfterHookContext = Parameters<Parameters<typeof createAuthMiddleware>[0]>[0];
 
 interface Recipient {
   email: string;
@@ -56,7 +35,7 @@ export function createAuthMail(mailer: Mailer) {
    * only trusted once the old address is gone and the new one exists, so a failed, forged or
    * repeated link sends nothing.
    */
-  async function notifyOldAddress(ctx: Parameters<Parameters<typeof createAuthMiddleware>[0]>[0]) {
+  async function notifyOldAddress(ctx: AfterHookContext) {
     const claims = readVerificationToken(ctx.query?.token);
     if (claims?.requestType !== CHANGE_EMAIL_REQUEST_TYPE || !claims.email || !claims.updateTo) return;
     const { internalAdapter } = ctx.context;
@@ -91,7 +70,7 @@ export function createAuthMail(mailer: Mailer) {
      * skipped, so one successful call sends exactly one email.
      */
     afterHook: createAuthMiddleware(async (ctx) => {
-      if (ctx.path === VERIFY_EMAIL_PATH) return notifyOldAddress(ctx);
+      if (ctx.path === SecurityEventPath.VERIFY_EMAIL) return notifyOldAddress(ctx);
       if (isAPIError(ctx.context.returned)) return;
       const user = ctx.context.newSession?.user ?? ctx.context.session?.user;
       if (!user) return;

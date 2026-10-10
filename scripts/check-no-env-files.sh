@@ -17,6 +17,6 @@ fi
 if [ -n "$bad" ]; then
   echo "Refusing to commit env files (they hold real secrets):" >&2
   printf '%s' "$bad" >&2
-  echo "Keep secrets in Proton Pass via apps/*/.env.schema, or in gitignored local files." >&2
+  echo "Keep real values in gitignored local files; .env.schema declares variables only." >&2
   exit 1
 fi

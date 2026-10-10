@@ -31,7 +31,6 @@
     "@inlang/paraglide-js": "2.22.0",
     "@types/clamscan": "^2.4.1",
     "@types/node": "^24.10.1",
-    "@varlock/proton-pass-plugin": "^2.0.0",
     "@types/pg": "^8.20.0",
     "@types/pg-pool": "^2.0.7",
     "@vitest/coverage-v8": "4.1.8",
