@@ -1,6 +1,13 @@
 # Agent Guide
 
-Token-light entry. Read deeper docs only when needed.
+AdelieStack is a pnpm + Turbo monorepo: a Hono API and a SvelteKit web app sharing typed contracts. Token-light entry; read deeper docs only when needed.
+
+## Commands
+
+- Package manager: `pnpm` (never npm/yarn). Tasks run through Turbo.
+- `pnpm check` type-checks web and enforces shared-code boundaries; `pnpm lint` / `pnpm format` run Biome.
+- `pnpm test` runs API and web unit tests; `pnpm test:e2e` runs Playwright.
+- `pnpm initialize` boots local infra (Docker), storage, and runs DB generate/migrate/seed.
 
 ## Load Order
 
@@ -32,7 +39,6 @@ Token-light entry. Read deeper docs only when needed.
 - `apps/api` Hono API; `apps/web` SvelteKit app.
 - `packages/shared` client-safe constants, domain values, DTOs, validations.
 - `packages/api-contract` Hono RPC types shared by both apps.
-- `.agents/rules` always-on rules; `.agents/skills` invocable skills.
 
 ## Stack
 
@@ -50,4 +56,4 @@ Default vocabulary: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-
 
 ### Domain docs
 
-Single-context: one `CONTEXT.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+Single-context: `.knowledge-base/{api,web}/glossary.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.
