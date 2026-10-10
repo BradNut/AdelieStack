@@ -125,16 +125,44 @@ describe('roles (admin plugin)', () => {
     expect(res.ok).toBe(false);
     expect(await roleOf(target.cookie)).toBe(RoleName.USER);
   });
+});
 
-  it('lets support list users but not ban them', async () => {
-    const support = await signUp('support@example.com');
-    await promote(support.user.id, RoleName.SUPPORT);
-    const target = await signUp('target3@example.com');
+describe('admin plugin endpoints by role', () => {
+  const TARGET_ID = 'target-id';
+  const endpoints: { name: string; path: string; body?: Record<string, unknown> }[] = [
+    { name: 'list-users', path: '/admin/list-users' },
+    { name: 'get-user', path: `/admin/get-user?id=${TARGET_ID}` },
+    { name: 'list-user-sessions', path: '/admin/list-user-sessions', body: { userId: TARGET_ID } },
+    { name: 'revoke-user-session', path: '/admin/revoke-user-session', body: { sessionToken: 'x' } },
+    { name: 'revoke-user-sessions', path: '/admin/revoke-user-sessions', body: { userId: TARGET_ID } },
+    { name: 'ban-user', path: '/admin/ban-user', body: { userId: TARGET_ID } },
+  ];
 
-    const list = await call('/admin/list-users', { cookie: support.cookie });
-    const ban = await call('/admin/ban-user', { cookie: support.cookie, body: { userId: target.user.id } });
+  async function signedInAs(role: RoleName | null) {
+    if (role === null) return undefined;
+    const { cookie, user } = await signUp(`${role}-endpoints@example.com`);
+    await promote(user.id, role);
+    return cookie;
+  }
 
-    expect(list.status).toBe(200);
-    expect(ban.status).toBe(403);
+  it.each(endpoints)('forbids support from $name', async ({ path, body }) => {
+    const cookie = await signedInAs(RoleName.SUPPORT);
+    expect((await call(path, { cookie, body })).status).toBe(403);
+  });
+
+  it.each(endpoints)('forbids a user from $name', async ({ path, body }) => {
+    const cookie = await signedInAs(RoleName.USER);
+    expect((await call(path, { cookie, body })).status).toBe(403);
+  });
+
+  it.each(endpoints)('rejects a signed-out request to $name', async ({ path, body }) => {
+    expect((await call(path, { body })).status).toBe(401);
+  });
+
+  it.each(endpoints)('lets an admin past the permission check for $name', async ({ path, body }) => {
+    const cookie = await signedInAs(RoleName.ADMIN);
+    const { status } = await call(path, { cookie, body });
+    expect(status).not.toBe(401);
+    expect(status).not.toBe(403);
   });
 });
