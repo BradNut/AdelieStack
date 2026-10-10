@@ -1,3 +1,4 @@
+import { totpCode } from '@adelie/test-utils/totp';
 import { memoryAdapter } from 'better-auth/adapters/memory';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SendProps } from '../../mail/interfaces/mailer.interface';
@@ -7,7 +8,6 @@ import { PasswordResetLinkEmail } from '../../mail/templates/password-reset-link
 import { RecoveryCodesRegeneratedEmail } from '../../mail/templates/recovery-codes-regenerated.template';
 import { RecoveryCodesUsedEmail } from '../../mail/templates/recovery-codes-used.template';
 import { type Auth, createAuth } from '../auth.config';
-import { totpCode } from './totp';
 
 const ORIGIN = 'http://localhost:5173';
 const PASSWORD = 'correct-horse-battery';

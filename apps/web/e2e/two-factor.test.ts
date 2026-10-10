@@ -1,8 +1,8 @@
+import { totpCode } from '@adelie/test-utils/totp';
 import type { Page } from '@playwright/test';
 import { newUser, PASSWORD, signIn, signOut, signUp, type TestUser } from './support/auth';
 import { countEmails, waitForEmail } from './support/mailbox';
 import { expect, test } from './support/test';
-import { totpCode } from './support/totp';
 
 /** Enrols TOTP from the settings page and returns what an authenticator app would hold. */
 async function enrolTotp(page: Page) {

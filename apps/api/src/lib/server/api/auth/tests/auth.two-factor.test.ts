@@ -1,8 +1,8 @@
+import { totpCode } from '@adelie/test-utils/totp';
 import { memoryAdapter } from 'better-auth/adapters/memory';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SendProps } from '../../mail/interfaces/mailer.interface';
 import { type Auth, createAuth, TWO_FACTOR_OTP_PERIOD_MINUTES } from '../auth.config';
-import { totpCode } from './totp';
 
 const ORIGIN = 'http://localhost:5173';
 const PASSWORD = 'correct-horse-battery';

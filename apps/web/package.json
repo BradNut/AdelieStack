@@ -29,6 +29,7 @@
     "machine-translate": "inlang machine translate --project project.inlang"
   },
   "devDependencies": {
+    "@adelie/test-utils": "workspace:*",
     "@biomejs/biome": "2.5.5",
     "@chromatic-com/storybook": "^5.1.2",
     "@dicebear/collection": "^9.4.2",

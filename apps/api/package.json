@@ -25,6 +25,7 @@
   },
   "type": "module",
   "devDependencies": {
+    "@adelie/test-utils": "workspace:*",
     "@biomejs/biome": "2.5.5",
     "@faker-js/faker": "^10.4.0",
     "@inlang/paraglide-js": "2.22.0",
