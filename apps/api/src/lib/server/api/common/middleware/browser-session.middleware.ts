@@ -14,7 +14,7 @@ export const browserSessions: MiddlewareHandler = createMiddleware(async (c, nex
 
   if (!browserSessionCookie) {
     browserSessionId = generateId();
-    setSignedCookie(c, BROWSER_SESSION_COOKIE_NAME, browserSessionId, configService.envs.SIGNING_SECRET, {
+    await setSignedCookie(c, BROWSER_SESSION_COOKIE_NAME, browserSessionId, configService.envs.SIGNING_SECRET, {
       httpOnly: true,
       sameSite: 'lax',
       secure: configService.envs.ENV === 'prod',
