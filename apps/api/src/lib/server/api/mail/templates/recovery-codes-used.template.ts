@@ -1,8 +1,6 @@
 import type { EmailTemplate } from '../interfaces/email-template.interface';
 
 export class RecoveryCodesUsedEmail implements EmailTemplate {
-  constructor() {}
-
   subject(): string {
     return 'A recovery code was used';
   }

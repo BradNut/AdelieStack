@@ -1,8 +1,6 @@
 import type { EmailTemplate } from '../interfaces/email-template.interface';
 
 export class RecoveryCodesRegeneratedEmail implements EmailTemplate {
-  constructor() {}
-
   subject(): string {
     return 'Your recovery codes were regenerated';
   }

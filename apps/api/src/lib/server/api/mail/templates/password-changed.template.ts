@@ -1,8 +1,6 @@
 import type { EmailTemplate } from '../interfaces/email-template.interface';
 
 export class PasswordChangedEmail implements EmailTemplate {
-  constructor() {}
-
   subject(): string {
     return 'Your password was changed';
   }
