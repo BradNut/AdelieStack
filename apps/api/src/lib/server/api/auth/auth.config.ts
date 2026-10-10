@@ -1,4 +1,5 @@
 import { RoleName } from '@adelie/shared';
+import { passkey } from '@better-auth/passkey';
 import { type BetterAuthOptions, betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { admin, twoFactor } from 'better-auth/plugins';
@@ -16,6 +17,13 @@ export const AUTH_BASE_PATH = '/api/auth';
 /** Minutes an emailed two-factor code stays valid. */
 export const TWO_FACTOR_OTP_PERIOD_MINUTES = 5;
 
+/** WebAuthn relying-party settings. `origin` must be the web origin the browser runs on. */
+export interface PasskeyConfig {
+  rpID: string;
+  rpName: string;
+  origin: string;
+}
+
 export interface CreateAuthOptions {
   database: BetterAuthOptions['database'];
   secret: string;
@@ -23,6 +31,7 @@ export interface CreateAuthOptions {
   trustedOrigins: string[];
   /** Name shown in authenticator apps for TOTP enrolment. */
   twoFactorIssuer: string;
+  passkey: PasskeyConfig;
   mailer: Mailer;
 }
 
@@ -41,7 +50,7 @@ export function generateAuthId(): string {
  * it is created (lazily at runtime via {@link AuthService}, with a mock db for the CLI, or
  * over the memory adapter in tests).
  */
-export function createAuth({ database, secret, baseURL, trustedOrigins, twoFactorIssuer, mailer }: CreateAuthOptions) {
+export function createAuth({ database, secret, baseURL, trustedOrigins, twoFactorIssuer, passkey: passkeyConfig, mailer }: CreateAuthOptions) {
   const authMail = createAuthMail(mailer);
   return betterAuth({
     appName: 'AdelieStack',
@@ -81,6 +90,12 @@ export function createAuth({ database, secret, baseURL, trustedOrigins, twoFacto
             await mailer.send({ to: user.email, template: new TwoFactorOtpEmail(otp, TWO_FACTOR_OTP_PERIOD_MINUTES) });
           },
         },
+      }),
+      // Passkeys and hardware security keys (WebAuthn). The relying party comes from env.
+      passkey({
+        rpID: passkeyConfig.rpID,
+        rpName: passkeyConfig.rpName,
+        origin: passkeyConfig.origin,
       }),
     ],
     advanced: {

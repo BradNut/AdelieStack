@@ -123,6 +123,25 @@ describe('envsDto two-factor issuer', () => {
   });
 });
 
+describe('envsDto passkey relying party', () => {
+  it('defaults to localhost and AdelieStack', () => {
+    const env = envsDto.parse({ ...validEnv });
+    expect(env.PASSKEY_RP_ID).toBe('localhost');
+    expect(env.PASSKEY_RP_NAME).toBe('AdelieStack');
+  });
+
+  it('accepts custom values', () => {
+    const env = envsDto.parse({ ...validEnv, PASSKEY_RP_ID: 'example.com', PASSKEY_RP_NAME: 'Acme' });
+    expect(env.PASSKEY_RP_ID).toBe('example.com');
+    expect(env.PASSKEY_RP_NAME).toBe('Acme');
+  });
+
+  it('rejects empty values', () => {
+    expect(() => envsDto.parse({ ...validEnv, PASSKEY_RP_ID: '' })).toThrow();
+    expect(() => envsDto.parse({ ...validEnv, PASSKEY_RP_NAME: '' })).toThrow();
+  });
+});
+
 describe('envsDto seed admin', () => {
   it('keeps ADMIN_EMAIL optional', () => {
     expect(envsDto.parse({ ...validEnv }).ADMIN_EMAIL).toBeUndefined();

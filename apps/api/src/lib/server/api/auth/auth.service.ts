@@ -22,6 +22,11 @@ export class AuthService {
       baseURL: this.configService.envs.BETTER_AUTH_URL,
       trustedOrigins: [this.configService.envs.ORIGIN],
       twoFactorIssuer: this.configService.envs.TWO_FACTOR_ISSUER,
+      passkey: {
+        rpID: this.configService.envs.PASSKEY_RP_ID,
+        rpName: this.configService.envs.PASSKEY_RP_NAME,
+        origin: this.configService.envs.ORIGIN,
+      },
       mailer: this.mailerService,
     });
     return this.instance;

@@ -13,5 +13,6 @@ export const auth = createAuth({
   baseURL: 'http://localhost',
   trustedOrigins: [],
   twoFactorIssuer: 'AdelieStack',
+  passkey: { rpID: 'localhost', rpName: 'AdelieStack', origin: 'http://localhost' },
   mailer: { send: async () => {} },
 });

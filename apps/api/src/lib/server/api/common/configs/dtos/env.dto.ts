@@ -26,6 +26,10 @@ export const envsDto = z.object({
   BETTER_AUTH_URL: z.url(),
   // Name shown in authenticator apps when a user enrols TOTP two-factor.
   TWO_FACTOR_ISSUER: z.string().min(1).default('AdelieStack'),
+  // WebAuthn relying party for passkeys: the registrable domain the browser runs on (no scheme
+  // or port) and the name shown in the passkey prompt. Passkeys only work on a matching origin.
+  PASSKEY_RP_ID: z.string().min(1).default('localhost'),
+  PASSKEY_RP_NAME: z.string().min(1).default('AdelieStack'),
   ENV: z.enum(['dev', 'prod']),
   NODE_ENV: z.enum(['development', 'production']).default('development'),
   PORT: z.coerce.number(),

@@ -50,6 +50,13 @@
       "when": 1791585135316,
       "tag": "0006_two_factor_plugin",
       "breakpoints": false
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1791593884849,
+      "tag": "0007_passkey_plugin",
+      "breakpoints": false
     }
   ]
 }

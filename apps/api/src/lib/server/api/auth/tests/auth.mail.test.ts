@@ -72,6 +72,7 @@ beforeEach(() => {
     baseURL: ORIGIN,
     trustedOrigins: [ORIGIN],
     twoFactorIssuer: 'AdelieStack',
+    passkey: { rpID: 'localhost', rpName: 'AdelieStack', origin: ORIGIN },
     mailer: { send },
   });
 });
