@@ -1,13 +1,13 @@
 import { z } from 'zod';
-import { MAX_USERNAME_LENGTH, MIN_USERNAME_LENGTH } from '../../constants/auth-limits';
+import { MAX_EMAIL_LENGTH } from '../../constants/auth-limits';
 
 export const signinDto = z.object({
-  identifier: z
+  email: z
     .string()
     .trim()
-    .min(MIN_USERNAME_LENGTH, { message: `Must be at least ${MIN_USERNAME_LENGTH} characters` })
-    .max(MAX_USERNAME_LENGTH, { message: `Must be less than ${MAX_USERNAME_LENGTH} characters` }),
-  password: z.string().trim().min(1, { message: 'Password is required' }),
+    .max(MAX_EMAIL_LENGTH, { message: `Email must be less than ${MAX_EMAIL_LENGTH} characters` })
+    .pipe(z.email({ message: 'Please enter a valid email' })),
+  password: z.string().min(1, { message: 'Password is required' }),
 });
 
 export type SignInDto = z.infer<typeof signinDto>;

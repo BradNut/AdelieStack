@@ -1,12 +1,15 @@
 <script lang="ts">
+	import { RoleName } from '@adelie/shared';
 	import CircleUser from '@lucide/svelte/icons/circle-user';
 	import HouseIcon from '@lucide/svelte/icons/house';
 	import Menu from '@lucide/svelte/icons/menu';
 	import Package2 from '@lucide/svelte/icons/package-2';
 	import Search from '@lucide/svelte/icons/search';
 	import ThemeDropdown from '@/components/theme-dropdown.svelte';
-	import { enhance } from '$app/forms';
+	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
+	import { authClient } from '$lib/auth-client';
+	import { refreshSession } from '$lib/client/auth-form';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
@@ -14,6 +17,12 @@
 	import { cn } from '$lib/utils/ui';
 
 	const { children, data } = $props();
+
+	async function signOut() {
+		await authClient.signOut();
+		await refreshSession();
+		await goto('/');
+	}
 
 	const routes = [
 		{
@@ -100,6 +109,13 @@
 	>
 		{@render children()}
 	</main>
+	<footer class="border-t bg-background px-4 py-4 text-sm text-muted-foreground md:px-6" data-testid="footer">
+		{#if data.authedUser}
+			Signed in as <span data-testid="footer-user">{data.authedUser.email}</span>
+		{:else}
+			You are not signed in
+		{/if}
+	</footer>
 </div>
 
 {#snippet userDropdown()}
@@ -111,15 +127,18 @@
 			</Button>
 		</DropdownMenu.Trigger>
 		<DropdownMenu.Content align="end">
+			<DropdownMenu.Label>{data.authedUser?.email}</DropdownMenu.Label>
+			<DropdownMenu.Separator />
 			<DropdownMenu.Item>
 				<a class="w-full" href="/settings">Settings</a>
 			</DropdownMenu.Item>
+			{#if data.authedUser?.role === RoleName.ADMIN}
+				<DropdownMenu.Item>
+					<a class="w-full" href="/admin">Admin</a>
+				</DropdownMenu.Item>
+			{/if}
 			<DropdownMenu.Separator />
-			<DropdownMenu.Item>
-				<form action="/?/logout" method="POST" use:enhance class="w-full">
-					<button class="w-full cursor-default text-start" type="submit">Logout</button>
-				</form>
-			</DropdownMenu.Item>
+			<DropdownMenu.Item onSelect={signOut}>Logout</DropdownMenu.Item>
 		</DropdownMenu.Content>
 	</DropdownMenu.Root>
 {/snippet}

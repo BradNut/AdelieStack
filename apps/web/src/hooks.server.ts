@@ -1,11 +1,11 @@
-import { StatusCodes } from '@adelie/shared';
-import { getDevOnlySentryOptions } from '@adelie/shared/otel';
+import { getDevOnlySentryOptions } from '@adelie/shared/sentry';
 import * as Sentry from '@sentry/sveltekit';
 import { sentryHandle } from '@sentry/sveltekit';
-import { type Handle, type HandleServerError, redirect } from '@sveltejs/kit';
+import type { Handle, HandleServerError } from '@sveltejs/kit';
 import { sequence } from '@sveltejs/kit/hooks';
 import { dev } from '$app/environment';
 import { env } from '$env/dynamic/public';
+import { loadSessionUser } from '$lib/server/session-user';
 import { honoClient, parseApiResponse } from '$lib/utils/api';
 import type { Api } from '$lib/utils/types';
 import { i18n } from './lib/i18n';
@@ -27,34 +27,12 @@ const apiClient: Handle = async ({ event, resolve }) => {
     },
   });
 
-  /* ----------------------------- Auth functions ----------------------------- */
-  type MeUser = {
-    id: string;
-    first_name: string;
-    last_name: string;
-    username: string;
-    email: string;
-    avatar: string | null;
-  };
-
-  async function getAuthedUser(): Promise<MeUser | null> {
-    const { data } = await api.users.me.$get().then(parseApiResponse<MeUser>);
-    return data || null;
-  }
-
-  async function getAuthedUserOrThrow(): Promise<MeUser> {
-    const { data } = await api.users.me.$get().then(parseApiResponse<MeUser>);
-    if (!data) {
-      throw redirect(StatusCodes.TEMPORARY_REDIRECT, '/');
-    }
-    return data;
-  }
-
   /* ------------------------------ Set contexts ------------------------------ */
   event.locals.api = api;
   event.locals.parseApiResponse = parseApiResponse;
-  event.locals.getAuthedUser = getAuthedUser;
-  event.locals.getAuthedUserOrThrow = getAuthedUserOrThrow;
+  // The proxied API (including Better Auth's own endpoints) does its own session handling.
+  const isApiProxyRequest = event.url.pathname.startsWith('/api/');
+  event.locals.user = isApiProxyRequest ? null : await loadSessionUser(api, event.request.headers.get('cookie'));
 
   /* ----------------------------- Return response ---------------------------- */
   const response = await resolve(event);

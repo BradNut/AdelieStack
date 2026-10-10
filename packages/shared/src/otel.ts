@@ -4,6 +4,8 @@ import { resourceFromAttributes } from '@opentelemetry/resources';
 import { NodeSDK } from '@opentelemetry/sdk-node';
 import { ATTR_SERVICE_NAME, ATTR_SERVICE_VERSION } from '@opentelemetry/semantic-conventions';
 
+export { getDevOnlySentryOptions } from './sentry';
+
 export const DEFAULT_OTLP_TRACES_ENDPOINT = 'http://localhost:4318/v1/traces' as const;
 export const DEFAULT_SERVICE_VERSION = '0.0.1' as const;
 
@@ -22,12 +24,6 @@ export function createOtelResource(serviceName: string, serviceVersion: string =
     [ATTR_SERVICE_NAME]: serviceName,
     [ATTR_SERVICE_VERSION]: serviceVersion,
   });
-}
-
-/** Spotlight and default PII are dev-only so they never reach staging or production. */
-export function getDevOnlySentryOptions(environment: string | undefined) {
-  const isDevelopment = (environment ?? 'development') === 'development';
-  return { spotlight: isDevelopment, sendDefaultPii: isDevelopment };
 }
 
 /** Starts the NodeSDK when `OTEL_ENABLED` is `true`; returns `undefined` when telemetry is off. */

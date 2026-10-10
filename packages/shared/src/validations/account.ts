@@ -1,11 +1,12 @@
 import type { z } from 'zod';
 
-export const refinePasswords = async (confirm_password: string, password: string, ctx: z.RefinementCtx) => {
+/** Adds issues for a mismatched confirmation and a weak password; `field` is the password field's path. */
+export const refinePasswords = (confirm_password: string, password: string, ctx: z.RefinementCtx, field = 'password') => {
   comparePasswords(confirm_password, password, ctx);
-  checkPasswordStrength(password, ctx);
+  checkPasswordStrength(password, ctx, field);
 };
 
-const comparePasswords = async (confirm_password: string, password: string, ctx: z.RefinementCtx) => {
+const comparePasswords = (confirm_password: string, password: string, ctx: z.RefinementCtx) => {
   if (confirm_password !== password) {
     ctx.addIssue({
       code: 'custom',
@@ -15,7 +16,7 @@ const comparePasswords = async (confirm_password: string, password: string, ctx:
   }
 };
 
-const checkPasswordStrength = async (password: string, ctx: z.RefinementCtx) => {
+const checkPasswordStrength = (password: string, ctx: z.RefinementCtx, field: string) => {
   const minimumLength = password.length < 8;
   const maximumLength = password.length > 128;
   const containsUppercase = (ch: string) => /[A-Z]/.test(ch);
@@ -63,7 +64,7 @@ const checkPasswordStrength = async (password: string, ctx: z.RefinementCtx) => 
     ctx.addIssue({
       code: 'custom',
       message: errorMessage,
-      path: ['password'],
+      path: [field],
     });
   }
 };

@@ -1,4 +1,4 @@
-import { getDevOnlySentryOptions } from '@adelie/shared/otel';
+import { getDevOnlySentryOptions } from '@adelie/shared/sentry';
 import * as Sentry from '@sentry/sveltekit';
 import type { HandleClientError } from '@sveltejs/kit';
 import { dev } from '$app/environment';
