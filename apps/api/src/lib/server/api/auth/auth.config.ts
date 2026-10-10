@@ -76,6 +76,11 @@ export function createAuth({ database, secret, baseURL, trustedOrigins, twoFacto
       sendOnSignUp: true,
       sendVerificationEmail: authMail.sendVerificationEmail,
     },
+    user: {
+      // The confirmation link goes to the new address (through `sendVerificationEmail`); the old
+      // address is told afterwards by the `/verify-email` after hook.
+      changeEmail: { enabled: true },
+    },
     emailAndPassword: {
       enabled: true,
       sendResetPassword: authMail.sendResetPassword,

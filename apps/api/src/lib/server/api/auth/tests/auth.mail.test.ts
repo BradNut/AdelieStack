@@ -2,6 +2,8 @@ import { totpCode } from '@adelie/test-utils/totp';
 import { memoryAdapter } from 'better-auth/adapters/memory';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SendProps } from '../../mail/interfaces/mailer.interface';
+import { EmailChangeNoticeEmail } from '../../mail/templates/email-change-notice.template';
+import { EmailChangeRequestEmail } from '../../mail/templates/email-change-request.template';
 import { EmailVerificationEmail } from '../../mail/templates/email-verification.template';
 import { PasswordChangedEmail } from '../../mail/templates/password-changed.template';
 import { PasswordResetLinkEmail } from '../../mail/templates/password-reset-link.template';
@@ -177,5 +179,83 @@ describe('security-event emails', () => {
     expect(res.ok).toBe(true);
     expect(sentTemplates()).toHaveLength(1);
     expect(sentTemplates()[0]).toBeInstanceOf(RecoveryCodesUsedEmail);
+  });
+});
+
+describe('email change', () => {
+  const NEW_EMAIL = 'emperor@example.com';
+
+  /** Follows the first link of the last email sent, the way a click in the mail client would. */
+  async function followLastLink(cookie: string) {
+    const html = send.mock.calls.at(-1)?.[0].template.html() ?? '';
+    const href = /href='([^']+)'/.exec(html)?.[1] ?? '';
+    return call(href.replace(ORIGIN, '').replace('/api/auth', ''), { cookie });
+  }
+
+  async function currentEmail(cookie: string) {
+    const session = (await (await call('/get-session', { cookie })).json()) as { user: { email: string } };
+    return session.user.email;
+  }
+
+  it('sends the confirmation link to the new address only', async () => {
+    const cookie = await signUp();
+
+    const res = await call('/change-email', { cookie, body: { newEmail: NEW_EMAIL, callbackURL: '/email-verified' } });
+
+    expect(res.status).toBe(200);
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(send.mock.calls[0][0].to).toBe(NEW_EMAIL);
+    expect(send.mock.calls[0][0].template).toBeInstanceOf(EmailChangeRequestEmail);
+    expect(await currentEmail(cookie)).toBe(EMAIL);
+  });
+
+  it('changes the email and notifies the old address once the link is followed', async () => {
+    const cookie = await signUp();
+    await call('/change-email', { cookie, body: { newEmail: NEW_EMAIL, callbackURL: '/email-verified' } });
+
+    await followLastLink(cookie);
+
+    expect(await currentEmail(cookie)).toBe(NEW_EMAIL);
+    expect(send).toHaveBeenCalledTimes(2);
+    expect(send.mock.calls[1][0].to).toBe(EMAIL);
+    expect(send.mock.calls[1][0].template).toBeInstanceOf(EmailChangeNoticeEmail);
+    expect(send.mock.calls[1][0].template.html()).toContain(NEW_EMAIL);
+  });
+
+  it('sends the notice only once if the link is followed again', async () => {
+    const cookie = await signUp();
+    await call('/change-email', { cookie, body: { newEmail: NEW_EMAIL, callbackURL: '/email-verified' } });
+
+    await followLastLink(cookie);
+    await followLastLink(cookie);
+
+    expect(sentTemplates().filter((t) => t instanceof EmailChangeNoticeEmail)).toHaveLength(1);
+  });
+
+  it('rejects an invalid address and sends nothing', async () => {
+    const cookie = await signUp();
+
+    const res = await call('/change-email', { cookie, body: { newEmail: 'not-an-email' } });
+
+    expect(res.status).toBe(400);
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it('sends nothing when the address belongs to another account', async () => {
+    const cookie = await signUp();
+    await call('/sign-up/email', { body: { name: 'Emperor', email: NEW_EMAIL, password: PASSWORD } });
+    send.mockClear();
+
+    await call('/change-email', { cookie, body: { newEmail: NEW_EMAIL } });
+
+    expect(send).not.toHaveBeenCalled();
+    expect(await currentEmail(cookie)).toBe(EMAIL);
+  });
+
+  it('refuses a signed-out request', async () => {
+    const res = await call('/change-email', { body: { newEmail: NEW_EMAIL } });
+
+    expect(res.status).toBe(401);
+    expect(send).not.toHaveBeenCalled();
   });
 });

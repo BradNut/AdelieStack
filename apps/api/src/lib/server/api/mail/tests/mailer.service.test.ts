@@ -2,8 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ConfigService } from '../../common/configs/config.service';
 import { DevMailerService } from '../dev-mailer.service';
 import type { EmailTemplate } from '../interfaces/email-template.interface';
-import { MailerTransport, type MailerTransportType } from '../mailer-transport.constant';
 import { MailerService } from '../mailer.service';
+import { MailerTransport, type MailerTransportType } from '../mailer-transport.constant';
 import type { ProdMailerService } from '../prod-mailer.service';
 
 const template: EmailTemplate = {
