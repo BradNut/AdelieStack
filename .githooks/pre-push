@@ -4,4 +4,12 @@
 set -e
 cd "$(git rev-parse --show-toplevel)"
 
+# Never let env files leave the machine, even if one slipped into a commit with --no-verify.
+zero=0000000000000000000000000000000000000000
+while read -r _ local_sha _ remote_sha; do
+  [ "$local_sha" = "$zero" ] && continue
+  if [ "$remote_sha" = "$zero" ]; then base="origin/main"; else base="$remote_sha"; fi
+  git diff --name-only --diff-filter=ACMR "$base" "$local_sha" | scripts/check-no-env-files.sh
+done
+
 pnpm turbo run check --filter=@adelie/web --filter=@adelie/api

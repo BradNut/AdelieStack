@@ -1,24 +1,40 @@
 <script lang="ts">
-	import { signupUsernameEmailDto } from '@adelie/shared';
-	import { superForm } from "sveltekit-superforms";
-	import { zod4Client } from "sveltekit-superforms/adapters";
-	import * as Alert from "$lib/components/ui/alert/index.js";
-	import { Button } from "$lib/components/ui/button/index.js";
-	import * as Card from "$lib/components/ui/card/index.js";
-	import * as Form from "$lib/components/ui/form";
-	import { Input } from "$lib/components/ui/input/index.js";
-	import { Label } from "$lib/components/ui/label/index.js";
-	import { receive, send } from "$lib/utils/pageCrossfade";
+	import { AuthCallbackPath, signupDto } from '@adelie/shared';
+	import { toast } from 'svelte-sonner';
+	import { defaults, setError, superForm } from 'sveltekit-superforms';
+	import { zod4, zod4Client } from 'sveltekit-superforms/adapters';
+	import { goto } from '$app/navigation';
+	import { authClient } from '$lib/auth-client';
+	import { authErrorMessage, refreshSession } from '$lib/client/auth-form';
+	import { Button } from '$lib/components/ui/button/index.js';
+	import * as Card from '$lib/components/ui/card/index.js';
+	import * as Form from '$lib/components/ui/form';
+	import { Input } from '$lib/components/ui/input/index.js';
 
-	const { data } = $props();
-
-	// svelte-ignore state_referenced_locally
-	const sf_signup = superForm(data.signupForm, {
-		validators: zod4Client(signupUsernameEmailDto),
+	const sf_signup = superForm(defaults(zod4(signupDto)), {
+		SPA: true,
+		validators: zod4Client(signupDto),
 		resetForm: false,
+		async onUpdate({ form }) {
+			if (!form.valid) return;
+			const { error } = await authClient.signUp.email({
+				name: form.data.name,
+				email: form.data.email,
+				password: form.data.password,
+				callbackURL: AuthCallbackPath.EMAIL_VERIFIED,
+			});
+			if (error) {
+				form.data.password = '';
+				form.data.confirm_password = '';
+				return setError(form, 'email', authErrorMessage(error, 'Unable to sign up.'));
+			}
+			toast.success('Account created. Check your email to verify your address.');
+			await refreshSession();
+			await goto('/');
+		},
 	});
 
-	const { form: signupForm, errors: signupErrors, enhance: signupEnhance } = sf_signup;
+	const { form: signupForm, enhance: signupEnhance } = sf_signup;
 </script>
 
 <svelte:head>
@@ -30,105 +46,62 @@
 		<Card.Title class="text-2xl">Signup for an account</Card.Title>
 	</Card.Header>
 	<Card.Content>
-		<div class="grid gap-4">
-			{@render signUpForm()}
-		</div>
+		<form method="POST" use:signupEnhance class="grid gap-2 mt-4">
+			<Form.Field form={sf_signup} name="name">
+				<Form.Control>
+					{#snippet children({ props })}
+						<Form.Label for="name">Name</Form.Label>
+						<Input {...props} type="text" placeholder="Name" autocomplete="name" bind:value={$signupForm.name} />
+					{/snippet}
+				</Form.Control>
+				<Form.FieldErrors />
+			</Form.Field>
+			<Form.Field form={sf_signup} name="email">
+				<Form.Control>
+					{#snippet children({ props })}
+						<Form.Label for="email">Email</Form.Label>
+						<Input {...props} type="email" placeholder="Email" autocomplete="email" bind:value={$signupForm.email} />
+					{/snippet}
+				</Form.Control>
+				<Form.FieldErrors />
+			</Form.Field>
+			<Form.Field form={sf_signup} name="password">
+				<Form.Control>
+					{#snippet children({ props })}
+						<Form.Label for="password">Password</Form.Label>
+						<Input
+							{...props}
+							type="password"
+							placeholder="Password"
+							autocomplete="new-password"
+							bind:value={$signupForm.password}
+						/>
+					{/snippet}
+				</Form.Control>
+				<Form.FieldErrors />
+			</Form.Field>
+			<Form.Field form={sf_signup} name="confirm_password">
+				<Form.Control>
+					{#snippet children({ props })}
+						<Form.Label for="confirm_password">Confirm Password</Form.Label>
+						<Input
+							{...props}
+							type="password"
+							placeholder="Confirm Password"
+							autocomplete="new-password"
+							bind:value={$signupForm.confirm_password}
+						/>
+					{/snippet}
+				</Form.Control>
+				<Form.FieldErrors />
+			</Form.Field>
+			<div class="grid grid-cols-2">
+				<Form.Button type="submit">Signup</Form.Button>
+				<Button variant="link" class="text-secondary-foreground" href="/">or Cancel</Button>
+			</div>
+		</form>
 		<div class="mt-4 text-center text-sm">
-			By registering, you agree to our <a href="##" class="underline">Terms of Service</a>
+			By registering, you agree to our <a href="/terms" class="underline">Terms of Service</a>
 		</div>
 	</Card.Content>
 </Card.Root>
-
-{#snippet signUpForm()}
-	<form method="POST" action="/signup" use:signupEnhance class="grid gap-2 mt-4">
-		<Form.Field form={sf_signup} name="username">
-			<Form.Control>
-				{#snippet children({ props })}
-					<Label for="username">Username <small>(required)</small></Label>
-					<Input
-						{...props}
-						type="text"
-						id="username"
-						class={$signupErrors.username && "outline outline-destructive"}
-						name="username"
-						placeholder="Username"
-						autocomplete="username"
-						data-invalid={$signupErrors.username}
-						bind:value={$signupForm.username}
-					/>
-				{/snippet}
-			</Form.Control>
-			<Form.FieldErrors />
-		</Form.Field>
-		<Form.Field form={sf_signup} name="password">
-			<Form.Control>
-				{#snippet children({ props })}
-					<Label for="password">Password <small>(required)</small></Label>
-					<Input
-						{...props}
-						type="password"
-						id="password"
-						class={$signupErrors.password && "outline outline-destructive"}
-						name="password"
-						placeholder="Password"
-						autocomplete="new-password"
-						data-invalid={$signupErrors.password}
-						bind:value={$signupForm.password}
-					/>
-				{/snippet}
-			</Form.Control>
-			<Form.FieldErrors />
-		</Form.Field>
-		<Form.Field form={sf_signup} name="confirm_password">
-			<Form.Control>
-				{#snippet children({ props })}
-					<Label for="confirm_password">Confirm Password <small>(required)</small></Label>
-					<Input
-						{...props}
-						type="password"
-						id="confirm_password"
-						class={$signupErrors.confirm_password && "outline outline-destructive"}
-						name="confirm_password"
-						placeholder="Confirm Password"
-						autocomplete="new-password"
-						data-invalid={$signupErrors.confirm_password}
-						bind:value={$signupForm.confirm_password}
-					/>
-				{/snippet}
-			</Form.Control>
-			<Form.FieldErrors />
-		</Form.Field>
-		<Form.Field form={sf_signup} name="email">
-			<Form.Control>
-				{#snippet children({ props })}
-					<Label for="email">Email</Label>
-					<Input
-						{...props}
-						type="email"
-						id="email"
-						class={$signupErrors.email && "outline outline-destructive"}
-						name="email"
-						placeholder="Email"
-						autocomplete="email"
-						data-invalid={$signupErrors.email}
-						bind:value={$signupForm.email}
-					/>
-				{/snippet}
-			</Form.Control>
-			<Form.FieldErrors />
-		</Form.Field>
-		<div class="grid grid-cols-2">
-			<Form.Button type="submit">Signup</Form.Button>
-			<Button variant="link" class="text-secondary-foreground" href="/">or Cancel</Button>
-		</div>
-		{#if !$signupForm.email}
-			<Alert.Root>
-				<Alert.Title>Heads up!</Alert.Title>
-				<Alert.Description>
-					Without an email address, you won't be able to reset your password. Submit only if you are sure. You can
-					always add this later.
-				</Alert.Description>
-			</Alert.Root>
-		{/if}
-	</form>
-{/snippet}

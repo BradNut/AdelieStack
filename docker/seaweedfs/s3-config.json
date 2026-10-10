@@ -4,8 +4,8 @@
       "name": "admin",
       "credentials": [
         {
-          "accessKey": "user",
-          "secretKey": "password"
+          "accessKey": "adelie-local-access-key",
+          "secretKey": "adelie-local-secret-key"
         }
       ],
       "actions": ["Admin", "Read", "Write", "List", "Tagging"]

@@ -37,3 +37,17 @@ Token-light entry. Read deeper docs only when needed.
 ## Stack
 
 Hono, PostgreSQL, Drizzle, Redis, SeaweedFS (S3), Mailpit; SvelteKit 2, Svelte 5 runes, Tailwind v4, Shadcn/UI; TypeScript strict, pnpm, Turbo, Biome, Vitest, Playwright.
+
+## Agent skills
+
+### Issue tracker
+
+Issues live in GitHub Issues for `BradNut/AdelieStack` (via the `gh` CLI). See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default vocabulary: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: one `CONTEXT.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.

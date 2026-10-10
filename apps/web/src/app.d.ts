@@ -1,4 +1,5 @@
 import type { ApiClient } from '@adelie/api-contract';
+import type { AuthedUser } from '@adelie/shared';
 import type { parseApiResponse } from '$lib/utils/api';
 
 // See https://kit.svelte.dev/docs/types#app
@@ -12,19 +13,11 @@ declare global {
         data?: Record<string, unknown>;
       };
     }
-    type MeUser = {
-      id: string;
-      first_name: string;
-      last_name: string;
-      username: string;
-      email: string;
-      avatar: string | null;
-    };
     interface Locals {
       api: ApiClient['api'];
       parseApiResponse: typeof parseApiResponse;
-      getAuthedUser: () => Promise<MeUser | null>;
-      getAuthedUserOrThrow: (redirectTo: string) => Promise<MeUser>;
+      /** The signed-in user, or null when signed out. */
+      user: AuthedUser | null;
     }
     namespace Superforms {
       type Message = {

@@ -1,19 +1,12 @@
-export interface Role {
-  id: string;
-  name: string;
-  createdAt: Date;
-  updatedAt: Date;
-  [key: string]: unknown;
-}
+import type { RoleName } from './domain/role-name';
 
+/** The signed-in user as the web app sees it: the Better Auth user, without server-only fields. */
 export interface AuthedUser {
   id: string;
-  email?: string;
-  username?: string;
-  avatar?: string | null;
-  roles: Role[];
-  hasTOTPEnabled: boolean;
-  hasPasskeyEnabled: boolean;
-  hasSecurityKeyEnabled: boolean;
-  [key: string]: unknown;
+  email: string;
+  name: string;
+  image?: string | null;
+  role: RoleName;
+  emailVerified: boolean;
+  twoFactorEnabled: boolean;
 }

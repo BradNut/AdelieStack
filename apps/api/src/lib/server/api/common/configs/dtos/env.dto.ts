@@ -1,3 +1,4 @@
+import { APP_NAME } from '@adelie/shared';
 import { z } from 'zod/v4';
 import { MailerTransport } from '../../../mail/mailer-transport.constant';
 
@@ -20,10 +21,20 @@ export const envsDto = z.object({
   // or one-off processes that must not open a Redis worker connection.
   JOBS_ENABLED: z.stringbool().default(true),
   SIGNING_SECRET: z.string().min(1, 'SIGNING_SECRET must not be empty'),
+  // Better Auth: secret for signing/encrypting auth cookies and tokens, and the public base URL
+  // the auth endpoints are served from (the web origin, which proxies /api to this server).
+  BETTER_AUTH_SECRET: z.string().min(32, 'BETTER_AUTH_SECRET must be at least 32 characters'),
+  BETTER_AUTH_URL: z.url(),
+  // Name shown in authenticator apps when a user enrols TOTP two-factor.
+  TWO_FACTOR_ISSUER: z.string().min(1).default(APP_NAME),
+  // WebAuthn relying party for passkeys: the registrable domain the browser runs on (no scheme
+  // or port) and the name shown in the passkey prompt. Passkeys only work on a matching origin.
+  PASSKEY_RP_ID: z.string().min(1).default('localhost'),
+  PASSKEY_RP_NAME: z.string().min(1).default(APP_NAME),
   ENV: z.enum(['dev', 'prod']),
   NODE_ENV: z.enum(['development', 'production']).default('development'),
   PORT: z.coerce.number(),
-  ADMIN_USERNAME: z.string().optional(),
+  ADMIN_EMAIL: z.email().optional(),
   ADMIN_PASSWORD: z.string().optional(),
   STORAGE_HOST: z.string(),
   STORAGE_PORT: z.coerce.number(),

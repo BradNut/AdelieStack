@@ -1,7 +1,8 @@
 import type { MiddlewareHandler } from 'hono';
 import { createMiddleware } from 'hono/factory';
-import type { SessionDto } from '../../iam/sessions/dtos/session.dto';
+import type { AuthSession, AuthUser } from '../../auth/auth.config';
 import { m } from '../i18n';
+import { assertSignedIn } from '../utils/assert-signed-in';
 import { Unauthorized } from '../utils/exceptions';
 
 /* ---------------------------------- Types --------------------------------- */
@@ -23,18 +24,18 @@ export function authState(state: AuthStates): AuthedReturnType | UnauthedReturnT
 /* ------------------------------ Require Auth ------------------------------ */
 const authed: MiddlewareHandler<{
   Variables: {
-    session: SessionDto;
+    user: AuthUser;
+    session: AuthSession;
   };
 }> = createMiddleware(async (c, next) => {
-  if (!c.var.session) {
-    throw Unauthorized(m.auth_login_required());
-  }
+  assertSignedIn(c.var.session);
   return next();
 });
 
 /* ---------------------------- Require Unauthed ---------------------------- */
 const unauthed: MiddlewareHandler<{
   Variables: {
+    user: null;
     session: null;
   };
 }> = createMiddleware(async (c, next) => {

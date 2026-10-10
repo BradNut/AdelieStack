@@ -1,5 +1,6 @@
 {
   "$schema": "https://inlang.com/schema/inlang-message-format",
   "auth_login_required": "Sie müssen angemeldet sein, um auf diese Ressource zuzugreifen",
-  "auth_logout_required": "Sie müssen abgemeldet sein, um auf diese Ressource zuzugreifen"
+  "auth_logout_required": "Sie müssen abgemeldet sein, um auf diese Ressource zuzugreifen",
+  "auth_role_forbidden": "Sie haben keine Berechtigung, auf diese Ressource zuzugreifen"
 }

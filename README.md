@@ -67,7 +67,7 @@ Skip once with `--no-verify`. CI stays the source of truth.
 - 🟢 Deployment Template
 - 🟠 Authentication
   - 🟢 Email / Passkey
-  - 🟢 Username / Email and Password
+  - 🟢 Email and Password
   - 🔴 OAuth
   - 🟢 Email Update / Verification
   - 🟢 Rate limiter
@@ -78,8 +78,7 @@ I'm mostly un-opinionated of what technology or libraries someone uses. Wanna [u
 
 That being said, there are some libraries that embody my philosophies of building software more than others,
 
-- [Oslo-project](https://oslojs.dev/): Used for implementing crypto, encoding, hashing, and more in the authentication layer.
-- [ArcticJS](https://arcticjs.dev/): Arctic is a collection of OAuth 2.0 clients for popular providers. It only supports the authorization code grant type and intended to be used server-side.
+- [Better Auth](https://www.better-auth.com/): Owns the auth core: email and password, cookie sessions, roles (`admin`, `support`, `user`), two-factor, and passkeys. Its handler is mounted at `/api/auth/*`.
 - [Drizzle](https://orm.drizzle.team/) - Drizzle advertises itself as an ORM, but I think its deceptive. It's a query builder with a migration client. Everytime I've used an ORM, I find myself fighting it for sometimes the simplest of use cases. Drizzle just gives you type-safety while querying SQL in a native fashion. Learn SQL, not ORMs.
 - [Hono](https://hono.dev/): Fast, lightweight, and built on **web standards**; meaning it can run anywhere you're SvelteKit app can. It's essentially a better, newer, and ironically more stable Express.JS. This provides us a perfect foundation to cleanly build on top of without having to teardown first. It has a zod adapter for validating DTO's which can be shared with the frontend too.
 - [SvelteKit](https://svelte.dev/docs/kit/introduction): After trying Vue, React, Next, and pretty much every frontend framework in the JS ecosystem, it's safe to say I vastly prefer Svelte and its priority of building on **web standards**.

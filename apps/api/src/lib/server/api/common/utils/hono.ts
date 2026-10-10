@@ -1,12 +1,13 @@
 import { Hono } from 'hono';
 import type { PinoLogger } from 'hono-pino';
-import type { SessionDto } from '../../iam/sessions/dtos/session.dto';
+import type { AuthSession, AuthUser } from '../../auth/auth.config';
 import type { Locale } from '../i18n/locale';
 
 export type HonoEnv = {
   Variables: {
     logger: PinoLogger;
-    session: SessionDto | null;
+    user: AuthUser | null;
+    session: AuthSession | null;
     browserSessionId: string;
     requestId: string;
     locale: Locale;
