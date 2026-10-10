@@ -80,6 +80,9 @@ export function createAuth({ database, secret, baseURL, trustedOrigins, twoFacto
       // The confirmation link goes to the new address (through `sendVerificationEmail`); the old
       // address is told afterwards by the `/verify-email` after hook.
       changeEmail: { enabled: true },
+      // Needs the account password (or a fresh session). Sessions, accounts, two-factor and passkey
+      // rows go with the user: the foreign keys cascade (see auth.delete-user.test.ts).
+      deleteUser: { enabled: true },
     },
     emailAndPassword: {
       enabled: true,
