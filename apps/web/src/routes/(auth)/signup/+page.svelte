@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { signupDto } from '@adelie/shared';
+	import { AuthCallbackPath, signupDto } from '@adelie/shared';
 	import { toast } from 'svelte-sonner';
 	import { defaults, setError, superForm } from 'sveltekit-superforms';
 	import { zod4, zod4Client } from 'sveltekit-superforms/adapters';
@@ -21,6 +21,7 @@
 				name: form.data.name,
 				email: form.data.email,
 				password: form.data.password,
+				callbackURL: AuthCallbackPath.EMAIL_VERIFIED,
 			});
 			if (error) {
 				form.data.password = '';

@@ -175,6 +175,19 @@ const { error } = await locals.api.iam.password.reset.$post({ json: newPasswordF
 - API errors surfaced through `locals.parseApiResponse`'s `{ error }` field are mapped to a
   form field error rather than thrown
 
+## Emailed links, email change and account deletion
+
+- Verification and email-change links go to Better Auth (`/api/auth/verify-email`), which redirects to a web
+  landing page: `/email-verified` or `/email-changed` (`AuthCallbackPath` in `@adelie/shared`). Both render
+  `verification-result.svelte`, which shows success or, when Better Auth appended `?error=`, a failure with the
+  recovery action (resend, sign in, or request the change again) and reloads the session on success.
+- A signed-in user with an unverified email sees a banner with a resend button (`unverified-email-notice.svelte`).
+- `/settings/email` starts a change. The confirmation goes to the new address, the old address gets a notice once
+  it is followed. For an address that belongs to another account the page shows the same pending message and sends
+  nothing, so it does not reveal which addresses are registered.
+- The delete-account card on `/settings` confirms with the password; sessions, two-factor and passkey rows are
+  removed by cascading foreign keys.
+
 ## Accessibility
 
 - Semantic form elements via Shadcn `Form` components

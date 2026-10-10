@@ -1,6 +1,7 @@
 export * from './admin';
 export * from './app';
 export * from './auth-limits';
+export * from './auth-paths';
 export * from './file-limits';
 export * from './mfa-limits';
 export * from './pagination';

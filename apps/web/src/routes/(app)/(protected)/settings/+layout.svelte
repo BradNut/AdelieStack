@@ -6,6 +6,7 @@
 
 	const links = [
 		{ href: '/settings', label: 'Profile' },
+		{ href: '/settings/email', label: 'Email' },
 		{ href: '/settings/password', label: 'Password' },
 		{ href: '/settings/security', label: 'Sessions' },
 		{ href: '/settings/two-factor', label: 'Two-factor' },

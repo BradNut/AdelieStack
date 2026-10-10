@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { signinDto } from '../login/signin.dto';
 import { recoveryCodeDto, twoFactorCodeDto } from '../login/two-factor-code.dto';
 import { resetPasswordNewPasswordDto } from '../reset-password/reset-password-new-password.dto';
+import { deleteAccountDto } from '../settings/account/delete-account.dto';
+import { changeEmailDto } from '../settings/email/change-email.dto';
 import { changePasswordDto } from '../settings/password/change-password.dto';
 import { signupDto } from '../signup/signup.dto';
 
@@ -89,5 +91,20 @@ describe('two-factor code dtos', () => {
   it('accepts a recovery code and rejects a short one', () => {
     expect(recoveryCodeDto.safeParse({ code: 'abcde-fghij' }).success).toBe(true);
     expect(recoveryCodeDto.safeParse({ code: 'abc' }).success).toBe(false);
+  });
+});
+
+describe('settings dtos', () => {
+  it('changeEmailDto trims and accepts a valid address', () => {
+    expect(changeEmailDto.parse({ email: '  new@example.com ' }).email).toBe('new@example.com');
+  });
+
+  it.each(['', 'not-an-email', `${'a'.repeat(300)}@example.com`])('changeEmailDto rejects %j', (email) => {
+    expect(changeEmailDto.safeParse({ email }).success).toBe(false);
+  });
+
+  it('deleteAccountDto requires a password', () => {
+    expect(deleteAccountDto.safeParse({ password: '' }).success).toBe(false);
+    expect(deleteAccountDto.safeParse({ password: 'x' }).success).toBe(true);
   });
 });

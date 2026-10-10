@@ -5,6 +5,7 @@
 	import { zod4, zod4Client } from 'sveltekit-superforms/adapters';
 	import { authClient } from '$lib/auth-client';
 	import { authErrorMessage, refreshSession } from '$lib/client/auth-form';
+	import DeleteAccountCard from '$lib/components/auth/delete-account-card.svelte';
 	import * as Card from '$lib/components/ui/card';
 	import * as Form from '$lib/components/ui/form';
 	import { Input } from '$lib/components/ui/input';
@@ -56,3 +57,5 @@
 		</Card.Footer>
 	</form>
 </Card.Root>
+
+<DeleteAccountCard />

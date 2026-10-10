@@ -10,6 +10,7 @@
 	import { page } from '$app/state';
 	import { authClient } from '$lib/auth-client';
 	import { refreshSession } from '$lib/client/auth-form';
+	import UnverifiedEmailNotice from '$lib/components/auth/unverified-email-notice.svelte';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
@@ -104,6 +105,9 @@
 			{/if}
 		</div>
 	</header>
+	{#if data.authedUser && !data.authedUser.emailVerified}
+		<UnverifiedEmailNotice email={data.authedUser.email} />
+	{/if}
 	<main
 		class="flex min-h-[calc(100vh_-_theme(spacing.16))] flex-1 flex-col gap-4 bg-muted/40 p-4 md:gap-8 md:p-10"
 	>
