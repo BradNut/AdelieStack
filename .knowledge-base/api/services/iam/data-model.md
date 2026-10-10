@@ -1,178 +1,95 @@
 # IAM Data Model
 
+Better Auth owns identity and session data. Its tables are generated into
+`apps/api/src/lib/server/api/auth/tables/auth.table.ts` (`pnpm --filter @adelie/api auth:generate`) and
+re-exported from `apps/api/src/lib/server/api/databases/postgres/drizzle-schema.ts`. Never
+hand-edit the generated file or its migrations; change the auth config, regenerate, then run
+`drizzle-kit generate`. A test (`auth/tests/auth.schema.test.ts`) fails when the schema lacks a
+table or column a configured plugin needs.
+
 ## Database Schema (PostgreSQL via Drizzle)
 
-IAM does not define its own tables. It reads/writes the Users service's tables, re-exported via
-`apps/api/src/lib/server/api/databases/postgres/drizzle-schema.ts`.
+All auth tables use `text` primary keys filled with a uuidv7 from `generateAuthId`
+(`advanced.database.generateId`), so ids sort by creation time.
 
-### `users_table`
+### `users`
 
-`apps/api/src/lib/server/api/users/tables/users.table.ts`:
+| Column | Notes |
+| --- | --- |
+| `id`, `name`, `email` (unique), `image` | Identity |
+| `email_verified` | Set by the email verification flow |
+| `role` | `admin`, `support` or `user`; admin plugin, defaults to `user` |
+| `banned`, `ban_reason`, `ban_expires` | Admin plugin |
+| `two_factor_enabled` | Two-factor plugin |
+| `created_at`, `updated_at` | Timestamps |
 
-```typescript
-export const users_table = pgTable('users', {
-  id: id().primaryKey().$defaultFn(() => generateId()),
-  username: text().unique().notNull(),
-  email: citext().unique().notNull(),
-  first_name: text(),
-  last_name: text(),
-  email_verified: boolean().default(false),
-  mfa_enabled: boolean().notNull().default(false),
-  avatar: text(),
-  ...timestamps, // created_at, updated_at (timestamptz, not-null, default now)
-});
-```
+### `sessions`
 
-- `id` is a `text` column populated by `generateId()` (not a Postgres `uuid`/`serial`).
-- `email` uses a custom `citext` type (case-insensitive unique).
-- There are no lockout fields (`is_active`, `is_locked`, `locked_until`,
-  `failed_login_attempts`, `last_failed_login_at`, etc.) and no `name`/`password_hash` columns.
-- `mfa_enabled` is a flag on the user row, but IAM itself never reads or writes it.
+One row per signed-in browser: `token` (unique), `expires_at`, `ip_address`, `user_agent`,
+`impersonated_by`, and `user_id` (cascade delete). Sessions live in PostgreSQL, not Redis.
 
-`publicUserColumns` (same file) excludes nothing sensitive beyond omitting relations — there is
-no separate password field on this table to exclude, since passwords live in `credentials_table`.
+### `accounts`
 
-### `credentials_table`
+One row per sign-in method of a user (`provider_id`, `account_id`, `user_id`). For email and
+password the `password` column holds the hash Better Auth produced; OAuth token columns exist
+for providers added later.
 
-`apps/api/src/lib/server/api/users/tables/credentials.table.ts`:
+### `verifications`
 
-```typescript
-export enum CredentialsType {
-  SECRET = 'secret',
-  PASSWORD = 'password',
-  TOTP = 'totp',
-  HOTP = 'hotp',
-}
+Short-lived tokens for email verification and password reset: `identifier`, `value`,
+`expires_at`.
 
-export const credentials_table = pgTable('credentials', {
-  id: id().primaryKey().$defaultFn(() => generateId()),
-  user_id: id().notNull().references(() => users_table.id, { onDelete: 'cascade' }),
-  type: text().notNull().default(CredentialsType.PASSWORD),
-  secret_data: text().notNull(),
-  ...timestamps,
-});
-```
+### `two_factors` and `passkeys`
 
-- `CredentialsType` is defined **locally** in this file (a TypeScript `enum`), not imported from
-  `@adelie/shared`. A similarly-named but distinct `CredentialsType` const object exists in
-  `packages/shared/src/domain/credentials-type.ts` (values `PASSKEY`, `SECURITY_KEY`, `TOTP`,
-  `PASSWORD`) for the MFA/passkey domain — the two are not interchangeable; IAM code
-  (`credentials.repository.ts`, `users.service.ts`) imports the table-local enum.
-- `secret_data` holds the Argon2 hash for `type: PASSWORD` credentials (the value IAM compares
-  against in `LoginRequestsService.login`).
-- One user can have multiple credential rows (one per `type`); there is no unique constraint
-  tying `user_id` + `type` at the schema level, but repository methods
-  (`findPasswordCredentialsByUserId`, `findTOTPCredentialsByUserId`) assume at most one per type.
-- There is no passkeys table anywhere in the schema.
+Created by the two-factor and passkey plugins. See the [security standards](../../standards/security-standards.md) for the overview.
 
 ### Relations
 
 ```
-users_table (1) ──< (N) credentials_table   (credentials_table.user_id → users_table.id, cascade delete)
-users_table (1) ──< (N) user_roles_table    (not used by IAM)
+users (1) ──< (N) sessions      (sessions.user_id → users.id, cascade delete)
+users (1) ──< (N) accounts      (accounts.user_id → users.id, cascade delete)
+users (1) ──< (N) two_factors   (cascade delete)
+users (1) ──< (N) passkeys      (cascade delete)
 ```
 
-## Redis Data Structures (IAM-owned)
+## Roles
 
-### Session Storage (`SessionsRepository`, prefix `session`)
+`RoleName` in `@adelie/shared` defines the three roles. The admin plugin stores the role on
+`users.role`; `ac` and `roles` in `auth/auth.permissions.ts` map each role to its admin-plugin
+permissions:
 
-**Value** (`CreateSessionDto`, Zod-validated on read):
-```typescript
-{
-  id: string;
-  userId: string;
-  createdAt: Date; // z.coerce.date()
-  expiresAt: Date;
-}
-```
-**TTL:** seconds-from-now computed as `expiresAt - now` at write time; entries with a
-non-positive TTL are not written (`sessions.repository.ts`).
+- `admin`: every admin-plugin permission
+- `support`: none. Support reaches only the routes shared with admin (`adminAndSupportRoleOnly`)
+- `user`: none
 
-### Login Request Storage (`LoginRequestsRepository`, similar shape for
-`ResetPasswordRequestsRepository`)
-
-**Value:**
-```typescript
-{
-  email: string;
-  hashedCode: string; // Argon2 hash of the 6-character verification code
-}
-```
-
-There is no separate "rate limit" or "account lockout" Redis structure owned by IAM — the only
-rate limiting is the generic `rateLimit` middleware, backed by `rate-limit-redis`, applied to
-`POST /login`.
-
-## TypeScript DTOs (IAM-relevant, from `@adelie/shared`)
-
-```typescript
-// packages/shared/src/dtos/login/signin.dto.ts
-export const signinDto = z.object({
-  identifier: z.string().trim().min(MIN_USERNAME_LENGTH).max(MAX_USERNAME_LENGTH),
-  password: z.string().trim().min(1),
-});
-
-// packages/shared/src/dtos/login/create-login-request.dto.ts
-export const createLoginRequestDto = z.object({ email: z.string().email() });
-
-// packages/shared/src/dtos/login/verify-login-request.dto.ts
-export const verifyLoginRequestDto = z.object({
-  email: z.string().email(),
-  code: z.string().length(VERIFICATION_CODE_LENGTH),
-});
-
-// packages/shared/src/dtos/reset-password/reset-password-email.dto.ts
-export const resetPasswordEmailDto = z.object({ email: z.string().trim().email().max(64) });
-
-// packages/shared/src/dtos/reset-password/reset-password-token.dto.ts
-export const resetPasswordCodeDto = z.object({
-  email: z.string().trim().email(),
-  code: z.string().trim().min(6).max(6),
-});
-
-// packages/shared/src/dtos/reset-password/reset-password-new-password.dto.ts
-export const resetPasswordNewPasswordDto = z.object({
-  email: z.string().trim().email(),
-  password: z.string().trim().min(1),
-  confirm_password: z.string().trim().min(1),
-}).superRefine(/* password === confirm_password */);
-```
-
-`SessionDto` and `CreateSessionDto` (local to `iam/sessions/dtos/`) are shown under Redis Data
-Structures above.
+Only the admin endpoints and server-side calls (such as the seed) can set a role.
 
 ## Data Lifecycle
 
 ### Session Lifecycle
-1. **Creation**: on successful login (password or email-code) — 30-day expiry.
-2. **Active**: revalidated on every request; extended (new 30-day expiry, cookie re-set) when
-   fewer than 15 days remain.
-3. **Expiration**: on read, an expired session is deleted from Redis and treated as absent.
-4. **Revocation**: `POST /logout` deletes the session and clears the cookie. There is no
-   "revoke all sessions" or multi-device session listing anywhere in this module.
+1. **Creation**: on sign-in, a `sessions` row is inserted and a signed `httpOnly` cookie is set.
+2. **Active**: the `authSession` middleware resolves the cookie to a session and user on every
+   request; Better Auth extends the expiry and re-sets the cookie as it ages.
+3. **Expiration**: an expired session is treated as absent.
+4. **Revocation**: signing out deletes the session row and clears the cookie.
 
-### Login/Reset Request Lifecycle
-1. **Creation**: `sendVerificationCode` / `sendResetPasswordCode` overwrite any prior pending
-   request for the email.
-2. **Consumption**: a successful `verify` call deletes the stored code immediately (single use).
-3. There is no explicit TTL set on these Redis keys in the reviewed code — they persist until
-   overwritten or explicitly deleted.
+### Verification Lifecycle
+1. **Creation**: sign-up and password reset each insert a `verifications` row and
+   email a link through the mailer.
+2. **Consumption**: following the link consumes the token; expired tokens are rejected.
 
 ## Data Security
 
-- Passwords are never stored in plaintext; `secret_data` on `credentials_table` holds an Argon2
-  hash produced by `HashingService`.
-- Session ids are opaque, generated by `generateId()`, and only ever transmitted inside a signed,
-  `httpOnly` cookie.
-- Verification codes are hashed with Argon2 before being persisted to Redis; the plaintext code
-  is only ever sent by email.
+- Passwords are never stored in plaintext; `accounts.password` holds the hash Better Auth made.
+- The session token is opaque and only ever transmitted inside a signed, `httpOnly` cookie.
+- `BETTER_AUTH_SECRET` (min 32 chars) signs cookies and encrypts secrets Better Auth stores.
 
 ## Migration Considerations
 
 - Use Drizzle migrations (`drizzle-kit generate`); never hand-edit migration SQL or
   `drizzle/meta/**`.
-- `users_table` and `credentials_table` are owned by the Users service — schema changes there
-  should go through that service's docs/tests, not IAM's.
+- Adding or changing a Better Auth plugin means rerunning `auth:generate`, then generating the
+  migration.
 
 ## Related Documentation
 

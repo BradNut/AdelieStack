@@ -2,64 +2,40 @@
 
 ## Authentication
 
-### Session-Based Authentication
-- Sessions stored in Redis with expiration
-- Secure, HttpOnly cookies for session tokens
-- Session rotation on privilege escalation
-- Automatic session cleanup on logout
+Better Auth owns authentication (see `apps/api/src/lib/server/api/auth/auth.config.ts`). Its
+handler is mounted at `/api/auth/*`, ahead of the session middleware and every other route.
 
-```typescript
-// Session cookie configuration
-{
-  httpOnly: true,
-  secure: true, // HTTPS only in production
-  sameSite: 'lax',
-  maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
-}
-```
+### Cookie Sessions
+- Sessions are rows in the `sessions` table (PostgreSQL), referenced by an opaque token
+- The token travels only in a signed, `httpOnly`, `sameSite: 'lax'` cookie, `secure` over HTTPS
+- Better Auth signs and encrypts with `BETTER_AUTH_SECRET` (min 32 chars)
+- Better Auth refreshes the session cookie; the `authSession` middleware only reads it and
+  exposes `c.var.user` and `c.var.session` (both `null` when signed out)
+- Signing out, or revoking a session, deletes its row
 
 ### Password Security
-- **Hashing**: Argon2 (via the `argon2` package), using library defaults
-- **Minimum Length**: 8 characters
-- **Complexity**: Enforce strong passwords
-- **Storage**: Never store plaintext passwords
-- **Reset**: Time-limited reset tokens
-
-Hashing is centralized in `HashingService`
-(`apps/api/src/lib/server/api/common/services/hashing.service.ts`); callers should not import
-`argon2` directly.
-
-```typescript
-import { hash, verify } from 'argon2';
-
-// Hash password
-const hashedPassword = await hash(password);
-
-// Verify password
-const isValid = await verify(hashedPassword, password);
-```
+- **Hashing**: handled by Better Auth; application code never hashes or stores passwords itself
+- **Minimum Length**: 8 characters (Better Auth default)
+- **Storage**: never store plaintext passwords; the hash lives on the `accounts` row
+- **Reset**: time-limited reset tokens, emailed through the mailer
 
 ## Authorization
 
 ### Role-Based Access Control (RBAC)
-- Roles: `admin`, `user`, `guest`
-- Permissions checked on every protected endpoint
-- Principle of least privilege
+- Roles: `admin`, `support`, `user` (`RoleName` in `@adelie/shared`)
+- A user's role is the `role` field the Better Auth admin plugin keeps on the `users` row; it
+  defaults to `user` and cannot be set by sign-up or update-user input
+- `admin` holds every admin-plugin permission. `support` and `user` hold none: support reaches
+  only the routes shared with admin, never the admin plugin's own endpoints
+- Permissions checked on every protected endpoint; principle of least privilege
 
 ```typescript
-// Check user role
-function requireRole(role: string) {
-  return async (c: Context, next: Next) => {
-    const user = c.get('user');
-    if (!user?.roles.includes(role)) {
-      throw new ForbiddenError('Insufficient permissions');
-    }
-    await next();
-  };
-}
+// apps/api/src/lib/server/api/common/middleware/role.middleware.ts
+export const adminRoleOnly = requireRole(RoleName.ADMIN);
+export const adminAndSupportRoleOnly = requireRole(RoleName.ADMIN, RoleName.SUPPORT);
 
-// Usage
-app.delete('/api/users/:id', requireRole('admin'), deleteUser);
+// Usage: 401 when signed out, 403 when the role does not match
+this.controller.get('/admin', adminRoleOnly, handler);
 ```
 
 ### Resource-Level Authorization
@@ -286,28 +262,11 @@ await auditLog.create({
 - Monitor logs for security incidents
 - Alert on suspicious patterns
 
-## Multi-Factor Authentication (MFA)
+## Multi-Factor Authentication and Passkeys
 
-MFA is **scaffolded but stubbed**, not a working feature — see
-[MFA service overview](../services/mfa/overview.md) for the current state. `apps/api/src/lib/server/api/mfa/`
-has a controller endpoint that always returns `501 Not Implemented`, a TOTP service stub whose
-methods return `false`/throw, and two unused Drizzle tables (`two_factor`, `recovery_codes`). No
-passkey, WebAuthn, or security-key code exists anywhere in the API.
-
-### Planned Methods (not implemented)
-- **TOTP** - Time-based one-time passwords, intended to build on the existing `@oslojs/otp`
-  dependency
-- **Recovery Codes** - Backup codes for account recovery, backed by the existing `recovery_codes`
-  table
-
-`@oslojs/webauthn` is listed in `apps/api/package.json` but no MFA code imports or calls it today;
-no passkey/WebAuthn route, controller, or hardware-security-key support exists anywhere in the
-API and none should be assumed to exist.
-
-### MFA Enforcement (planned)
-- Optional for regular users
-- Required for admin accounts
-- Enforce on sensitive operations
+Two-factor authentication and passkeys are Better Auth plugins configured in
+`apps/api/src/lib/server/api/auth/auth.config.ts`. Their tables come from the generated schema
+in `auth/tables/auth.table.ts`.
 
 ## API Security Best Practices
 
