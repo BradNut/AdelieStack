@@ -64,8 +64,8 @@ Provision locally with `pnpm storage:setup`. Credentials must match
 |---|---|---|
 | `PROJECT_NAME` | `adelie` | Bucket namespace prefix. |
 | `STORAGE_URL` | `http://localhost:8333` | S3 endpoint URL. |
-| `STORAGE_ACCESS_KEY` | `user` | S3 access key. |
-| `STORAGE_SECRET_KEY` | `password` | S3 secret key. |
+| `STORAGE_ACCESS_KEY` | `adelie-local-access-key` | S3 access key. |
+| `STORAGE_SECRET_KEY` | `adelie-local-secret-key` | S3 secret key. |
 | `STORAGE_HOST` | `localhost` | S3 hostname. |
 | `STORAGE_PORT` | `8333` | S3 port (SeaweedFS default `8333`). |
 | `STORAGE_SSL` | `false` | `true` if storage is behind HTTPS. |
@@ -96,3 +96,15 @@ pnpm --filter @adelie/api dev
 
 - [Deployment](./deployment.md)
 - [Database Migrations](./database-migrations.md)
+
+## Leak scanner and storage credentials
+
+Varlock's response scanner throws when a response body contains any `@sensitive` value. The local
+storage defaults are deliberately long and unique (`adelie-local-*`) so ordinary response text such as
+`"user"` or `"password"` can never match. Do not shorten them to common words.
+
+Manual check that the scanner still works: run the API and temporarily return
+`env.STORAGE_SECRET_KEY` from a route (for example `/health`). The request must fail with
+`DETECTED LEAKED SENSITIVE CONFIG - STORAGE_SECRET_KEY`.
+`local-storage-credentials.test.ts` guards that the defaults stay collision-free and in sync with
+`docker/seaweedfs/s3-config.json` and `scripts/setup-seaweedfs.sh`.
