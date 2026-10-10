@@ -3,6 +3,7 @@ import { getTableName, sql, type Table } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import Pool from 'pg-pool';
 import { createAuth, drizzleAuthDatabase } from '../../auth/auth.config';
+import { ConfigService } from '../../common/configs/config.service';
 import * as drizzleSchema from './drizzle-schema';
 import * as schema from './drizzle-schema';
 import * as seeds from './seeds';
@@ -56,7 +57,8 @@ const auth = createAuth({
   mailer: { send: async () => {} },
 });
 
-await seeds.users(auth);
+const { ADMIN_EMAIL, ADMIN_PASSWORD } = new ConfigService().envs;
+await seeds.users(auth, { adminEmail: ADMIN_EMAIL, adminPassword: ADMIN_PASSWORD });
 
 await db.$client.end();
 process.exit();

@@ -1,29 +1,39 @@
-import { RoleName } from '@adelie/shared';
+import { DEFAULT_ADMIN_EMAIL, DEFAULT_ADMIN_NAME, RoleName } from '@adelie/shared';
 import type { Auth } from '../../../auth/auth.config';
 import users from './data/users.json';
 
-const DEFAULT_ADMIN_EMAIL = 'admin@example.com';
+interface SeedUser {
+  name: string;
+  email: string;
+  password: string;
+  role: RoleName;
+}
 
-type SeedUser = { name: string; email: string; password: string; role: RoleName };
+export interface SeedUsersOptions {
+  adminEmail?: string;
+  adminPassword?: string;
+}
 
 /**
- * Seeds the admin from ADMIN_EMAIL / ADMIN_PASSWORD, then the sample users. Users are created
- * through the admin plugin's server-side `createUser`, the only path that may set a role.
+ * Seeds the admin from ADMIN_EMAIL / ADMIN_PASSWORD, then the sample users. The admin is
+ * skipped, with a message, when ADMIN_PASSWORD is unset. Users are created through the admin
+ * plugin's server-side `createUser`, the only path that may set a role.
  */
-export default async function seed(auth: Auth) {
-  const adminPassword = process.env.ADMIN_PASSWORD;
-  if (!adminPassword) {
-    throw new Error('ADMIN_PASSWORD must be set to seed the admin user');
+export default async function seed(auth: Pick<Auth, 'api'>, { adminEmail, adminPassword }: SeedUsersOptions = {}) {
+  const seedUsers: SeedUser[] = [...(users as SeedUser[])];
+  if (adminPassword) {
+    seedUsers.unshift({
+      name: DEFAULT_ADMIN_NAME,
+      email: adminEmail || DEFAULT_ADMIN_EMAIL,
+      password: adminPassword,
+      role: RoleName.ADMIN,
+    });
+  } else {
+    console.warn('ADMIN_PASSWORD is not set: skipping the admin user.');
   }
-  const admin: SeedUser = {
-    name: 'Admin',
-    email: process.env.ADMIN_EMAIL || DEFAULT_ADMIN_EMAIL,
-    password: adminPassword,
-    role: RoleName.ADMIN,
-  };
 
   console.log('Creating users ...');
-  for (const user of [admin, ...(users as SeedUser[])]) {
+  for (const user of seedUsers) {
     await auth.api.createUser({ body: user });
   }
   console.log('Users created.');
