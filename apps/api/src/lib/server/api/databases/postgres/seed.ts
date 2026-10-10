@@ -1,8 +1,9 @@
 import 'dotenv/config';
+import { APP_NAME } from '@adelie/shared';
 import { getTableName, sql, type Table } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import Pool from 'pg-pool';
-import { createAuth, drizzleAuthDatabase } from '../../auth/auth.config';
+import { AUTH_PLACEHOLDER, createAuth, drizzleAuthDatabase } from '../../auth/auth.config';
 import { ConfigService } from '../../common/configs/config.service';
 import * as drizzleSchema from './drizzle-schema';
 import * as schema from './drizzle-schema';
@@ -51,8 +52,8 @@ const auth = createAuth({
   secret: `${process.env.BETTER_AUTH_SECRET}`,
   baseURL: `${process.env.BETTER_AUTH_URL}`,
   trustedOrigins: [],
-  twoFactorIssuer: 'AdelieStack',
-  passkey: { rpID: 'localhost', rpName: 'AdelieStack', origin: 'http://localhost' },
+  twoFactorIssuer: APP_NAME,
+  passkey: AUTH_PLACEHOLDER.passkey,
   // Seeding never sends mail.
   mailer: { send: async () => {} },
 });

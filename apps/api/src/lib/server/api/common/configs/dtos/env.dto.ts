@@ -1,3 +1,4 @@
+import { APP_NAME } from '@adelie/shared';
 import { z } from 'zod/v4';
 import { MailerTransport } from '../../../mail/mailer-transport.constant';
 
@@ -25,11 +26,11 @@ export const envsDto = z.object({
   BETTER_AUTH_SECRET: z.string().min(32, 'BETTER_AUTH_SECRET must be at least 32 characters'),
   BETTER_AUTH_URL: z.url(),
   // Name shown in authenticator apps when a user enrols TOTP two-factor.
-  TWO_FACTOR_ISSUER: z.string().min(1).default('AdelieStack'),
+  TWO_FACTOR_ISSUER: z.string().min(1).default(APP_NAME),
   // WebAuthn relying party for passkeys: the registrable domain the browser runs on (no scheme
   // or port) and the name shown in the passkey prompt. Passkeys only work on a matching origin.
   PASSKEY_RP_ID: z.string().min(1).default('localhost'),
-  PASSKEY_RP_NAME: z.string().min(1).default('AdelieStack'),
+  PASSKEY_RP_NAME: z.string().min(1).default(APP_NAME),
   ENV: z.enum(['dev', 'prod']),
   NODE_ENV: z.enum(['development', 'production']).default('development'),
   PORT: z.coerce.number(),

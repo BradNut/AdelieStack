@@ -3,22 +3,30 @@ import type { MiddlewareHandler } from 'hono';
 import { createMiddleware } from 'hono/factory';
 import type { AuthUser } from '../../auth/auth.config';
 import { m } from '../i18n';
-import { Forbidden, Unauthorized } from '../utils/exceptions';
+import { assertSignedIn } from '../utils/assert-signed-in';
+import { Forbidden } from '../utils/exceptions';
 import type { HonoEnv } from '../utils/hono';
 
+const ROLE_NAMES: readonly string[] = Object.values(RoleName);
+
+function isRoleName(role: string): role is RoleName {
+  return ROLE_NAMES.includes(role);
+}
+
 /** Better Auth's admin plugin stores several roles as one comma-separated string. */
-function rolesOf(user: AuthUser): string[] {
-  return (user.role ?? '').split(',').map((role) => role.trim());
+function rolesOf(user: AuthUser): RoleName[] {
+  return (user.role ?? '')
+    .split(',')
+    .map((role) => role.trim())
+    .filter(isRoleName);
 }
 
 /** Allows the request only when the signed-in user holds one of `allowed`; 401 signed out, 403 otherwise. */
 function requireRole(...allowed: RoleName[]): MiddlewareHandler<HonoEnv> {
   return createMiddleware<HonoEnv>(async (c, next) => {
     const user = c.var.user;
-    if (!user) {
-      throw Unauthorized(m.auth_login_required());
-    }
-    if (!rolesOf(user).some((role) => (allowed as string[]).includes(role))) {
+    assertSignedIn(user);
+    if (!rolesOf(user).some((role) => allowed.includes(role))) {
       throw Forbidden(m.auth_role_forbidden());
     }
     await next();

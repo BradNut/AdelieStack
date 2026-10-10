@@ -2,6 +2,7 @@ import { inject, injectable } from '@needle-di/core';
 import { contextStorage } from 'hono/context-storage';
 import { requestId } from 'hono/request-id';
 import { notFound, onError, serveEmojiFavicon } from 'stoker/middlewares';
+import { API_BASE_PATH, AUTH_ROUTE } from './auth/auth.config';
 import { AuthService } from './auth/auth.service';
 import { RootController } from './common/factories/controllers.factory';
 import { authSession } from './common/middleware/auth-session.middleware';
@@ -40,7 +41,7 @@ export class ApplicationController extends RootController {
 
   registerControllers() {
     const api = this.controller
-      .basePath('/api')
+      .basePath(API_BASE_PATH)
       .use(otelInstrumentation())
       .use(requestId({ generator: () => generateId() }))
       .use(contextStorage())
@@ -52,7 +53,7 @@ export class ApplicationController extends RootController {
     // Better Auth owns /api/auth/* with its own request/response shapes. It is registered
     // before the session middleware and every other route, and kept out of the returned
     // chain so it stays outside the api-contract RPC types.
-    api.on(['GET', 'POST'], '/auth/*', (c) => this.authService.auth.handler(c.req.raw));
+    api.on(['GET', 'POST'], `${AUTH_ROUTE}/*`, (c) => this.authService.auth.handler(c.req.raw));
 
     const app = api
       .use(authSession(this.authService))

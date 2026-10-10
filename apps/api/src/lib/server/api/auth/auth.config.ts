@@ -1,4 +1,4 @@
-import { RoleName } from '@adelie/shared';
+import { APP_NAME, RoleName } from '@adelie/shared';
 import { passkey } from '@better-auth/passkey';
 import { type BetterAuthOptions, betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
@@ -11,8 +11,21 @@ import { TwoFactorOtpEmail } from '../mail/templates/two-factor-otp.template';
 import { createAuthMail } from './auth.mail';
 import { ac, roles } from './auth.permissions';
 
-/** Better Auth mounts its handler here; the Hono app routes `${AUTH_BASE_PATH}/*` to it. */
-export const AUTH_BASE_PATH = '/api/auth';
+/** Prefix of every API route. */
+export const API_BASE_PATH = '/api';
+
+/** Path of the auth handler below {@link API_BASE_PATH}; the Hono app routes `${AUTH_ROUTE}/*` to it. */
+export const AUTH_ROUTE = '/auth';
+
+/** Better Auth mounts its handler here. */
+export const AUTH_BASE_PATH = `${API_BASE_PATH}${AUTH_ROUTE}`;
+
+/** Stand-ins for values the schema generator and the seed never use for real (no connection, no env). */
+export const AUTH_PLACEHOLDER = {
+  secret: 'better-auth-cli-placeholder-secret-0000',
+  baseURL: 'http://localhost',
+  passkey: { rpID: 'localhost', rpName: APP_NAME, origin: 'http://localhost' },
+} as const;
 
 /** Minutes an emailed two-factor code stays valid. */
 export const TWO_FACTOR_OTP_PERIOD_MINUTES = 5;
@@ -36,7 +49,7 @@ export interface CreateAuthOptions {
 }
 
 /** Better Auth's Drizzle adapter over our schema. Table names are plural (`users`, `sessions`, ...). */
-export function drizzleAuthDatabase(db: NodePgDatabase<typeof drizzleSchema>) {
+export function drizzleAuthDatabase(db: NodePgDatabase<typeof drizzleSchema>): BetterAuthOptions['database'] {
   return drizzleAdapter(db, { provider: 'pg', usePlural: true });
 }
 
@@ -53,7 +66,7 @@ export function generateAuthId(): string {
 export function createAuth({ database, secret, baseURL, trustedOrigins, twoFactorIssuer, passkey: passkeyConfig, mailer }: CreateAuthOptions) {
   const authMail = createAuthMail(mailer);
   return betterAuth({
-    appName: 'AdelieStack',
+    appName: APP_NAME,
     secret,
     baseURL,
     basePath: AUTH_BASE_PATH,
