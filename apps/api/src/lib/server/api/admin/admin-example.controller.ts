@@ -1,5 +1,6 @@
 import { inject, injectable } from '@needle-di/core';
 import { AuthService } from '../auth/auth.service';
+import { RolesService } from '../auth/roles';
 import { Controller } from '../common/factories/controllers.factory';
 import { requirePermission } from '../common/middleware/permission.middleware';
 
@@ -9,11 +10,16 @@ import { requirePermission } from '../common/middleware/permission.middleware';
  */
 @injectable()
 export class AdminExampleController extends Controller {
-  constructor(private readonly authService = inject(AuthService)) {
+  constructor(
+    private readonly authService = inject(AuthService),
+    private readonly rolesService = inject(RolesService),
+  ) {
     super();
   }
 
   routes() {
-    return this.controller.get('/example', requirePermission(this.authService, { user: ['list'] }), (c) => c.json({ message: 'admin' }));
+    return this.controller.get('/example', requirePermission(this.authService, this.rolesService, { user: ['list'] }), (c) =>
+      c.json({ message: 'admin' }),
+    );
   }
 }

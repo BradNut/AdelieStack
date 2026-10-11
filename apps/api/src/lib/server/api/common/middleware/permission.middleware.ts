@@ -1,7 +1,7 @@
 import type { MiddlewareHandler } from 'hono';
 import { createMiddleware } from 'hono/factory';
 import type { AuthService } from '../../auth/auth.service';
-import { rolesOf } from '../../auth/roles';
+import type { RolesService } from '../../auth/roles';
 import { m } from '../i18n';
 import { assertSignedIn } from '../utils/assert-signed-in';
 import { Forbidden } from '../utils/exceptions';
@@ -16,11 +16,17 @@ export type RequiredPermissions = Record<string, string[]>;
  * in `auth.permissions.ts`. Better Auth is given only the narrowed roles and no headers, because
  * with a session present it would ignore a supplied role and use the stored (unnarrowed) value.
  */
-export function requirePermission(authService: AuthService, permissions: RequiredPermissions): MiddlewareHandler<HonoEnv> {
+export function requirePermission(
+  authService: AuthService,
+  rolesService: RolesService,
+  permissions: RequiredPermissions,
+): MiddlewareHandler<HonoEnv> {
   return createMiddleware<HonoEnv>(async (c, next) => {
     const result = await authService.auth.api.getSession({ headers: c.req.raw.headers });
     assertSignedIn(result?.user);
-    const checks = await Promise.all(rolesOf(result.user).map((role) => authService.auth.api.userHasPermission({ body: { role, permissions } })));
+    const checks = await Promise.all(
+      rolesService.rolesOf(result.user).map((role) => authService.auth.api.userHasPermission({ body: { role, permissions } })),
+    );
     if (!checks.some(({ success }) => success)) {
       throw Forbidden(m.auth_role_forbidden());
     }

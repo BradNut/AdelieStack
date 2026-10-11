@@ -3,21 +3,17 @@ import { onError } from 'stoker/middlewares';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { roles } from '../../auth/auth.permissions';
 import type { AuthService } from '../../auth/auth.service';
+import { type RolesService, resolveRoles } from '../../auth/roles';
 import { buildAuthSession, buildAuthUser } from '../../common/testing/factories';
 import { createHono } from '../../common/utils/hono';
 import { AdminExampleController } from '../admin-example.controller';
 
 const roleSwitch = vi.hoisted(() => ({ allowMultiple: false }));
 
-// Reads of the environment-driven switch are replaced; the narrowing itself stays real.
-vi.mock('../../auth/roles', async (importOriginal) => {
-  const original = await importOriginal<typeof import('../../auth/roles')>();
-  return {
-    ...original,
-    rolesOf: (user: { role?: string | null }) =>
-      original.resolveRoles(user.role, { allowMultiple: roleSwitch.allowMultiple, logger: { warn: () => {} } }),
-  };
-});
+// The switch is replaced; the narrowing itself stays real.
+const rolesService = {
+  rolesOf: (user: { role?: string | null }) => resolveRoles(user.role, { allowMultiple: roleSwitch.allowMultiple, logger: { warn: () => {} } }),
+} as unknown as RolesService;
 
 type PermissionBody = { role?: string; permissions: Record<string, string[]> };
 
@@ -35,7 +31,7 @@ function signIn(role: string | null) {
 }
 
 function request() {
-  const app = createHono().route('/admin', new AdminExampleController(authService).routes() as never);
+  const app = createHono().route('/admin', new AdminExampleController(authService, rolesService).routes() as never);
   app.onError(onError);
   return app.request('/admin/example', { headers: { cookie: 'better-auth.session_token=abc' } });
 }

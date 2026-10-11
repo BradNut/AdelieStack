@@ -3,23 +3,30 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AdminExampleController } from '../admin/admin-example.controller';
 import { ApplicationController } from '../application.controller';
 import type { AuthService } from '../auth/auth.service';
+import { RolesService } from '../auth/roles';
+import type { ConfigService } from '../common/configs/config.service';
 import { validEnvs } from '../common/configs/tests/env-fixtures';
+import type { LoggerService } from '../common/services/logger.service';
 import { buildAuthSession, buildAuthUser } from '../common/testing/factories';
 import type { StorageWebhookController } from '../storage/storage-webhook.controller';
 import { UsersController } from '../users/users.controller';
 
 const handler = vi.fn();
 const getSession = vi.fn();
+const rolesService = new RolesService(
+  { envs: { ALLOW_MULTIPLE_ROLES: false } } as ConfigService,
+  { log: { warn: vi.fn() } } as unknown as LoggerService,
+);
 const authService = { auth: { handler, api: { getSession } } } as unknown as AuthService;
 
 function buildApp() {
   return new ApplicationController(
     authService,
-    new UsersController(),
+    new UsersController(rolesService),
     {
       routes: () => new Hono(),
     } as unknown as StorageWebhookController,
-    new AdminExampleController(authService),
+    new AdminExampleController(authService, rolesService),
   ).registerControllers();
 }
 

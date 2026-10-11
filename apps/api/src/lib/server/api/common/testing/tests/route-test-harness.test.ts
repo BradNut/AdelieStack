@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest';
+// A bare import is a sort boundary: the harness must load before the mocked middleware so its vi.mock registers first.
+import '../route-test-harness';
 import { Controller } from '../../factories/controllers.factory';
 import { rateLimit } from '../../middleware/rate-limit.middleware';
-// The harness must be imported before the mocked middleware so its vi.mock calls register first.
 import { buildRouteApp, rateLimitMock, resetRouteTestMocks } from '../route-test-harness';
 
 /** Minimal controller that exercises the guarded rate-limit middleware, standing in for a real route. */

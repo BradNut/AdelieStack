@@ -1,4 +1,5 @@
 import { APIError, createAuthMiddleware } from 'better-auth/api';
+import { m } from '../../../paraglide/messages';
 
 /** Admin endpoints that write a user's role. */
 export const RoleWritePath = {
@@ -6,8 +7,6 @@ export const RoleWritePath = {
   CREATE_USER: '/admin/create-user',
   UPDATE_USER: '/admin/update-user',
 } as const;
-
-export const MULTIPLE_ROLES_DISABLED_MESSAGE = 'Assigning more than one role is disabled (ALLOW_MULTIPLE_ROLES is off)';
 
 function writtenRole(path: string, body: unknown): unknown {
   if (typeof body !== 'object' || body === null) return undefined;
@@ -28,7 +27,7 @@ export function createRoleGuard(allowMultipleRoles: () => boolean) {
     if (!Object.values<string>(RoleWritePath).includes(ctx.path)) return;
     const role = writtenRole(ctx.path, ctx.body);
     if (Array.isArray(role) && role.length > 1 && !allowMultipleRoles()) {
-      throw new APIError('BAD_REQUEST', { message: MULTIPLE_ROLES_DISABLED_MESSAGE });
+      throw new APIError('BAD_REQUEST', { message: m.auth_multiple_roles_disabled() });
     }
   });
 }
