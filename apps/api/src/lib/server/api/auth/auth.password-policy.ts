@@ -4,6 +4,8 @@ import { APIError, createAuthMiddleware } from 'better-auth/api';
 /** Better Auth endpoint paths that set a password. */
 export const PasswordPolicyPath = {
   SIGN_UP: '/sign-up/email',
+  ADMIN_CREATE_USER: '/admin/create-user',
+  ADMIN_SET_USER_PASSWORD: '/admin/set-user-password',
 } as const;
 
 /**
@@ -13,6 +15,8 @@ export const PasswordPolicyPath = {
  */
 const PASSWORD_FIELD_BY_PATH: Record<string, string> = {
   [PasswordPolicyPath.SIGN_UP]: 'password',
+  [PasswordPolicyPath.ADMIN_CREATE_USER]: 'password',
+  [PasswordPolicyPath.ADMIN_SET_USER_PASSWORD]: 'newPassword',
 };
 
 /** Rejects non-compliant passwords with a bad request carrying the stable code and violated rules. */
