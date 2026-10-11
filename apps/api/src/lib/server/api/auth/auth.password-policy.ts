@@ -26,6 +26,16 @@ const PASSWORD_FIELD_BY_PATH: Record<(typeof PasswordPolicyPath)[keyof typeof Pa
 
 const isPasswordPolicyPath = (path: string): path is keyof typeof PASSWORD_FIELD_BY_PATH => Object.hasOwn(PASSWORD_FIELD_BY_PATH, path);
 
+/** Fails open: an unreachable HIBP must not block sign-up or password changes. */
+async function isBreached(password: string): Promise<boolean> {
+  try {
+    return await isPasswordCompromised(password);
+  } catch (error) {
+    console.warn('Breached-password check skipped: HIBP unavailable', error);
+    return false;
+  }
+}
+
 /** Rejects non-compliant passwords with a bad request carrying the stable code and violated rules. */
 export const passwordPolicyHook = createAuthMiddleware(async (ctx) => {
   const field = isPasswordPolicyPath(ctx.path) ? PASSWORD_FIELD_BY_PATH[ctx.path] : undefined;
@@ -37,9 +47,9 @@ export const passwordPolicyHook = createAuthMiddleware(async (ctx) => {
   if (rules.length > 0) {
     throw new APIError('BAD_REQUEST', { code: PASSWORD_POLICY_VIOLATION, message: PASSWORD_POLICY_VIOLATION, rules });
   }
-  // Better Auth's admin create-user inserts the user row before it hashes the password, so the
-  // haveIBeenPwned plugin's rejection would leave a credential-less user behind. Screen it up front.
-  if (ctx.path === PasswordPolicyPath.ADMIN_CREATE_USER && (await isPasswordCompromised(password))) {
+  // Screened here rather than by Better Auth's haveIBeenPwned plugin: that plugin runs while hashing, which for
+  // admin create-user is after the user row is inserted, and it fails closed when HIBP is unreachable.
+  if (await isBreached(password)) {
     throw new APIError('BAD_REQUEST', { code: PASSWORD_COMPROMISED, message: PASSWORD_COMPROMISED });
   }
 });

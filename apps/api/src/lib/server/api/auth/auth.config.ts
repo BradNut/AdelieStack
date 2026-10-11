@@ -2,7 +2,7 @@ import { APP_NAME, MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH, RoleName } from '@a
 import { passkey } from '@better-auth/passkey';
 import { type BetterAuthOptions, betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
-import { admin, haveIBeenPwned, twoFactor } from 'better-auth/plugins';
+import { admin, twoFactor } from 'better-auth/plugins';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { uuidv7 } from '../common/utils/crypto';
 import type * as drizzleSchema from '../databases/postgres/drizzle-schema';
@@ -97,11 +97,6 @@ export function createAuth({ database, secret, baseURL, trustedOrigins, twoFacto
       after: authMail.afterHook,
     },
     plugins: [
-      // Rejects breached passwords (HIBP k-anonymity range API: only a 5-char SHA-1 prefix leaves
-      // the server) wherever a password is hashed: sign-up, reset, change and the admin
-      // create-user / set-user-password paths. Sign-in only verifies, so existing passwords still work.
-      // Checked lazily per request (no import-time network); fails closed when HIBP is unreachable.
-      haveIBeenPwned(),
       // Roles live in the user's `role` field. The plugin declares it `input: false`, so no
       // sign-up or update-user body can set it; only admin endpoints (or the server) can.
       admin({

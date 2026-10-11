@@ -17,7 +17,7 @@ const sha1 = (value: string) => createHash('sha1').update(value).digest('hex').t
 
 /** Mocks the HIBP range API (no real network): `pwned` passwords are reported with a count, everything else is clean. */
 function mockHibp(pwned: string[], failWith?: number) {
-  const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+  const fetchMock = vi.fn(async (input: string | URL | Request) => {
     const url = String(input instanceof Request ? input.url : input);
     if (!url.startsWith(HIBP_HOST)) throw new Error(`unexpected network call: ${url}`);
     if (failWith) return new Response('nope', { status: failWith });
@@ -353,12 +353,13 @@ describe('breached password screening (haveIBeenPwned, mocked)', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('fails closed when HIBP is unavailable', async () => {
+  it('fails open when HIBP is unavailable', async () => {
     mockHibp([], 503);
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
 
     const res = await signUp(COMPLIANT_PASSWORD);
 
-    expect(res.status).toBe(500);
-    expect(await (await auth.$context).internalAdapter.findUserByEmail(EMAIL)).toBeNull();
+    expect(res.status).toBe(200);
+    expect(await (await auth.$context).internalAdapter.findUserByEmail(EMAIL)).not.toBeNull();
   });
 });
