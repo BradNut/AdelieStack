@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { AdminExampleController } from '../admin/admin-example.controller';
 import { ApplicationController } from '../application.controller';
 import type { AuthService } from '../auth/auth.service';
 import { validEnvs } from '../common/configs/tests/env-fixtures';
@@ -12,9 +13,14 @@ const getSession = vi.fn();
 const authService = { auth: { handler, api: { getSession } } } as unknown as AuthService;
 
 function buildApp() {
-  return new ApplicationController(authService, new UsersController(), {
-    routes: () => new Hono(),
-  } as unknown as StorageWebhookController).registerControllers();
+  return new ApplicationController(
+    authService,
+    new UsersController(),
+    {
+      routes: () => new Hono(),
+    } as unknown as StorageWebhookController,
+    new AdminExampleController(authService),
+  ).registerControllers();
 }
 
 beforeEach(() => {
