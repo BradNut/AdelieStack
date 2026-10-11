@@ -49,6 +49,36 @@ describe('signupDto', () => {
   });
 });
 
+describe('password policy rule issues', () => {
+  const messagesAt = (result: { error?: { issues: { path: PropertyKey[]; message: string }[] } }, field: string) =>
+    result.error?.issues.filter((i) => i.path.join('.') === field).map((i) => i.message) ?? [];
+
+  it('emits one rule-code issue per violated rule on signup', () => {
+    const result = signupDto.safeParse({ name: 'P', email: 'p@example.com', password: 'abc', confirm_password: 'abc' });
+    expect(messagesAt(result, 'password')).toEqual(['MIN_LENGTH', 'UPPERCASE', 'DIGIT', 'SPECIAL']);
+  });
+
+  it('emits rule codes on reset password', () => {
+    const result = resetPasswordNewPasswordDto.safeParse({ password: 'abcdefgh1!', confirm_password: 'abcdefgh1!' });
+    expect(messagesAt(result, 'password')).toEqual(['UPPERCASE']);
+  });
+
+  it('emits rule codes on change password new_password', () => {
+    const result = changePasswordDto.safeParse({ current_password: 'old', new_password: 'Abcdefgh!', confirm_password: 'Abcdefgh!' });
+    expect(messagesAt(result, 'new_password')).toEqual(['DIGIT']);
+  });
+
+  it('does not count whitespace as a special character', () => {
+    const result = signupDto.safeParse({ name: 'P', email: 'p@example.com', password: 'Abcdefg 1', confirm_password: 'Abcdefg 1' });
+    expect(messagesAt(result, 'password')).toEqual(['SPECIAL']);
+  });
+
+  it('keeps the mismatch message on confirm_password', () => {
+    const result = resetPasswordNewPasswordDto.safeParse({ password: STRONG, confirm_password: 'x' });
+    expect(messagesAt(result, 'confirm_password')).toEqual(['Password and Confirm Password must match']);
+  });
+});
+
 describe('resetPasswordNewPasswordDto', () => {
   it('accepts a strong matching password', () => {
     expect(resetPasswordNewPasswordDto.safeParse({ password: STRONG, confirm_password: STRONG }).success).toBe(true);

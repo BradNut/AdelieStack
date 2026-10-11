@@ -10,6 +10,7 @@
 	import * as Card from '$lib/components/ui/card/index.js';
 	import * as Form from '$lib/components/ui/form';
 	import { Input } from '$lib/components/ui/input/index.js';
+	import { passwordFieldErrors } from '$lib/utils/password-policy-messages';
 
 	const sf_signup = superForm(defaults(zod4(signupDto)), {
 		SPA: true,
@@ -78,7 +79,13 @@
 						/>
 					{/snippet}
 				</Form.Control>
-				<Form.FieldErrors />
+				<Form.FieldErrors>
+					{#snippet children({ errors, errorProps })}
+						{#each passwordFieldErrors(errors) as error (error)}
+							<div {...errorProps}>{error}</div>
+						{/each}
+					{/snippet}
+				</Form.FieldErrors>
 			</Form.Field>
 			<Form.Field form={sf_signup} name="confirm_password">
 				<Form.Control>

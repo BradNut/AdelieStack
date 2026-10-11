@@ -19,3 +19,10 @@ export function passwordPolicyMessages(rules: readonly PasswordPolicyRule[], opt
     return message ? [message(options)] : [];
   });
 }
+
+const KNOWN_RULES: ReadonlySet<string> = new Set(Object.values(PASSWORD_POLICY_RULES));
+
+/** Translates rule-code form errors; any other error text passes through unchanged. */
+export function passwordFieldErrors(errors: readonly string[] | undefined, options: MessageOptions = {}): string[] {
+  return (errors ?? []).flatMap((error) => (KNOWN_RULES.has(error) ? passwordPolicyMessages([error as PasswordPolicyRule], options) : [error]));
+}

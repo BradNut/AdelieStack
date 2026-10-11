@@ -8,6 +8,7 @@
 	import * as Card from '$lib/components/ui/card';
 	import * as Form from '$lib/components/ui/form';
 	import { Input } from '$lib/components/ui/input';
+	import { passwordFieldErrors } from '$lib/utils/password-policy-messages';
 
 	const sf_password = superForm(defaults(zod4(changePasswordDto)), {
 		SPA: true,
@@ -54,7 +55,13 @@
 						<Input {...props} type="password" autocomplete="new-password" bind:value={$passwordForm.new_password} />
 					{/snippet}
 				</Form.Control>
-				<Form.FieldErrors />
+				<Form.FieldErrors>
+					{#snippet children({ errors, errorProps })}
+						{#each passwordFieldErrors(errors) as error (error)}
+							<div {...errorProps}>{error}</div>
+						{/each}
+					{/snippet}
+				</Form.FieldErrors>
 			</Form.Field>
 			<Form.Field form={sf_password} name="confirm_password">
 				<Form.Control>

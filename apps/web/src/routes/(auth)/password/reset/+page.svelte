@@ -11,6 +11,7 @@
 	import * as Card from '$lib/components/ui/card/index.js';
 	import * as Form from '$lib/components/ui/form/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
+	import { passwordFieldErrors } from '$lib/utils/password-policy-messages';
 
 	const { data } = $props();
 
@@ -70,7 +71,13 @@
 							<Input {...props} type="password" autocomplete="new-password" bind:value={$newPasswordForm.password} />
 						{/snippet}
 					</Form.Control>
-					<Form.FieldErrors />
+					<Form.FieldErrors>
+						{#snippet children({ errors, errorProps })}
+							{#each passwordFieldErrors(errors) as error (error)}
+								<div {...errorProps}>{error}</div>
+							{/each}
+						{/snippet}
+					</Form.FieldErrors>
 				</Form.Field>
 				<Form.Field form={sf_new_password} name="confirm_password">
 					<Form.Control>
