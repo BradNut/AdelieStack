@@ -11,7 +11,7 @@ inside a service.
 
 - `apps/<app>/.env.schema` — tracked in git. The single source of truth for that app's env
   vars. Contains only placeholder/example values, never real secrets.
-- `apps/<app>/.env` — gitignored. Your local values.
+- `apps/<app>/.env` — gitignored. Your local values (optional; only needed to override a schema default).
 - `apps/<app>/.env.local` — gitignored, highest precedence. Personal overrides that should
   never be shared (e.g. a locally generated secret), layered on top of `.env`.
 - `apps/<app>/env.d.ts` — gitignored, generated. Provides `NodeJS.ProcessEnv` / `import.meta.env`
@@ -23,12 +23,14 @@ inside a service.
 ## Quick start
 
 ```bash
-# Copy each app's schema to a local .env and fill in real values.
-cp apps/api/.env.schema apps/api/.env
-cp apps/web/.env.schema apps/web/.env
+# The schemas already carry working local defaults for everything except secrets.
+# Generate the two required API secrets into a gitignored local file.
+{
+  echo "SIGNING_SECRET=$(openssl rand -hex 32)"
+  echo "BETTER_AUTH_SECRET=$(openssl rand -base64 32)"
+} > apps/api/.env.local
 
-# Generate required security keys for the API (apps/api/.env)
-echo "SIGNING_SECRET=$(openssl rand -hex 32)" >> apps/api/.env
+# For the first run only, add DB_MIGRATING=true and DB_SEEDING=true to apps/api/.env.local.
 
 # Start infrastructure (Postgres, Redis, SeaweedFS, Mailpit, ...)
 docker compose up -d
