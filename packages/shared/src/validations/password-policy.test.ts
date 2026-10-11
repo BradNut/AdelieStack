@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH } from '../constants';
-import { PASSWORD_POLICY_RULES, PASSWORD_POLICY_VIOLATION, validatePasswordPolicy } from './password-policy';
+import { isPasswordPolicyRule, PASSWORD_POLICY_RULES, PASSWORD_POLICY_VIOLATION, validatePasswordPolicy } from './password-policy';
 
-const VALID = 'Passw0rd!';
-const padded = (length: number) => `Aa1!${'a'.repeat(length - 4)}`;
+const VALID = 'correct horse battery';
+const padded = (length: number) => 'a'.repeat(length);
 
 describe('validatePasswordPolicy', () => {
   it('exposes the stable error code', () => {
@@ -14,23 +14,21 @@ describe('validatePasswordPolicy', () => {
     expect(validatePasswordPolicy(VALID)).toEqual([]);
   });
 
+  it('has no composition rules', () => {
+    expect(Object.values(PASSWORD_POLICY_RULES).sort()).toEqual(['LEADING_OR_TRAILING_SPACE', 'MAX_LENGTH', 'MIN_LENGTH']);
+  });
+
   it.each([
-    ['too short', 'Pa5!', PASSWORD_POLICY_RULES.MIN_LENGTH],
+    ['too short', 'short', PASSWORD_POLICY_RULES.MIN_LENGTH],
     ['too long', padded(MAX_PASSWORD_LENGTH + 10), PASSWORD_POLICY_RULES.MAX_LENGTH],
-    ['no uppercase', 'passw0rd!', PASSWORD_POLICY_RULES.UPPERCASE],
-    ['no digit', 'Password!', PASSWORD_POLICY_RULES.DIGIT],
-    ['no special', 'Passw0rdd', PASSWORD_POLICY_RULES.SPECIAL],
+    ['leading space', ' leadingspace', PASSWORD_POLICY_RULES.LEADING_OR_TRAILING_SPACE],
+    ['trailing space', 'trailingspace ', PASSWORD_POLICY_RULES.LEADING_OR_TRAILING_SPACE],
   ])('returns exactly one code when %s', (_name, password, code) => {
     expect(validatePasswordPolicy(password)).toEqual([code]);
   });
 
   it('returns all violated codes together', () => {
-    expect(validatePasswordPolicy('abc')).toEqual([
-      PASSWORD_POLICY_RULES.MIN_LENGTH,
-      PASSWORD_POLICY_RULES.UPPERCASE,
-      PASSWORD_POLICY_RULES.DIGIT,
-      PASSWORD_POLICY_RULES.SPECIAL,
-    ]);
+    expect(validatePasswordPolicy(' ab')).toEqual([PASSWORD_POLICY_RULES.MIN_LENGTH, PASSWORD_POLICY_RULES.LEADING_OR_TRAILING_SPACE]);
   });
 
   it('handles boundary lengths', () => {
@@ -40,22 +38,27 @@ describe('validatePasswordPolicy', () => {
     expect(validatePasswordPolicy(padded(MAX_PASSWORD_LENGTH + 1))).toEqual([PASSWORD_POLICY_RULES.MAX_LENGTH]);
   });
 
-  it('accepts unusual special characters', () => {
-    for (const ch of ['!', '@', '#', '~', '`', '"', "'", '\\', '/', '_', '-', '€', '¿']) {
-      expect(validatePasswordPolicy(`Passw0rd${ch}`)).toEqual([]);
+  it('accepts any characters: all lowercase, no digits, unicode, emoji and internal spaces', () => {
+    for (const password of ['alllowercase', '12345678', 'pässwörd-é€¿', 'пароль-пароль', '密码密码密码密码', 'pass 🐧 phrase', 'a b c d e f']) {
+      expect(validatePasswordPolicy(password)).toEqual([]);
     }
   });
 
-  it('does not treat whitespace as a special character', () => {
-    expect(validatePasswordPolicy('Passw0rd ')).toEqual([PASSWORD_POLICY_RULES.SPECIAL]);
+  it('only treats the plain space as leading or trailing whitespace', () => {
+    expect(validatePasswordPolicy('\tpassphrase')).toEqual([]);
   });
 
-  it('accepts non-ASCII uppercase but not non-ASCII letters as specials', () => {
-    expect(validatePasswordPolicy('Élodie123!')).toEqual([]);
-    expect(validatePasswordPolicy('élodie123é')).toEqual([PASSWORD_POLICY_RULES.UPPERCASE, PASSWORD_POLICY_RULES.SPECIAL]);
+  it('rejects a password made only of spaces', () => {
+    expect(validatePasswordPolicy('        ')).toEqual([PASSWORD_POLICY_RULES.LEADING_OR_TRAILING_SPACE]);
+  });
+});
+
+describe('isPasswordPolicyRule', () => {
+  it('accepts every known rule', () => {
+    for (const rule of Object.values(PASSWORD_POLICY_RULES)) expect(isPasswordPolicyRule(rule)).toBe(true);
   });
 
-  it('only counts ASCII digits', () => {
-    expect(validatePasswordPolicy('Passwörd!٣')).toEqual([PASSWORD_POLICY_RULES.DIGIT]);
+  it.each(['NOPE', 'UPPERCASE', '', 1, null, undefined, {}])('rejects %s', (value) => {
+    expect(isPasswordPolicyRule(value)).toBe(false);
   });
 });
