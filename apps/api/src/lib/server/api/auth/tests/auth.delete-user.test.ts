@@ -5,7 +5,7 @@ import { accounts, passkeys, sessions, twoFactors } from '../../databases/postgr
 import { type Auth, createAuth } from '../auth.config';
 
 const ORIGIN = 'http://localhost:5173';
-const PASSWORD = 'correct-horse-battery';
+const PASSWORD = 'Correct-horse-9';
 const EMAIL = 'penguin@example.com';
 
 let auth: Auth;

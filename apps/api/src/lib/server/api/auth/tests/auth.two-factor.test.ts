@@ -5,7 +5,7 @@ import type { SendProps } from '../../mail/interfaces/mailer.interface';
 import { type Auth, createAuth, TWO_FACTOR_OTP_PERIOD_MINUTES } from '../auth.config';
 
 const ORIGIN = 'http://localhost:5173';
-const PASSWORD = 'correct-horse-battery';
+const PASSWORD = 'Correct-horse-9';
 const EMAIL = 'penguin@example.com';
 
 let auth: Auth;
