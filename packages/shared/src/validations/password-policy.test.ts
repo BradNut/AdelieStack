@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH } from '../constants';
-import { isPasswordPolicyRule, PASSWORD_POLICY_RULES, PASSWORD_POLICY_VIOLATION, validatePasswordPolicy } from './password-policy';
+import {
+  isPasswordPolicyRule,
+  PASSWORD_COMPROMISED,
+  PASSWORD_POLICY_RULES,
+  PASSWORD_POLICY_VIOLATION,
+  validatePasswordPolicy,
+} from './password-policy';
 
 const VALID = 'correct horse battery';
 const padded = (length: number) => 'a'.repeat(length);
@@ -8,6 +14,10 @@ const padded = (length: number) => 'a'.repeat(length);
 describe('validatePasswordPolicy', () => {
   it('exposes the stable error code', () => {
     expect(PASSWORD_POLICY_VIOLATION).toBe('PASSWORD_POLICY_VIOLATION');
+  });
+
+  it('exposes the breached-password error code', () => {
+    expect(PASSWORD_COMPROMISED).toBe('PASSWORD_COMPROMISED');
   });
 
   it('returns no codes for a valid password', () => {

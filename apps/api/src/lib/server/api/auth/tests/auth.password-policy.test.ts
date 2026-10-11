@@ -1,10 +1,36 @@
-import { PASSWORD_POLICY_RULES, PASSWORD_POLICY_VIOLATION } from '@adelie/shared';
+import { createHash } from 'node:crypto';
+import { PASSWORD_COMPROMISED, PASSWORD_POLICY_RULES, PASSWORD_POLICY_VIOLATION } from '@adelie/shared';
 import { memoryAdapter } from 'better-auth/adapters/memory';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { hashPassword } from 'better-auth/crypto';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { type Auth, createAuth } from '../auth.config';
 
 const ORIGIN = 'http://localhost:5173';
-const COMPLIANT_PASSWORD = 'Correct-horse-9';
+const COMPLIANT_PASSWORD = 'correct horse battery';
+const OTHER_PASSWORD = 'another long passphrase';
+const PWNED_PASSWORD = 'password12345';
+const HIBP_HOST = 'https://api.pwnedpasswords.com/range/';
+const WEAK = ' short';
+const WEAK_RULES = [PASSWORD_POLICY_RULES.MIN_LENGTH, PASSWORD_POLICY_RULES.LEADING_OR_TRAILING_SPACE];
+
+const sha1 = (value: string) => createHash('sha1').update(value).digest('hex').toUpperCase();
+
+/** Mocks the HIBP range API (no real network): `pwned` passwords are reported with a count, everything else is clean. */
+function mockHibp(pwned: string[], failWith?: number) {
+  const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+    const url = String(input instanceof Request ? input.url : input);
+    if (!url.startsWith(HIBP_HOST)) throw new Error(`unexpected network call: ${url}`);
+    if (failWith) return new Response('nope', { status: failWith });
+    const prefix = url.slice(HIBP_HOST.length);
+    const lines = pwned
+      .map(sha1)
+      .filter((hash) => hash.startsWith(prefix))
+      .map((hash) => `${hash.slice(5)}:42`);
+    return new Response(['0000000000000000000000000000000000A:0', ...lines].join('\r\n'), { status: 200 });
+  });
+  vi.stubGlobal('fetch', fetchMock);
+  return fetchMock;
+}
 const EMAIL = 'policy@example.com';
 
 type Db = Record<string, Record<string, unknown>[]>;
@@ -22,7 +48,12 @@ async function signUp(password: string) {
   );
 }
 
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
 beforeEach(() => {
+  mockHibp([]);
   db = { user: [], session: [], account: [], verification: [], twoFactor: [] };
   auth = createAuth({
     database: memoryAdapter(db),
@@ -37,16 +68,16 @@ beforeEach(() => {
 
 describe('password policy hook: sign-up', () => {
   it('rejects a weak password with the stable code and the violated rules', async () => {
-    const res = await signUp('alllowercase');
+    const res = await signUp(WEAK);
 
     expect(res.status).toBe(400);
     const body = (await res.json()) as { code: string; rules: string[] };
     expect(body.code).toBe(PASSWORD_POLICY_VIOLATION);
-    expect(body.rules).toEqual([PASSWORD_POLICY_RULES.UPPERCASE, PASSWORD_POLICY_RULES.DIGIT, PASSWORD_POLICY_RULES.SPECIAL]);
+    expect(body.rules).toEqual(WEAK_RULES);
   });
 
   it('does not create the user when the password is rejected', async () => {
-    await signUp('alllowercase');
+    await signUp(WEAK);
 
     const found = await (await auth.$context).internalAdapter.findUserByEmail(EMAIL);
     expect(found).toBeNull();
@@ -79,7 +110,7 @@ async function seedUser(password: string) {
     userId: user.id,
     providerId: 'credential',
     accountId: user.id,
-    password: await ctx.password.hash(password),
+    password: await hashPassword(password),
   });
 }
 
@@ -103,22 +134,22 @@ describe('password policy hook: reset-password', () => {
     await seedUser(COMPLIANT_PASSWORD);
     const token = await resetToken();
 
-    const res = await post('/reset-password', { newPassword: 'alllowercase', token });
+    const res = await post('/reset-password', { newPassword: WEAK, token });
 
     expect(res.status).toBe(400);
     const body = (await res.json()) as { code: string; rules: string[] };
     expect(body.code).toBe(PASSWORD_POLICY_VIOLATION);
-    expect(body.rules).toEqual([PASSWORD_POLICY_RULES.UPPERCASE, PASSWORD_POLICY_RULES.DIGIT, PASSWORD_POLICY_RULES.SPECIAL]);
+    expect(body.rules).toEqual(WEAK_RULES);
   });
 
   it('accepts a compliant new password', async () => {
     await seedUser(COMPLIANT_PASSWORD);
     const token = await resetToken();
 
-    const res = await post('/reset-password', { newPassword: 'Another-pass-7', token });
+    const res = await post('/reset-password', { newPassword: OTHER_PASSWORD, token });
 
     expect(res.status).toBe(200);
-    await signInCookie('Another-pass-7');
+    await signInCookie(OTHER_PASSWORD);
   });
 });
 
@@ -127,19 +158,19 @@ describe('password policy hook: change-password', () => {
     await seedUser(COMPLIANT_PASSWORD);
     const cookie = await signInCookie(COMPLIANT_PASSWORD);
 
-    const res = await post('/change-password', { currentPassword: COMPLIANT_PASSWORD, newPassword: 'alllowercase' }, cookie);
+    const res = await post('/change-password', { currentPassword: COMPLIANT_PASSWORD, newPassword: WEAK }, cookie);
 
     expect(res.status).toBe(400);
     const body = (await res.json()) as { code: string; rules: string[] };
     expect(body.code).toBe(PASSWORD_POLICY_VIOLATION);
-    expect(body.rules).toEqual([PASSWORD_POLICY_RULES.UPPERCASE, PASSWORD_POLICY_RULES.DIGIT, PASSWORD_POLICY_RULES.SPECIAL]);
+    expect(body.rules).toEqual(WEAK_RULES);
   });
 
   it('accepts a compliant new password', async () => {
     await seedUser(COMPLIANT_PASSWORD);
     const cookie = await signInCookie(COMPLIANT_PASSWORD);
 
-    const res = await post('/change-password', { currentPassword: COMPLIANT_PASSWORD, newPassword: 'Another-pass-7' }, cookie);
+    const res = await post('/change-password', { currentPassword: COMPLIANT_PASSWORD, newPassword: OTHER_PASSWORD }, cookie);
 
     expect(res.status).toBe(200);
   });
@@ -184,7 +215,7 @@ describe('password policy hook: admin paths', () => {
   }
 
   it('rejects a too-short password on create-user with the stable code', async () => {
-    await expect(adminCreate('Aa1!')).rejects.toMatchObject({
+    await expect(adminCreate('short')).rejects.toMatchObject({
       status: 'BAD_REQUEST',
       body: { code: PASSWORD_POLICY_VIOLATION, rules: [PASSWORD_POLICY_RULES.MIN_LENGTH] },
     });
@@ -192,10 +223,10 @@ describe('password policy hook: admin paths', () => {
   });
 
   it('rejects a weak password on create-user with the violated rules', async () => {
-    await expect(adminCreate('alllowercase')).rejects.toMatchObject({
+    await expect(adminCreate(WEAK)).rejects.toMatchObject({
       body: {
         code: PASSWORD_POLICY_VIOLATION,
-        rules: [PASSWORD_POLICY_RULES.UPPERCASE, PASSWORD_POLICY_RULES.DIGIT, PASSWORD_POLICY_RULES.SPECIAL],
+        rules: WEAK_RULES,
       },
     });
   });
@@ -209,11 +240,11 @@ describe('password policy hook: admin paths', () => {
   it('rejects a weak password on set-user-password with the stable code and rules', async () => {
     const user = await seedUser();
 
-    await expect(auth.api.setUserPassword({ headers: adminHeaders, body: { userId: user.id, newPassword: 'alllowercase' } })).rejects.toMatchObject({
+    await expect(auth.api.setUserPassword({ headers: adminHeaders, body: { userId: user.id, newPassword: WEAK } })).rejects.toMatchObject({
       status: 'BAD_REQUEST',
       body: {
         code: PASSWORD_POLICY_VIOLATION,
-        rules: [PASSWORD_POLICY_RULES.UPPERCASE, PASSWORD_POLICY_RULES.DIGIT, PASSWORD_POLICY_RULES.SPECIAL],
+        rules: WEAK_RULES,
       },
     });
   });
@@ -221,8 +252,113 @@ describe('password policy hook: admin paths', () => {
   it('accepts a compliant password on set-user-password', async () => {
     const user = await seedUser();
 
-    const res = await auth.api.setUserPassword({ headers: adminHeaders, body: { userId: user.id, newPassword: 'Another-pass-7' } });
+    const res = await auth.api.setUserPassword({ headers: adminHeaders, body: { userId: user.id, newPassword: OTHER_PASSWORD } });
 
     expect(res.status).toBe(true);
+  });
+
+  it('rejects a breached password on create-user', async () => {
+    mockHibp([PWNED_PASSWORD]);
+
+    await expect(adminCreate(PWNED_PASSWORD)).rejects.toMatchObject({ status: 'BAD_REQUEST', body: { code: PASSWORD_COMPROMISED } });
+    expect(await (await auth.$context).internalAdapter.findUserByEmail('admin-created@example.com')).toBeNull();
+  });
+
+  it('rejects a breached password on set-user-password', async () => {
+    const user = await seedUser();
+    mockHibp([PWNED_PASSWORD]);
+
+    await expect(auth.api.setUserPassword({ headers: adminHeaders, body: { userId: user.id, newPassword: PWNED_PASSWORD } })).rejects.toMatchObject({
+      status: 'BAD_REQUEST',
+      body: { code: PASSWORD_COMPROMISED },
+    });
+  });
+});
+
+describe('password policy: no composition rules, no input mutation', () => {
+  it.each(['alllowercase', '12345678', 'pässwörd-密码-🐧', 'internal spaces are fine'])('accepts %s on sign-up', async (password) => {
+    const res = await signUp(password);
+
+    expect(res.status).toBe(200);
+    await signInCookie(password);
+  });
+
+  it.each([' leading-space-pass', 'trailing-space-pass '])('rejects %j with LEADING_OR_TRAILING_SPACE and does not trim it', async (password) => {
+    const res = await signUp(password);
+
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { code: string; rules: string[] };
+    expect(body).toMatchObject({ code: PASSWORD_POLICY_VIOLATION, rules: [PASSWORD_POLICY_RULES.LEADING_OR_TRAILING_SPACE] });
+    expect(await (await auth.$context).internalAdapter.findUserByEmail(EMAIL)).toBeNull();
+  });
+});
+
+describe('breached password screening (haveIBeenPwned, mocked)', () => {
+  it('rejects a breached password on sign-up with PASSWORD_COMPROMISED and creates no user', async () => {
+    mockHibp([PWNED_PASSWORD]);
+
+    const res = await signUp(PWNED_PASSWORD);
+
+    expect(res.status).toBe(400);
+    expect(((await res.json()) as { code: string }).code).toBe(PASSWORD_COMPROMISED);
+    expect(await (await auth.$context).internalAdapter.findUserByEmail(EMAIL)).toBeNull();
+  });
+
+  it('sends only the five-character hash prefix (k-anonymity)', async () => {
+    const fetchMock = mockHibp([]);
+
+    await signUp(COMPLIANT_PASSWORD);
+
+    const urls = fetchMock.mock.calls.map(([input]) => String(input instanceof Request ? input.url : input));
+    expect(urls).toHaveLength(1);
+    expect(urls[0]).toBe(`${HIBP_HOST}${sha1(COMPLIANT_PASSWORD).slice(0, 5)}`);
+  });
+
+  it('rejects a breached new password on reset-password', async () => {
+    await seedUser(COMPLIANT_PASSWORD);
+    const token = await resetToken();
+    mockHibp([PWNED_PASSWORD]);
+
+    const res = await post('/reset-password', { newPassword: PWNED_PASSWORD, token });
+
+    expect(res.status).toBe(400);
+    expect(((await res.json()) as { code: string }).code).toBe(PASSWORD_COMPROMISED);
+  });
+
+  it('rejects a breached new password on change-password', async () => {
+    await seedUser(COMPLIANT_PASSWORD);
+    const cookie = await signInCookie(COMPLIANT_PASSWORD);
+    mockHibp([PWNED_PASSWORD]);
+
+    const res = await post('/change-password', { currentPassword: COMPLIANT_PASSWORD, newPassword: PWNED_PASSWORD }, cookie);
+
+    expect(res.status).toBe(400);
+    expect(((await res.json()) as { code: string }).code).toBe(PASSWORD_COMPROMISED);
+  });
+
+  it('reports policy violations first and does not call HIBP for them', async () => {
+    const fetchMock = mockHibp([WEAK]);
+
+    const res = await signUp(WEAK);
+
+    expect(((await res.json()) as { code: string }).code).toBe(PASSWORD_POLICY_VIOLATION);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('does not block sign-in with an already breached password', async () => {
+    await seedUser(PWNED_PASSWORD);
+    const fetchMock = mockHibp([PWNED_PASSWORD]);
+
+    await signInCookie(PWNED_PASSWORD);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('fails closed when HIBP is unavailable', async () => {
+    mockHibp([], 503);
+
+    const res = await signUp(COMPLIANT_PASSWORD);
+
+    expect(res.status).toBe(500);
+    expect(await (await auth.$context).internalAdapter.findUserByEmail(EMAIL)).toBeNull();
   });
 });

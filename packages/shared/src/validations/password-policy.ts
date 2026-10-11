@@ -2,6 +2,9 @@ import { MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH } from '../constants/auth-limi
 
 export const PASSWORD_POLICY_VIOLATION = 'PASSWORD_POLICY_VIOLATION' as const;
 
+/** Error code Better Auth's haveIBeenPwned plugin returns (400) for a breached password. */
+export const PASSWORD_COMPROMISED = 'PASSWORD_COMPROMISED' as const;
+
 /**
  * Length limits plus no leading or trailing space (OWASP / https://auth.pilcrowonpaper.com/passwords).
  * No composition rules; compromised passwords are screened server-side by Better Auth's haveIBeenPwned plugin.
