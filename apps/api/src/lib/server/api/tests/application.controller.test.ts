@@ -51,6 +51,25 @@ describe('GET /api/users/me', () => {
     expect(((await res.json()) as { id: string }).id).toBe(user.id);
   });
 
+  it('returns the narrowed roles list instead of the stored role', async () => {
+    const user = buildAuthUser({ role: 'admin' });
+    getSession.mockResolvedValue({ user, session: buildAuthSession({ userId: user.id }) });
+
+    const body = (await (await buildApp().request('/api/users/me')).json()) as Record<string, unknown>;
+
+    expect(body.roles).toEqual(['admin']);
+    expect(body).not.toHaveProperty('role');
+  });
+
+  it('narrows a multi-valued stored role to the least-privileged role while the switch is off', async () => {
+    const user = buildAuthUser({ role: 'admin,support' });
+    getSession.mockResolvedValue({ user, session: buildAuthSession({ userId: user.id }) });
+
+    const body = (await (await buildApp().request('/api/users/me')).json()) as { roles: string[] };
+
+    expect(body.roles).toEqual(['user']);
+  });
+
   it('returns null when signed out', async () => {
     const res = await buildApp().request('/api/users/me');
 

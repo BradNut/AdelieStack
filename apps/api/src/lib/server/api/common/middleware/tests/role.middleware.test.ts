@@ -1,12 +1,24 @@
 import { RoleName } from '@adelie/shared';
-import { beforeEach, describe, expect, it } from 'vitest';
-// The harness must be imported before the mocked middleware so its vi.mock calls register first.
-import { buildRouteApp, resetRouteTestMocks } from '../../testing/route-test-harness';
+import { onError } from 'stoker/middlewares';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AuthUser } from '../../../auth/auth.config';
 import { Controller } from '../../factories/controllers.factory';
 import { buildAuthUser } from '../../testing/factories';
-import { onError } from 'stoker/middlewares';
+// The harness must be imported before the mocked middleware so its vi.mock calls register first.
+import { buildRouteApp, resetRouteTestMocks } from '../../testing/route-test-harness';
 import { adminAndSupportRoleOnly, adminRoleOnly } from '../role.middleware';
+
+const roleSwitch = vi.hoisted(() => ({ allowMultiple: false }));
+
+// Reads of the environment-driven switch are replaced; the narrowing itself stays real.
+vi.mock('../../../auth/roles', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../../../auth/roles')>();
+  return {
+    ...original,
+    rolesOf: (user: { role?: string | null }) =>
+      original.resolveRoles(user.role, { allowMultiple: roleSwitch.allowMultiple, logger: { warn: () => {} } }),
+  };
+});
 
 /** Stands in for a real controller with one admin-only and one shared support route. */
 class SampleController extends Controller {
@@ -28,6 +40,7 @@ const asRole = (role: string) => buildAuthUser({ role });
 describe('role middleware', () => {
   beforeEach(() => {
     resetRouteTestMocks();
+    roleSwitch.allowMultiple = false;
   });
 
   describe('adminRoleOnly', () => {
@@ -50,10 +63,17 @@ describe('role middleware', () => {
       expect(res.status).toBe(401);
     });
 
-    it('lets through a user holding admin among several roles', async () => {
+    it('lets through a user holding admin among several roles when multiple roles are allowed', async () => {
+      roleSwitch.allowMultiple = true;
       const res = await request('/admin', asRole(`${RoleName.USER},${RoleName.ADMIN}`));
 
       expect(res.status).toBe(200);
+    });
+
+    it('forbids a multi-valued role when multiple roles are not allowed', async () => {
+      const res = await request('/admin', asRole(`${RoleName.USER},${RoleName.ADMIN}`));
+
+      expect(res.status).toBe(403);
     });
 
     it('forbids a user with no role', async () => {

@@ -1,29 +1,21 @@
-import { type AuthedUser, RoleName } from '@adelie/shared';
+import type { AuthedUser } from '@adelie/shared';
+import type { InferResponseType } from 'hono/client';
 import type { Api } from '$lib/utils/types';
 
 /** Better Auth names its session cookie `<prefix>.session_token`, with a `__Secure-` prefix over https. */
 const SESSION_COOKIE_MARKER = 'session_token';
 
-const KNOWN_ROLES: readonly string[] = Object.values(RoleName);
+/** The signed-in user as `/users/me` returns it, typed by the shared API contract. */
+type SessionUserResponse = NonNullable<InferResponseType<Api['users']['me']['$get'], 200>>;
 
-interface SessionUserResponse {
-  id: string;
-  email: string;
-  name: string;
-  image?: string | null;
-  role?: string | null;
-  emailVerified: boolean;
-  twoFactorEnabled?: boolean | null;
-}
-
-/** Narrows the API's user to what the web app needs. An unknown or missing role falls back to the least privileged one. */
+/** Narrows the API's user to what the web app needs. */
 export function toAuthedUser(user: SessionUserResponse): AuthedUser {
   return {
     id: user.id,
     email: user.email,
     name: user.name,
     image: user.image ?? null,
-    role: KNOWN_ROLES.includes(user.role ?? '') ? (user.role as AuthedUser['role']) : RoleName.USER,
+    roles: user.roles,
     emailVerified: user.emailVerified,
     twoFactorEnabled: user.twoFactorEnabled ?? false,
   };
@@ -39,6 +31,6 @@ export async function loadSessionUser(api: Api, cookieHeader: string | null): Pr
   if (!hasSessionCookie(cookieHeader)) return null;
   const response = await api.users.me.$get();
   if (!response.ok) return null;
-  const user = (await response.json()) as SessionUserResponse | null;
+  const user = await response.json();
   return user ? toAuthedUser(user) : null;
 }
