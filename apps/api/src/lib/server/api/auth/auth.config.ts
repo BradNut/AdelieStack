@@ -1,4 +1,4 @@
-import { APP_NAME, RoleName } from '@adelie/shared';
+import { APP_NAME, MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH, RoleName } from '@adelie/shared';
 import { passkey } from '@better-auth/passkey';
 import { type BetterAuthOptions, betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
@@ -9,6 +9,7 @@ import type * as drizzleSchema from '../databases/postgres/drizzle-schema';
 import type { Mailer } from '../mail/interfaces/mailer.interface';
 import { TwoFactorOtpEmail } from '../mail/templates/two-factor-otp.template';
 import { createAuthMail } from './auth.mail';
+import { passwordPolicyHook } from './auth.password-policy';
 import { ac, roles } from './auth.permissions';
 
 /** Prefix of every API route. */
@@ -86,10 +87,13 @@ export function createAuth({ database, secret, baseURL, trustedOrigins, twoFacto
     },
     emailAndPassword: {
       enabled: true,
+      minPasswordLength: MIN_PASSWORD_LENGTH,
+      maxPasswordLength: MAX_PASSWORD_LENGTH,
       sendResetPassword: authMail.sendResetPassword,
       onPasswordReset: authMail.notifyPasswordChanged,
     },
     hooks: {
+      before: passwordPolicyHook,
       after: authMail.afterHook,
     },
     plugins: [
