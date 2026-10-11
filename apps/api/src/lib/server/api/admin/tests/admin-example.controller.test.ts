@@ -96,9 +96,11 @@ describe('admin example route', () => {
 
     const [{ headers }] = getSession.mock.calls[0] as [{ headers: Headers }];
     expect(headers.get('cookie')).toBe('better-auth.session_token=abc');
-    expect(userHasPermission).toHaveBeenCalledOnce();
-    const call = userHasPermission.mock.calls[0]?.[0];
-    expect(call?.headers).toBeUndefined();
-    expect(call?.body.role).toBe(`${RoleName.USER},${RoleName.ADMIN}`);
+    expect(userHasPermission).toHaveBeenCalledTimes(2);
+    const calls = userHasPermission.mock.calls.map(([call]) => call);
+    for (const call of calls) {
+      expect(call?.headers).toBeUndefined();
+    }
+    expect(calls.map((call) => call?.body.role)).toEqual([RoleName.USER, RoleName.ADMIN]);
   });
 });
