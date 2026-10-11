@@ -10,6 +10,7 @@ import type { Mailer } from '../mail/interfaces/mailer.interface';
 import { TwoFactorOtpEmail } from '../mail/templates/two-factor-otp.template';
 import { createAuthMail } from './auth.mail';
 import { ac, roles } from './auth.permissions';
+import { createRoleGuard } from './auth.role-guard';
 
 /** Prefix of every API route. */
 export const API_BASE_PATH = '/api';
@@ -46,6 +47,8 @@ export interface CreateAuthOptions {
   twoFactorIssuer: string;
   passkey: PasskeyConfig;
   mailer: Mailer;
+  /** Read per request so the env stays lazy. Defaults to off: one role per user. */
+  allowMultipleRoles?: () => boolean;
 }
 
 /** Better Auth's Drizzle adapter over our schema. Table names are plural (`users`, `sessions`, ...). */
@@ -63,7 +66,16 @@ export function generateAuthId(): string {
  * it is created (lazily at runtime via {@link AuthService}, with a mock db for the CLI, or
  * over the memory adapter in tests).
  */
-export function createAuth({ database, secret, baseURL, trustedOrigins, twoFactorIssuer, passkey: passkeyConfig, mailer }: CreateAuthOptions) {
+export function createAuth({
+  database,
+  secret,
+  baseURL,
+  trustedOrigins,
+  twoFactorIssuer,
+  passkey: passkeyConfig,
+  mailer,
+  allowMultipleRoles = () => false,
+}: CreateAuthOptions) {
   const authMail = createAuthMail(mailer);
   return betterAuth({
     appName: APP_NAME,
@@ -90,6 +102,7 @@ export function createAuth({ database, secret, baseURL, trustedOrigins, twoFacto
       onPasswordReset: authMail.notifyPasswordChanged,
     },
     hooks: {
+      before: createRoleGuard(allowMultipleRoles),
       after: authMail.afterHook,
     },
     plugins: [
