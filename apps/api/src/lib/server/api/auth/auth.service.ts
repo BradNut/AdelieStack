@@ -28,6 +28,7 @@ export class AuthService {
         origin: this.configService.envs.ORIGIN,
       },
       mailer: this.mailerService,
+      allowMultipleRoles: () => this.configService.envs.ALLOW_MULTIPLE_ROLES,
     });
     return this.instance;
   }
