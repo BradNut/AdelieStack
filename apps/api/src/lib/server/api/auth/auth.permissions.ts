@@ -7,7 +7,7 @@ export const ac = createAccessControl(defaultStatements);
 
 /**
  * The three roles. `admin` gets every admin-plugin permission. `support` and `user` get none:
- * support staff reach only the shared admin-and-support API routes (see `role.middleware.ts`),
+ * support staff reach only the shared admin-and-support API routes,
  * never the admin plugin's own endpoints (user lookup, session list or revoke, ban, ...).
  */
 export const roles = {
