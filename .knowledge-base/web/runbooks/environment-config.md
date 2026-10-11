@@ -55,20 +55,17 @@ real web-app config. (Redis is API-side only; see [Session Issues](./session-iss
 
 ## Local Dev
 
-There is no `.env.example` to copy. `PUBLIC_IMAGE_URI` is the only variable with no schema
-default and no `@required=false`, so it's the one you must set yourself. Create `apps/web/.env`
-(or `.env.local` for personal overrides):
+There is no `.env.example` to copy, and no `.env` is needed: every web variable, including
+`PUBLIC_IMAGE_URI` (the local SeaweedFS public bucket), has a default in `apps/web/.env.schema`.
+Just run:
 
 ```bash
-cat <<'EOF' > apps/web/.env
-PUBLIC_IMAGE_URI=http://localhost:8333/adelie-public-development
-EOF
 pnpm --filter @adelie/web dev
 ```
 
-Everything else (`ENVIRONMENT`, `SHOW_OAUTH_BUTTONS`, `ORIGIN`, `DOMAIN`, `PORT`, `HOST`,
-`API_PROXY_BASE_URL`) already has a schema default and only needs overriding to change behavior
-(e.g. pointing at a non-default API host/port, or enabling OAuth buttons).
+Create `apps/web/.env.local` only to override a default (e.g. pointing `API_PROXY_BASE_URL` at a
+non-default API host/port, enabling `SHOW_OAUTH_BUTTONS`, or changing `PUBLIC_IMAGE_URI` outside
+local dev; keep it equal to the API's value).
 
 ## Related
 
