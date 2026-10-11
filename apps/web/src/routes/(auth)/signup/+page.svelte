@@ -5,7 +5,7 @@
 	import { zod4, zod4Client } from 'sveltekit-superforms/adapters';
 	import { goto } from '$app/navigation';
 	import { authClient } from '$lib/auth-client';
-	import { authErrorMessage, refreshSession } from '$lib/client/auth-form';
+	import { authErrorMessage, passwordPolicyViolationRules, refreshSession } from '$lib/client/auth-form';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import * as Card from '$lib/components/ui/card/index.js';
 	import * as Form from '$lib/components/ui/form';
@@ -27,6 +27,8 @@
 			if (error) {
 				form.data.password = '';
 				form.data.confirm_password = '';
+				const rules = passwordPolicyViolationRules(error);
+				if (rules) return setError(form, 'password', rules);
 				return setError(form, 'email', authErrorMessage(error, 'Unable to sign up.'));
 			}
 			toast.success('Account created. Check your email to verify your address.');

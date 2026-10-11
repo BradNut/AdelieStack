@@ -4,7 +4,7 @@
 	import { defaults, setError, superForm } from 'sveltekit-superforms';
 	import { zod4, zod4Client } from 'sveltekit-superforms/adapters';
 	import { authClient } from '$lib/auth-client';
-	import { authErrorMessage } from '$lib/client/auth-form';
+	import { authErrorMessage, passwordPolicyViolationRules } from '$lib/client/auth-form';
 	import * as Card from '$lib/components/ui/card';
 	import * as Form from '$lib/components/ui/form';
 	import { Input } from '$lib/components/ui/input';
@@ -21,7 +21,11 @@
 				newPassword: form.data.new_password,
 				revokeOtherSessions: true,
 			});
-			if (error) return setError(form, 'current_password', authErrorMessage(error, 'Current password is incorrect.'));
+			if (error) {
+				const rules = passwordPolicyViolationRules(error);
+				if (rules) return setError(form, 'new_password', rules);
+				return setError(form, 'current_password', authErrorMessage(error, 'Current password is incorrect.'));
+			}
 			toast.success('Password changed. Your other sessions were signed out.');
 		},
 	});
