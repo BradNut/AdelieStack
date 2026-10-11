@@ -8,6 +8,7 @@
 	import ThemeDropdown from '@/components/theme-dropdown.svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
+	import { hasAnyRole } from '$lib/auth/guards';
 	import { authClient } from '$lib/auth-client';
 	import { refreshSession } from '$lib/client/auth-form';
 	import UnverifiedEmailNotice from '$lib/components/auth/unverified-email-notice.svelte';
@@ -136,7 +137,7 @@
 			<DropdownMenu.Item>
 				<a class="w-full" href="/settings">Settings</a>
 			</DropdownMenu.Item>
-			{#if data.authedUser?.roles.includes(RoleName.ADMIN)}
+			{#if data.authedUser && hasAnyRole(data.authedUser, [RoleName.ADMIN])}
 				<DropdownMenu.Item>
 					<a class="w-full" href="/admin">Admin</a>
 				</DropdownMenu.Item>

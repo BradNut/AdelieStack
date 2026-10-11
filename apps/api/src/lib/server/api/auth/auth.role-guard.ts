@@ -8,19 +8,22 @@ export const RoleWritePath = {
   UPDATE_USER: '/admin/update-user',
 } as const;
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
 function writtenRole(path: string, body: unknown): unknown {
-  if (typeof body !== 'object' || body === null) return undefined;
+  if (!isRecord(body)) return undefined;
   if (path === RoleWritePath.UPDATE_USER) {
-    const data = (body as { data?: unknown }).data;
-    return typeof data === 'object' && data !== null ? (data as { role?: unknown }).role : undefined;
+    return isRecord(body.data) ? body.data.role : undefined;
   }
-  return (body as { role?: unknown }).role;
+  return body.role;
 }
 
 /**
  * Before hook that rejects an array of several roles on the admin role-writing paths while the
  * switch is off. Better Auth already rejects comma-joined strings and unknown names, so arrays are the
- * only multi-role input. The switch is read per request so env stays lazy.
+ * only multi-role input. The read-side counterpart of this rule is `resolveRoles` in `roles.ts`. The switch is read per request so env stays lazy.
  */
 export function createRoleGuard(allowMultipleRoles: () => boolean) {
   return createAuthMiddleware(async (ctx) => {

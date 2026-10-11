@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { roles } from '../../auth/auth.permissions';
 import type { AuthService } from '../../auth/auth.service';
 import { type RolesService, resolveRoles } from '../../auth/roles';
-import { buildAuthSession, buildAuthUser } from '../../common/testing/factories';
+import { buildAuthUser } from '../../common/testing/factories';
 import { createHono } from '../../common/utils/hono';
 import { AdminExampleController } from '../admin-example.controller';
 
@@ -17,28 +17,33 @@ const rolesService = {
 
 type PermissionBody = { role?: string; permissions: Record<string, string[]> };
 
-const getSession = vi.fn();
+let currentUser: ReturnType<typeof buildAuthUser> | null = null;
 /** Mirrors Better Auth's admin `userHasPermission` for a role value: any listed role granting it passes. */
 const userHasPermission = vi.fn(async ({ body }: { body: PermissionBody; headers?: Headers }) => ({
   success: (body.role ?? '').split(',').some((name) => roles[name as keyof typeof roles]?.authorize(body.permissions).success === true),
   error: null,
 }));
-const authService = { auth: { api: { getSession, userHasPermission } } } as unknown as AuthService;
+const authService = { auth: { api: { userHasPermission } } } as unknown as AuthService;
 
 function signIn(role: string | null) {
-  const user = buildAuthUser({ role });
-  getSession.mockResolvedValue({ user, session: buildAuthSession({ userId: user.id }) });
+  currentUser = buildAuthUser({ role });
 }
 
 function request() {
-  const app = createHono().route('/admin', new AdminExampleController(authService, rolesService).routes() as never);
+  const app = createHono();
+  // Stands in for the app-wide `authSession` middleware, which `requirePermission` relies on.
+  app.use('*', async (c, next) => {
+    c.set('user', currentUser);
+    await next();
+  });
+  app.route('/admin', new AdminExampleController(authService, rolesService).routes() as never);
   app.onError(onError);
-  return app.request('/admin/example', { headers: { cookie: 'better-auth.session_token=abc' } });
+  return app.request('/admin/example');
 }
 
 describe('admin example route', () => {
   beforeEach(() => {
-    getSession.mockReset().mockResolvedValue(null);
+    currentUser = null;
     userHasPermission.mockClear();
     roleSwitch.allowMultiple = false;
   });
@@ -84,14 +89,12 @@ describe('admin example route', () => {
     expect((await request()).status).toBe(403);
   });
 
-  it('reads the session from the request headers but passes only the narrowed roles to the permission check', async () => {
+  it('passes only the narrowed roles to the permission check, with no headers', async () => {
     roleSwitch.allowMultiple = true;
     signIn(`${RoleName.USER},${RoleName.ADMIN}`);
 
     await request();
 
-    const [{ headers }] = getSession.mock.calls[0] as [{ headers: Headers }];
-    expect(headers.get('cookie')).toBe('better-auth.session_token=abc');
     expect(userHasPermission).toHaveBeenCalledTimes(2);
     const calls = userHasPermission.mock.calls.map(([call]) => call);
     for (const call of calls) {
