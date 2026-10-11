@@ -11,7 +11,7 @@ The trigger: checking role names in routes duplicates what the admin plugin alre
 ## Consequences
 
 - New protected routes declare the permission they need, never a role name.
-- The existing `requireRole` helpers in `role.middleware.ts` are not extended; they are not the pattern for new routes.
+- Role-name middleware (`requireRole`, formerly in `role.middleware.ts`) has been removed and is not wanted; `requirePermission` is the pattern for new routes.
 - Changing what a role may do means editing `auth/auth.permissions.ts` only.
 
 ## Considered options
