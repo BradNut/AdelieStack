@@ -6,6 +6,8 @@ export const PasswordPolicyPath = {
   SIGN_UP: '/sign-up/email',
   RESET_PASSWORD: '/reset-password',
   CHANGE_PASSWORD: '/change-password',
+  ADMIN_CREATE_USER: '/admin/create-user',
+  ADMIN_SET_USER_PASSWORD: '/admin/set-user-password',
 } as const;
 
 /**
@@ -17,6 +19,8 @@ const PASSWORD_FIELD_BY_PATH: Record<string, string> = {
   [PasswordPolicyPath.SIGN_UP]: 'password',
   [PasswordPolicyPath.RESET_PASSWORD]: 'newPassword',
   [PasswordPolicyPath.CHANGE_PASSWORD]: 'newPassword',
+  [PasswordPolicyPath.ADMIN_CREATE_USER]: 'password',
+  [PasswordPolicyPath.ADMIN_SET_USER_PASSWORD]: 'newPassword',
 };
 
 /** Rejects non-compliant passwords with a bad request carrying the stable code and violated rules. */
