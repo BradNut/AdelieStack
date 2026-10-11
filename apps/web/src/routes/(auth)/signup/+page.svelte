@@ -5,12 +5,12 @@
 	import { zod4, zod4Client } from 'sveltekit-superforms/adapters';
 	import { goto } from '$app/navigation';
 	import { authClient } from '$lib/auth-client';
-	import { authErrorMessage, passwordPolicyViolationRules, refreshSession } from '$lib/client/auth-form';
+	import { authErrorMessage, passwordRejectionCodes, refreshSession } from '$lib/client/auth-form';
+	import PasswordFieldErrors from '$lib/components/auth/password-field-errors.svelte';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import * as Card from '$lib/components/ui/card/index.js';
 	import * as Form from '$lib/components/ui/form';
 	import { Input } from '$lib/components/ui/input/index.js';
-	import { passwordFieldErrors } from '$lib/utils/password-policy-messages';
 
 	const sf_signup = superForm(defaults(zod4(signupDto)), {
 		SPA: true,
@@ -27,7 +27,7 @@
 			if (error) {
 				form.data.password = '';
 				form.data.confirm_password = '';
-				const rules = passwordPolicyViolationRules(error);
+				const rules = passwordRejectionCodes(error);
 				if (rules) return setError(form, 'password', rules);
 				return setError(form, 'email', authErrorMessage(error, 'Unable to sign up.'));
 			}
@@ -81,13 +81,7 @@
 						/>
 					{/snippet}
 				</Form.Control>
-				<Form.FieldErrors>
-					{#snippet children({ errors, errorProps })}
-						{#each passwordFieldErrors(errors) as error (error)}
-							<div {...errorProps}>{error}</div>
-						{/each}
-					{/snippet}
-				</Form.FieldErrors>
+				<PasswordFieldErrors />
 			</Form.Field>
 			<Form.Field form={sf_signup} name="confirm_password">
 				<Form.Control>

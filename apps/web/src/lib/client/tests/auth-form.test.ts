@@ -3,9 +3,9 @@ import { describe, expect, it, vi } from 'vitest';
 vi.mock('svelte-sonner', () => ({ toast: { error: vi.fn() } }));
 vi.mock('$app/navigation', () => ({ invalidateAll: vi.fn() }));
 
-import { PASSWORD_POLICY_RULES, PASSWORD_POLICY_VIOLATION } from '@adelie/shared';
+import { PASSWORD_COMPROMISED, PASSWORD_POLICY_RULES, PASSWORD_POLICY_VIOLATION } from '@adelie/shared';
 import { toast } from 'svelte-sonner';
-import { authErrorMessage, GENERIC_AUTH_ERROR, passwordPolicyViolationRules, toastIfError } from '../auth-form';
+import { authErrorMessage, GENERIC_AUTH_ERROR, passwordRejectionCodes, toastIfError } from '../auth-form';
 
 describe('authErrorMessage', () => {
   it('uses the message Better Auth returned', () => {
@@ -34,15 +34,24 @@ describe('toastIfError', () => {
   });
 });
 
-describe('passwordPolicyViolationRules', () => {
+describe('passwordRejectionCodes', () => {
   it('returns the known rules of a policy violation', () => {
-    const error = { code: PASSWORD_POLICY_VIOLATION, rules: [PASSWORD_POLICY_RULES.DIGIT, 'bogus', PASSWORD_POLICY_RULES.SPECIAL] };
-    expect(passwordPolicyViolationRules(error)).toEqual([PASSWORD_POLICY_RULES.DIGIT, PASSWORD_POLICY_RULES.SPECIAL]);
+    const error = {
+      code: PASSWORD_POLICY_VIOLATION,
+      rules: [PASSWORD_POLICY_RULES.MIN_LENGTH, 'bogus', PASSWORD_POLICY_RULES.LEADING_OR_TRAILING_SPACE],
+    };
+    expect(passwordRejectionCodes(error)).toEqual([PASSWORD_POLICY_RULES.MIN_LENGTH, PASSWORD_POLICY_RULES.LEADING_OR_TRAILING_SPACE]);
   });
 
   it('also reads the code from the message', () => {
-    expect(passwordPolicyViolationRules({ message: PASSWORD_POLICY_VIOLATION, rules: [PASSWORD_POLICY_RULES.UPPERCASE] })).toEqual([
-      PASSWORD_POLICY_RULES.UPPERCASE,
+    expect(passwordRejectionCodes({ message: PASSWORD_POLICY_VIOLATION, rules: [PASSWORD_POLICY_RULES.MAX_LENGTH] })).toEqual([
+      PASSWORD_POLICY_RULES.MAX_LENGTH,
+    ]);
+  });
+
+  it('maps the breached-password error to its own code', () => {
+    expect(passwordRejectionCodes({ code: PASSWORD_COMPROMISED, message: 'The password you entered has been compromised.' })).toEqual([
+      PASSWORD_COMPROMISED,
     ]);
   });
 
@@ -54,8 +63,8 @@ describe('passwordPolicyViolationRules', () => {
     { code: PASSWORD_POLICY_VIOLATION },
     { code: PASSWORD_POLICY_VIOLATION, rules: [] },
     { code: PASSWORD_POLICY_VIOLATION, rules: ['bogus'] },
-    { code: 'OTHER', rules: [PASSWORD_POLICY_RULES.DIGIT] },
+    { code: 'OTHER', rules: [PASSWORD_POLICY_RULES.MIN_LENGTH] },
   ])('returns null for %j', (error) => {
-    expect(passwordPolicyViolationRules(error)).toBeNull();
+    expect(passwordRejectionCodes(error)).toBeNull();
   });
 });

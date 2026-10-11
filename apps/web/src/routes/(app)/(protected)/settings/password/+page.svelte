@@ -4,11 +4,11 @@
 	import { defaults, setError, superForm } from 'sveltekit-superforms';
 	import { zod4, zod4Client } from 'sveltekit-superforms/adapters';
 	import { authClient } from '$lib/auth-client';
-	import { authErrorMessage, passwordPolicyViolationRules } from '$lib/client/auth-form';
+	import { authErrorMessage, passwordRejectionCodes } from '$lib/client/auth-form';
+	import PasswordFieldErrors from '$lib/components/auth/password-field-errors.svelte';
 	import * as Card from '$lib/components/ui/card';
 	import * as Form from '$lib/components/ui/form';
 	import { Input } from '$lib/components/ui/input';
-	import { passwordFieldErrors } from '$lib/utils/password-policy-messages';
 
 	const sf_password = superForm(defaults(zod4(changePasswordDto)), {
 		SPA: true,
@@ -22,7 +22,7 @@
 				revokeOtherSessions: true,
 			});
 			if (error) {
-				const rules = passwordPolicyViolationRules(error);
+				const rules = passwordRejectionCodes(error);
 				if (rules) return setError(form, 'new_password', rules);
 				return setError(form, 'current_password', authErrorMessage(error, 'Current password is incorrect.'));
 			}
@@ -59,13 +59,7 @@
 						<Input {...props} type="password" autocomplete="new-password" bind:value={$passwordForm.new_password} />
 					{/snippet}
 				</Form.Control>
-				<Form.FieldErrors>
-					{#snippet children({ errors, errorProps })}
-						{#each passwordFieldErrors(errors) as error (error)}
-							<div {...errorProps}>{error}</div>
-						{/each}
-					{/snippet}
-				</Form.FieldErrors>
+				<PasswordFieldErrors />
 			</Form.Field>
 			<Form.Field form={sf_password} name="confirm_password">
 				<Form.Control>

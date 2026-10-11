@@ -7,7 +7,6 @@
   "validation_captcha_invalid": "Invalid captcha, please try again.",
   "validation_password_rule_min_length": "Password must be at least {min} characters",
   "validation_password_rule_max_length": "Password must be at most {max} characters",
-  "validation_password_rule_uppercase": "Password must contain an uppercase letter",
-  "validation_password_rule_digit": "Password must contain a digit",
-  "validation_password_rule_special": "Password must contain a special character"
+  "validation_password_rule_leading_or_trailing_space": "Password must not start or end with a space",
+  "validation_password_compromised": "This password has appeared in a data breach. Please choose a different one."
 }

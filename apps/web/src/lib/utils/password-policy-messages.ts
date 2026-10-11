@@ -1,4 +1,11 @@
-import { MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH, PASSWORD_POLICY_RULES, type PasswordPolicyRule } from '@adelie/shared';
+import {
+  isPasswordPolicyRule,
+  MAX_PASSWORD_LENGTH,
+  MIN_PASSWORD_LENGTH,
+  PASSWORD_COMPROMISED,
+  PASSWORD_POLICY_RULES,
+  type PasswordPolicyRule,
+} from '@adelie/shared';
 import * as m from '$lib/paraglide/messages.js';
 import type { Locale } from '$lib/paraglide/runtime.js';
 
@@ -7,22 +14,19 @@ type MessageOptions = { locale?: Locale };
 const RULE_MESSAGES: Record<PasswordPolicyRule, (options: MessageOptions) => string> = {
   [PASSWORD_POLICY_RULES.MIN_LENGTH]: (o) => m.validation_password_rule_min_length({ min: MIN_PASSWORD_LENGTH }, o),
   [PASSWORD_POLICY_RULES.MAX_LENGTH]: (o) => m.validation_password_rule_max_length({ max: MAX_PASSWORD_LENGTH }, o),
-  [PASSWORD_POLICY_RULES.UPPERCASE]: (o) => m.validation_password_rule_uppercase({}, o),
-  [PASSWORD_POLICY_RULES.DIGIT]: (o) => m.validation_password_rule_digit({}, o),
-  [PASSWORD_POLICY_RULES.SPECIAL]: (o) => m.validation_password_rule_special({}, o),
+  [PASSWORD_POLICY_RULES.LEADING_OR_TRAILING_SPACE]: (o) => m.validation_password_rule_leading_or_trailing_space({}, o),
 };
 
-/** Maps password rule codes to translated messages (one per known code, in input order). Callers choose how to present them. */
+/** Maps password rule codes to translated messages (one per code, in input order). Callers choose how to present them. */
 export function passwordPolicyMessages(rules: readonly PasswordPolicyRule[], options: MessageOptions = {}): string[] {
-  return rules.flatMap((rule) => {
-    const message = RULE_MESSAGES[rule];
-    return message ? [message(options)] : [];
-  });
+  return rules.map((rule) => RULE_MESSAGES[rule](options));
 }
 
-const KNOWN_RULES: ReadonlySet<string> = new Set(Object.values(PASSWORD_POLICY_RULES));
-
-/** Translates rule-code form errors; any other error text passes through unchanged. */
+/** Translates rule-code and breached-password form errors; any other error text passes through unchanged. */
 export function passwordFieldErrors(errors: readonly string[] | undefined, options: MessageOptions = {}): string[] {
-  return (errors ?? []).flatMap((error) => (KNOWN_RULES.has(error) ? passwordPolicyMessages([error as PasswordPolicyRule], options) : [error]));
+  return (errors ?? []).map((error) => {
+    if (isPasswordPolicyRule(error)) return RULE_MESSAGES[error](options);
+    if (error === PASSWORD_COMPROMISED) return m.validation_password_compromised({}, options);
+    return error;
+  });
 }

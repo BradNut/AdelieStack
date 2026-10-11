@@ -1,4 +1,4 @@
-import { PASSWORD_POLICY_RULES, PASSWORD_POLICY_VIOLATION, type PasswordPolicyRule } from '@adelie/shared';
+import { isPasswordPolicyRule, PASSWORD_COMPROMISED, PASSWORD_POLICY_VIOLATION, type PasswordPolicyRule } from '@adelie/shared';
 import { toast } from 'svelte-sonner';
 import { invalidateAll } from '$app/navigation';
 
@@ -15,13 +15,17 @@ export function authErrorMessage(error: AuthClientError | null | undefined, fall
   return error?.message || fallback;
 }
 
-const KNOWN_RULES: ReadonlySet<unknown> = new Set(Object.values(PASSWORD_POLICY_RULES));
+export type PasswordRejectionCode = PasswordPolicyRule | typeof PASSWORD_COMPROMISED;
 
-/** The violated password rules when Better Auth rejected the password by policy, otherwise null. Render them with `passwordFieldErrors`. */
-export function passwordPolicyViolationRules(error: AuthClientError | null | undefined): PasswordPolicyRule[] | null {
+/**
+ * The codes to show when Better Auth rejected the password: the violated policy rules, or the breached-password
+ * code (haveIBeenPwned). Otherwise null. Render them with `passwordFieldErrors`.
+ */
+export function passwordRejectionCodes(error: AuthClientError | null | undefined): PasswordRejectionCode[] | null {
+  if (error?.code === PASSWORD_COMPROMISED) return [PASSWORD_COMPROMISED];
   if (error?.code !== PASSWORD_POLICY_VIOLATION && error?.message !== PASSWORD_POLICY_VIOLATION) return null;
   if (!Array.isArray(error.rules)) return null;
-  const rules = error.rules.filter((rule): rule is PasswordPolicyRule => KNOWN_RULES.has(rule));
+  const rules = error.rules.filter(isPasswordPolicyRule);
   return rules.length > 0 ? rules : null;
 }
 

@@ -7,7 +7,6 @@
   "validation_captcha_invalid": "Captcha inválido, inténtalo de nuevo.",
   "validation_password_rule_min_length": "La contraseña debe tener al menos {min} caracteres",
   "validation_password_rule_max_length": "La contraseña debe tener como máximo {max} caracteres",
-  "validation_password_rule_uppercase": "La contraseña debe contener una letra mayúscula",
-  "validation_password_rule_digit": "La contraseña debe contener un dígito",
-  "validation_password_rule_special": "La contraseña debe contener un carácter especial"
+  "validation_password_rule_leading_or_trailing_space": "La contraseña no debe empezar ni terminar con un espacio",
+  "validation_password_compromised": "Esta contraseña apareció en una filtración de datos. Elige otra distinta."
 }
