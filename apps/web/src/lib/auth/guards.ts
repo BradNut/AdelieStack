@@ -8,9 +8,9 @@ export const RouteAccess = {
 
 export type RouteAccess = (typeof RouteAccess)[keyof typeof RouteAccess];
 
-/** Decides whether `user` may open a route, optionally restricted to `roles`. */
+/** Decides whether `user` may open a route, optionally restricted to `roles`; any one of the user's roles is enough. */
 export function evaluateRouteAccess(user: AuthedUser | null, roles?: readonly RoleName[]): RouteAccess {
   if (!user) return RouteAccess.SIGN_IN;
-  if (roles && !roles.includes(user.role)) return RouteAccess.FORBIDDEN;
+  if (roles && !user.roles.some((role) => roles.includes(role))) return RouteAccess.FORBIDDEN;
   return RouteAccess.ALLOWED;
 }

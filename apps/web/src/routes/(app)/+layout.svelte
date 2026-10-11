@@ -136,7 +136,7 @@
 			<DropdownMenu.Item>
 				<a class="w-full" href="/settings">Settings</a>
 			</DropdownMenu.Item>
-			{#if data.authedUser?.role === RoleName.ADMIN}
+			{#if data.authedUser?.roles.includes(RoleName.ADMIN)}
 				<DropdownMenu.Item>
 					<a class="w-full" href="/admin">Admin</a>
 				</DropdownMenu.Item>

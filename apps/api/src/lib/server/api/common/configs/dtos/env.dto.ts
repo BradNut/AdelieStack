@@ -31,6 +31,8 @@ export const envsDto = z.object({
   // or port) and the name shown in the passkey prompt. Passkeys only work on a matching origin.
   PASSKEY_RP_ID: z.string().min(1).default('localhost'),
   PASSKEY_RP_NAME: z.string().min(1).default(APP_NAME),
+  // Whether a user may hold several roles (stored comma-separated). Off: a multi-valued row is invalid.
+  ALLOW_MULTIPLE_ROLES: z.stringbool().default(false),
   ENV: z.enum(['dev', 'prod']),
   NODE_ENV: z.enum(['development', 'production']).default('development'),
   PORT: z.coerce.number(),
