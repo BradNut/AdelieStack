@@ -16,7 +16,7 @@
 		{#if page.url.pathname !== "/login"}
 			<Button href="/login" variant="ghost">Login</Button>
 		{/if}
-		{#if page.url.pathname !== "/signup"}
+		{#if data.signUpEnabled && page.url.pathname !== "/signup"}
 			<Button href="/signup" variant="ghost">Sign up</Button>
 		{/if}
 	</div>

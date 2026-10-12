@@ -1,3 +1,4 @@
+import { AuthErrorCode, SIGN_UP_CLOSED_MESSAGE } from '@adelie/shared';
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('svelte-sonner', () => ({ toast: { error: vi.fn() } }));
@@ -17,6 +18,16 @@ describe('authErrorMessage', () => {
 
   it('uses a custom fallback', () => {
     expect(authErrorMessage(null, 'Nope')).toBe('Nope');
+  });
+
+  it('shows the shared closed-registration copy for the sign-up-disabled code', () => {
+    const error = { code: AuthErrorCode.SIGN_UP_DISABLED, message: 'Email and password sign up is not enabled' };
+
+    expect(authErrorMessage(error)).toBe(SIGN_UP_CLOSED_MESSAGE);
+  });
+
+  it('keeps the server message for a code it has no copy for', () => {
+    expect(authErrorMessage({ code: 'SOMETHING_ELSE', message: 'Server says no' })).toBe('Server says no');
   });
 });
 
