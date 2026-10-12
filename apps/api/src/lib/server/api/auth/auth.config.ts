@@ -1,14 +1,16 @@
-import { APP_NAME, RoleName } from '@adelie/shared';
+import { APP_NAME, MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH, RoleName } from '@adelie/shared';
 import { passkey } from '@better-auth/passkey';
 import { type BetterAuthOptions, betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
-import { admin, twoFactor } from 'better-auth/plugins';
+import { admin, haveIBeenPwned, twoFactor } from 'better-auth/plugins';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { uuidv7 } from '../common/utils/crypto';
 import type * as drizzleSchema from '../databases/postgres/drizzle-schema';
 import type { Mailer } from '../mail/interfaces/mailer.interface';
 import { TwoFactorOtpEmail } from '../mail/templates/two-factor-otp.template';
+import { HibpStatus, hibpMonitor } from './auth.hibp-status';
 import { createAuthMail } from './auth.mail';
+import { createPasswordPolicyHook, HIBP_PLUGIN_PATHS } from './auth.password-policy';
 import { ac, roles } from './auth.permissions';
 import { createRoleGuard } from './auth.role-guard';
 
@@ -49,6 +51,10 @@ export interface CreateAuthOptions {
   mailer: Mailer;
   /** Read per request so the env stays lazy. Defaults to off: one role per user. */
   allowMultipleRoles?: () => boolean;
+  /** Screens new passwords against Have I Been Pwned. Defaults to on; an outage rejects the request while on. */
+  hibpEnabled?: boolean;
+  /** Records each HIBP check's outcome for the health surface and carries the on/off switch; overrides `hibpEnabled`. */
+  hibpStatus?: HibpStatus;
 }
 
 /** Better Auth's Drizzle adapter over our schema. Table names are plural (`users`, `sessions`, ...). */
@@ -75,6 +81,8 @@ export function createAuth({
   passkey: passkeyConfig,
   mailer,
   allowMultipleRoles = () => false,
+  hibpEnabled = true,
+  hibpStatus = new HibpStatus({ enabled: hibpEnabled }),
 }: CreateAuthOptions) {
   const authMail = createAuthMail(mailer);
   return betterAuth({
@@ -98,11 +106,13 @@ export function createAuth({
     },
     emailAndPassword: {
       enabled: true,
+      minPasswordLength: MIN_PASSWORD_LENGTH,
+      maxPasswordLength: MAX_PASSWORD_LENGTH,
       sendResetPassword: authMail.sendResetPassword,
       onPasswordReset: authMail.notifyPasswordChanged,
     },
     hooks: {
-      before: createRoleGuard(allowMultipleRoles),
+      before: createPasswordPolicyHook(hibpStatus),
       after: authMail.afterHook,
     },
     plugins: [
@@ -131,6 +141,17 @@ export function createAuth({
         rpName: passkeyConfig.rpName,
         origin: passkeyConfig.origin,
       }),
+      // Rejects breached passwords (`PASSWORD_COMPROMISED`) while hashing, and fails closed when HIBP is
+      // unreachable. With `enabled: false` it makes no HIBP request on any path. Admin create-user and
+      // reset-password are screened earlier, in the before-hook (see auth.password-policy.ts).
+      haveIBeenPwned({ enabled: hibpStatus.enabled, paths: [...HIBP_PLUGIN_PATHS] }),
+      // Must come after haveIBeenPwned: it wraps that plugin's hashing to record each check's outcome.
+      hibpMonitor(hibpStatus),
+      // Per-plugin before-hook, since the top-level `hooks.before` slot is taken by the password policy.
+      {
+        id: 'role-guard',
+        hooks: { before: [{ matcher: () => true, handler: createRoleGuard(allowMultipleRoles) }] },
+      },
     ],
     advanced: {
       database: {

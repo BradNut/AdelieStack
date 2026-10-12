@@ -1,8 +1,10 @@
 import { inject, injectable } from '@needle-di/core';
 import { ConfigService } from '../common/configs/config.service';
+import { LoggerService } from '../common/services/logger.service';
 import { DrizzleService } from '../databases/postgres/drizzle.service';
 import { MailerService } from '../mail/mailer.service';
 import { type Auth, createAuth, drizzleAuthDatabase } from './auth.config';
+import { HibpStatus } from './auth.hibp-status';
 
 /** Owns the single Better Auth instance, created on first use rather than at import time. */
 @injectable()
@@ -13,7 +15,13 @@ export class AuthService {
     private readonly configService = inject(ConfigService),
     private readonly drizzleService = inject(DrizzleService),
     private readonly mailerService = inject(MailerService),
-  ) {}
+    private readonly loggerService = inject(LoggerService),
+  ) {
+    this.hibpStatus = new HibpStatus({ enabled: configService.envs.HIBP_ENABLED, log: this.loggerService.log });
+  }
+
+  /** Outcome of the most recent breached-password check, for the health surface. */
+  readonly hibpStatus: HibpStatus;
 
   get auth(): Auth {
     this.instance ??= createAuth({
@@ -29,6 +37,8 @@ export class AuthService {
       },
       mailer: this.mailerService,
       allowMultipleRoles: () => this.configService.envs.ALLOW_MULTIPLE_ROLES,
+      hibpEnabled: this.configService.envs.HIBP_ENABLED,
+      hibpStatus: this.hibpStatus,
     });
     return this.instance;
   }

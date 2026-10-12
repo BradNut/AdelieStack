@@ -12,8 +12,8 @@ import { RecoveryCodesUsedEmail } from '../../mail/templates/recovery-codes-used
 import { type Auth, createAuth } from '../auth.config';
 
 const ORIGIN = 'http://localhost:5173';
-const PASSWORD = 'correct-horse-battery';
-const NEW_PASSWORD = 'another-long-password';
+const PASSWORD = 'Correct-horse-9';
+const NEW_PASSWORD = 'Another-pass-7';
 const EMAIL = 'penguin@example.com';
 
 let auth: Auth;
@@ -76,6 +76,8 @@ beforeEach(() => {
     twoFactorIssuer: 'AdelieStack',
     passkey: { rpID: 'localhost', rpName: 'AdelieStack', origin: ORIGIN },
     mailer: { send },
+    // These tests are not about breached passwords: keep them off the network.
+    hibpEnabled: false,
   });
 });
 

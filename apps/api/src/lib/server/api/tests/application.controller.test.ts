@@ -13,11 +13,12 @@ import { UsersController } from '../users/users.controller';
 
 const handler = vi.fn();
 const getSession = vi.fn();
+const hibpStatus = { health: 'unknown' };
 const rolesService = new RolesService(
   { envs: { ALLOW_MULTIPLE_ROLES: false } } as ConfigService,
   { log: { warn: vi.fn() } } as unknown as LoggerService,
 );
-const authService = { auth: { handler, api: { getSession } } } as unknown as AuthService;
+const authService = { auth: { handler, api: { getSession } }, hibpStatus } as unknown as AuthService;
 
 function buildApp() {
   return new ApplicationController(
@@ -49,6 +50,18 @@ describe('auth handler mount', () => {
     await buildApp().request('/api/users/me');
 
     expect(getSession).toHaveBeenCalledOnce();
+    expect(handler).not.toHaveBeenCalled();
+  });
+});
+
+describe('GET /healthz', () => {
+  it.each(['disabled', 'unknown', 'available', 'unavailable'])('reports HIBP as %s without touching Better Auth', async (health) => {
+    hibpStatus.health = health;
+
+    const res = await buildApp().request('/healthz');
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ status: 'ok', hibp: health });
     expect(handler).not.toHaveBeenCalled();
   });
 });

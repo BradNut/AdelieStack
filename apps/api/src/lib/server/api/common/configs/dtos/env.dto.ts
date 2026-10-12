@@ -33,6 +33,8 @@ export const envsDto = z.object({
   PASSKEY_RP_NAME: z.string().min(1).default(APP_NAME),
   // Whether a user may hold several roles (stored comma-separated). Off: a multi-valued row is invalid.
   ALLOW_MULTIPLE_ROLES: z.stringbool().default(false),
+  // Screen new passwords against Have I Been Pwned. Turn off to mitigate an HIBP outage (restart required).
+  HIBP_ENABLED: z.stringbool().default(true),
   ENV: z.enum(['dev', 'prod']),
   NODE_ENV: z.enum(['development', 'production']).default('development'),
   PORT: z.coerce.number(),

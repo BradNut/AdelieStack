@@ -17,6 +17,12 @@ A temporary password that changes every 30 seconds, used for multi-factor authen
 **Passkey**
 A WebAuthn credential that uses public key cryptography for passwordless authentication.
 
+**Captcha Provider**
+The third-party service (Cloudflare Turnstile, Google reCAPTCHA, hCaptcha, CaptchaFox) that issues and verifies Captcha Tokens. Chosen per deployment through environment configuration; captcha is off unless enabled.
+
+**Captcha Token**
+The single-use proof a client obtains from the Captcha Provider's widget and submits with a protected request.
+
 **MFA (Multi-Factor Authentication)**
 Security mechanism requiring multiple forms of verification to authenticate.
 
