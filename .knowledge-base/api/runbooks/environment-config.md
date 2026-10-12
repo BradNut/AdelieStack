@@ -48,6 +48,12 @@ overrides, gitignored, highest precedence) — never commit real secrets to `.en
 |---|---|
 | `SIGNING_SECRET` | Required, sensitive. Generate with `openssl rand -hex 32`. |
 
+## Breached-password screening (Have I Been Pwned)
+
+| Variable | Default | Notes |
+|---|---|---|
+| `HIBP_ENABLED` | `true` | Screens new passwords against Have I Been Pwned (Better Auth `haveIBeenPwned` plugin) on sign-up, change-password and admin set-user-password. When on, an unreachable HIBP **rejects** the request (fail closed) and nothing is changed. When `false`, no HIBP request is made on any path. Restart the API after changing it. |
+
 ## Redis
 
 | Variable | Example | Notes |

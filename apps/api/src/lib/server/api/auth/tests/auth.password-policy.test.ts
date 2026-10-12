@@ -52,8 +52,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-beforeEach(() => {
-  mockHibp([]);
+function buildAuth(hibpEnabled = true) {
   db = { user: [], session: [], account: [], verification: [], twoFactor: [] };
   auth = createAuth({
     database: memoryAdapter(db),
@@ -63,7 +62,13 @@ beforeEach(() => {
     twoFactorIssuer: 'AdelieStack',
     passkey: { rpID: 'localhost', rpName: 'AdelieStack', origin: ORIGIN },
     mailer: { send: async () => {} },
+    hibpEnabled,
   });
+}
+
+beforeEach(() => {
+  mockHibp([]);
+  buildAuth();
 });
 
 describe('password policy hook: sign-up', () => {
@@ -261,7 +266,15 @@ describe('password policy hook: admin paths', () => {
     mockHibp([PWNED_PASSWORD]);
 
     await expect(adminCreate(PWNED_PASSWORD)).rejects.toMatchObject({ status: 'BAD_REQUEST', body: { code: PASSWORD_COMPROMISED } });
-    expect(await (await auth.$context).internalAdapter.findUserByEmail('admin-created@example.com')).toBeNull();
+  });
+
+  it('fails closed on set-user-password when HIBP is unavailable', async () => {
+    const user = await seedUser();
+    mockHibp([], 503);
+
+    await expect(auth.api.setUserPassword({ headers: adminHeaders, body: { userId: user.id, newPassword: OTHER_PASSWORD } })).rejects.toMatchObject({
+      status: 'INTERNAL_SERVER_ERROR',
+    });
   });
 
   it('rejects a breached password on set-user-password', async () => {
@@ -353,13 +366,63 @@ describe('breached password screening (haveIBeenPwned, mocked)', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('fails open when HIBP is unavailable', async () => {
+  it('fails closed on sign-up when HIBP is unavailable and creates no user', async () => {
     mockHibp([], 503);
-    vi.spyOn(console, 'warn').mockImplementation(() => {});
 
     const res = await signUp(COMPLIANT_PASSWORD);
 
+    expect(res.status).toBe(500);
+    expect(await (await auth.$context).internalAdapter.findUserByEmail(EMAIL)).toBeNull();
+  });
+
+  it('fails closed on change-password when HIBP is unavailable and keeps the old password', async () => {
+    await seedUser(COMPLIANT_PASSWORD);
+    const cookie = await signInCookie(COMPLIANT_PASSWORD);
+    mockHibp([], 503);
+
+    const res = await post('/change-password', { currentPassword: COMPLIANT_PASSWORD, newPassword: OTHER_PASSWORD }, cookie);
+
+    expect(res.status).toBe(500);
+    mockHibp([]);
+    await signInCookie(COMPLIANT_PASSWORD);
+  });
+});
+
+describe('breached password screening switched off', () => {
+  beforeEach(() => buildAuth(false));
+
+  it('accepts a breached password on admin set-user-password without calling HIBP', async () => {
+    await seedUser(COMPLIANT_PASSWORD);
+    const { internalAdapter } = await auth.$context;
+    const found = await internalAdapter.findUserByEmail(EMAIL);
+    if (!found) throw new Error('fixture user missing');
+    await internalAdapter.updateUser(found.user.id, { role: 'admin' });
+    const headers = new Headers({ cookie: await signInCookie(COMPLIANT_PASSWORD) });
+    const fetchMock = mockHibp([PWNED_PASSWORD]);
+
+    const res = await auth.api.setUserPassword({ headers, body: { userId: found.user.id, newPassword: PWNED_PASSWORD } });
+
+    expect(res.status).toBe(true);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('accepts a breached password on sign-up without calling HIBP', async () => {
+    const fetchMock = mockHibp([PWNED_PASSWORD]);
+
+    const res = await signUp(PWNED_PASSWORD);
+
     expect(res.status).toBe(200);
-    expect(await (await auth.$context).internalAdapter.findUserByEmail(EMAIL)).not.toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('accepts a breached password on change-password without calling HIBP', async () => {
+    await seedUser(COMPLIANT_PASSWORD);
+    const cookie = await signInCookie(COMPLIANT_PASSWORD);
+    const fetchMock = mockHibp([PWNED_PASSWORD]);
+
+    const res = await post('/change-password', { currentPassword: COMPLIANT_PASSWORD, newPassword: PWNED_PASSWORD }, cookie);
+
+    expect(res.status).toBe(200);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

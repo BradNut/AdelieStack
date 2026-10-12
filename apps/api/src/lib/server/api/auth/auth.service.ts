@@ -28,6 +28,7 @@ export class AuthService {
         origin: this.configService.envs.ORIGIN,
       },
       mailer: this.mailerService,
+      hibpEnabled: this.configService.envs.HIBP_ENABLED,
     });
     return this.instance;
   }
