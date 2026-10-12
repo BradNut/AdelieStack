@@ -4,5 +4,10 @@
   "validation_username_invalid": "Invalid username",
   "validation_password_required": "Password is required",
   "validation_password_invalid": "Invalid password",
-  "validation_captcha_invalid": "Invalid captcha, please try again."
+  "validation_captcha_invalid": "Invalid captcha, please try again.",
+  "validation_password_rule_min_length": "Password must be at least {min} characters",
+  "validation_password_rule_max_length": "Password must be at most {max} characters",
+  "validation_password_rule_leading_or_trailing_space": "Password must not start or end with a space",
+  "validation_password_compromised": "This password has appeared in a data breach. Please choose a different one.",
+  "validation_password_check_unavailable": "We can't verify your password right now. Please try again later."
 }

@@ -10,3 +10,4 @@ export * from './dtos/settings';
 export * from './dtos/signup';
 export { generateId } from './id';
 export * from './validations/account';
+export * from './validations/password-policy';

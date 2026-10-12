@@ -34,6 +34,8 @@ export const envsDto = z.object({
   // Registration: closed unless an operator opts in. Closed means no one can create an account
   // through sign-up; users come from the seeded admin and the admin plugin's create-user.
   SIGN_UP_ENABLED: z.stringbool().default(false),
+  // Screen new passwords against Have I Been Pwned. Turn off to mitigate an HIBP outage (restart required).
+  HIBP_ENABLED: z.stringbool().default(true),
   ENV: z.enum(['dev', 'prod']),
   NODE_ENV: z.enum(['development', 'production']).default('development'),
   PORT: z.coerce.number(),

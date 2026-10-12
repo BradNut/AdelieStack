@@ -18,6 +18,8 @@ function buildAuth(signUpEnabled: boolean): Auth {
     passkey: { rpID: 'localhost', rpName: 'AdelieStack', origin: ORIGIN },
     mailer: { send: async () => {} },
     signUpEnabled,
+    // Not about breached passwords: keep these tests off the network.
+    hibpEnabled: false,
   });
 }
 

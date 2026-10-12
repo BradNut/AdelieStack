@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { type Auth, createAuth, generateAuthId } from '../auth.config';
 
 const ORIGIN = 'http://localhost:5173';
-const PASSWORD = 'correct-horse-battery';
+const PASSWORD = 'Correct-horse-9';
 
 let auth: Auth;
 
@@ -54,6 +54,8 @@ beforeEach(() => {
     passkey: { rpID: 'localhost', rpName: 'AdelieStack', origin: ORIGIN },
     mailer: { send: async () => {} },
     signUpEnabled: true,
+    // These tests are not about breached passwords: keep them off the network.
+    hibpEnabled: false,
   });
 });
 

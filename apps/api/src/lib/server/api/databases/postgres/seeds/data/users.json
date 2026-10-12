@@ -2,19 +2,19 @@
   {
     "name": "John Smith",
     "email": "john.smith@example.com",
-    "password": "password",
+    "password": "adelie sample seed passphrase",
     "role": "user"
   },
   {
     "name": "Jane Doe",
     "email": "jane.doe@example.com",
-    "password": "password",
+    "password": "adelie sample seed passphrase",
     "role": "user"
   },
   {
     "name": "Jane Support",
     "email": "jane.support@example.com",
-    "password": "password",
+    "password": "adelie sample seed passphrase",
     "role": "support"
   }
 ]

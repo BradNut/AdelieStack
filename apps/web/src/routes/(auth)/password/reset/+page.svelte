@@ -5,7 +5,8 @@
 	import { zod4, zod4Client } from 'sveltekit-superforms/adapters';
 	import { goto } from '$app/navigation';
 	import { authClient } from '$lib/auth-client';
-	import { authErrorMessage } from '$lib/client/auth-form';
+	import { authErrorMessage, passwordRejectionCodes } from '$lib/client/auth-form';
+	import PasswordFieldErrors from '$lib/components/auth/password-field-errors.svelte';
 	import * as Alert from '$lib/components/ui/alert/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import * as Card from '$lib/components/ui/card/index.js';
@@ -42,7 +43,7 @@
 				newPassword: form.data.password,
 				token: data.token,
 			});
-			if (error) return setError(form, 'password', authErrorMessage(error, 'Unable to reset your password.'));
+			if (error) return setError(form, 'password', passwordRejectionCodes(error) ?? authErrorMessage(error, 'Unable to reset your password.'));
 			toast.success('Successfully reset password!');
 			await goto('/login');
 		},
@@ -70,7 +71,7 @@
 							<Input {...props} type="password" autocomplete="new-password" bind:value={$newPasswordForm.password} />
 						{/snippet}
 					</Form.Control>
-					<Form.FieldErrors />
+					<PasswordFieldErrors />
 				</Form.Field>
 				<Form.Field form={sf_new_password} name="confirm_password">
 					<Form.Control>

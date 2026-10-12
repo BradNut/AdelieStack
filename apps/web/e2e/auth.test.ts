@@ -43,7 +43,7 @@ test.describe('sign up, sign in, sign out', () => {
     await page.getByLabel('Confirm Password').fill('weak');
     await page.getByRole('button', { name: 'Signup' }).click();
 
-    await expect(page.getByText(/at least one uppercase letter/)).toBeVisible();
+    await expect(page.getByText(/at least 8 characters/)).toBeVisible();
     await expect(page).toHaveURL(/\/signup$/);
   });
 
