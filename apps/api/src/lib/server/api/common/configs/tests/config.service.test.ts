@@ -14,6 +14,7 @@ const parsedEnvs = {
   TRUST_PROXY: false,
   DISABLE_RATE_LIMIT: false,
   OTEL_ENABLED: false,
+  ALLOW_MULTIPLE_ROLES: false,
   HIBP_ENABLED: true,
 };
 
@@ -40,6 +41,11 @@ describe('ConfigService', () => {
   it('validateEnvs returns the parsed env set', async () => {
     const service = await createConfigService();
     expect(service.validateEnvs()).toMatchObject(parsedEnvs);
+  });
+
+  it('enables multiple roles only when ALLOW_MULTIPLE_ROLES is true', async () => {
+    setProcessEnvs({ ...validEnvs, ALLOW_MULTIPLE_ROLES: 'true' });
+    expect((await createConfigService()).envs.ALLOW_MULTIPLE_ROLES).toBe(true);
   });
 
   it('throws a wrapped error when a required env is missing', async () => {

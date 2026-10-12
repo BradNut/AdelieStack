@@ -16,7 +16,7 @@
 - MFA (TOTP/recovery codes) — a separate module exists under
   `apps/api/src/lib/server/api/mfa/` (see the MFA service docs), but it is not wired into any IAM
   route; IAM does not check or enforce MFA today
-- Roles/permissions — `roles` module, not IAM
+- Roles/permissions — Better Auth admin plugin (`auth/auth.permissions.ts`, `auth/roles.ts`), not IAM
 - There is no Audit service/module anywhere in `apps/api/src`; nothing in this repo logs
   authentication events to a dedicated audit trail
 

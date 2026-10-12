@@ -9,7 +9,7 @@ The process of verifying a user's identity through credentials (password, passke
 The process of determining what actions an authenticated user is allowed to perform.
 
 **Session**
-A temporary authentication state stored in Redis that identifies an authenticated user.
+A temporary authentication state, stored in the `sessions` table through Better Auth's database adapter (not Redis), that identifies an authenticated user.
 
 **TOTP (Time-based One-Time Password)**
 A temporary password that changes every 30 seconds, used for multi-factor authentication.
@@ -28,6 +28,12 @@ Security mechanism requiring multiple forms of verification to authenticate.
 
 **RBAC (Role-Based Access Control)**
 Authorization model where permissions are assigned to roles, and roles to users.
+
+**Role**
+A named group of permissions assigned to a user: `admin`, `support` or `user` (`RoleName` in `@adelie/shared`). Better Auth's admin plugin stores it on `users.role`; `rolesOf` in `auth/roles.ts` is the only reader. More than one role per user is allowed only when `ALLOW_MULTIPLE_ROLES` is on.
+
+**Permission**
+An action on a resource (for example `user: ban`) that a role grants, defined by `ac` and `roles` in `auth/auth.permissions.ts`. Routes check permissions through Better Auth's `userHasPermission`, not role names. See [ADR 0002](../../docs/adr/0002-authorization-delegates-to-better-auth.md).
 
 ## Data & Storage
 

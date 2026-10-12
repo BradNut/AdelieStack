@@ -2,6 +2,7 @@ import { inject, injectable } from '@needle-di/core';
 import { contextStorage } from 'hono/context-storage';
 import { requestId } from 'hono/request-id';
 import { notFound, onError, serveEmojiFavicon } from 'stoker/middlewares';
+import { AdminExampleController } from './admin/admin-example.controller';
 import { API_BASE_PATH, AUTH_ROUTE } from './auth/auth.config';
 import { AuthService } from './auth/auth.service';
 import { RootController } from './common/factories/controllers.factory';
@@ -24,6 +25,7 @@ export class ApplicationController extends RootController {
     private readonly usersController = inject(UsersController),
     private readonly storageWebhookController = inject(StorageWebhookController),
     private readonly configController = inject(ConfigController),
+    private readonly adminExampleController = inject(AdminExampleController),
   ) {
     super();
   }
@@ -64,6 +66,7 @@ export class ApplicationController extends RootController {
       .route('/', this.routes())
       .route('/config', this.configController.routes())
       .route('/users', this.usersController.routes())
+      .route('/admin', this.adminExampleController.routes())
       .route('/storage', this.storageWebhookController.routes())
       .onError(onError)
       .notFound(notFound);

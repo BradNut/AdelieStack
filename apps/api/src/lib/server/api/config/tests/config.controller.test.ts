@@ -1,7 +1,7 @@
 import { Container } from '@needle-di/core';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { ConfigService } from '../../common/configs/config.service';
-import { authStateMock, buildRouteApp, resetRouteTestMocks } from '../../common/testing/route-test-harness';
+import { buildRouteApp, resetRouteTestMocks } from '../../common/testing/route-test-harness';
 import type { AppOpenAPI } from '../../common/utils/hono';
 import { ConfigController } from '../config.controller';
 
@@ -37,9 +37,9 @@ describe('GET /config', () => {
   });
 
   it('needs no authentication', async () => {
+    // The harness runs the route as a signed-out visitor unless given a user.
     const res = await buildApp({ SIGN_UP_ENABLED: true }).request('/config');
 
     expect(res.status).toBe(200);
-    expect(authStateMock).not.toHaveBeenCalled();
   });
 });

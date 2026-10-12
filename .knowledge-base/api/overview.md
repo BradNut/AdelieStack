@@ -52,7 +52,7 @@ and role management, and file storage.
 ## Key Features
 
 - **Multi-Factor Authentication** - TOTP-based MFA
-- **Role-Based Access Control** - Permissions via roles module
+- **Role-Based Access Control** - Roles map to permissions checked through Better Auth (see ADR 0002)
 - **File Upload & Image Processing** - SeaweedFS/S3-compatible storage with server-side image
   resizing (no virus scanning — see ClamAV note above)
 - **Rate Limiting** - Redis-based request throttling

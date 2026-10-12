@@ -1,14 +1,28 @@
 import { type AuthedUser, RoleName } from '@adelie/shared';
 import { describe, expect, it } from 'vitest';
-import { evaluateRouteAccess, RouteAccess } from '../guards';
+import { evaluateRouteAccess, hasAnyRole, RouteAccess } from '../guards';
 
-const user = (role: AuthedUser['role']): AuthedUser => ({
+const user = (...roles: AuthedUser['roles']): AuthedUser => ({
   id: 'u1',
   email: 'a@example.com',
   name: 'A',
-  role,
+  roles,
   emailVerified: false,
   twoFactorEnabled: false,
+});
+
+describe('hasAnyRole', () => {
+  it('is true when one of several roles is allowed', () => {
+    expect(hasAnyRole(user(RoleName.USER, RoleName.ADMIN), [RoleName.ADMIN])).toBe(true);
+  });
+
+  it('is false when none of the roles is allowed', () => {
+    expect(hasAnyRole(user(RoleName.USER), [RoleName.ADMIN, RoleName.SUPPORT])).toBe(false);
+  });
+
+  it('is false when nothing is allowed', () => {
+    expect(hasAnyRole(user(RoleName.ADMIN), [])).toBe(false);
+  });
 });
 
 describe('evaluateRouteAccess', () => {
@@ -22,6 +36,14 @@ describe('evaluateRouteAccess', () => {
 
   it('allows a user holding a required role', () => {
     expect(evaluateRouteAccess(user(RoleName.ADMIN), [RoleName.ADMIN])).toBe(RouteAccess.ALLOWED);
+  });
+
+  it('allows a user when any one of several roles is allowed', () => {
+    expect(evaluateRouteAccess(user(RoleName.USER, RoleName.SUPPORT), [RoleName.ADMIN, RoleName.SUPPORT])).toBe(RouteAccess.ALLOWED);
+  });
+
+  it('forbids a user none of whose roles is allowed', () => {
+    expect(evaluateRouteAccess(user(RoleName.USER, RoleName.SUPPORT), [RoleName.ADMIN])).toBe(RouteAccess.FORBIDDEN);
   });
 
   it('forbids a signed-in user without the required role', () => {

@@ -12,6 +12,7 @@ import { HibpStatus, hibpMonitor } from './auth.hibp-status';
 import { createAuthMail } from './auth.mail';
 import { createPasswordPolicyHook, HIBP_PLUGIN_PATHS } from './auth.password-policy';
 import { ac, roles } from './auth.permissions';
+import { createRoleGuard } from './auth.role-guard';
 
 /** Prefix of every API route. */
 export const API_BASE_PATH = '/api';
@@ -54,6 +55,8 @@ export interface CreateAuthOptions {
    * Server-side user creation (the seed, the admin plugin) is not sign-up and is never blocked.
    */
   signUpEnabled: boolean;
+  /** Read per request so the env stays lazy. Defaults to off: one role per user. */
+  allowMultipleRoles?: () => boolean;
   /** Screens new passwords against Have I Been Pwned. Defaults to on; an outage rejects the request while on. */
   hibpEnabled?: boolean;
   /** Records each HIBP check's outcome for the health surface and carries the on/off switch; overrides `hibpEnabled`. */
@@ -84,6 +87,7 @@ export function createAuth({
   passkey: passkeyConfig,
   mailer,
   signUpEnabled,
+  allowMultipleRoles = () => false,
   hibpEnabled = true,
   hibpStatus = new HibpStatus({ enabled: hibpEnabled }),
 }: CreateAuthOptions) {
@@ -151,6 +155,11 @@ export function createAuth({
       haveIBeenPwned({ enabled: hibpStatus.enabled, paths: [...HIBP_PLUGIN_PATHS] }),
       // Must come after haveIBeenPwned: it wraps that plugin's hashing to record each check's outcome.
       hibpMonitor(hibpStatus),
+      // Per-plugin before-hook, since the top-level `hooks.before` slot is taken by the password policy.
+      {
+        id: 'role-guard',
+        hooks: { before: [{ matcher: () => true, handler: createRoleGuard(allowMultipleRoles) }] },
+      },
     ],
     advanced: {
       database: {
