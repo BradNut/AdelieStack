@@ -14,6 +14,7 @@ const parsedEnvs = {
   TRUST_PROXY: false,
   DISABLE_RATE_LIMIT: false,
   OTEL_ENABLED: false,
+  HIBP_ENABLED: true,
 };
 
 describe('ConfigService', () => {
@@ -51,5 +52,17 @@ describe('ConfigService', () => {
     setProcessEnvs({ ...validEnvs, DATABASE_PORT: 'nope', PORT: 'nope', STORAGE_PORT: 'nope' });
     const { ConfigService } = await import('../config.service');
     expect(() => new ConfigService()).toThrowError(/Missing environment variables:/);
+  });
+
+  it('turns HIBP screening off only when HIBP_ENABLED is false', async () => {
+    setProcessEnvs({ ...validEnvs, HIBP_ENABLED: 'false' });
+    const service = await createConfigService();
+    expect(service.envs.HIBP_ENABLED).toBe(false);
+  });
+
+  it('rejects a HIBP_ENABLED value that is not a boolean string', async () => {
+    setProcessEnvs({ ...validEnvs, HIBP_ENABLED: 'maybe' });
+    const { ConfigService } = await import('../config.service');
+    expect(() => new ConfigService()).toThrowError(/HIBP_ENABLED/);
   });
 });

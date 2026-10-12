@@ -7,7 +7,7 @@ test.describe('sign up, sign in, sign out', () => {
     const user = newUser();
 
     await signUp(page, user);
-    await expect(page.getByRole('heading', { level: 1 })).toContainText(user.name);
+    await expect(page.getByText(`Welcome ${user.name}`)).toBeVisible();
 
     await signOut(page);
 
@@ -43,7 +43,7 @@ test.describe('sign up, sign in, sign out', () => {
     await page.getByLabel('Confirm Password').fill('weak');
     await page.getByRole('button', { name: 'Signup' }).click();
 
-    await expect(page.getByText(/at least one uppercase letter/)).toBeVisible();
+    await expect(page.getByText(/at least 8 characters/)).toBeVisible();
     await expect(page).toHaveURL(/\/signup$/);
   });
 
@@ -96,7 +96,7 @@ test.describe('settings', () => {
     await expect(page.getByText('Profile updated!')).toBeVisible();
 
     await page.goto('/');
-    await expect(page.getByRole('heading', { level: 1 })).toContainText('Emperor Penguin');
+    await expect(page.getByText('Welcome Emperor Penguin')).toBeVisible();
   });
 
   test('a user can change their password and sign in with the new one', async ({ page }) => {

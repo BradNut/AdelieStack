@@ -5,7 +5,8 @@
 	import { zod4, zod4Client } from 'sveltekit-superforms/adapters';
 	import { goto } from '$app/navigation';
 	import { authClient } from '$lib/auth-client';
-	import { authErrorMessage, refreshSession } from '$lib/client/auth-form';
+	import { authErrorMessage, passwordRejectionCodes, refreshSession } from '$lib/client/auth-form';
+	import PasswordFieldErrors from '$lib/components/auth/password-field-errors.svelte';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import * as Card from '$lib/components/ui/card/index.js';
 	import * as Form from '$lib/components/ui/form';
@@ -26,6 +27,8 @@
 			if (error) {
 				form.data.password = '';
 				form.data.confirm_password = '';
+				const rules = passwordRejectionCodes(error);
+				if (rules) return setError(form, 'password', rules);
 				return setError(form, 'email', authErrorMessage(error, 'Unable to sign up.'));
 			}
 			toast.success('Account created. Check your email to verify your address.');
@@ -78,7 +81,7 @@
 						/>
 					{/snippet}
 				</Form.Control>
-				<Form.FieldErrors />
+				<PasswordFieldErrors />
 			</Form.Field>
 			<Form.Field form={sf_signup} name="confirm_password">
 				<Form.Control>

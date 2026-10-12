@@ -7,7 +7,7 @@ import { changeEmailDto } from '../settings/email/change-email.dto';
 import { changePasswordDto } from '../settings/password/change-password.dto';
 import { signupDto } from '../signup/signup.dto';
 
-const STRONG = 'Correct-Horse-9';
+const STRONG = 'correct horse battery';
 
 function issuePaths(result: { success: boolean; error?: { issues: { path: PropertyKey[] }[] } }) {
   return result.error?.issues.map((i) => i.path.join('.')) ?? [];
@@ -40,12 +40,42 @@ describe('signupDto', () => {
   });
 
   it('rejects a weak password on password', () => {
-    const weak = 'password';
+    const weak = 'short';
     expect(issuePaths(signupDto.safeParse({ ...valid, password: weak, confirm_password: weak }))).toContain('password');
   });
 
   it('rejects an empty name', () => {
     expect(issuePaths(signupDto.safeParse({ ...valid, name: ' ' }))).toContain('name');
+  });
+});
+
+describe('password policy rule issues', () => {
+  const messagesAt = (result: { error?: { issues: { path: PropertyKey[]; message: string }[] } }, field: string) =>
+    result.error?.issues.filter((i) => i.path.join('.') === field).map((i) => i.message) ?? [];
+
+  it('emits one rule-code issue per violated rule on signup', () => {
+    const result = signupDto.safeParse({ name: 'P', email: 'p@example.com', password: ' ab', confirm_password: ' ab' });
+    expect(messagesAt(result, 'password')).toEqual(['MIN_LENGTH', 'LEADING_OR_TRAILING_SPACE']);
+  });
+
+  it('emits rule codes on reset password', () => {
+    const result = resetPasswordNewPasswordDto.safeParse({ password: 'trailing space ', confirm_password: 'trailing space ' });
+    expect(messagesAt(result, 'password')).toEqual(['LEADING_OR_TRAILING_SPACE']);
+  });
+
+  it('emits rule codes on change password new_password', () => {
+    const result = changePasswordDto.safeParse({ current_password: 'old', new_password: 'short', confirm_password: 'short' });
+    expect(messagesAt(result, 'new_password')).toEqual(['MIN_LENGTH']);
+  });
+
+  it('does not require composition: all-lowercase and internal spaces pass', () => {
+    const password = 'all lowercase passphrase';
+    expect(signupDto.safeParse({ name: 'P', email: 'p@example.com', password, confirm_password: password }).success).toBe(true);
+  });
+
+  it('keeps the mismatch message on confirm_password', () => {
+    const result = resetPasswordNewPasswordDto.safeParse({ password: STRONG, confirm_password: 'x' });
+    expect(messagesAt(result, 'confirm_password')).toEqual(['Password and Confirm Password must match']);
   });
 });
 

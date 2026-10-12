@@ -49,6 +49,8 @@ async function configuredTables(): Promise<AuthTables> {
     twoFactorIssuer: APP_NAME,
     passkey: AUTH_PLACEHOLDER.passkey,
     mailer: { send: async () => {} },
+    // These tests are not about breached passwords: keep them off the network.
+    hibpEnabled: false,
   });
   return (await auth.$context).tables;
 }
