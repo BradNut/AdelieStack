@@ -27,6 +27,15 @@ commented out, so MFA is not a live feature today.
 
 ### Signup Flow
 
+> **Registration is closed by default** (`SIGN_UP_ENABLED`, see
+> [ADR 0002](../../../docs/adr/0002-sign-up-closed-by-default.md)). The root layout load reads the
+> flag from the public `GET /api/config` endpoint (failing closed on any error) and exposes it as
+> `signUpEnabled`. When closed, `/signup` redirects to `/login` with a flash message, the
+> "Sign up" link in the auth layout and the landing page's "Create an account" button are hidden,
+> and Better Auth's `EMAIL_PASSWORD_SIGN_UP_DISABLED` error shows the shared
+> `SIGN_UP_CLOSED_MESSAGE`. The steps below describe the flow when registration is open and
+> predate the move to Better Auth.
+
 1. User navigates to `/signup`.
 2. `load` redirects to `/` if already authenticated.
 3. Enters username, password, confirm password, and optional email; validated client-side and
