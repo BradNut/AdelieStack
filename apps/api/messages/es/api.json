@@ -2,5 +2,6 @@
   "$schema": "https://inlang.com/schema/inlang-message-format",
   "auth_login_required": "Debes iniciar sesión para acceder a este recurso",
   "auth_logout_required": "Debes cerrar sesión para acceder a este recurso",
-  "auth_role_forbidden": "No tienes permiso para acceder a este recurso"
+  "auth_role_forbidden": "No tienes permiso para acceder a este recurso",
+  "auth_multiple_roles_disabled": "La asignación de más de un rol está desactivada (ALLOW_MULTIPLE_ROLES está desactivado)"
 }

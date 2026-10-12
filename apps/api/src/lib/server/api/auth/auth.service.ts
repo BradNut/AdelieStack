@@ -36,6 +36,7 @@ export class AuthService {
         origin: this.configService.envs.ORIGIN,
       },
       mailer: this.mailerService,
+      allowMultipleRoles: () => this.configService.envs.ALLOW_MULTIPLE_ROLES,
       hibpEnabled: this.configService.envs.HIBP_ENABLED,
       hibpStatus: this.hibpStatus,
     });
