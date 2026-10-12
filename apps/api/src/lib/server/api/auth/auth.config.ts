@@ -8,6 +8,7 @@ import { uuidv7 } from '../common/utils/crypto';
 import type * as drizzleSchema from '../databases/postgres/drizzle-schema';
 import type { Mailer } from '../mail/interfaces/mailer.interface';
 import { TwoFactorOtpEmail } from '../mail/templates/two-factor-otp.template';
+import { HibpStatus, hibpMonitor } from './auth.hibp-status';
 import { createAuthMail } from './auth.mail';
 import { createPasswordPolicyHook, HIBP_PLUGIN_PATHS } from './auth.password-policy';
 import { ac, roles } from './auth.permissions';
@@ -49,6 +50,8 @@ export interface CreateAuthOptions {
   mailer: Mailer;
   /** Screens new passwords against Have I Been Pwned. Defaults to on; an outage rejects the request while on. */
   hibpEnabled?: boolean;
+  /** Records each HIBP check's outcome for the health surface; created internally when omitted. */
+  hibpStatus?: HibpStatus;
 }
 
 /** Better Auth's Drizzle adapter over our schema. Table names are plural (`users`, `sessions`, ...). */
@@ -75,6 +78,7 @@ export function createAuth({
   passkey: passkeyConfig,
   mailer,
   hibpEnabled = true,
+  hibpStatus = new HibpStatus({ enabled: hibpEnabled }),
 }: CreateAuthOptions) {
   const authMail = createAuthMail(mailer);
   return betterAuth({
@@ -104,7 +108,7 @@ export function createAuth({
       onPasswordReset: authMail.notifyPasswordChanged,
     },
     hooks: {
-      before: createPasswordPolicyHook({ hibpEnabled }),
+      before: createPasswordPolicyHook({ hibpEnabled, hibpStatus }),
       after: authMail.afterHook,
     },
     plugins: [
@@ -137,6 +141,8 @@ export function createAuth({
       // unreachable. With `enabled: false` it makes no HIBP request on any path. Admin create-user and
       // reset-password are screened earlier, in the before-hook (see auth.password-policy.ts).
       haveIBeenPwned({ enabled: hibpEnabled, paths: [...HIBP_PLUGIN_PATHS] }),
+      // Must come after haveIBeenPwned: it wraps that plugin's hashing to record each check's outcome.
+      hibpMonitor(hibpStatus, { enabled: hibpEnabled }),
     ],
     advanced: {
       database: {

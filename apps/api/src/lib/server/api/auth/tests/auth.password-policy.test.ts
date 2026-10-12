@@ -272,7 +272,7 @@ describe('password policy hook: admin paths', () => {
   it('fails closed on create-user when HIBP is unavailable and leaves no user row', async () => {
     mockHibp([], 503);
 
-    await expect(adminCreate(OTHER_PASSWORD)).rejects.toMatchObject({ status: 'INTERNAL_SERVER_ERROR' });
+    await expect(adminCreate(OTHER_PASSWORD)).rejects.toMatchObject({ status: 'SERVICE_UNAVAILABLE' });
     expect(await (await auth.$context).internalAdapter.findUserByEmail('admin-created@example.com')).toBeNull();
   });
 
@@ -297,7 +297,7 @@ describe('password policy hook: admin paths', () => {
     mockHibp([], 503);
 
     await expect(auth.api.setUserPassword({ headers: adminHeaders, body: { userId: user.id, newPassword: OTHER_PASSWORD } })).rejects.toMatchObject({
-      status: 'INTERNAL_SERVER_ERROR',
+      status: 'SERVICE_UNAVAILABLE',
     });
   });
 
@@ -384,7 +384,7 @@ describe('breached password screening (haveIBeenPwned, mocked)', () => {
     mockHibp([]);
     const accepted = await post('/reset-password', { newPassword: OTHER_PASSWORD, token });
 
-    expect(rejected.status).toBe(500);
+    expect(rejected.status).toBe(503);
     expect(accepted.status).toBe(200);
   });
 
@@ -433,7 +433,7 @@ describe('breached password screening (haveIBeenPwned, mocked)', () => {
 
     const res = await signUp(COMPLIANT_PASSWORD);
 
-    expect(res.status).toBe(500);
+    expect(res.status).toBe(503);
     expect(await (await auth.$context).internalAdapter.findUserByEmail(EMAIL)).toBeNull();
   });
 
@@ -444,7 +444,7 @@ describe('breached password screening (haveIBeenPwned, mocked)', () => {
 
     const res = await post('/change-password', { currentPassword: COMPLIANT_PASSWORD, newPassword: OTHER_PASSWORD }, cookie);
 
-    expect(res.status).toBe(500);
+    expect(res.status).toBe(503);
     mockHibp([]);
     await signInCookie(COMPLIANT_PASSWORD);
   });

@@ -2,6 +2,7 @@ import {
   isPasswordPolicyRule,
   MAX_PASSWORD_LENGTH,
   MIN_PASSWORD_LENGTH,
+  PASSWORD_CHECK_UNAVAILABLE,
   PASSWORD_COMPROMISED,
   PASSWORD_POLICY_RULES,
   type PasswordPolicyRule,
@@ -22,11 +23,12 @@ export function passwordPolicyMessages(rules: readonly PasswordPolicyRule[], opt
   return rules.map((rule) => RULE_MESSAGES[rule](options));
 }
 
-/** Translates rule-code and breached-password form errors; any other error text passes through unchanged. */
+/** Translates rule-code, breached-password and check-unavailable form errors; any other error text passes through unchanged. */
 export function passwordFieldErrors(errors: readonly string[] | undefined, options: MessageOptions = {}): string[] {
   return (errors ?? []).map((error) => {
     if (isPasswordPolicyRule(error)) return RULE_MESSAGES[error](options);
     if (error === PASSWORD_COMPROMISED) return m.validation_password_compromised({}, options);
+    if (error === PASSWORD_CHECK_UNAVAILABLE) return m.validation_password_check_unavailable({}, options);
     return error;
   });
 }

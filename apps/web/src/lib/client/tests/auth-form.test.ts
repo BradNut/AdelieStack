@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 vi.mock('svelte-sonner', () => ({ toast: { error: vi.fn() } }));
 vi.mock('$app/navigation', () => ({ invalidateAll: vi.fn() }));
 
-import { PASSWORD_COMPROMISED, PASSWORD_POLICY_RULES, PASSWORD_POLICY_VIOLATION } from '@adelie/shared';
+import { PASSWORD_CHECK_UNAVAILABLE, PASSWORD_COMPROMISED, PASSWORD_POLICY_RULES, PASSWORD_POLICY_VIOLATION } from '@adelie/shared';
 import { toast } from 'svelte-sonner';
 import { authErrorMessage, GENERIC_AUTH_ERROR, passwordRejectionCodes, toastIfError } from '../auth-form';
 
@@ -53,6 +53,10 @@ describe('passwordRejectionCodes', () => {
     expect(passwordRejectionCodes({ code: PASSWORD_COMPROMISED, message: 'The password you entered has been compromised.' })).toEqual([
       PASSWORD_COMPROMISED,
     ]);
+  });
+
+  it('maps an HIBP outage to its own code', () => {
+    expect(passwordRejectionCodes({ code: PASSWORD_CHECK_UNAVAILABLE, message: 'Failed to check password.' })).toEqual([PASSWORD_CHECK_UNAVAILABLE]);
   });
 
   it.each([

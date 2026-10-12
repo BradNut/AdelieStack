@@ -8,5 +8,6 @@
   "validation_password_rule_min_length": "La contraseña debe tener al menos {min} caracteres",
   "validation_password_rule_max_length": "La contraseña debe tener como máximo {max} caracteres",
   "validation_password_rule_leading_or_trailing_space": "La contraseña no debe empezar ni terminar con un espacio",
-  "validation_password_compromised": "Esta contraseña apareció en una filtración de datos. Elige otra distinta."
+  "validation_password_compromised": "Esta contraseña apareció en una filtración de datos. Elige otra distinta.",
+  "validation_password_check_unavailable": "No podemos verificar tu contraseña en este momento. Inténtalo de nuevo más tarde."
 }

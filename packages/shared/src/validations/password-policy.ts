@@ -5,6 +5,9 @@ export const PASSWORD_POLICY_VIOLATION = 'PASSWORD_POLICY_VIOLATION' as const;
 /** Error code Better Auth's haveIBeenPwned plugin returns (400) for a breached password. */
 export const PASSWORD_COMPROMISED = 'PASSWORD_COMPROMISED' as const;
 
+/** Error code (503) returned when the breached-password check could not run because HIBP is unreachable. */
+export const PASSWORD_CHECK_UNAVAILABLE = 'PASSWORD_CHECK_UNAVAILABLE' as const;
+
 /**
  * Length limits plus no leading or trailing space (OWASP / https://auth.pilcrowonpaper.com/passwords).
  * No composition rules; compromised passwords are screened server-side by Better Auth's haveIBeenPwned plugin.
