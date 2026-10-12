@@ -16,4 +16,6 @@ export const auth = createAuth({
   twoFactorIssuer: APP_NAME,
   passkey: AUTH_PLACEHOLDER.passkey,
   mailer: { send: async () => {} },
+  // Schema generation never signs anyone up.
+  signUpEnabled: false,
 });

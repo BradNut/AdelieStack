@@ -56,6 +56,8 @@ const auth = createAuth({
   passkey: AUTH_PLACEHOLDER.passkey,
   // Seeding never sends mail.
   mailer: { send: async () => {} },
+  // The seed creates users server-side, which the sign-up gate never blocks.
+  signUpEnabled: false,
 });
 
 const { ADMIN_EMAIL, ADMIN_PASSWORD } = new ConfigService().envs;

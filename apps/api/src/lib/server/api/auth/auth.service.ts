@@ -28,6 +28,7 @@ export class AuthService {
         origin: this.configService.envs.ORIGIN,
       },
       mailer: this.mailerService,
+      signUpEnabled: this.configService.envs.SIGN_UP_ENABLED,
     });
     return this.instance;
   }

@@ -46,6 +46,12 @@ export interface CreateAuthOptions {
   twoFactorIssuer: string;
   passkey: PasskeyConfig;
   mailer: Mailer;
+  /**
+   * Whether anyone may register an account. This is the single gate for sign-up: every sign-up
+   * method must honor it (auth.sign-up.test.ts fails when an ungated sign-up endpoint appears).
+   * Server-side user creation (the seed, the admin plugin) is not sign-up and is never blocked.
+   */
+  signUpEnabled: boolean;
 }
 
 /** Better Auth's Drizzle adapter over our schema. Table names are plural (`users`, `sessions`, ...). */
@@ -63,7 +69,16 @@ export function generateAuthId(): string {
  * it is created (lazily at runtime via {@link AuthService}, with a mock db for the CLI, or
  * over the memory adapter in tests).
  */
-export function createAuth({ database, secret, baseURL, trustedOrigins, twoFactorIssuer, passkey: passkeyConfig, mailer }: CreateAuthOptions) {
+export function createAuth({
+  database,
+  secret,
+  baseURL,
+  trustedOrigins,
+  twoFactorIssuer,
+  passkey: passkeyConfig,
+  mailer,
+  signUpEnabled,
+}: CreateAuthOptions) {
   const authMail = createAuthMail(mailer);
   return betterAuth({
     appName: APP_NAME,
@@ -86,6 +101,7 @@ export function createAuth({ database, secret, baseURL, trustedOrigins, twoFacto
     },
     emailAndPassword: {
       enabled: true,
+      disableSignUp: !signUpEnabled,
       sendResetPassword: authMail.sendResetPassword,
       onPasswordReset: authMail.notifyPasswordChanged,
     },

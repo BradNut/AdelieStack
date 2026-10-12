@@ -43,6 +43,7 @@ beforeEach(() => {
     twoFactorIssuer: 'AdelieStack',
     passkey: { rpID: 'localhost', rpName: 'AdelieStack', origin: ORIGIN },
     mailer: { send: async () => {} },
+    signUpEnabled: true,
   });
 });
 
