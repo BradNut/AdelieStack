@@ -31,6 +31,8 @@ export const envsDto = z.object({
   // or port) and the name shown in the passkey prompt. Passkeys only work on a matching origin.
   PASSKEY_RP_ID: z.string().min(1).default('localhost'),
   PASSKEY_RP_NAME: z.string().min(1).default(APP_NAME),
+  // Screen new passwords against Have I Been Pwned. Turn off to mitigate an HIBP outage (restart required).
+  HIBP_ENABLED: z.stringbool().default(true),
   ENV: z.enum(['dev', 'prod']),
   NODE_ENV: z.enum(['development', 'production']).default('development'),
   PORT: z.coerce.number(),

@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { ConfigService } from '../../common/configs/config.service';
 import { envsDto } from '../../common/configs/dtos/env.dto';
 import { validEnvs } from '../../common/configs/tests/env-fixtures';
+import type { LoggerService } from '../../common/services/logger.service';
 import type { DrizzleService } from '../../databases/postgres/drizzle.service';
 import * as drizzleSchema from '../../databases/postgres/drizzle-schema';
 import type { MailerService } from '../../mail/mailer.service';
@@ -17,7 +18,12 @@ function buildService() {
     },
   } as unknown as DrizzleService;
   const configService = { envs: envsDto.parse(validEnvs) } as ConfigService;
-  const service = new AuthService(configService, drizzleService, { send: async () => {} } as unknown as MailerService);
+  const service = new AuthService(
+    configService,
+    drizzleService,
+    { send: async () => {} } as unknown as MailerService,
+    { log: { error: vi.fn() } } as unknown as LoggerService,
+  );
   return { service, dbRead };
 }
 

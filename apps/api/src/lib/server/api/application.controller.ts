@@ -32,7 +32,9 @@ export class ApplicationController extends RootController {
         return c.json({ status: 'ok' });
       })
       .get('/healthz', (c) => {
-        return c.json({ status: 'ok' });
+        // HIBP is reported from the last breached-password check; probes never call it, and an outage
+        // does not fail liveness (sign-in and the rest of the app still work).
+        return c.json({ status: 'ok', hibp: this.authService.hibpStatus.health });
       })
       .get('/rate-limit', rateLimit({ limit: 3, minutes: 1 }), (c) => {
         return c.json({ message: 'Test!' });

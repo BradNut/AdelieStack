@@ -4,7 +4,7 @@ import type { SendProps } from '../../mail/interfaces/mailer.interface';
 import { type Auth, createAuth } from '../auth.config';
 
 const ORIGIN = 'http://localhost:5173';
-const PASSWORD = 'correct-horse-battery';
+const PASSWORD = 'Correct-horse-9';
 const RP_ID = 'example.com';
 const RP_NAME = 'Acme Penguins';
 
