@@ -2,8 +2,10 @@ import { Hono } from 'hono';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApplicationController } from '../application.controller';
 import type { AuthService } from '../auth/auth.service';
+import type { ConfigService } from '../common/configs/config.service';
 import { validEnvs } from '../common/configs/tests/env-fixtures';
 import { buildAuthSession, buildAuthUser } from '../common/testing/factories';
+import { ConfigController } from '../config/config.controller';
 import type { StorageWebhookController } from '../storage/storage-webhook.controller';
 import { UsersController } from '../users/users.controller';
 
@@ -12,9 +14,14 @@ const getSession = vi.fn();
 const authService = { auth: { handler, api: { getSession } } } as unknown as AuthService;
 
 function buildApp() {
-  return new ApplicationController(authService, new UsersController(), {
-    routes: () => new Hono(),
-  } as unknown as StorageWebhookController).registerControllers();
+  return new ApplicationController(
+    authService,
+    new UsersController(),
+    {
+      routes: () => new Hono(),
+    } as unknown as StorageWebhookController,
+    new ConfigController({ envs: { SIGN_UP_ENABLED: true } } as unknown as ConfigService),
+  ).registerControllers();
 }
 
 beforeEach(() => {
@@ -56,5 +63,14 @@ describe('GET /api/users/me', () => {
 
     expect(res.status).toBe(200);
     expect(await res.json()).toBeNull();
+  });
+});
+
+describe('GET /api/config', () => {
+  it('is public: returns signUpEnabled without a session', async () => {
+    const res = await buildApp().request('/api/config');
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ signUpEnabled: true });
   });
 });
