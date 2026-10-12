@@ -1,8 +1,11 @@
-import { APP_NAME } from '@adelie/shared';
+import { APP_NAME, CAPTCHA_PROVIDERS } from '@adelie/shared';
 import { z } from 'zod/v4';
 import { MailerTransport } from '../../../mail/mailer-transport.constant';
 
-export const envsDto = z.object({
+/** An env file declares optional variables as `NAME=`; treat that empty string as unset. */
+const emptyAsUndefined = (value: unknown) => (value === '' ? undefined : value);
+
+const baseEnvsDto = z.object({
   DATABASE_USER: z.string(),
   DATABASE_PASSWORD: z.string(),
   DATABASE_HOST: z.string(),
@@ -33,6 +36,13 @@ export const envsDto = z.object({
   PASSKEY_RP_NAME: z.string().min(1).default(APP_NAME),
   // Screen new passwords against Have I Been Pwned. Turn off to mitigate an HIBP outage (restart required).
   HIBP_ENABLED: z.stringbool().default(true),
+  // Captcha on anonymous auth endpoints. Off by default; when on, provider, secret and site key are required.
+  CAPTCHA_ENABLED: z.stringbool().default(false),
+  CAPTCHA_PROVIDER: z.preprocess(emptyAsUndefined, z.enum(CAPTCHA_PROVIDERS).optional()),
+  CAPTCHA_SECRET_KEY: z.preprocess(emptyAsUndefined, z.string().optional()),
+  CAPTCHA_SITE_KEY: z.preprocess(emptyAsUndefined, z.string().optional()),
+  // reCAPTCHA v3 only: scores below this are rejected.
+  CAPTCHA_MIN_SCORE: z.preprocess(emptyAsUndefined, z.coerce.number().min(0).max(1).optional()),
   ENV: z.enum(['dev', 'prod']),
   NODE_ENV: z.enum(['development', 'production']).default('development'),
   PORT: z.coerce.number(),
@@ -62,6 +72,15 @@ export const envsDto = z.object({
   SENTRY_BACKEND_URL: z.union([z.url(), z.literal('')]).optional(),
   OTEL_ENABLED: z.stringbool().default(false),
   OTEL_EXPORTER_OTLP_ENDPOINT: z.url().default('http://localhost:4318/v1/traces'),
+});
+
+const CAPTCHA_REQUIRED_WHEN_ENABLED = ['CAPTCHA_PROVIDER', 'CAPTCHA_SECRET_KEY', 'CAPTCHA_SITE_KEY'] as const;
+
+export const envsDto = baseEnvsDto.superRefine((envs, ctx) => {
+  if (!envs.CAPTCHA_ENABLED) return;
+  for (const name of CAPTCHA_REQUIRED_WHEN_ENABLED) {
+    if (envs[name] === undefined) ctx.addIssue({ code: 'custom', path: [name], message: `${name} is required when CAPTCHA_ENABLED is true` });
+  }
 });
 
 export type EnvsDto = z.infer<typeof envsDto>;
