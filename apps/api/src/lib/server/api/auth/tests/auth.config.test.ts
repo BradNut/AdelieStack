@@ -53,6 +53,7 @@ beforeEach(() => {
     twoFactorIssuer: 'AdelieStack',
     passkey: { rpID: 'localhost', rpName: 'AdelieStack', origin: ORIGIN },
     mailer: { send: async () => {} },
+    signUpEnabled: true,
     // These tests are not about breached passwords: keep them off the network.
     hibpEnabled: false,
   });

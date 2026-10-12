@@ -62,6 +62,7 @@ function buildAuth(hibpEnabled = true) {
     twoFactorIssuer: 'AdelieStack',
     passkey: { rpID: 'localhost', rpName: 'AdelieStack', origin: ORIGIN },
     mailer: { send: async () => {} },
+    signUpEnabled: true,
     hibpEnabled,
   });
 }

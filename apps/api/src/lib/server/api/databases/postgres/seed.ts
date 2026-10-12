@@ -56,10 +56,12 @@ const auth = createAuth({
   passkey: AUTH_PLACEHOLDER.passkey,
   // Seeding never sends mail.
   mailer: { send: async () => {} },
+  // The seed creates users server-side, which the sign-up gate never blocks.
+  signUpEnabled: false,
 });
 
-const { ADMIN_EMAIL, ADMIN_PASSWORD } = new ConfigService().envs;
-await seeds.users(auth, { adminEmail: ADMIN_EMAIL, adminPassword: ADMIN_PASSWORD });
+const { ADMIN_EMAIL, ADMIN_PASSWORD, SIGN_UP_ENABLED } = new ConfigService().envs;
+await seeds.users(auth, { adminEmail: ADMIN_EMAIL, adminPassword: ADMIN_PASSWORD, signUpEnabled: SIGN_UP_ENABLED });
 
 await db.$client.end();
 process.exit();

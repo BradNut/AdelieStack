@@ -49,6 +49,12 @@ export interface CreateAuthOptions {
   twoFactorIssuer: string;
   passkey: PasskeyConfig;
   mailer: Mailer;
+  /**
+   * Whether anyone may register an account. This is the single gate for sign-up: every sign-up
+   * method must honor it (auth.sign-up.test.ts fails when an ungated sign-up endpoint appears).
+   * Server-side user creation (the seed, the admin plugin) is not sign-up and is never blocked.
+   */
+  signUpEnabled: boolean;
   /** Read per request so the env stays lazy. Defaults to off: one role per user. */
   allowMultipleRoles?: () => boolean;
   /** Screens new passwords against Have I Been Pwned. Defaults to on; an outage rejects the request while on. */
@@ -80,6 +86,7 @@ export function createAuth({
   twoFactorIssuer,
   passkey: passkeyConfig,
   mailer,
+  signUpEnabled,
   allowMultipleRoles = () => false,
   hibpEnabled = true,
   hibpStatus = new HibpStatus({ enabled: hibpEnabled }),
@@ -106,6 +113,7 @@ export function createAuth({
     },
     emailAndPassword: {
       enabled: true,
+      disableSignUp: !signUpEnabled,
       minPasswordLength: MIN_PASSWORD_LENGTH,
       maxPasswordLength: MAX_PASSWORD_LENGTH,
       sendResetPassword: authMail.sendResetPassword,

@@ -1,4 +1,5 @@
 import {
+  AUTH_ERROR_MESSAGES,
   isPasswordPolicyRule,
   PASSWORD_CHECK_UNAVAILABLE,
   PASSWORD_COMPROMISED,
@@ -11,14 +12,14 @@ import { invalidateAll } from '$app/navigation';
 export const GENERIC_AUTH_ERROR = 'Something went wrong. Please try again.';
 
 interface AuthClientError {
-  message?: string;
   code?: string;
+  message?: string;
   rules?: unknown;
 }
 
-/** The message Better Auth returned, or a generic one when it gave none. */
+/** Our copy for the error's code when we have it, else the message Better Auth returned, else a generic one. */
 export function authErrorMessage(error: AuthClientError | null | undefined, fallback = GENERIC_AUTH_ERROR): string {
-  return error?.message || fallback;
+  return (error?.code && AUTH_ERROR_MESSAGES[error.code]) || error?.message || fallback;
 }
 
 export type PasswordRejectionCode = PasswordPolicyRule | typeof PASSWORD_COMPROMISED | typeof PASSWORD_CHECK_UNAVAILABLE;

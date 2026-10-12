@@ -8,6 +8,7 @@ import type { ConfigService } from '../common/configs/config.service';
 import { validEnvs } from '../common/configs/tests/env-fixtures';
 import type { LoggerService } from '../common/services/logger.service';
 import { buildAuthSession, buildAuthUser } from '../common/testing/factories';
+import { ConfigController } from '../config/config.controller';
 import type { StorageWebhookController } from '../storage/storage-webhook.controller';
 import { UsersController } from '../users/users.controller';
 
@@ -27,6 +28,7 @@ function buildApp() {
     {
       routes: () => new Hono(),
     } as unknown as StorageWebhookController,
+    new ConfigController({ envs: { SIGN_UP_ENABLED: true } } as unknown as ConfigService),
     new AdminExampleController(authService, rolesService),
   ).registerControllers();
 }
@@ -101,5 +103,14 @@ describe('GET /api/users/me', () => {
 
     expect(res.status).toBe(200);
     expect(await res.json()).toBeNull();
+  });
+});
+
+describe('GET /api/config', () => {
+  it('is public: returns signUpEnabled without a session', async () => {
+    const res = await buildApp().request('/api/config');
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ signUpEnabled: true });
   });
 });

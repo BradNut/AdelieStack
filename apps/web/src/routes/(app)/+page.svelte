@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { AppRoute } from '@adelie/shared';
 	import { Button } from '$lib/components/ui/button/index.js';
 
 	let { data } = $props();
@@ -46,8 +47,8 @@
 		</p>
 		<div class="flex flex-wrap gap-3">
 			<Button href="/docs">Read the docs</Button>
-			{#if !data.authedUser}
-				<Button href="/signup" variant="outline">Create an account</Button>
+			{#if !data.authedUser && data.signUpEnabled}
+				<Button href={AppRoute.SIGNUP} variant="outline">Create an account</Button>
 			{/if}
 		</div>
 	</section>
