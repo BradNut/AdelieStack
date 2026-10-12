@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { AppRoute } from "@adelie/shared";
 	import Logo from "@/components/logo.svelte";
 	import { page } from "$app/state";
 	import ThemeDropdown from "$lib/components/theme-dropdown.svelte";
@@ -16,8 +17,8 @@
 		{#if page.url.pathname !== "/login"}
 			<Button href="/login" variant="ghost">Login</Button>
 		{/if}
-		{#if data.signUpEnabled && page.url.pathname !== "/signup"}
-			<Button href="/signup" variant="ghost">Sign up</Button>
+		{#if data.signUpEnabled && page.url.pathname !== AppRoute.SIGNUP}
+			<Button href={AppRoute.SIGNUP} variant="ghost">Sign up</Button>
 		{/if}
 	</div>
 	<div class="auth-marketing">
