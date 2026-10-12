@@ -6,7 +6,7 @@
 	import { goto } from '$app/navigation';
 	import { authClient } from '$lib/auth-client';
 	import { authErrorMessage, passwordRejectionCodes } from '$lib/client/auth-form';
-	import { captchaFetchOptions } from '$lib/client/captcha/request';
+	import { createCaptchaForm } from '$lib/client/captcha/captcha-form.svelte';
 	import CaptchaField from '$lib/components/auth/captcha-field.svelte';
 	import PasswordFieldErrors from '$lib/components/auth/password-field-errors.svelte';
 	import * as Alert from '$lib/components/ui/alert/index.js';
@@ -20,8 +20,7 @@
 
 	const RESET_PATH = '/password/reset';
 	let emailSent = $state(false);
-	let captchaToken = $state('');
-	let captcha = $state<ReturnType<typeof CaptchaField>>();
+	const captcha = createCaptchaForm();
 
 	const sf_email = superForm(defaults(zod4(resetPasswordEmailDto)), {
 		SPA: true,
@@ -34,10 +33,9 @@
 					email: form.data.email,
 					redirectTo: RESET_PATH,
 				},
-				captchaFetchOptions(captchaToken),
+				captcha.fetchOptions(),
 			);
-			// A Captcha Token is single-use, so a new challenge is needed whatever the outcome.
-			captcha?.reset();
+			captcha.afterAttempt();
 			if (error) return setError(form, 'email', captchaErrorMessage(error) ?? authErrorMessage(error));
 			emailSent = true;
 		},
@@ -123,7 +121,7 @@
 					</Form.Control>
 					<Form.FieldErrors />
 				</Form.Field>
-				<CaptchaField bind:this={captcha} onchange={(token) => (captchaToken = token)} />
+				<CaptchaField bind:this={captcha.field} onchange={captcha.setToken} />
 				<div class="grid grid-cols-2">
 					<Form.Button>Send reset link</Form.Button>
 					<Button variant="link" class="text-secondary-foreground" href="/login">Back to login</Button>

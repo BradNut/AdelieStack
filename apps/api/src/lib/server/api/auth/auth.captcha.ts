@@ -7,6 +7,7 @@ import {
 } from '@adelie/shared';
 import type { BetterAuthPlugin } from 'better-auth';
 import { captcha } from 'better-auth/plugins';
+import type { EnvsDto } from '../common/configs/dtos/env.dto';
 
 /** Stable, greppable log message for every failed Captcha Token verification. */
 export const CAPTCHA_VERIFY_FAILED_LOG = 'CAPTCHA_VERIFY_FAILED';
@@ -25,6 +26,9 @@ export const CaptchaHealth = {
 
 export type CaptchaHealthStatus = (typeof CaptchaHealth)[keyof typeof CaptchaHealth];
 
+/** Outcomes a verification can have once captcha is on; `UNKNOWN` and `DISABLED` are states, not outcomes. */
+type CaptchaCheckResult = typeof CaptchaHealth.AVAILABLE | typeof CaptchaHealth.UNAVAILABLE;
+
 /** Better Auth's code for a verification that threw: here, only a provider that cannot be reached or answers an error. */
 const PLUGIN_UNKNOWN_ERROR = 'UNKNOWN_ERROR';
 
@@ -41,9 +45,16 @@ export interface CaptchaConfig {
   minScore?: number;
 }
 
+/** The captcha settings in the validated env, or undefined when captcha is off. The env schema guarantees the rest whenever it is on. */
+export function captchaConfigFromEnvs(envs: EnvsDto): CaptchaConfig | undefined {
+  const { CAPTCHA_ENABLED, CAPTCHA_PROVIDER, CAPTCHA_SECRET_KEY, CAPTCHA_SITE_KEY, CAPTCHA_MIN_SCORE } = envs;
+  if (!CAPTCHA_ENABLED || !CAPTCHA_PROVIDER || !CAPTCHA_SECRET_KEY || !CAPTCHA_SITE_KEY) return undefined;
+  return { provider: CAPTCHA_PROVIDER, secretKey: CAPTCHA_SECRET_KEY, siteKey: CAPTCHA_SITE_KEY, minScore: CAPTCHA_MIN_SCORE };
+}
+
 /** Remembers the outcome of the most recent verification so health probes can report it without calling the provider. */
 export class CaptchaStatus {
-  private lastCheck: typeof CaptchaHealth.AVAILABLE | typeof CaptchaHealth.UNAVAILABLE | null = null;
+  private lastCheck: CaptchaCheckResult | null = null;
 
   constructor(private readonly options: { enabled: boolean; log?: CaptchaLogger }) {}
 
@@ -87,6 +98,20 @@ function buildPlugin({ provider, secretKey, siteKey, minScore }: CaptchaConfig) 
   }
 }
 
+/**
+ * The plugin turns any throw while verifying (in practice only an unreachable or erroring provider) into a 500 with
+ * code `UNKNOWN_ERROR`. The outage tests in auth.captcha.test.ts fail if a Better Auth upgrade changes that.
+ */
+async function isProviderOutage(result: Awaited<ReturnType<NonNullable<BetterAuthPlugin['onRequest']>>>): Promise<boolean> {
+  const response = result && 'response' in result ? result.response : undefined;
+  if (response?.status !== 500) return false;
+  const body = (await response
+    .clone()
+    .json()
+    .catch(() => null)) as { code?: string } | null;
+  return body?.code === PLUGIN_UNKNOWN_ERROR;
+}
+
 const isProtectedPath = (request: Request, basePath: string): boolean => {
   const path = new URL(request.url).pathname.slice(basePath.length);
   return (CAPTCHA_PROTECTED_PATHS as readonly string[]).includes(path);
@@ -105,16 +130,7 @@ export function captchaPlugin(config: CaptchaConfig, status: CaptchaStatus): Bet
     async onRequest(request, ctx) {
       const result = await inner.onRequest?.(request, ctx);
       if (!request.headers.has(CAPTCHA_RESPONSE_HEADER) || !isProtectedPath(request, ctx.options.basePath ?? '/api/auth')) return result;
-      const response = result && 'response' in result ? result.response : undefined;
-      if (
-        response?.status === 500 &&
-        (
-          (await response
-            .clone()
-            .json()
-            .catch(() => null)) as { code?: string } | null
-        )?.code === PLUGIN_UNKNOWN_ERROR
-      ) {
+      if (await isProviderOutage(result)) {
         status.recordFailure();
         return { response: captchaUnavailable() };
       }

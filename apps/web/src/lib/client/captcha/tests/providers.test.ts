@@ -58,4 +58,13 @@ describe('language', () => {
 
     expect(api.render).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ language: 'de' }));
   });
+
+  it('is not passed to hCaptcha, which follows the browser', async () => {
+    const api = { render: vi.fn((_container: HTMLElement, _params: Record<string, unknown>) => 'id'), reset: vi.fn(), remove: vi.fn() };
+    window.hcaptcha = api;
+
+    await hcaptchaWidget.render(document.createElement('div'), options);
+
+    expect(api.render.mock.calls[0]?.[1]).not.toHaveProperty('language');
+  });
 });

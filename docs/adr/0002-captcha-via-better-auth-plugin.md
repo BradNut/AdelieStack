@@ -10,11 +10,13 @@ The trigger: the template already carries stale Turnstile leftovers (an unused `
 
 ## Decisions
 
-- `CAPTCHA_ENABLED` defaults to `false`. When `true`, the API refuses to start unless `CAPTCHA_PROVIDER` and `CAPTCHA_SECRET_KEY` are set. `pnpm initialize`, local dev and e2e need no third-party account.
+- `CAPTCHA_ENABLED` defaults to `false`. When `true`, the API refuses to start unless `CAPTCHA_PROVIDER`, `CAPTCHA_SECRET_KEY` and `CAPTCHA_SITE_KEY` are set. `pnpm initialize`, local dev and e2e need no third-party account.
 - The API holds all captcha configuration. The web fetches the provider and public site key at runtime from a public API config endpoint, so a clone configures captcha in one place and no web build arg is needed.
 - The API supports all four providers. The web ships widgets for Turnstile and hCaptcha behind a `CaptchaWidget` interface; clones add others.
 - Protected paths are `/sign-up/email`, `/sign-in/email`, `/request-password-reset` and `/send-verification-email`, kept in one shared `CAPTCHA_PROTECTED_PATHS` constant. Passkey, OAuth and session-bound endpoints are exempt.
 - A Captcha Provider outage fails closed with a 503 and a stable error code. The operator kill switch is `CAPTCHA_ENABLED=false` plus a restart, as with `HIBP_ENABLED`.
+- The Turnstile widget loads Cloudflare's script directly instead of keeping the `svelte-turnstile` wrapper, so both shipped widgets share one small script loader and the dependency is dropped.
+- The web's Content-Security-Policy is static, but the provider is only known at runtime. The shipped providers' script, frame (and for hCaptcha, connect and style) origins are therefore always allow-listed, even when captcha is off. A per-request policy built in a hook would narrow this but would replace SvelteKit's automatic nonce and hash handling, so it is not used. A clone adding a widget adds its origins to `csp-directives.mjs`.
 - E2E runs with captcha disabled. The enabled path is covered by API tests with the verify call stubbed, plus one web test that the widget renders when the config endpoint reports it enabled. The runbooks document each provider's official test keys for clones that enable captcha in their own CI.
 - The stale `svelte-turnstile`-specific dependency usage and CI `TURNSTILE_*` variables are replaced with the generic names.
 

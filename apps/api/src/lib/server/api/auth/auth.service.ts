@@ -4,7 +4,7 @@ import { ConfigService } from '../common/configs/config.service';
 import { LoggerService } from '../common/services/logger.service';
 import { DrizzleService } from '../databases/postgres/drizzle.service';
 import { MailerService } from '../mail/mailer.service';
-import { type CaptchaConfig, CaptchaStatus } from './auth.captcha';
+import { type CaptchaConfig, CaptchaStatus, captchaConfigFromEnvs } from './auth.captcha';
 import { type Auth, createAuth, drizzleAuthDatabase } from './auth.config';
 import { HibpStatus } from './auth.hibp-status';
 
@@ -20,15 +20,11 @@ export class AuthService {
     private readonly loggerService = inject(LoggerService),
   ) {
     this.hibpStatus = new HibpStatus({ enabled: configService.envs.HIBP_ENABLED, log: this.loggerService.log });
-    const { CAPTCHA_ENABLED, CAPTCHA_PROVIDER, CAPTCHA_SECRET_KEY, CAPTCHA_SITE_KEY, CAPTCHA_MIN_SCORE } = configService.envs;
-    // The env schema guarantees provider, secret and site key whenever captcha is enabled.
-    if (CAPTCHA_ENABLED && CAPTCHA_PROVIDER && CAPTCHA_SECRET_KEY && CAPTCHA_SITE_KEY) {
-      this.captchaConfig = { provider: CAPTCHA_PROVIDER, secretKey: CAPTCHA_SECRET_KEY, siteKey: CAPTCHA_SITE_KEY, minScore: CAPTCHA_MIN_SCORE };
-    }
+    this.captchaConfig = captchaConfigFromEnvs(configService.envs);
     this.captchaStatus = new CaptchaStatus({ enabled: Boolean(this.captchaConfig), log: this.loggerService.log });
   }
 
-  private readonly captchaConfig?: CaptchaConfig;
+  private readonly captchaConfig: CaptchaConfig | undefined;
 
   /** Outcome of the most recent Captcha Token verification, for the health surface. */
   readonly captchaStatus: CaptchaStatus;
