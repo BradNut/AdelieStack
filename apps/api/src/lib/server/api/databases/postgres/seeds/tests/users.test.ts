@@ -41,4 +41,35 @@ describe('seed users', () => {
 
     expect(createdEmails()[0]).toBe('boss@example.com');
   });
+
+  describe('closed sign-up with no admin password', () => {
+    it('warns loudly, naming SIGN_UP_ENABLED and ADMIN_PASSWORD', async () => {
+      await seed(auth, { signUpEnabled: false });
+
+      const messages = vi.mocked(console.warn).mock.calls.map(([m]) => String(m));
+      const loud = messages.find((m) => m.includes('SIGN_UP_ENABLED') && m.includes('ADMIN_PASSWORD'));
+      expect(loud).toBeDefined();
+      expect(loud).toMatch(/sign in/i);
+    });
+
+    it('still seeds the sample users without throwing', async () => {
+      await expect(seed(auth, { signUpEnabled: false })).resolves.toBeUndefined();
+      expect(createUser).toHaveBeenCalled();
+    });
+
+    it('keeps the ordinary warning only when sign-up is open', async () => {
+      await seed(auth, { signUpEnabled: true });
+
+      const messages = vi.mocked(console.warn).mock.calls.map(([m]) => String(m));
+      expect(messages).toHaveLength(1);
+      expect(messages[0]).toContain('ADMIN_PASSWORD');
+      expect(messages[0]).not.toContain('SIGN_UP_ENABLED');
+    });
+
+    it('adds no extra warning when an admin password is set', async () => {
+      await seed(auth, { signUpEnabled: false, adminPassword: 'secret-pass' });
+
+      expect(console.warn).not.toHaveBeenCalled();
+    });
+  });
 });
