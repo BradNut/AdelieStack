@@ -5,8 +5,9 @@ const API_PORT = 3001;
 
 /**
  * The flows run against a real API and database, so the API needs its usual environment
- * (database, `BETTER_AUTH_*`, `ORIGIN`/`BETTER_AUTH_URL` set to the web origin below, and
- * `PASSKEY_RP_ID=localhost`, and `SIGN_UP_ENABLED=true`, because the flows register users through sign-up), with migrations applied and the admin seeded.
+ * (database, `BETTER_AUTH_*`, `ORIGIN`/`BETTER_AUTH_URL` set to the web origin below,
+ * `PASSKEY_RP_ID=localhost`, and `SIGN_UP_ENABLED=true`, because the flows register users through
+ * sign-up), with migrations applied and the admin seeded.
  *
  * Email arrives in Mailpit on :8025. Global setup starts a small stand-in when nothing is
  * listening there; with a real Mailpit running, that is used instead.

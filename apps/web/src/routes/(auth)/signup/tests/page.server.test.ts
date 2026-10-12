@@ -1,4 +1,4 @@
-import { SIGN_UP_CLOSED_MESSAGE } from '@adelie/shared';
+import { AppRoute, SIGN_UP_CLOSED_MESSAGE } from '@adelie/shared';
 import { describe, expect, it, vi } from 'vitest';
 import { load } from '../+page.server';
 
@@ -26,7 +26,7 @@ describe('/signup load', () => {
     const thrown = await redirectOf(() => load(event({ signUpEnabled: false })));
 
     expect(thrown?.status).toBe(303);
-    expect(thrown?.location).toBe('/login');
+    expect(thrown?.location).toBe(AppRoute.LOGIN);
   });
 
   it('flashes the closed-registration message', async () => {
@@ -44,6 +44,6 @@ describe('/signup load', () => {
   it('still sends a signed-in user home, whatever the flag says', async () => {
     const thrown = await redirectOf(() => load(event({ user: { id: 'u1' }, signUpEnabled: false })));
 
-    expect(thrown?.location).toBe('/');
+    expect(thrown?.location).toBe(AppRoute.HOME);
   });
 });

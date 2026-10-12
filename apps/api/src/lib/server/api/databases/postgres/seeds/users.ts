@@ -12,7 +12,7 @@ interface SeedUser {
 export interface SeedUsersOptions {
   adminEmail?: string;
   adminPassword?: string;
-  /** SIGN_UP_ENABLED. Defaults to open so callers that omit it keep the ordinary warning. */
+  /** SIGN_UP_ENABLED. Defaults to closed, like the env setting, so an omitted value never hides the warning. */
   signUpEnabled?: boolean;
 }
 
@@ -27,7 +27,7 @@ const NO_SIGN_IN_WARNING = [
  * skipped, with a message, when ADMIN_PASSWORD is unset. Users are created through the admin
  * plugin's server-side `createUser`, the only path that may set a role.
  */
-export default async function seed(auth: Pick<Auth, 'api'>, { adminEmail, adminPassword, signUpEnabled = true }: SeedUsersOptions = {}) {
+export default async function seed(auth: Pick<Auth, 'api'>, { adminEmail, adminPassword, signUpEnabled = false }: SeedUsersOptions = {}) {
   const seedUsers: SeedUser[] = [...(users as SeedUser[])];
   if (adminPassword) {
     seedUsers.unshift({

@@ -1,4 +1,4 @@
-import { type ApplyGlobalResponse, hc, type InferResponseType } from 'hono/client';
+import { type ApplyGlobalResponse, hc } from 'hono/client';
 import type { ApplicationController } from '../../../apps/api/src/lib/server/api/application.controller';
 
 interface GlobalErrors {
@@ -14,6 +14,3 @@ export type ApiRoutes = ApplyGlobalResponse<ReturnType<ApplicationController['re
 const rpc = hc<ApiRoutes>('http://localhost');
 
 export type ApiClient = typeof rpc;
-
-/** Response of `GET /api/config`; the unauthenticated runtime config the web app reads. */
-export type PublicConfigResponse = InferResponseType<ApiClient['api']['config']['$get'], 200>;
