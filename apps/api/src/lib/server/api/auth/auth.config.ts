@@ -50,7 +50,7 @@ export interface CreateAuthOptions {
   mailer: Mailer;
   /** Screens new passwords against Have I Been Pwned. Defaults to on; an outage rejects the request while on. */
   hibpEnabled?: boolean;
-  /** Records each HIBP check's outcome for the health surface; created internally when omitted. */
+  /** Records each HIBP check's outcome for the health surface and carries the on/off switch; overrides `hibpEnabled`. */
   hibpStatus?: HibpStatus;
 }
 
@@ -108,7 +108,7 @@ export function createAuth({
       onPasswordReset: authMail.notifyPasswordChanged,
     },
     hooks: {
-      before: createPasswordPolicyHook({ hibpEnabled, hibpStatus }),
+      before: createPasswordPolicyHook(hibpStatus),
       after: authMail.afterHook,
     },
     plugins: [
@@ -140,9 +140,9 @@ export function createAuth({
       // Rejects breached passwords (`PASSWORD_COMPROMISED`) while hashing, and fails closed when HIBP is
       // unreachable. With `enabled: false` it makes no HIBP request on any path. Admin create-user and
       // reset-password are screened earlier, in the before-hook (see auth.password-policy.ts).
-      haveIBeenPwned({ enabled: hibpEnabled, paths: [...HIBP_PLUGIN_PATHS] }),
+      haveIBeenPwned({ enabled: hibpStatus.enabled, paths: [...HIBP_PLUGIN_PATHS] }),
       // Must come after haveIBeenPwned: it wraps that plugin's hashing to record each check's outcome.
-      hibpMonitor(hibpStatus, { enabled: hibpEnabled }),
+      hibpMonitor(hibpStatus),
     ],
     advanced: {
       database: {

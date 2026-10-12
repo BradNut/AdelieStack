@@ -137,3 +137,17 @@ describe('HIBP monitoring through Better Auth', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });
+
+describe('outage detection', () => {
+  it('does not treat a non-HIBP 500 from hashing as an outage', async () => {
+    const { APIError } = await import('better-auth/api');
+    const { hibpMonitor } = await import('../auth.hibp-status');
+    const status = new HibpStatus({ enabled: true, log: { error: vi.fn() } });
+    const failure = new APIError('INTERNAL_SERVER_ERROR', { message: 'disk on fire' });
+    const init = hibpMonitor(status).init as (ctx: unknown) => { context: { password: { hash: (p: string) => Promise<string> } } };
+    const { context } = init({ password: { hash: async () => Promise.reject(failure) } });
+
+    await expect(context.password.hash('x')).rejects.toBe(failure);
+    expect(status.health).toBe(HibpHealth.UNKNOWN);
+  });
+});

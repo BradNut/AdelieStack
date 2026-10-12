@@ -165,7 +165,8 @@ if no user exists for the email.
 
 - `GET /api/users/me` — current-user profile, owned by `UsersController`, not IAM.
 - `GET /healthz`, `GET /rate-limit` — top-level health/rate-limit probes on
-  `ApplicationController`, not under `/api/iam`.
+  `ApplicationController`, not under `/api/iam`. `/healthz` returns `{ status: 'ok', hibp }` where `hibp` is
+  `disabled`, `unknown`, `available` or `unavailable` (last breached-password check; see the environment-config runbook).
 
 ## Rate Limits
 

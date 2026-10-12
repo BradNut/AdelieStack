@@ -1,7 +1,7 @@
-import { PASSWORD_CHECK_UNAVAILABLE, PASSWORD_COMPROMISED, PASSWORD_POLICY_VIOLATION, validatePasswordPolicy } from '@adelie/shared';
+import { PASSWORD_COMPROMISED, PASSWORD_POLICY_VIOLATION, validatePasswordPolicy } from '@adelie/shared';
 import { APIError, createAuthMiddleware } from 'better-auth/api';
 import { isPasswordCompromised } from 'better-auth/plugins';
-import type { HibpStatus } from './auth.hibp-status';
+import { type HibpStatus, passwordCheckUnavailable } from './auth.hibp-status';
 
 /** Better Auth endpoint paths that set a password. */
 export const PasswordPolicyPath = {
@@ -41,23 +41,23 @@ const PRE_SCREENED_PATHS: readonly string[] = [PasswordPolicyPath.ADMIN_CREATE_U
 export const HIBP_PLUGIN_PATHS = [PasswordPolicyPath.SIGN_UP, PasswordPolicyPath.CHANGE_PASSWORD, PasswordPolicyPath.ADMIN_SET_USER_PASSWORD];
 
 /** Runs the plugin's own check, recording the outcome; an outage becomes a 503 with the stable unavailable code. */
-export async function checkPasswordCompromised(password: string, hibpStatus?: HibpStatus): Promise<boolean> {
+export async function checkPasswordCompromised(password: string, hibpStatus: HibpStatus): Promise<boolean> {
   try {
     const compromised = await isPasswordCompromised(password);
-    hibpStatus?.recordSuccess();
+    hibpStatus.recordSuccess();
     return compromised;
   } catch (error) {
-    hibpStatus?.recordFailure(error);
-    throw new APIError('SERVICE_UNAVAILABLE', { code: PASSWORD_CHECK_UNAVAILABLE, message: PASSWORD_CHECK_UNAVAILABLE });
+    hibpStatus.recordFailure(error);
+    throw passwordCheckUnavailable();
   }
 }
 
 /**
  * Rejects non-compliant passwords with a bad request carrying the stable code and violated rules.
- * With `hibpEnabled`, also screens {@link PRE_SCREENED_PATHS} with the plugin's own check: a breached
+ * With screening enabled on `hibpStatus`, also screens {@link PRE_SCREENED_PATHS} with the plugin's own check: a breached
  * password is `PASSWORD_COMPROMISED` and an unreachable HIBP rejects the request (fail closed, as a 503 `PASSWORD_CHECK_UNAVAILABLE`).
  */
-export const createPasswordPolicyHook = ({ hibpEnabled, hibpStatus }: { hibpEnabled: boolean; hibpStatus?: HibpStatus }) =>
+export const createPasswordPolicyHook = (hibpStatus: HibpStatus): ReturnType<typeof createAuthMiddleware> =>
   createAuthMiddleware(async (ctx) => {
     const field = isPasswordPolicyPath(ctx.path) ? PASSWORD_FIELD_BY_PATH[ctx.path] : undefined;
     if (!field) return;
@@ -68,7 +68,7 @@ export const createPasswordPolicyHook = ({ hibpEnabled, hibpStatus }: { hibpEnab
     if (rules.length > 0) {
       throw new APIError('BAD_REQUEST', { code: PASSWORD_POLICY_VIOLATION, message: PASSWORD_POLICY_VIOLATION, rules });
     }
-    if (hibpEnabled && PRE_SCREENED_PATHS.includes(ctx.path) && (await checkPasswordCompromised(password, hibpStatus))) {
+    if (hibpStatus.enabled && PRE_SCREENED_PATHS.includes(ctx.path) && (await checkPasswordCompromised(password, hibpStatus))) {
       throw new APIError('BAD_REQUEST', { code: PASSWORD_COMPROMISED, message: PASSWORD_COMPROMISED });
     }
   });
