@@ -266,6 +266,30 @@ describe('password policy hook: admin paths', () => {
     mockHibp([PWNED_PASSWORD]);
 
     await expect(adminCreate(PWNED_PASSWORD)).rejects.toMatchObject({ status: 'BAD_REQUEST', body: { code: PASSWORD_COMPROMISED } });
+    expect(await (await auth.$context).internalAdapter.findUserByEmail('admin-created@example.com')).toBeNull();
+  });
+
+  it('fails closed on create-user when HIBP is unavailable and leaves no user row', async () => {
+    mockHibp([], 503);
+
+    await expect(adminCreate(OTHER_PASSWORD)).rejects.toMatchObject({ status: 'INTERNAL_SERVER_ERROR' });
+    expect(await (await auth.$context).internalAdapter.findUserByEmail('admin-created@example.com')).toBeNull();
+  });
+
+  it('does not call HIBP on create-user when the switch is off', async () => {
+    const fetchMock = mockHibp([PWNED_PASSWORD]);
+    buildAuth(false);
+    await signUp(COMPLIANT_PASSWORD);
+    const { internalAdapter } = await auth.$context;
+    const found = await internalAdapter.findUserByEmail(EMAIL);
+    if (!found) throw new Error('admin fixture was not created');
+    await internalAdapter.updateUser(found.user.id, { role: 'admin' });
+    const headers = new Headers({ cookie: await signInCookie(COMPLIANT_PASSWORD) });
+
+    const res = await auth.api.createUser({ headers, body: { email: 'off@example.com', name: 'Off', password: PWNED_PASSWORD, role: 'user' } });
+
+    expect(res.user.email).toBe('off@example.com');
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('fails closed on set-user-password when HIBP is unavailable', async () => {
@@ -336,6 +360,44 @@ describe('breached password screening (haveIBeenPwned, mocked)', () => {
 
     expect(res.status).toBe(400);
     expect(((await res.json()) as { code: string }).code).toBe(PASSWORD_COMPROMISED);
+  });
+
+  it('keeps the reset link usable after rejecting a breached password', async () => {
+    await seedUser(COMPLIANT_PASSWORD);
+    const token = await resetToken();
+    mockHibp([PWNED_PASSWORD]);
+
+    const rejected = await post('/reset-password', { newPassword: PWNED_PASSWORD, token });
+    const accepted = await post('/reset-password', { newPassword: OTHER_PASSWORD, token });
+
+    expect(rejected.status).toBe(400);
+    expect(accepted.status).toBe(200);
+    await signInCookie(OTHER_PASSWORD);
+  });
+
+  it('keeps the reset link usable after an HIBP outage rejects the request', async () => {
+    await seedUser(COMPLIANT_PASSWORD);
+    const token = await resetToken();
+    mockHibp([], 503);
+
+    const rejected = await post('/reset-password', { newPassword: OTHER_PASSWORD, token });
+    mockHibp([]);
+    const accepted = await post('/reset-password', { newPassword: OTHER_PASSWORD, token });
+
+    expect(rejected.status).toBe(500);
+    expect(accepted.status).toBe(200);
+  });
+
+  it('does not call HIBP on reset-password when the switch is off', async () => {
+    buildAuth(false);
+    await seedUser(COMPLIANT_PASSWORD);
+    const token = await resetToken();
+    const fetchMock = mockHibp([PWNED_PASSWORD]);
+
+    const res = await post('/reset-password', { newPassword: PWNED_PASSWORD, token });
+
+    expect(res.status).toBe(200);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('rejects a breached new password on change-password', async () => {

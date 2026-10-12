@@ -9,7 +9,7 @@ import type * as drizzleSchema from '../databases/postgres/drizzle-schema';
 import type { Mailer } from '../mail/interfaces/mailer.interface';
 import { TwoFactorOtpEmail } from '../mail/templates/two-factor-otp.template';
 import { createAuthMail } from './auth.mail';
-import { passwordPolicyHook } from './auth.password-policy';
+import { createPasswordPolicyHook, HIBP_PLUGIN_PATHS } from './auth.password-policy';
 import { ac, roles } from './auth.permissions';
 
 /** Prefix of every API route. */
@@ -104,7 +104,7 @@ export function createAuth({
       onPasswordReset: authMail.notifyPasswordChanged,
     },
     hooks: {
-      before: passwordPolicyHook,
+      before: createPasswordPolicyHook({ hibpEnabled }),
       after: authMail.afterHook,
     },
     plugins: [
@@ -134,8 +134,9 @@ export function createAuth({
         origin: passkeyConfig.origin,
       }),
       // Rejects breached passwords (`PASSWORD_COMPROMISED`) while hashing, and fails closed when HIBP is
-      // unreachable. With `enabled: false` it makes no HIBP request on any path.
-      haveIBeenPwned({ enabled: hibpEnabled }),
+      // unreachable. With `enabled: false` it makes no HIBP request on any path. Admin create-user and
+      // reset-password are screened earlier, in the before-hook (see auth.password-policy.ts).
+      haveIBeenPwned({ enabled: hibpEnabled, paths: [...HIBP_PLUGIN_PATHS] }),
     ],
     advanced: {
       database: {
