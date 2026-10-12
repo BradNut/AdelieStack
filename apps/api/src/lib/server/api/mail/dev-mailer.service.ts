@@ -11,7 +11,7 @@ export class DevMailerService implements Mailer {
       },
       body: JSON.stringify({
         Attachments: [],
-        From: { Email: 'noreply@tofustack.com', Name: 'TofuStack' },
+        From: { Email: 'noreply@adelie.local', Name: 'AdelieStack' },
         HTML: template.html(),
         Subject: template.subject(),
         Text: template.html(),
