@@ -8,6 +8,7 @@ import { uuidv7 } from '../common/utils/crypto';
 import type * as drizzleSchema from '../databases/postgres/drizzle-schema';
 import type { Mailer } from '../mail/interfaces/mailer.interface';
 import { TwoFactorOtpEmail } from '../mail/templates/two-factor-otp.template';
+import { type CaptchaConfig, CaptchaStatus, captchaPlugin } from './auth.captcha';
 import { HibpStatus, hibpMonitor } from './auth.hibp-status';
 import { createAuthMail } from './auth.mail';
 import { createPasswordPolicyHook, HIBP_PLUGIN_PATHS } from './auth.password-policy';
@@ -61,6 +62,10 @@ export interface CreateAuthOptions {
   hibpEnabled?: boolean;
   /** Records each HIBP check's outcome for the health surface and carries the on/off switch; overrides `hibpEnabled`. */
   hibpStatus?: HibpStatus;
+  /** Requires a Captcha Token on anonymous auth endpoints. Omit to leave captcha off. */
+  captcha?: CaptchaConfig;
+  /** Records each verification's outcome for the health surface. */
+  captchaStatus?: CaptchaStatus;
 }
 
 /** Better Auth's Drizzle adapter over our schema. Table names are plural (`users`, `sessions`, ...). */
@@ -90,6 +95,8 @@ export function createAuth({
   allowMultipleRoles = () => false,
   hibpEnabled = true,
   hibpStatus = new HibpStatus({ enabled: hibpEnabled }),
+  captcha: captchaConfig,
+  captchaStatus = new CaptchaStatus({ enabled: Boolean(captchaConfig) }),
 }: CreateAuthOptions) {
   const authMail = createAuthMail(mailer);
   return betterAuth({
@@ -155,6 +162,8 @@ export function createAuth({
       haveIBeenPwned({ enabled: hibpStatus.enabled, paths: [...HIBP_PLUGIN_PATHS] }),
       // Must come after haveIBeenPwned: it wraps that plugin's hashing to record each check's outcome.
       hibpMonitor(hibpStatus),
+      // Only registered when captcha is on, so off means no behaviour change. Its `onRequest` runs before every hook.
+      ...(captchaConfig ? [captchaPlugin(captchaConfig, captchaStatus)] : []),
       // Per-plugin before-hook, since the top-level `hooks.before` slot is taken by the password policy.
       {
         id: 'role-guard',

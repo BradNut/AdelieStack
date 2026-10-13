@@ -9,7 +9,7 @@ import * as drizzleSchema from '../../databases/postgres/drizzle-schema';
 import type { MailerService } from '../../mail/mailer.service';
 import { AuthService } from '../auth.service';
 
-function buildService() {
+function buildService(envs: Record<string, string> = {}) {
   const dbRead = vi.fn();
   const drizzleService = {
     get db() {
@@ -17,7 +17,7 @@ function buildService() {
       return drizzle.mock({ casing: 'snake_case', schema: drizzleSchema });
     },
   } as unknown as DrizzleService;
-  const configService = { envs: envsDto.parse(validEnvs) } as ConfigService;
+  const configService = { envs: envsDto.parse({ ...validEnvs, ...envs }) } as ConfigService;
   const service = new AuthService(
     configService,
     drizzleService,
@@ -41,5 +41,19 @@ describe('AuthService', () => {
 
     expect(service.auth).toBe(service.auth);
     expect(dbRead).toHaveBeenCalledOnce();
+  });
+
+  it('reports captcha disabled, with no provider details, by default', () => {
+    const { service } = buildService();
+
+    expect(service.captchaPublicConfig).toEqual({ enabled: false });
+    expect(service.captchaStatus.health).toBe('disabled');
+  });
+
+  it('exposes only enabled, provider and site key when captcha is on', () => {
+    const { service } = buildService({ CAPTCHA_ENABLED: 'true', CAPTCHA_PROVIDER: 'hcaptcha', CAPTCHA_SECRET_KEY: 'shh', CAPTCHA_SITE_KEY: 'site' });
+
+    expect(service.captchaPublicConfig).toEqual({ enabled: true, provider: 'hcaptcha', siteKey: 'site' });
+    expect(service.captchaStatus.health).toBe('unknown');
   });
 });

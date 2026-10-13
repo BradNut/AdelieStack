@@ -48,10 +48,18 @@ Docker). At build time, `@varlock/vite-integration`'s Vite plugin (wired in
 | `SENTRY_URL` | `url` | no | empty | Only meaningful when the Sentry build plugin is enabled. |
 | `SENTRY_AUTH_TOKEN` | — | no | empty | Sensitive (no `@sensitive=false` annotation, so it's inferred sensitive since it isn't `PUBLIC_`-prefixed). |
 
-There is no `REDIS_URL`, `TURNSTILE_SECRET_KEY`, `PUBLIC_TURNSTILE_SITE_KEY`, `API_KEY`,
+There is no `REDIS_URL`, `API_KEY`,
 `API_BASE_URL`, `SITE_NAME`, `SITE_URL`, `SUPPORT_EMAIL`, `PUBLIC_UMAMI_URL`/`PUBLIC_UMAMI_ID`,
 `OTEL_*`, or `SITE_VERSION`/`PUBLIC_SITE_VERSION` in `apps/web/.env.schema` — none of these are
 real web-app config. (Redis is API-side only; see [Session Issues](./session-issues.md).)
+
+### Captcha
+
+The web has no captcha variables. Captcha is configured only in the API env (`CAPTCHA_*`, see the
+[API environment runbook](../../api/runbooks/environment-config.md#captcha)). The web reads whether it
+is on, the provider and the public site key at runtime from `GET /api/config/captcha`, renders the
+matching widget (Cloudflare Turnstile or hCaptcha ship; other providers need a `CaptchaWidget`
+implementation) and sends the token in the `x-captcha-response` header.
 
 ## Local Dev
 

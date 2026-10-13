@@ -6,17 +6,21 @@
 	import { goto } from '$app/navigation';
 	import { authClient } from '$lib/auth-client';
 	import { authErrorMessage, passwordRejectionCodes } from '$lib/client/auth-form';
+	import { createCaptchaForm } from '$lib/client/captcha/captcha-form.svelte';
+	import CaptchaField from '$lib/components/auth/captcha-field.svelte';
 	import PasswordFieldErrors from '$lib/components/auth/password-field-errors.svelte';
 	import * as Alert from '$lib/components/ui/alert/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import * as Card from '$lib/components/ui/card/index.js';
 	import * as Form from '$lib/components/ui/form/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
+	import { captchaErrorMessage } from '$lib/utils/captcha-messages';
 
 	const { data } = $props();
 
 	const RESET_PATH = '/password/reset';
 	let emailSent = $state(false);
+	const captcha = createCaptchaForm();
 
 	const sf_email = superForm(defaults(zod4(resetPasswordEmailDto)), {
 		SPA: true,
@@ -24,11 +28,15 @@
 		resetForm: false,
 		async onUpdate({ form }) {
 			if (!form.valid) return;
-			const { error } = await authClient.requestPasswordReset({
-				email: form.data.email,
-				redirectTo: RESET_PATH,
-			});
-			if (error) return setError(form, 'email', authErrorMessage(error));
+			const { error } = await authClient.requestPasswordReset(
+				{
+					email: form.data.email,
+					redirectTo: RESET_PATH,
+				},
+				captcha.fetchOptions(),
+			);
+			captcha.afterAttempt();
+			if (error) return setError(form, 'email', captchaErrorMessage(error) ?? authErrorMessage(error));
 			emailSent = true;
 		},
 	});
@@ -113,6 +121,7 @@
 					</Form.Control>
 					<Form.FieldErrors />
 				</Form.Field>
+				<CaptchaField bind:this={captcha.field} onchange={captcha.setToken} />
 				<div class="grid grid-cols-2">
 					<Form.Button>Send reset link</Form.Button>
 					<Button variant="link" class="text-secondary-foreground" href="/login">Back to login</Button>

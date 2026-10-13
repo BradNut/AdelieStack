@@ -5,6 +5,7 @@
   "validation_password_required": "Passwort erforderlich",
   "validation_password_invalid": "Ungültiges Passwort",
   "validation_captcha_invalid": "Ungültiger Captcha, bitte versuchen Sie es erneut.",
+  "validation_captcha_unavailable": "Captcha ist vorübergehend nicht verfügbar. Bitte versuchen Sie es später erneut.",
   "validation_password_rule_min_length": "Das Passwort muss mindestens {min} Zeichen lang sein",
   "validation_password_rule_max_length": "Das Passwort darf höchstens {max} Zeichen lang sein",
   "validation_password_rule_leading_or_trailing_space": "Das Passwort darf nicht mit einem Leerzeichen beginnen oder enden",

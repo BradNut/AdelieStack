@@ -35,11 +35,12 @@ export const validEnvs: Record<string, string> = {
   OTEL_EXPORTER_OTLP_ENDPOINT: 'http://localhost:4318/v1/traces',
 };
 
-const envKeys = Object.keys(validEnvs);
+const envKeys = new Set(Object.keys(validEnvs));
 
 /**
  * Replaces the canonical env keys on `process.env` with `envObj`. Keys with an `undefined`
- * value are deleted, so callers can simulate a missing variable.
+ * value are deleted, so callers can simulate a missing variable. Extra keys set by an earlier call
+ * are removed too, so they cannot leak into the next test.
  */
 export function setProcessEnvs(envObj: Record<string, unknown>) {
   for (const key of envKeys) {
@@ -47,6 +48,7 @@ export function setProcessEnvs(envObj: Record<string, unknown>) {
   }
 
   for (const [key, value] of Object.entries(envObj)) {
+    envKeys.add(key);
     if (value === undefined) {
       delete process.env[key];
     } else {

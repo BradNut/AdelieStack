@@ -1,8 +1,10 @@
+import type { CaptchaPublicConfig } from '@adelie/shared';
 import { inject, injectable } from '@needle-di/core';
 import { ConfigService } from '../common/configs/config.service';
 import { LoggerService } from '../common/services/logger.service';
 import { DrizzleService } from '../databases/postgres/drizzle.service';
 import { MailerService } from '../mail/mailer.service';
+import { type CaptchaConfig, CaptchaStatus, captchaConfigFromEnvs } from './auth.captcha';
 import { type Auth, createAuth, drizzleAuthDatabase } from './auth.config';
 import { HibpStatus } from './auth.hibp-status';
 
@@ -18,6 +20,19 @@ export class AuthService {
     private readonly loggerService = inject(LoggerService),
   ) {
     this.hibpStatus = new HibpStatus({ enabled: configService.envs.HIBP_ENABLED, log: this.loggerService.log });
+    this.captchaConfig = captchaConfigFromEnvs(configService.envs);
+    this.captchaStatus = new CaptchaStatus({ enabled: Boolean(this.captchaConfig), log: this.loggerService.log });
+  }
+
+  private readonly captchaConfig: CaptchaConfig | undefined;
+
+  /** Outcome of the most recent Captcha Token verification, for the health surface. */
+  readonly captchaStatus: CaptchaStatus;
+
+  /** What the web may know about captcha: never the secret. */
+  get captchaPublicConfig(): CaptchaPublicConfig {
+    if (!this.captchaConfig) return { enabled: false };
+    return { enabled: true, provider: this.captchaConfig.provider, siteKey: this.captchaConfig.siteKey };
   }
 
   /** Outcome of the most recent breached-password check, for the health surface. */
@@ -40,6 +55,8 @@ export class AuthService {
       allowMultipleRoles: () => this.configService.envs.ALLOW_MULTIPLE_ROLES,
       hibpEnabled: this.configService.envs.HIBP_ENABLED,
       hibpStatus: this.hibpStatus,
+      captcha: this.captchaConfig,
+      captchaStatus: this.captchaStatus,
     });
     return this.instance;
   }

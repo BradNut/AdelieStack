@@ -72,3 +72,49 @@ describe('ConfigService', () => {
     expect(() => new ConfigService()).toThrowError(/HIBP_ENABLED/);
   });
 });
+
+describe('ConfigService captcha settings', () => {
+  const enabled = { CAPTCHA_ENABLED: 'true', CAPTCHA_PROVIDER: 'hcaptcha', CAPTCHA_SECRET_KEY: 'secret', CAPTCHA_SITE_KEY: 'site' };
+
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  afterEach(() => {
+    setProcessEnvs(validEnvs);
+  });
+
+  async function create(envs: Record<string, string | undefined>) {
+    setProcessEnvs({ ...validEnvs, ...envs });
+    const { ConfigService } = await import('../config.service');
+    return new ConfigService();
+  }
+
+  it('is off by default and needs no captcha variables', async () => {
+    expect((await create({})).envs.CAPTCHA_ENABLED).toBe(false);
+  });
+
+  it('accepts a complete enabled configuration', async () => {
+    const { envs } = await create(enabled);
+    expect(envs).toMatchObject({ CAPTCHA_ENABLED: true, CAPTCHA_PROVIDER: 'hcaptcha', CAPTCHA_SECRET_KEY: 'secret', CAPTCHA_SITE_KEY: 'site' });
+  });
+
+  it.each(['CAPTCHA_PROVIDER', 'CAPTCHA_SECRET_KEY', 'CAPTCHA_SITE_KEY'])('names %s when captcha is enabled without it', async (name) => {
+    await expect(create({ ...enabled, [name]: undefined })).rejects.toThrowError(new RegExp(name));
+  });
+
+  it('treats empty optional captcha variables as unset', async () => {
+    const { envs } = await create({ CAPTCHA_PROVIDER: '', CAPTCHA_SECRET_KEY: '', CAPTCHA_SITE_KEY: '', CAPTCHA_MIN_SCORE: '' });
+    expect(envs.CAPTCHA_PROVIDER).toBeUndefined();
+    await expect(create({ ...enabled, CAPTCHA_SECRET_KEY: '' })).rejects.toThrowError(/CAPTCHA_SECRET_KEY/);
+  });
+
+  it('rejects an unknown provider', async () => {
+    await expect(create({ ...enabled, CAPTCHA_PROVIDER: 'nopecha' })).rejects.toThrowError(/CAPTCHA_PROVIDER/);
+  });
+
+  it('accepts an optional minimum score and rejects one outside 0..1', async () => {
+    expect((await create({ ...enabled, CAPTCHA_PROVIDER: 'google-recaptcha', CAPTCHA_MIN_SCORE: '0.7' })).envs.CAPTCHA_MIN_SCORE).toBe(0.7);
+    await expect(create({ ...enabled, CAPTCHA_MIN_SCORE: '2' })).rejects.toThrowError(/CAPTCHA_MIN_SCORE/);
+  });
+});

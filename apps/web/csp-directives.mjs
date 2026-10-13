@@ -22,6 +22,10 @@
  *   is allow-listed: the script body is the bundler-minified
  *   `setInitialMode`, whose hash changes between builds.
  * - `connect-src` gains the local Spotlight origin only when `NODE_ENV` is `development`.
+ * - Captcha widgets (`src/lib/client/captcha`) load script and iframes from their provider, so the shipped
+ *   providers' origins (Cloudflare Turnstile, hCaptcha) are allow-listed in `script-src`/`frame-src` (and
+ *   hCaptcha also in `connect-src`/`style-src`). These stay in the policy even when captcha is off, because the
+ *   provider is only known at runtime from the API. A clone adding a widget for another provider adds its origins here.
  * - `https://images.unsplash.com` is the placeholder hero image on the
  *   auth pages (`src/routes/(auth)/+layout.svelte`); swap this entry for
  *   a self-hosted asset's origin (or drop it) if that image is replaced.
@@ -42,6 +46,12 @@ function imageOrigin() {
 
 const publicImageOrigin = imageOrigin();
 
+const TURNSTILE_ORIGIN = 'https://challenges.cloudflare.com';
+const HCAPTCHA_ORIGINS = ['https://hcaptcha.com', 'https://*.hcaptcha.com'];
+
+/** Hosts of the shipped captcha widgets; the only external origins `script-src` allows. */
+export const CAPTCHA_ORIGINS = [TURNSTILE_ORIGIN, ...HCAPTCHA_ORIGINS];
+
 /** Sentry's Spotlight sidecar; the SDK only connects to it in development (see `getDevOnlySentryOptions`). */
 export const SPOTLIGHT_ORIGIN = 'http://localhost:8969';
 
@@ -53,17 +63,17 @@ export function createCspDirectives({ development = false } = {}) {
   return {
     'default-src': ["'self'"],
     'base-uri': ["'self'"],
-    'connect-src': ["'self'", ...(development ? [SPOTLIGHT_ORIGIN] : [])],
+    'connect-src': ["'self'", ...HCAPTCHA_ORIGINS, ...(development ? [SPOTLIGHT_ORIGIN] : [])],
     'font-src': ["'self'", 'data:'],
     'form-action': ["'self'"],
     'frame-ancestors': ["'self'"],
-    'frame-src': ["'self'"],
+    'frame-src': ["'self'", ...CAPTCHA_ORIGINS],
     'img-src': ["'self'", 'data:', 'https://images.unsplash.com', ...(publicImageOrigin ? [publicImageOrigin] : [])],
     'manifest-src': ["'self'"],
     'media-src': ["'self'"],
     'object-src': ["'none'"],
-    'script-src': ["'self'"],
-    'style-src': ["'self'", "'unsafe-inline'"],
+    'script-src': ["'self'", ...CAPTCHA_ORIGINS],
+    'style-src': ["'self'", "'unsafe-inline'", ...HCAPTCHA_ORIGINS],
     'worker-src': ["'self'"],
   };
 }

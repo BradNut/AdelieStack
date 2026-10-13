@@ -31,18 +31,23 @@ export class ApplicationController extends RootController {
   }
 
   routes() {
-    return this.controller
-      .get('/', (c) => {
-        return c.json({ status: 'ok' });
-      })
-      .get('/healthz', (c) => {
-        // HIBP is reported from the last breached-password check; probes never call it, and an outage
-        // does not fail liveness (sign-in and the rest of the app still work).
-        return c.json({ status: 'ok', hibp: this.authService.hibpStatus.health });
-      })
-      .get('/rate-limit', rateLimit({ limit: 3, minutes: 1 }), (c) => {
-        return c.json({ message: 'Test!' });
-      });
+    return (
+      this.controller
+        .get('/', (c) => {
+          return c.json({ status: 'ok' });
+        })
+        .get('/healthz', (c) => {
+          // HIBP is reported from the last breached-password check; probes never call it, and an outage
+          // does not fail liveness (sign-in and the rest of the app still work).
+          // Captcha is reported the same way: from the last verification, never by calling the provider.
+          return c.json({ status: 'ok', hibp: this.authService.hibpStatus.health, captcha: this.authService.captchaStatus.health });
+        })
+        // Public: lets the web learn whether to render a captcha widget, and which, without its own env.
+        .get('/config/captcha', (c) => c.json(this.authService.captchaPublicConfig))
+        .get('/rate-limit', rateLimit({ limit: 3, minutes: 1 }), (c) => {
+          return c.json({ message: 'Test!' });
+        })
+    );
   }
 
   registerControllers() {

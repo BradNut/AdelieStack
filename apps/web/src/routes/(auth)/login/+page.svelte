@@ -5,12 +5,16 @@
 	import { goto } from '$app/navigation';
 	import { authClient } from '$lib/auth-client';
 	import { authErrorMessage, refreshSession, toastIfError } from '$lib/client/auth-form';
+	import { createCaptchaForm } from '$lib/client/captcha/captcha-form.svelte';
+	import CaptchaField from '$lib/components/auth/captcha-field.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
 	import * as Form from '$lib/components/ui/form';
 	import { Input } from '$lib/components/ui/input';
+	import { captchaErrorMessage } from '$lib/utils/captcha-messages';
 
 	let { data } = $props();
+	const captcha = createCaptchaForm();
 
 	const sf_login = superForm(defaults(zod4(signinDto)), {
 		SPA: true,
@@ -18,13 +22,17 @@
 		resetForm: false,
 		async onUpdate({ form }) {
 			if (!form.valid) return;
-			const { data: result, error } = await authClient.signIn.email({
-				email: form.data.email,
-				password: form.data.password,
-			});
+			const { data: result, error } = await authClient.signIn.email(
+				{
+					email: form.data.email,
+					password: form.data.password,
+				},
+				captcha.fetchOptions(),
+			);
+			captcha.afterAttempt();
 			if (error) {
 				form.data.password = '';
-				return setError(form, 'email', authErrorMessage(error, 'Invalid email or password.'));
+				return setError(form, 'email', captchaErrorMessage(error) ?? authErrorMessage(error, 'Invalid email or password.'));
 			}
 			// A user with two-factor enabled is redirected by the client plugin instead.
 			if (result && 'twoFactorRedirect' in result && result.twoFactorRedirect) return;
@@ -83,6 +91,7 @@
 				</Form.Control>
 				<Form.FieldErrors />
 			</Form.Field>
+			<CaptchaField bind:this={captcha.field} onchange={captcha.setToken} />
 			<div class="grid grid-cols-2">
 				<Form.Button>Login</Form.Button>
 				<Button variant="link" class="text-secondary-foreground" href="/password/reset">Forgot Password?</Button>
