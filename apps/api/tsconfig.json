@@ -15,10 +15,9 @@
     "ignoreDeprecations": "6.0",
     "experimentalDecorators": true,
     "types": ["node"],
-    "baseUrl": ".",
     "paths": {
-      "$lib/*": ["src/lib/*"],
-      "@/*": ["src/lib/*"]
+      "$lib/*": ["./src/lib/*"],
+      "@/*": ["./src/lib/*"]
     }
   },
   "include": ["src/**/*.ts", "drizzle.config.ts", "env.d.ts"]
