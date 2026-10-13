@@ -27,8 +27,8 @@
   "devDependencies": {
     "@adelie/test-utils": "workspace:*",
     "@biomejs/biome": "2.5.15",
-    "@faker-js/faker": "^10.4.0",
-    "@inlang/paraglide-js": "2.22.0",
+    "@faker-js/faker": "^10.6.0",
+    "@inlang/paraglide-js": "2.27.0",
     "@types/clamscan": "^2.4.1",
     "@types/node": "^24.10.1",
     "@types/pg": "^8.23.1",
