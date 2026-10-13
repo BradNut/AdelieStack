@@ -107,7 +107,7 @@ async function type(label: RegExp | string, value: string) {
 const forms = [
   {
     name: 'sign-in',
-    mount: () => render(LoginPage, { data: { signUpEnabled: true, authedUser: null, showOAuthButtons: false } }),
+    mount: () => render(LoginPage, { data: { signUpEnabled: true, flash: undefined, authedUser: null, showOAuthButtons: false } }),
     fill: async () => {
       await type('Email', 'a@example.com');
       await type('Password', 'correct horse battery');
@@ -129,7 +129,7 @@ const forms = [
   },
   {
     name: 'request-password-reset',
-    mount: () => render(ResetPage, { data: { signUpEnabled: true, authedUser: null, token: null, linkError: null } }),
+    mount: () => render(ResetPage, { data: { signUpEnabled: true, flash: undefined, authedUser: null, token: null, linkError: null } }),
     fill: () => type('Email', 'a@example.com'),
     submit: () => fireEvent.click(screen.getByRole('button', { name: 'Send reset link' })),
     call: () => authClient.requestPasswordReset,
