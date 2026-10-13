@@ -1,29 +1,45 @@
-# Sveltekit - Adelie Stack
+# AdelieStack
 
-This stack is a cloned and modified version of GitHub user [Rykuno](https://github.com/rykuno)'s [TofeStack](https://github.com/Rykuno/TofuStack).
+A scalable, testable, extensible starter template: a [Hono](https://hono.dev/) API and a [SvelteKit](https://svelte.dev/docs/kit/introduction) web app in a pnpm + Turbo monorepo, sharing typed contracts.
+
+AdelieStack began as a fork of Rykuno's [TofuStack](https://github.com/Rykuno/TofuStack) and has since diverged: the backend is its own app, auth runs on Better Auth, and the generic (non-domain) layer was re-ported from a production app. Credit to the original for the architecture it grew from.
 
 ## ❔ What
 
-A scalable, testable, extensible, template for Sveltekit.
+SvelteKit is awesome, but sometimes you need more capability in the backend than SvelteKit's own server routes deliver.
 
-Sveltekit is awesome, but sometimes you need a bit more capability in the backend than what frameworks like
-NextJS & Sveltekit can deliver.
+To remedy this, the backend is a standalone Hono API (`apps/api`, port `3001` locally) with its own DI container, jobs, storage, and mail. The web app (`apps/web`, port `5173`) forwards everything under `/api/*` to it through a catch-all proxy route, so the browser only ever talks to one origin and cookies stay first-party:
 
-To remedy this, I've attached a fully fleshed out backend to run on the Sveltekit process and forward all API requests 
-to it and paired it with some architectural patterns.
+`apps/web/src/routes/api/[...slug]/+server.ts` -> `API_PROXY_BASE_URL` (default `http://127.0.0.1:3001`)
 
-`/api/[...slugs]`
+The web app calls the API through a typed Hono RPC client, whose types come from `packages/api-contract`.
 
-```ts
-import app from '$lib/api';
-import type { RequestHandler } from '@sveltejs/kit';
+## Intention
 
-export const GET: RequestHandler = ({ request }) => app.fetch(request);
-export const PUT: RequestHandler = ({ request }) => app.fetch(request);
-export const DELETE: RequestHandler = ({ request }) => app.fetch(request);
-export const POST: RequestHandler = ({ request }) => app.fetch(request);
-export const fallback: RequestHandler = ({ request }) => app.fetch(request);
-```
+AdelieStack is the **generic layer** that nearly every application needs, with the domain left out: auth, sessions, roles and permissions, MFA, email, file storage, observability, a UI kit, i18n, and tests. Clone it, delete the example pieces, and build your product on top.
+
+It is deliberately not an "all batteries included" boilerplate. See [How to Use](#how-to-use).
+
+## Repo Layout
+
+- `apps/api` - Hono API (controllers, services, repositories, Drizzle schema, jobs).
+- `apps/web` - SvelteKit 2 app (Svelte 5 runes, Tailwind v4, Shadcn/UI).
+- `packages/shared` - client-safe constants, domain values, DTOs, validations.
+- `packages/api-contract` - Hono RPC types shared by both apps.
+- `packages/test-utils` - shared test helpers.
+- `docs/adr` - architecture decision records. `.knowledge-base` - API and web docs for contributors and agents.
+
+## Implementation Notes
+
+- **Auth**: Better Auth owns the core (email and password, cookie sessions, two-factor, passkeys, roles `admin` / `support` / `user`), mounted at `/api/auth/*`. Routes declare the permission they need, never a role name ([ADR](./docs/adr/0002-authorization-delegates-to-better-auth.md)).
+- **Sign-up is closed by default**; set `SIGN_UP_ENABLED=true` to open it ([ADR](./docs/adr/0002-sign-up-closed-by-default.md)).
+- **Captcha** is optional and provider-agnostic, via Better Auth's captcha plugin ([ADR](./docs/adr/0002-captcha-via-better-auth-plugin.md)).
+- **Data**: PostgreSQL via Drizzle, Redis for cache and rate limiting. Migrations are generated with Drizzle tooling, never hand-edited.
+- **Storage**: S3-compatible SeaweedFS buckets, with uploads scanned by ClamAV.
+- **Mail**: `MAILER_TRANSPORT=mailpit` posts to the local Mailpit inbox in development; `unsend` sends for real.
+- **Observability**: OpenTelemetry, Sentry, and Spotlight/Jaeger in development.
+- **Env**: each app declares its variables in `.env.schema` ([`ENV_SETUP.md`](./ENV_SETUP.md)).
+- **Lazy infra**: nothing connects to external services at import time.
 
 ## Local Setup
 
@@ -66,12 +82,18 @@ Skip once with `--no-verify`. CI stays the source of truth.
 - 🟢 RPC Client for API Requests
 - 🟢 Custom Fetch Wrapper
 - 🟢 Deployment Template
-- 🟠 Authentication
-  - 🟢 Email / Passkey
+- 🟢 Authentication (Better Auth)
   - 🟢 Email and Password
-  - 🔴 OAuth
+  - 🟢 Passkeys
+  - 🟢 Two-factor and recovery codes
+  - 🟢 Roles and permissions
   - 🟢 Email Update / Verification
   - 🟢 Rate limiter
+  - 🔴 OAuth
+- 🟢 File storage with virus scanning
+- 🟢 Audit log
+- 🟢 i18n (Paraglide)
+- 🟢 Observability (OpenTelemetry, Sentry)
 
 ## Technologies
 
@@ -91,22 +113,15 @@ to start with Technical and let the project naturally evolve into one of the oth
 
 ### Backend Folder Structure
 
-- **controllers** - Responsible for routing requests
+The API lives in `apps/api/src/lib/server/api/`, grouped by feature (`auth`, `users`, `admin`, `audit`, `mail`, `storage`, `jobs`, `config`) with shared pieces in `common`. Inside a feature, files are named by architectural role:
 
+- **controllers** - Responsible for routing requests.
 - **services** - Responsible for handling business logic.
-
-- **repositories** - Responsible for retrieving and
-  storing data.
-
-- **infrastructure** - Handles the implementation of external services or backend operations.
-
-- **middleware** - Middlware our request router is responsible for handling.
-
-- **providers** - Injectable services
-
-- **dtos** - Data Transfer Objects (DTOs) are used to define the shape of data that is passed.
-
-- **common** - Anything commonly shared throughout the backend
+- **repositories** - Responsible for retrieving and storing data.
+- **tables** - Drizzle schema definitions.
+- **middleware** - Request middleware (session, permissions, rate limiting, logging, locale).
+- **dtos** - Shapes of data passed across boundaries, shared with the frontend via `packages/shared`.
+- **common** - Anything shared throughout the backend (configs, factories, i18n, utils).
 
 ### File Naming
 
@@ -126,4 +141,8 @@ For example, if you want to group folders by domain(DDD), you simply drag and dr
 
 Testing probably isn't first and foremost when creating an app. That's fine. You should not be spending time writing tests if your app is mutable.
 
-BUT, a good stack should be **testable** when the time to solidify a codebase arrives. I created this stack with that principle in mind. I've provided a examples of how to write these tests under `authentication.service.test.ts` or `users.service.test.ts`
+BUT, a good stack should be **testable** when the time to solidify a codebase arrives. Each feature keeps its tests in a sibling `tests/` folder (see `auth/tests/auth.service.test.ts` for a service example).
+
+- `pnpm test` runs API and web unit tests (Vitest).
+- `pnpm test:e2e` runs Playwright.
+- `pnpm check` type-checks and enforces shared-code boundaries; `pnpm lint` / `pnpm format` run Biome.
