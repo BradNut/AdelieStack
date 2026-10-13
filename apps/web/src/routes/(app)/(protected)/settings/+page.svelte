@@ -45,7 +45,7 @@
 			<Form.Field form={sf_profile} name="name">
 				<Form.Control>
 					{#snippet children({ props })}
-						<Form.Label for="name">Name</Form.Label>
+						<Form.Label>Name</Form.Label>
 						<Input {...props} autocomplete="name" bind:value={$profileForm.name} />
 					{/snippet}
 				</Form.Control>

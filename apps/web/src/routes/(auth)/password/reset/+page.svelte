@@ -75,7 +75,7 @@
 				<Form.Field form={sf_new_password} name="password">
 					<Form.Control>
 						{#snippet children({ props })}
-							<Form.Label for="password">New password</Form.Label>
+							<Form.Label>New password</Form.Label>
 							<Input {...props} type="password" autocomplete="new-password" bind:value={$newPasswordForm.password} />
 						{/snippet}
 					</Form.Control>
@@ -84,7 +84,7 @@
 				<Form.Field form={sf_new_password} name="confirm_password">
 					<Form.Control>
 						{#snippet children({ props })}
-							<Form.Label for="confirm_password">Confirm password</Form.Label>
+							<Form.Label>Confirm password</Form.Label>
 							<Input
 								{...props}
 								type="password"
@@ -115,7 +115,7 @@
 				<Form.Field form={sf_email} name="email">
 					<Form.Control>
 						{#snippet children({ props })}
-							<Form.Label for="email">Email</Form.Label>
+							<Form.Label>Email</Form.Label>
 							<Input {...props} type="email" autocomplete="email" bind:value={$emailForm.email} />
 						{/snippet}
 					</Form.Control>

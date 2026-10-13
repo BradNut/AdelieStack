@@ -64,7 +64,7 @@
 			<Form.Field form={sf_login} name="email">
 				<Form.Control>
 					{#snippet children({ props })}
-						<Form.Label for="email">Email</Form.Label>
+						<Form.Label>Email</Form.Label>
 						<Input
 							{...props}
 							type="email"
@@ -79,7 +79,7 @@
 			<Form.Field form={sf_login} name="password">
 				<Form.Control>
 					{#snippet children({ props })}
-						<Form.Label for="password">Password</Form.Label>
+						<Form.Label>Password</Form.Label>
 						<Input
 							{...props}
 							autocomplete="current-password"

@@ -52,7 +52,7 @@
 			<Form.Field form={sf_email} name="email">
 				<Form.Control>
 					{#snippet children({ props })}
-						<Form.Label for="email">New email</Form.Label>
+						<Form.Label>New email</Form.Label>
 						<Input {...props} type="email" autocomplete="email" bind:value={$emailForm.email} />
 					{/snippet}
 				</Form.Control>

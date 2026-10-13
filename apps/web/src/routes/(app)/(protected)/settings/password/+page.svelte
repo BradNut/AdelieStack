@@ -46,7 +46,7 @@
 			<Form.Field form={sf_password} name="current_password">
 				<Form.Control>
 					{#snippet children({ props })}
-						<Form.Label for="current_password">Current password</Form.Label>
+						<Form.Label>Current password</Form.Label>
 						<Input {...props} type="password" autocomplete="current-password" bind:value={$passwordForm.current_password} />
 					{/snippet}
 				</Form.Control>
@@ -55,7 +55,7 @@
 			<Form.Field form={sf_password} name="new_password">
 				<Form.Control>
 					{#snippet children({ props })}
-						<Form.Label for="new_password">New password</Form.Label>
+						<Form.Label>New password</Form.Label>
 						<Input {...props} type="password" autocomplete="new-password" bind:value={$passwordForm.new_password} />
 					{/snippet}
 				</Form.Control>
@@ -64,7 +64,7 @@
 			<Form.Field form={sf_password} name="confirm_password">
 				<Form.Control>
 					{#snippet children({ props })}
-						<Form.Label for="confirm_password">Confirm new password</Form.Label>
+						<Form.Label>Confirm new password</Form.Label>
 						<Input {...props} type="password" autocomplete="new-password" bind:value={$passwordForm.confirm_password} />
 					{/snippet}
 				</Form.Control>

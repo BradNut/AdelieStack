@@ -62,7 +62,7 @@
 			<Form.Field form={sf_signup} name="name">
 				<Form.Control>
 					{#snippet children({ props })}
-						<Form.Label for="name">Name</Form.Label>
+						<Form.Label>Name</Form.Label>
 						<Input {...props} type="text" placeholder="Name" autocomplete="name" bind:value={$signupForm.name} />
 					{/snippet}
 				</Form.Control>
@@ -71,7 +71,7 @@
 			<Form.Field form={sf_signup} name="email">
 				<Form.Control>
 					{#snippet children({ props })}
-						<Form.Label for="email">Email</Form.Label>
+						<Form.Label>Email</Form.Label>
 						<Input {...props} type="email" placeholder="Email" autocomplete="email" bind:value={$signupForm.email} />
 					{/snippet}
 				</Form.Control>
@@ -80,7 +80,7 @@
 			<Form.Field form={sf_signup} name="password">
 				<Form.Control>
 					{#snippet children({ props })}
-						<Form.Label for="password">Password</Form.Label>
+						<Form.Label>Password</Form.Label>
 						<Input
 							{...props}
 							type="password"
@@ -95,7 +95,7 @@
 			<Form.Field form={sf_signup} name="confirm_password">
 				<Form.Control>
 					{#snippet children({ props })}
-						<Form.Label for="confirm_password">Confirm Password</Form.Label>
+						<Form.Label>Confirm Password</Form.Label>
 						<Input
 							{...props}
 							type="password"

@@ -27,34 +27,17 @@ vi.mock('$lib/client/auth-form', async (importOriginal) => ({
 vi.mock('mode-watcher', () => ({ mode: { current: 'light' } }));
 vi.mock('svelte-sonner', () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 // Superforms hands validation errors to SvelteKit's client router, which does not exist under Vitest.
-// Stand in for it: applying an action result publishes it on the page store, which superforms subscribes to.
-const pageStore = vi.hoisted(() => {
-  let value: Record<string, unknown> = { form: null, status: 200, url: new URL('http://localhost/'), data: {}, params: {}, route: { id: '/' } };
-  const subscribers = new Set<(v: unknown) => void>();
-  return {
-    subscribe(run: (v: unknown) => void) {
-      subscribers.add(run);
-      run(value);
-      return () => subscribers.delete(run);
-    },
-    publish(result: { data?: unknown; status?: number }) {
-      value = { ...value, form: result.data, status: result.status };
-      for (const run of subscribers) run(value);
-    },
-  };
+// Stand in for it: applying an action result publishes it on the page state, which superforms reads.
+vi.mock('$app/state', async () => {
+  const { page, navigating } = await import('$lib/client/tests/page-state.svelte');
+  return { page, navigating, updated: { current: false, check: async () => false } };
 });
-const constantStore = vi.hoisted(() => (value: unknown) => (run: (v: unknown) => void) => {
-  run(value);
-  return () => {};
-});
-vi.mock('$app/stores', () => ({
-  page: { subscribe: pageStore.subscribe },
-  navigating: { subscribe: constantStore(null) },
-  updated: { subscribe: constantStore(false) },
-}));
 vi.mock('$app/forms', async (importOriginal) => ({
   ...(await importOriginal<typeof import('$app/forms')>()),
-  applyAction: async (result: { data?: unknown; status?: number }) => pageStore.publish(result),
+  applyAction: async (result: { data?: unknown; status?: number }) => {
+    const { publishActionResult } = await import('$lib/client/tests/page-state.svelte');
+    publishActionResult(result);
+  },
 }));
 vi.mock('$app/navigation', () => ({
   goto: vi.fn(),
