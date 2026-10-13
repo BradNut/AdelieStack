@@ -6,24 +6,18 @@ import { buildAuthSession } from './factories';
 
 /**
  * Shared HTTP route-test harness. Importing this module (before the controller under test)
- * replaces the middleware that reach external infrastructure with pass-through doubles, so a
+ * replaces the rate-limit middleware (which reaches Redis) with a pass-through double, so a
  * controller's routes can be driven with `app.request(...)` without a live Redis/auth stack.
  *
  * Call `resetRouteTestMocks()` in `beforeEach`, then override the exported mocks per test to
- * simulate an authenticated session or a tripped rate limit. Pass `user` to `buildRouteApp` to
+ * simulate a tripped rate limit. Pass `user` to `buildRouteApp` to
  * run the routes as that signed-in user (what the `authSession` middleware sets in the app).
  */
 const harnessMocks = vi.hoisted(() => ({
-  authStateMock: vi.fn(),
   rateLimitMock: vi.fn(),
 }));
 
-export const authStateMock = harnessMocks.authStateMock as MockedFunction<(...args: unknown[]) => MiddlewareHandler>;
 export const rateLimitMock = harnessMocks.rateLimitMock as MockedFunction<(...args: unknown[]) => MiddlewareHandler>;
-
-vi.mock('../middleware/auth.middleware', () => ({
-  authState: authStateMock,
-}));
 
 vi.mock('../middleware/rate-limit.middleware', () => ({
   rateLimit: rateLimitMock,
@@ -32,10 +26,6 @@ vi.mock('../middleware/rate-limit.middleware', () => ({
 /** Resets all harness mocks to their default pass-through behavior. */
 export function resetRouteTestMocks(): void {
   vi.clearAllMocks();
-
-  authStateMock.mockReturnValue(async (_c, next) => {
-    await next();
-  });
 
   rateLimitMock.mockReturnValue(async (_c, next) => {
     await next();

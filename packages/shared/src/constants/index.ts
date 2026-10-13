@@ -1,6 +1,7 @@
 export * from './admin';
 export * from './app';
 export * from './app-routes';
+export * from './auth-errors';
 export * from './auth-limits';
 export * from './auth-paths';
 export * from './captcha';

@@ -30,12 +30,11 @@ handler is mounted at `/api/auth/*`, ahead of the session middleware and every o
 - Permissions checked on every protected endpoint; principle of least privilege
 
 ```typescript
-// apps/api/src/lib/server/api/common/middleware/role.middleware.ts
-export const adminRoleOnly = requireRole(RoleName.ADMIN);
-export const adminAndSupportRoleOnly = requireRole(RoleName.ADMIN, RoleName.SUPPORT);
+// apps/api/src/lib/server/api/common/middleware/permission.middleware.ts
+// Routes declare permissions, not role names; role-to-permission mapping lives in auth.permissions.ts
 
-// Usage: 401 when signed out, 403 when the role does not match
-this.controller.get('/admin', adminRoleOnly, handler);
+// Usage: 401 when signed out, 403 when none of the user's roles grants the permission
+this.controller.get('/admin/example', requirePermission(authService, { user: ['list'] }), handler);
 ```
 
 ### Resource-Level Authorization

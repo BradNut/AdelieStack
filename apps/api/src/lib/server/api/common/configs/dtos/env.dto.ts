@@ -34,6 +34,11 @@ const baseEnvsDto = z.object({
   // or port) and the name shown in the passkey prompt. Passkeys only work on a matching origin.
   PASSKEY_RP_ID: z.string().min(1).default('localhost'),
   PASSKEY_RP_NAME: z.string().min(1).default(APP_NAME),
+  // Registration: closed unless an operator opts in. Closed means no one can create an account
+  // through sign-up; users come from the seeded admin and the admin plugin's create-user.
+  SIGN_UP_ENABLED: z.stringbool().default(false),
+  // Whether a user may hold several roles (stored comma-separated). Off: a multi-valued row is invalid.
+  ALLOW_MULTIPLE_ROLES: z.stringbool().default(false),
   // Screen new passwords against Have I Been Pwned. Turn off to mitigate an HIBP outage (restart required).
   HIBP_ENABLED: z.stringbool().default(true),
   // Captcha on anonymous auth endpoints. Off by default; when on, provider, secret and site key are required.

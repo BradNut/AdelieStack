@@ -35,6 +35,8 @@ env:
   DB_SEEDING: ${{ secrets.DB_SEEDING }}
   ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
   ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+  # The e2e flows register users through sign-up, which is closed by default.
+  SIGN_UP_ENABLED: 'true'
   # Emails
   SITE_NAME: ${{ secrets.SITE_NAME }}
   SITE_URL: ${{ secrets.SITE_URL }}

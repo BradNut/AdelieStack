@@ -6,7 +6,7 @@ export interface AuthedUser {
   email: string;
   name: string;
   image?: string | null;
-  role: RoleName;
+  roles: RoleName[];
   emailVerified: boolean;
   twoFactorEnabled: boolean;
 }

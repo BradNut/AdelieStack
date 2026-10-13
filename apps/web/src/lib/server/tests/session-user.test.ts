@@ -8,10 +8,12 @@ const apiUser = {
   email: 'a@example.com',
   name: 'A',
   image: null,
-  role: 'admin',
+  roles: [RoleName.ADMIN],
   emailVerified: true,
   twoFactorEnabled: true,
   banned: false,
+  createdAt: '2026-01-01T00:00:00.000Z',
+  updatedAt: '2026-01-01T00:00:00.000Z',
 };
 
 function apiReturning(response: Partial<Response> & { json?: () => Promise<unknown> }) {
@@ -26,14 +28,14 @@ describe('toAuthedUser', () => {
       email: 'a@example.com',
       name: 'A',
       image: null,
-      role: RoleName.ADMIN,
+      roles: [RoleName.ADMIN],
       emailVerified: true,
       twoFactorEnabled: true,
     });
   });
 
-  it.each([undefined, null, '', 'root'])('falls back to the user role for %j', (role) => {
-    expect(toAuthedUser({ ...apiUser, role }).role).toBe(RoleName.USER);
+  it('passes the API roles through unchanged', () => {
+    expect(toAuthedUser({ ...apiUser, roles: [RoleName.USER, RoleName.SUPPORT] }).roles).toEqual([RoleName.USER, RoleName.SUPPORT]);
   });
 
   it('defaults a missing twoFactorEnabled to false', () => {
@@ -64,7 +66,7 @@ describe('loadSessionUser', () => {
   it('returns the narrowed user for a valid session', async () => {
     const { api } = apiReturning({ ok: true, json: async () => apiUser });
 
-    expect((await loadSessionUser(api, 'better-auth.session_token=abc'))?.role).toBe(RoleName.ADMIN);
+    expect((await loadSessionUser(api, 'better-auth.session_token=abc'))?.roles).toEqual([RoleName.ADMIN]);
   });
 
   it('returns null when the API reports no user or an error', async () => {

@@ -40,7 +40,13 @@ overrides, gitignored, highest precedence) — never commit real secrets to `.en
 | `DB_MIGRATING` | `false` | Set `true` to run migrations on start (Docker sets this automatically). |
 | `DB_SEEDING` | `false` | Set `true` to run seed after migration. |
 | `ADMIN_EMAIL` | `admin@example.com` | Seed admin user email; optional. `ADMIN_PASSWORD` is required to seed. |
-| `ADMIN_PASSWORD` | — | Seed admin user password. |
+| `ADMIN_PASSWORD` | — | Seed admin user password. With `SIGN_UP_ENABLED` false and no password set, the seed warns that nobody can sign in. |
+
+## Registration
+
+| Variable | Default | Notes |
+|---|---|---|
+| `SIGN_UP_ENABLED` | `false` | Allow anyone to register. Closed by default: accounts then come from the seeded admin and the admin plugin's create-user. Set `true` for local dev and the e2e suite. Read at startup; the web app learns it from the public `GET /api/config`. See [ADR 0002](../../../docs/adr/0002-sign-up-closed-by-default.md). |
 
 ## Security
 

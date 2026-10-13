@@ -61,6 +61,7 @@ function build(
     baseURL: ORIGIN,
     trustedOrigins: [ORIGIN],
     twoFactorIssuer: 'AdelieStack',
+    signUpEnabled: true,
     passkey: { rpID: 'localhost', rpName: 'AdelieStack', origin: ORIGIN },
     mailer: { send: async () => {} },
     captcha: captcha ?? undefined,

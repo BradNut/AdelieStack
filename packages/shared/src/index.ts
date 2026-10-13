@@ -3,6 +3,7 @@ export const SHARED_PACKAGE_NAME = '@adelie/shared' as const;
 export type { AuthedUser } from './auth';
 export * from './constants';
 export * from './domain';
+export * from './dtos/config';
 export * from './dtos/login';
 export * from './dtos/reset-password';
 export * from './dtos/settings';

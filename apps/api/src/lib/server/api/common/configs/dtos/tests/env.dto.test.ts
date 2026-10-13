@@ -155,3 +155,20 @@ describe('envsDto seed admin', () => {
     expect(() => envsDto.parse({ ...validEnv, ADMIN_EMAIL: 'admin' })).toThrow();
   });
 });
+
+describe('envsDto sign-up flag', () => {
+  it('defaults SIGN_UP_ENABLED to closed', () => {
+    expect(envsDto.parse({ ...validEnv }).SIGN_UP_ENABLED).toBe(false);
+  });
+
+  it.each([
+    ['true', true],
+    ['false', false],
+  ])('parses SIGN_UP_ENABLED=%s', (value, expected) => {
+    expect(envsDto.parse({ ...validEnv, SIGN_UP_ENABLED: value }).SIGN_UP_ENABLED).toBe(expected);
+  });
+
+  it('rejects a value that is not a boolean string', () => {
+    expect(() => envsDto.parse({ ...validEnv, SIGN_UP_ENABLED: 'maybe' })).toThrow();
+  });
+});

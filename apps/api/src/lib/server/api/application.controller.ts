@@ -2,6 +2,7 @@ import { inject, injectable } from '@needle-di/core';
 import { contextStorage } from 'hono/context-storage';
 import { requestId } from 'hono/request-id';
 import { notFound, onError, serveEmojiFavicon } from 'stoker/middlewares';
+import { AdminExampleController } from './admin/admin-example.controller';
 import { API_BASE_PATH, AUTH_ROUTE } from './auth/auth.config';
 import { AuthService } from './auth/auth.service';
 import { RootController } from './common/factories/controllers.factory';
@@ -12,6 +13,7 @@ import { otelInstrumentation } from './common/middleware/otel.middleware';
 import { pinoLogger } from './common/middleware/pino-logger.middleware';
 import { rateLimit } from './common/middleware/rate-limit.middleware';
 import { generateId } from './common/utils/crypto';
+import { ConfigController } from './config/config.controller';
 import configureOpenAPI from './configure-open-api';
 import { StorageWebhookController } from './storage/storage-webhook.controller';
 import { UsersController } from './users/users.controller';
@@ -22,6 +24,8 @@ export class ApplicationController extends RootController {
     private readonly authService = inject(AuthService),
     private readonly usersController = inject(UsersController),
     private readonly storageWebhookController = inject(StorageWebhookController),
+    private readonly configController = inject(ConfigController),
+    private readonly adminExampleController = inject(AdminExampleController),
   ) {
     super();
   }
@@ -65,7 +69,9 @@ export class ApplicationController extends RootController {
     const app = api
       .use(authSession(this.authService))
       .route('/', this.routes())
+      .route('/config', this.configController.routes())
       .route('/users', this.usersController.routes())
+      .route('/admin', this.adminExampleController.routes())
       .route('/storage', this.storageWebhookController.routes())
       .onError(onError)
       .notFound(notFound);

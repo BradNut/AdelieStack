@@ -3,8 +3,8 @@ import { contextStorage } from 'hono/context-storage';
 import { onError } from 'stoker/middlewares';
 import { describe, expect, it } from 'vitest';
 import { m } from '../../i18n';
+import { assertSignedIn } from '../../utils/assert-signed-in';
 import type { HonoEnv } from '../../utils/hono';
-import { authState } from '../auth.middleware';
 import { requestLocale } from '../locale.middleware';
 
 function createApp() {
@@ -12,7 +12,10 @@ function createApp() {
     .use(contextStorage())
     .use(requestLocale)
     .get('/locale', (c) => c.json({ locale: c.var.locale }))
-    .get('/protected', authState('session'), (c) => c.json({ ok: true }))
+    .get('/protected', (c) => {
+      assertSignedIn(c.var.session);
+      return c.json({ ok: true });
+    })
     .onError(onError);
 }
 
