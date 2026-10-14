@@ -5,10 +5,10 @@ from the Svelte plugin's docs and autofixer. This file holds only what is specif
 
 ## Components
 
-- Import app code through `#lib` (`#lib/components/ui/button/index.js`, `#lib/utils.js`).
+- Import app code through `#lib` with the real file extension (`#lib/components/ui/button/index.ts`, `#lib/utils.ts`, `.svelte` for components).
 - Declare props with a named `interface`, not an inline type:
   `let { user, isEditable = false, onSave }: UserCardProps = $props();`
-- Style with Tailwind utilities and `cn()` from `#lib/utils.js` for conditional classes. No inline
+- Style with Tailwind utilities and `cn()` from `#lib/utils.ts` for conditional classes. No inline
   `style` attributes; reach for scoped CSS only when Tailwind cannot express it.
 - Build UI from Shadcn components in `#lib/components/ui`.
 

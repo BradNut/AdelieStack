@@ -14,14 +14,14 @@ const getCaptchaConfig = vi.fn<() => Promise<CaptchaPublicConfig>>();
 const widget = { reset: vi.fn(), destroy: vi.fn() };
 const renderWidget = vi.fn();
 
-vi.mock('#lib/auth-client.js', () => ({ authClient }));
-vi.mock('#lib/client/captcha/config.js', () => ({ getCaptchaConfig: () => getCaptchaConfig() }));
-vi.mock('#lib/client/captcha/widgets.js', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('#lib/client/captcha/widgets.js')>()),
+vi.mock('#lib/auth-client.ts', () => ({ authClient }));
+vi.mock('#lib/client/captcha/config.ts', () => ({ getCaptchaConfig: () => getCaptchaConfig() }));
+vi.mock('#lib/client/captcha/widgets.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('#lib/client/captcha/widgets.ts')>()),
   captchaWidgetFor: (provider: string) => ({ provider, render: renderWidget }),
 }));
-vi.mock('#lib/client/auth-form.js', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('#lib/client/auth-form.js')>()),
+vi.mock('#lib/client/auth-form.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('#lib/client/auth-form.ts')>()),
   refreshSession: vi.fn(),
 }));
 vi.mock('mode-watcher', () => ({ mode: { current: 'light' } }));

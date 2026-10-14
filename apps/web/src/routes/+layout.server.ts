@@ -1,5 +1,5 @@
 import { loadFlash } from 'sveltekit-flash-message/server';
-import { loadSignUpEnabled } from '#lib/server/public-config.js';
+import { loadSignUpEnabled } from '#lib/server/public-config.ts';
 
 export const load = loadFlash(async ({ locals }) => {
   return {

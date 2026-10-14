@@ -5,16 +5,16 @@
 	import Menu from '@lucide/svelte/icons/menu';
 	import Package2 from '@lucide/svelte/icons/package-2';
 	import Search from '@lucide/svelte/icons/search';
-	import { hasAnyRole } from '#lib/auth/guards.js';
-	import { authClient } from '#lib/auth-client.js';
-	import { refreshSession } from '#lib/client/auth-form.js';
+	import { hasAnyRole } from '#lib/auth/guards.ts';
+	import { authClient } from '#lib/auth-client.ts';
+	import { refreshSession } from '#lib/client/auth-form.ts';
 	import UnverifiedEmailNotice from '#lib/components/auth/unverified-email-notice.svelte';
 	import ThemeDropdown from '#lib/components/theme-dropdown.svelte';
-	import { Button } from '#lib/components/ui/button/index.js';
-	import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.js';
-	import { Input } from '#lib/components/ui/input/index.js';
-	import * as Sheet from '#lib/components/ui/sheet/index.js';
-	import { cn } from '#lib/utils/ui.js';
+	import { Button } from '#lib/components/ui/button/index.ts';
+	import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.ts';
+	import { Input } from '#lib/components/ui/input/index.ts';
+	import * as Sheet from '#lib/components/ui/sheet/index.ts';
+	import { cn } from '#lib/utils/ui.ts';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 

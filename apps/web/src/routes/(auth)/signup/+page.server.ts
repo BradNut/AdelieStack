@@ -1,6 +1,6 @@
 import { AppRoute } from '@adelie/shared';
 import { redirect } from 'sveltekit-flash-message/server';
-import { alreadySignedInMessage, signUpClosedMessage } from '#lib/utils/flashMessages.js';
+import { alreadySignedInMessage, signUpClosedMessage } from '#lib/utils/flashMessages.ts';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async (event) => {

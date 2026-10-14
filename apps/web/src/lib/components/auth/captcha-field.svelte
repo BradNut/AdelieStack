@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { mode } from 'mode-watcher';
 	import { onMount } from 'svelte';
-	import { getCaptchaConfig } from '#lib/client/captcha/config.js';
-	import type { CaptchaWidgetHandle } from '#lib/client/captcha/types.js';
-	import { CaptchaConfigError, captchaWidgetFor } from '#lib/client/captcha/widgets.js';
+	import { getCaptchaConfig } from '#lib/client/captcha/config.ts';
+	import type { CaptchaWidgetHandle } from '#lib/client/captcha/types.ts';
+	import { CaptchaConfigError, captchaWidgetFor } from '#lib/client/captcha/widgets.ts';
 	import * as m from '#lib/paraglide/messages.js';
 	import { getLocale } from '#lib/paraglide/runtime.js';
 

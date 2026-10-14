@@ -1,5 +1,5 @@
 import { redirect } from 'sveltekit-flash-message/server';
-import { alreadySignedInMessage } from '#lib/utils/flashMessages.js';
+import { alreadySignedInMessage } from '#lib/utils/flashMessages.ts';
 import { SHOW_OAUTH_BUTTONS } from '$app/env/private';
 import type { PageServerLoad } from './$types';
 

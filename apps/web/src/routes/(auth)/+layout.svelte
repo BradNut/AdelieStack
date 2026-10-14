@@ -2,7 +2,7 @@
 	import { AppRoute } from "@adelie/shared";
 	import Logo from "#lib/components/logo.svelte";
 	import ThemeDropdown from "#lib/components/theme-dropdown.svelte";
-	import { Button } from "#lib/components/ui/button/index.js";
+	import { Button } from "#lib/components/ui/button/index.ts";
 	import { page } from "$app/state";
 
 	let { data, children } = $props();

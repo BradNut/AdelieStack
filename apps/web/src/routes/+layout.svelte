@@ -2,10 +2,10 @@
 	import "../app.css";
 	import { ModeWatcher } from "mode-watcher";
 	import { getFlash } from "sveltekit-flash-message";
-	import { startViewTransition } from "#lib/client/view-transition.js";
-	import { Toaster } from "#lib/components/ui/sonner/index.js";
+	import { startViewTransition } from "#lib/client/view-transition.ts";
+	import { Toaster } from "#lib/components/ui/sonner/index.ts";
 	import PageLoadingIndicator from "#lib/utils/page_loading_indicator.svelte";
-	import { toastMessage } from "#lib/utils/superforms.js";
+	import { toastMessage } from "#lib/utils/superforms.ts";
 	import { onNavigate } from "$app/navigation";
 	import { page } from "$app/state";
 

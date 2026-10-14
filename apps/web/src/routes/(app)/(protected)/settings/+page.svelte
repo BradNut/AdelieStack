@@ -3,12 +3,12 @@
 	import { toast } from 'svelte-sonner';
 	import { defaults, setError, superForm } from 'sveltekit-superforms';
 	import { zod4, zod4Client } from 'sveltekit-superforms/adapters';
-	import { authClient } from '#lib/auth-client.js';
-	import { authErrorMessage, refreshSession } from '#lib/client/auth-form.js';
+	import { authClient } from '#lib/auth-client.ts';
+	import { authErrorMessage, refreshSession } from '#lib/client/auth-form.ts';
 	import DeleteAccountCard from '#lib/components/auth/delete-account-card.svelte';
-	import * as Card from '#lib/components/ui/card/index.js';
-	import * as Form from '#lib/components/ui/form/index.js';
-	import { Input } from '#lib/components/ui/input/index.js';
+	import * as Card from '#lib/components/ui/card/index.ts';
+	import * as Form from '#lib/components/ui/form/index.ts';
+	import { Input } from '#lib/components/ui/input/index.ts';
 
 	let { data } = $props();
 

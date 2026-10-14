@@ -2,12 +2,12 @@
 	import { AuthCallbackPath, changeEmailDto } from '@adelie/shared';
 	import { defaults, setError, superForm } from 'sveltekit-superforms';
 	import { zod4, zod4Client } from 'sveltekit-superforms/adapters';
-	import { authClient } from '#lib/auth-client.js';
-	import { authErrorMessage } from '#lib/client/auth-form.js';
-	import * as Alert from '#lib/components/ui/alert/index.js';
-	import * as Card from '#lib/components/ui/card/index.js';
-	import * as Form from '#lib/components/ui/form/index.js';
-	import { Input } from '#lib/components/ui/input/index.js';
+	import { authClient } from '#lib/auth-client.ts';
+	import { authErrorMessage } from '#lib/client/auth-form.ts';
+	import * as Alert from '#lib/components/ui/alert/index.ts';
+	import * as Card from '#lib/components/ui/card/index.ts';
+	import * as Form from '#lib/components/ui/form/index.ts';
+	import { Input } from '#lib/components/ui/input/index.ts';
 
 	const { data } = $props();
 

@@ -4,11 +4,11 @@
 	import { defaults, setError, superForm } from 'sveltekit-superforms';
 	import { zod4, zod4Client } from 'sveltekit-superforms/adapters';
 	import { renderSVG } from 'uqr';
-	import { authClient } from '#lib/auth-client.js';
-	import { authErrorMessage, refreshSession } from '#lib/client/auth-form.js';
-	import * as Card from '#lib/components/ui/card/index.js';
-	import * as Form from '#lib/components/ui/form/index.js';
-	import { Input } from '#lib/components/ui/input/index.js';
+	import { authClient } from '#lib/auth-client.ts';
+	import { authErrorMessage, refreshSession } from '#lib/client/auth-form.ts';
+	import * as Card from '#lib/components/ui/card/index.ts';
+	import * as Form from '#lib/components/ui/form/index.ts';
+	import { Input } from '#lib/components/ui/input/index.ts';
 
 	let { data } = $props();
 

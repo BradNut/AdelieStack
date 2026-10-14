@@ -1,12 +1,12 @@
 <script lang="ts">
 	import { AuthCallbackPath } from '@adelie/shared';
 	import { toast } from 'svelte-sonner';
-	import { authClient } from '#lib/auth-client.js';
-	import { toastIfError } from '#lib/client/auth-form.js';
-	import { createCaptchaForm } from '#lib/client/captcha/captcha-form.svelte.js';
+	import { authClient } from '#lib/auth-client.ts';
+	import { toastIfError } from '#lib/client/auth-form.ts';
+	import { createCaptchaForm } from '#lib/client/captcha/captcha-form.svelte.ts';
 	import CaptchaField from '#lib/components/auth/captcha-field.svelte';
-	import { Button } from '#lib/components/ui/button/index.js';
-	import { captchaErrorMessage } from '#lib/utils/captcha-messages.js';
+	import { Button } from '#lib/components/ui/button/index.ts';
+	import { captchaErrorMessage } from '#lib/utils/captcha-messages.ts';
 
 	interface Props {
 		email: string;

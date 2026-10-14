@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { cn } from '#lib/utils/ui.js';
+	import { cn } from '#lib/utils/ui.ts';
 	import { page } from '$app/state';
 
 	let { children } = $props();

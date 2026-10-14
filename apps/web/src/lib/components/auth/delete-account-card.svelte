@@ -3,13 +3,13 @@
 	import { toast } from 'svelte-sonner';
 	import { defaults, setError, superForm } from 'sveltekit-superforms';
 	import { zod4, zod4Client } from 'sveltekit-superforms/adapters';
-	import { authClient } from '#lib/auth-client.js';
-	import { authErrorMessage, refreshSession } from '#lib/client/auth-form.js';
-	import { Button } from '#lib/components/ui/button/index.js';
-	import * as Card from '#lib/components/ui/card/index.js';
-	import * as Dialog from '#lib/components/ui/dialog/index.js';
-	import * as Form from '#lib/components/ui/form/index.js';
-	import { Input } from '#lib/components/ui/input/index.js';
+	import { authClient } from '#lib/auth-client.ts';
+	import { authErrorMessage, refreshSession } from '#lib/client/auth-form.ts';
+	import { Button } from '#lib/components/ui/button/index.ts';
+	import * as Card from '#lib/components/ui/card/index.ts';
+	import * as Dialog from '#lib/components/ui/dialog/index.ts';
+	import * as Form from '#lib/components/ui/form/index.ts';
+	import { Input } from '#lib/components/ui/input/index.ts';
 	import { goto } from '$app/navigation';
 
 	let open = $state(false);

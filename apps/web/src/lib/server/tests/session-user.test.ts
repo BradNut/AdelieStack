@@ -1,6 +1,6 @@
 import { RoleName } from '@adelie/shared';
 import { describe, expect, it, vi } from 'vitest';
-import type { Api } from '#lib/utils/types.js';
+import type { Api } from '#lib/utils/types.ts';
 import { hasSessionCookie, loadSessionUser, toAuthedUser } from '../session-user';
 
 const apiUser = {

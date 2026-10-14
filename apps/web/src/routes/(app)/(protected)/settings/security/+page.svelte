@@ -1,10 +1,10 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { toast } from 'svelte-sonner';
-	import { authClient } from '#lib/auth-client.js';
-	import { toastIfError } from '#lib/client/auth-form.js';
-	import { Button } from '#lib/components/ui/button/index.js';
-	import * as Card from '#lib/components/ui/card/index.js';
+	import { authClient } from '#lib/auth-client.ts';
+	import { toastIfError } from '#lib/client/auth-form.ts';
+	import { Button } from '#lib/components/ui/button/index.ts';
+	import * as Card from '#lib/components/ui/card/index.ts';
 
 	interface SessionRow {
 		id: string;
