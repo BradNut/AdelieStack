@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { ConfigService } from '../../common/configs/config.service';
-import { createTestContainer, mockProvider } from '../../common/testing/test-container';
-import { JobsService } from '../jobs.service';
+import { ConfigService } from '#lib/server/api/common/configs/config.service';
+import { createTestContainer, mockProvider } from '#lib/server/api/common/testing/test-container';
+import { JobsService } from '#lib/server/api/jobs/jobs.service';
 
 /**
  * Mock BullMQ so no Redis socket is opened. The constructors record their

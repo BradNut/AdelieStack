@@ -2,10 +2,10 @@ import { Hono } from 'hono';
 import { contextStorage } from 'hono/context-storage';
 import { onError } from 'stoker/middlewares';
 import { describe, expect, it } from 'vitest';
-import { m } from '../../i18n';
-import { assertSignedIn } from '../../utils/assert-signed-in';
-import type { HonoEnv } from '../../utils/hono';
-import { requestLocale } from '../locale.middleware';
+import { m } from '#lib/server/api/common/i18n/index';
+import { requestLocale } from '#lib/server/api/common/middleware/locale.middleware';
+import { assertSignedIn } from '#lib/server/api/common/utils/assert-signed-in';
+import type { HonoEnv } from '#lib/server/api/common/utils/hono';
 
 function createApp() {
   return new Hono<HonoEnv>()

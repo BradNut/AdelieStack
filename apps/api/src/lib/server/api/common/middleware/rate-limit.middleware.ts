@@ -1,11 +1,11 @@
 import { Container } from '@needle-di/core';
 import type { Context } from 'hono';
 import { RedisStore, rateLimiter } from 'hono-rate-limiter';
-import { RedisService } from '../../databases/redis/redis.service';
-import { ConfigService } from '../configs/config.service';
-import type { HonoEnv } from '../utils/hono';
-import { adaptIoredisForHonoRateLimiter } from '../utils/hono-rate-limiter-redis-client';
-import { getClientIp } from '../utils/ip';
+import { ConfigService } from '#lib/server/api/common/configs/config.service';
+import type { HonoEnv } from '#lib/server/api/common/utils/hono';
+import { adaptIoredisForHonoRateLimiter } from '#lib/server/api/common/utils/hono-rate-limiter-redis-client';
+import { getClientIp } from '#lib/server/api/common/utils/ip';
+import { RedisService } from '#lib/server/api/databases/redis/redis.service';
 
 const container = new Container();
 

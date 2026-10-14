@@ -1,17 +1,20 @@
 <script lang="ts">
-	import * as FormPrimitive from "formsnap";
-	import { cn, type WithoutChild } from "$lib/utils.js";
+	import type { HTMLAttributes } from "svelte/elements";
+	import { FieldDescription } from "#lib/components/ui/field/index.ts";
+	import { getFormFieldContext } from "./form-context.svelte.js";
 
-	let {
-		ref = $bindable(null),
-		class: className,
-		...restProps
-	}: WithoutChild<FormPrimitive.DescriptionProps> = $props();
+	let { children, ...restProps }: HTMLAttributes<HTMLParagraphElement> = $props();
+
+	const field = getFormFieldContext();
+
+	$effect(() => {
+		field.hasDescription = true;
+		return () => {
+			field.hasDescription = false;
+		};
+	});
 </script>
 
-<FormPrimitive.Description
-	bind:ref
-	data-slot="form-description"
-	class={cn("text-sm text-muted-foreground", className)}
-	{...restProps}
-/>
+<FieldDescription id={field.descriptionId} data-slot="form-description" {...restProps}>
+	{@render children?.()}
+</FieldDescription>

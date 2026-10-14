@@ -2,8 +2,8 @@ import { APP_NAME } from '@adelie/shared';
 import { memoryAdapter } from 'better-auth/adapters/memory';
 import { getTableColumns, type Table } from 'drizzle-orm';
 import { describe, expect, it } from 'vitest';
-import * as drizzleSchema from '../../databases/postgres/drizzle-schema';
-import { AUTH_PLACEHOLDER, type Auth, createAuth } from '../auth.config';
+import { AUTH_PLACEHOLDER, type Auth, createAuth } from '#lib/server/api/auth/auth.config';
+import * as drizzleSchema from '#lib/server/api/databases/postgres/drizzle-schema';
 
 type AuthTables = Awaited<Auth['$context']>['tables'];
 

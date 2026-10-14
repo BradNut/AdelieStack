@@ -1,5 +1,5 @@
 import { RoleName } from '@adelie/shared';
-import type { AuthSession, AuthUser } from '../../auth/auth.config';
+import type { AuthSession, AuthUser } from '#lib/server/api/auth/auth.config';
 
 /** Fixed clock for deterministic date assertions; use with `vi.setSystemTime(TEST_NOW)`. */
 export const TEST_NOW = new Date('2026-01-15T12:00:00.000Z');

@@ -9,7 +9,7 @@ settings area for managing profile, email, password, and account deletion.
 ## Technology Stack
 
 ### Core Framework
-- **SvelteKit 2.x** - Full-stack framework with SSR and SSG
+- **SvelteKit 3.x** - Full-stack framework with SSR and SSG
 - **Svelte 5** - Reactive UI framework with runes
 - **TypeScript** - Type-safe development
 - **Vite** - Fast build tool and dev server

@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { describe, expect, it, vi } from 'vitest';
-import { otelInstrumentation } from '../otel.middleware';
+import { otelInstrumentation } from '#lib/server/api/common/middleware/otel.middleware';
 
 function createApp() {
   return new Hono().use(otelInstrumentation()).get('/ping', (c) => c.json({ ok: true }));

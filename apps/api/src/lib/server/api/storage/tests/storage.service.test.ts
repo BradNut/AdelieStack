@@ -1,12 +1,12 @@
 import { Container } from '@needle-di/core';
 import type { HTTPException } from 'hono/http-exception';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { ConfigService } from '../../common/configs/config.service';
-import { S3StorageClient } from '../s3-storage.client';
-import { BucketVisibility } from '../storage.buckets';
-import { StorageService } from '../storage.service';
-import { ScanStatus, ScanTag } from '../storage.types';
-import { type ScanResponse, ScanResult, VirusScannerService } from '../virus-scanner.service';
+import { ConfigService } from '#lib/server/api/common/configs/config.service';
+import { S3StorageClient } from '#lib/server/api/storage/s3-storage.client';
+import { BucketVisibility } from '#lib/server/api/storage/storage.buckets';
+import { StorageService } from '#lib/server/api/storage/storage.service';
+import { ScanStatus, ScanTag } from '#lib/server/api/storage/storage.types';
+import { type ScanResponse, ScanResult, VirusScannerService } from '#lib/server/api/storage/virus-scanner.service';
 
 const envs = {
   PROJECT_NAME: 'adelie',

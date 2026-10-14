@@ -1,5 +1,5 @@
 import { DEFAULT_ADMIN_EMAIL, DEFAULT_ADMIN_NAME, RoleName } from '@adelie/shared';
-import type { Auth } from '../../../auth/auth.config';
+import type { Auth } from '#lib/server/api/auth/auth.config';
 import users from './data/users.json';
 
 interface SeedUser {

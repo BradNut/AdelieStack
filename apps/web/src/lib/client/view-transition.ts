@@ -1,4 +1,4 @@
-import type { OnNavigate } from '@sveltejs/kit';
+import type { OnNavigate } from '$app/navigation';
 
 /**
  * Wraps a client-side navigation in the View Transitions API when the browser supports it.

@@ -1,6 +1,6 @@
 import { inject, injectable } from '@needle-di/core';
 import { type Processor, Queue, type QueueOptions, Worker, type WorkerOptions } from 'bullmq';
-import { ConfigService } from '../common/configs/config.service';
+import { ConfigService } from '#lib/server/api/common/configs/config.service';
 
 /**
  * Thin factory over BullMQ that owns the single place a Redis connection is

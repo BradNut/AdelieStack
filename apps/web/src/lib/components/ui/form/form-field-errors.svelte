@@ -1,6 +1,13 @@
 <script lang="ts">
-	import * as FormPrimitive from "formsnap";
-	import { cn, type WithoutChild } from "$lib/utils.js";
+	import type { Snippet } from "svelte";
+	import type { HTMLAttributes } from "svelte/elements";
+	import { cn, type WithElementRef } from "#lib/utils.ts";
+	import { getFormFieldContext } from "./form-context.svelte.js";
+
+	interface Props extends Omit<WithElementRef<HTMLAttributes<HTMLDivElement>>, "children"> {
+		errorClasses?: string | undefined | null;
+		children?: Snippet<[{ errors: string[]; errorProps: { "data-field-error": "" } }]>;
+	}
 
 	let {
 		ref = $bindable(null),
@@ -8,23 +15,25 @@
 		errorClasses,
 		children: childrenProp,
 		...restProps
-	}: WithoutChild<FormPrimitive.FieldErrorsProps> & {
-		errorClasses?: string | undefined | null;
-	} = $props();
+	}: Props = $props();
+
+	const field = getFormFieldContext();
+	const errorProps = { "data-field-error": "" } as const;
 </script>
 
-<FormPrimitive.FieldErrors
-	bind:ref
+<div
+	bind:this={ref}
+	id={field.errorsId}
+	aria-live="assertive"
+	data-slot="form-field-errors"
 	class={cn("text-sm font-medium text-destructive", className)}
 	{...restProps}
 >
-	{#snippet children({ errors, errorProps })}
-		{#if childrenProp}
-			{@render childrenProp({ errors, errorProps })}
-		{:else}
-			{#each errors as error (error)}
-				<div {...errorProps} class={cn(errorClasses)}>{error}</div>
-			{/each}
-		{/if}
-	{/snippet}
-</FormPrimitive.FieldErrors>
+	{#if childrenProp}
+		{@render childrenProp({ errors: field.errors, errorProps })}
+	{:else}
+		{#each field.errors as error (error)}
+			<div {...errorProps} class={cn(errorClasses)}>{error}</div>
+		{/each}
+	{/if}
+</div>

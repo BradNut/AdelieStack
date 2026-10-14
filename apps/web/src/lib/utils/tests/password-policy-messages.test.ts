@@ -1,6 +1,6 @@
 import { MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH, PASSWORD_POLICY_RULES } from '@adelie/shared';
 import { describe, expect, it } from 'vitest';
-import { locales } from '$lib/paraglide/runtime.js';
+import { locales } from '#lib/paraglide/runtime.js';
 import { passwordPolicyMessages } from '../password-policy-messages';
 
 const ALL_RULES = Object.values(PASSWORD_POLICY_RULES);

@@ -1,10 +1,10 @@
 import { StatusCodes } from '@adelie/shared';
 import { inject, injectable } from '@needle-di/core';
 import type { Context } from 'hono';
-import { ConfigService } from '../common/configs/config.service';
-import { Controller } from '../common/factories/controllers.factory';
-import { LoggerService } from '../common/services/logger.service';
-import type { HonoEnv } from '../common/utils/hono';
+import { ConfigService } from '#lib/server/api/common/configs/config.service';
+import { Controller } from '#lib/server/api/common/factories/controllers.factory';
+import { LoggerService } from '#lib/server/api/common/services/logger.service';
+import type { HonoEnv } from '#lib/server/api/common/utils/hono';
 import { FileScannerWorker, type StorageScanJob } from './file-scanner.worker';
 
 // S3-compatible providers emit object-created events whose name starts with this.

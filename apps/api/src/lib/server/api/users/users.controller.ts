@@ -1,6 +1,6 @@
 import { inject, injectable } from '@needle-di/core';
-import { RolesService } from '../auth/roles';
-import { Controller } from '../common/factories/controllers.factory';
+import { RolesService } from '#lib/server/api/auth/roles';
+import { Controller } from '#lib/server/api/common/factories/controllers.factory';
 
 @injectable()
 export class UsersController extends Controller {

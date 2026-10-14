@@ -1,5 +1,5 @@
 import type { Context } from 'hono';
-import { createHono, type HonoEnv } from '../utils/hono';
+import { createHono, type HonoEnv } from '#lib/server/api/common/utils/hono';
 
 export const TEST_REQUEST_URL = 'http://localhost/test';
 

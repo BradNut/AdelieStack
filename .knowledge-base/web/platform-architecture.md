@@ -179,7 +179,7 @@ individual cookies or reconstruct headers by hand.
 ### Server State (Load Functions)
 ```typescript
 // +page.server.ts
-import { honoClient, parseApiResponse } from '$lib/utils/api';
+import { honoClient, parseApiResponse } from '#lib/utils/api';
 
 export async function load({ fetch }) {
   const { data } = await parseApiResponse(await honoClient(fetch).users.me.$get());
@@ -266,7 +266,7 @@ Cache-Control: private, max-age=300
 
 ### Content Security Policy
 
-Defined in `apps/web/csp-directives.mjs` and consumed by `svelte.config.js`
+Defined in `apps/web/csp-directives.mjs` and consumed by `vite.config.ts` (the `sveltekit()` plugin options)
 (`kit.csp.directives`); SvelteKit's `csp.mode: 'auto'` hashes the framework's own inline bootstrap
 script, so `script-src` does not need `'unsafe-inline'`:
 

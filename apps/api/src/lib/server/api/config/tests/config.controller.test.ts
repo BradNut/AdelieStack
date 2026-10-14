@@ -1,9 +1,9 @@
 import { Container } from '@needle-di/core';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { ConfigService } from '../../common/configs/config.service';
-import { buildRouteApp, resetRouteTestMocks } from '../../common/testing/route-test-harness';
-import type { AppOpenAPI } from '../../common/utils/hono';
-import { ConfigController } from '../config.controller';
+import { ConfigService } from '#lib/server/api/common/configs/config.service';
+import { buildRouteApp, resetRouteTestMocks } from '#lib/server/api/common/testing/route-test-harness';
+import type { AppOpenAPI } from '#lib/server/api/common/utils/hono';
+import { ConfigController } from '#lib/server/api/config/config.controller';
 
 const buildApp = (envs: { SIGN_UP_ENABLED?: boolean }) => {
   const container = new Container();

@@ -1,6 +1,6 @@
 import { injectable } from '@needle-di/core';
 import { getContext } from 'hono/context-storage';
-import type { HonoEnv } from '../utils/hono';
+import type { HonoEnv } from '#lib/server/api/common/utils/hono';
 
 @injectable()
 export class RequestContextService {

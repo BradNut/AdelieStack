@@ -10,16 +10,16 @@
 </script>
 
 <script lang="ts">
-	import { funEmoji } from "@dicebear/collection";
-	import { createAvatar } from "@dicebear/core";
+	import { Avatar } from "@dicebear/core";
+	import funEmoji from "@dicebear/styles/fun-emoji.json" with { type: "json" };
 
 	const { user, ...props }: Props = $props();
 	const avatar = $derived(
 		user.avatar ||
-			createAvatar(funEmoji, {
+			new Avatar(funEmoji, {
 				seed: user.id,
 			}).toDataUri(),
 	);
 </script>
 
-<img {...props} src={avatar} />
+<img alt="" {...props} src={avatar} />

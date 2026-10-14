@@ -1,4 +1,4 @@
-import { m } from '../i18n';
+import { m } from '#lib/server/api/common/i18n/index';
 import { Unauthorized } from './exceptions';
 
 /** Throws 401 unless `value` (the session or user) is present. */

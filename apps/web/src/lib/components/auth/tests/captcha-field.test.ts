@@ -9,9 +9,9 @@ const getCaptchaConfig = vi.fn<() => Promise<CaptchaPublicConfig>>();
 const handle = { reset: vi.fn(), destroy: vi.fn() };
 const render_ = vi.fn();
 
-vi.mock('$lib/client/captcha/config', () => ({ getCaptchaConfig: () => getCaptchaConfig() }));
-vi.mock('$lib/client/captcha/widgets', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('$lib/client/captcha/widgets')>();
+vi.mock('#lib/client/captcha/config.ts', () => ({ getCaptchaConfig: () => getCaptchaConfig() }));
+vi.mock('#lib/client/captcha/widgets.ts', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('#lib/client/captcha/widgets.ts')>();
   return {
     ...actual,
     captchaWidgetFor: (provider: string | undefined) => {

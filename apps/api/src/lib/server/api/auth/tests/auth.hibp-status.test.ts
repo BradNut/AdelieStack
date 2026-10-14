@@ -1,8 +1,8 @@
 import { PASSWORD_CHECK_UNAVAILABLE } from '@adelie/shared';
 import { memoryAdapter } from 'better-auth/adapters/memory';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createAuth } from '../auth.config';
-import { HIBP_CHECK_FAILED_LOG, HibpHealth, HibpStatus } from '../auth.hibp-status';
+import { createAuth } from '#lib/server/api/auth/auth.config';
+import { HIBP_CHECK_FAILED_LOG, HibpHealth, HibpStatus } from '#lib/server/api/auth/auth.hibp-status';
 
 const ORIGIN = 'http://localhost:5173';
 const PASSWORD = 'correct horse battery';
@@ -142,7 +142,7 @@ describe('HIBP monitoring through Better Auth', () => {
 describe('outage detection', () => {
   it('does not treat a non-HIBP 500 from hashing as an outage', async () => {
     const { APIError } = await import('better-auth/api');
-    const { hibpMonitor } = await import('../auth.hibp-status');
+    const { hibpMonitor } = await import('#lib/server/api/auth/auth.hibp-status');
     const status = new HibpStatus({ enabled: true, log: { error: vi.fn() } });
     const failure = new APIError('INTERNAL_SERVER_ERROR', { message: 'disk on fire' });
     const init = hibpMonitor(status).init as (ctx: unknown) => { context: { password: { hash: (p: string) => Promise<string> } } };

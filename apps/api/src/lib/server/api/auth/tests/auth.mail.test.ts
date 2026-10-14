@@ -1,15 +1,15 @@
 import { totpCode } from '@adelie/test-utils/totp';
 import { memoryAdapter } from 'better-auth/adapters/memory';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { SendProps } from '../../mail/interfaces/mailer.interface';
-import { EmailChangeNoticeEmail } from '../../mail/templates/email-change-notice.template';
-import { EmailChangeRequestEmail } from '../../mail/templates/email-change-request.template';
-import { EmailVerificationEmail } from '../../mail/templates/email-verification.template';
-import { PasswordChangedEmail } from '../../mail/templates/password-changed.template';
-import { PasswordResetLinkEmail } from '../../mail/templates/password-reset-link.template';
-import { RecoveryCodesRegeneratedEmail } from '../../mail/templates/recovery-codes-regenerated.template';
-import { RecoveryCodesUsedEmail } from '../../mail/templates/recovery-codes-used.template';
-import { type Auth, createAuth } from '../auth.config';
+import { type Auth, createAuth } from '#lib/server/api/auth/auth.config';
+import type { SendProps } from '#lib/server/api/mail/interfaces/mailer.interface';
+import { EmailChangeNoticeEmail } from '#lib/server/api/mail/templates/email-change-notice.template';
+import { EmailChangeRequestEmail } from '#lib/server/api/mail/templates/email-change-request.template';
+import { EmailVerificationEmail } from '#lib/server/api/mail/templates/email-verification.template';
+import { PasswordChangedEmail } from '#lib/server/api/mail/templates/password-changed.template';
+import { PasswordResetLinkEmail } from '#lib/server/api/mail/templates/password-reset-link.template';
+import { RecoveryCodesRegeneratedEmail } from '#lib/server/api/mail/templates/recovery-codes-regenerated.template';
+import { RecoveryCodesUsedEmail } from '#lib/server/api/mail/templates/recovery-codes-used.template';
 
 const ORIGIN = 'http://localhost:5173';
 const PASSWORD = 'Correct-horse-9';

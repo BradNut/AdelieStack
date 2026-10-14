@@ -3,12 +3,12 @@
 	import { toast } from 'svelte-sonner';
 	import { defaults, setError, superForm } from 'sveltekit-superforms';
 	import { zod4, zod4Client } from 'sveltekit-superforms/adapters';
-	import { authClient } from '$lib/auth-client';
-	import { authErrorMessage, refreshSession } from '$lib/client/auth-form';
-	import DeleteAccountCard from '$lib/components/auth/delete-account-card.svelte';
-	import * as Card from '$lib/components/ui/card';
-	import * as Form from '$lib/components/ui/form';
-	import { Input } from '$lib/components/ui/input';
+	import { authClient } from '#lib/auth-client.ts';
+	import { authErrorMessage, refreshSession } from '#lib/client/auth-form.ts';
+	import DeleteAccountCard from '#lib/components/auth/delete-account-card.svelte';
+	import * as Card from '#lib/components/ui/card/index.ts';
+	import * as Form from '#lib/components/ui/form/index.ts';
+	import { Input } from '#lib/components/ui/input/index.ts';
 
 	let { data } = $props();
 
@@ -45,7 +45,7 @@
 			<Form.Field form={sf_profile} name="name">
 				<Form.Control>
 					{#snippet children({ props })}
-						<Form.Label for="name">Name</Form.Label>
+						<Form.Label>Name</Form.Label>
 						<Input {...props} autocomplete="name" bind:value={$profileForm.name} />
 					{/snippet}
 				</Form.Control>

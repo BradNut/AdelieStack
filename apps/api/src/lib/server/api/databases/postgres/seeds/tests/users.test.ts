@@ -1,7 +1,7 @@
 import { DEFAULT_ADMIN_EMAIL, DEFAULT_ADMIN_NAME, RoleName } from '@adelie/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Auth } from '../../../../auth/auth.config';
-import seed from '../users';
+import type { Auth } from '#lib/server/api/auth/auth.config';
+import seed from '#lib/server/api/databases/postgres/seeds/users';
 
 const createUser = vi.fn();
 const auth = { api: { createUser } } as unknown as Pick<Auth, 'api'>;

@@ -168,6 +168,4 @@ There is no `/api/health/auth` endpoint, no per-dependency health payload, and n
 ## Related Documentation
 
 - [Overview](./overview.md)
-- [API Documentation](./api-doc.md)
-- [Dependencies](./dependencies.md)
 - [Context](./context.md)

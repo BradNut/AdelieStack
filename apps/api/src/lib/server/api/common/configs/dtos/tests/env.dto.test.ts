@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { envsDto } from '../env.dto';
+import { envsDto } from '#lib/server/api/common/configs/dtos/env.dto';
 
 const validEnv = {
   DATABASE_USER: 'postgres',

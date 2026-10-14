@@ -1,5 +1,5 @@
 import { inject } from '@needle-di/core';
-import { RedisService } from '../../databases/redis/redis.service';
+import { RedisService } from '#lib/server/api/databases/redis/redis.service';
 
 export abstract class RedisRepository<T extends string> {
   protected readonly redis: RedisService;

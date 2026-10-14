@@ -1,6 +1,6 @@
 import { CAPTCHA_MISSING_RESPONSE, CAPTCHA_UNAVAILABLE, CAPTCHA_VERIFICATION_FAILED } from '@adelie/shared';
 import { describe, expect, it } from 'vitest';
-import { locales } from '$lib/paraglide/runtime.js';
+import { locales } from '#lib/paraglide/runtime.js';
 import { captchaErrorMessage } from '../captcha-messages';
 
 describe('captchaErrorMessage', () => {

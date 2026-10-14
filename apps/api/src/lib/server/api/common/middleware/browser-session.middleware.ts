@@ -2,8 +2,8 @@ import { Container } from '@needle-di/core';
 import type { MiddlewareHandler } from 'hono';
 import { getSignedCookie, setSignedCookie } from 'hono/cookie';
 import { createMiddleware } from 'hono/factory';
-import { ConfigService } from '../configs/config.service';
-import { generateId } from '../utils/crypto';
+import { ConfigService } from '#lib/server/api/common/configs/config.service';
+import { generateId } from '#lib/server/api/common/utils/crypto';
 
 export const browserSessions: MiddlewareHandler = createMiddleware(async (c, next) => {
   const BROWSER_SESSION_COOKIE_NAME = '_id';

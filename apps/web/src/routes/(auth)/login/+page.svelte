@@ -2,16 +2,16 @@
 	import { signinDto } from '@adelie/shared';
 	import { defaults, setError, superForm } from 'sveltekit-superforms';
 	import { zod4, zod4Client } from 'sveltekit-superforms/adapters';
+	import { authClient } from '#lib/auth-client.ts';
+	import { authErrorMessage, refreshSession, toastIfError } from '#lib/client/auth-form.ts';
+	import { createCaptchaForm } from '#lib/client/captcha/captcha-form.svelte.ts';
+	import CaptchaField from '#lib/components/auth/captcha-field.svelte';
+	import { Button } from '#lib/components/ui/button/index.ts';
+	import * as Card from '#lib/components/ui/card/index.ts';
+	import * as Form from '#lib/components/ui/form/index.ts';
+	import { Input } from '#lib/components/ui/input/index.ts';
+	import { captchaErrorMessage } from '#lib/utils/captcha-messages.ts';
 	import { goto } from '$app/navigation';
-	import { authClient } from '$lib/auth-client';
-	import { authErrorMessage, refreshSession, toastIfError } from '$lib/client/auth-form';
-	import { createCaptchaForm } from '$lib/client/captcha/captcha-form.svelte';
-	import CaptchaField from '$lib/components/auth/captcha-field.svelte';
-	import { Button } from '$lib/components/ui/button';
-	import * as Card from '$lib/components/ui/card';
-	import * as Form from '$lib/components/ui/form';
-	import { Input } from '$lib/components/ui/input';
-	import { captchaErrorMessage } from '$lib/utils/captcha-messages';
 
 	let { data } = $props();
 	const captcha = createCaptchaForm();
@@ -64,7 +64,7 @@
 			<Form.Field form={sf_login} name="email">
 				<Form.Control>
 					{#snippet children({ props })}
-						<Form.Label for="email">Email</Form.Label>
+						<Form.Label>Email</Form.Label>
 						<Input
 							{...props}
 							type="email"
@@ -79,7 +79,7 @@
 			<Form.Field form={sf_login} name="password">
 				<Form.Control>
 					{#snippet children({ props })}
-						<Form.Label for="password">Password</Form.Label>
+						<Form.Label>Password</Form.Label>
 						<Input
 							{...props}
 							autocomplete="current-password"

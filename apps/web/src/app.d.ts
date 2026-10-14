@@ -1,6 +1,6 @@
 import type { ApiClient } from '@adelie/api-contract';
 import type { AuthedUser } from '@adelie/shared';
-import type { parseApiResponse } from '$lib/utils/api';
+import type { parseApiResponse } from '#lib/utils/api.ts';
 
 // See https://kit.svelte.dev/docs/types#app
 // for information about these interfaces

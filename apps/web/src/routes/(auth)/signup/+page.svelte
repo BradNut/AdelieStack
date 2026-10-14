@@ -3,17 +3,17 @@
 	import { toast } from 'svelte-sonner';
 	import { defaults, setError, superForm } from 'sveltekit-superforms';
 	import { zod4, zod4Client } from 'sveltekit-superforms/adapters';
+	import { authClient } from '#lib/auth-client.ts';
+	import { authErrorMessage, passwordRejectionCodes, refreshSession } from '#lib/client/auth-form.ts';
+	import { createCaptchaForm } from '#lib/client/captcha/captcha-form.svelte.ts';
+	import CaptchaField from '#lib/components/auth/captcha-field.svelte';
+	import PasswordFieldErrors from '#lib/components/auth/password-field-errors.svelte';
+	import { Button } from '#lib/components/ui/button/index.ts';
+	import * as Card from '#lib/components/ui/card/index.ts';
+	import * as Form from '#lib/components/ui/form/index.ts';
+	import { Input } from '#lib/components/ui/input/index.ts';
+	import { captchaErrorMessage } from '#lib/utils/captcha-messages.ts';
 	import { goto } from '$app/navigation';
-	import { authClient } from '$lib/auth-client';
-	import { authErrorMessage, passwordRejectionCodes, refreshSession } from '$lib/client/auth-form';
-	import { createCaptchaForm } from '$lib/client/captcha/captcha-form.svelte';
-	import CaptchaField from '$lib/components/auth/captcha-field.svelte';
-	import PasswordFieldErrors from '$lib/components/auth/password-field-errors.svelte';
-	import { Button } from '$lib/components/ui/button/index.js';
-	import * as Card from '$lib/components/ui/card/index.js';
-	import * as Form from '$lib/components/ui/form';
-	import { Input } from '$lib/components/ui/input/index.js';
-	import { captchaErrorMessage } from '$lib/utils/captcha-messages';
 
 	const captcha = createCaptchaForm();
 
@@ -62,7 +62,7 @@
 			<Form.Field form={sf_signup} name="name">
 				<Form.Control>
 					{#snippet children({ props })}
-						<Form.Label for="name">Name</Form.Label>
+						<Form.Label>Name</Form.Label>
 						<Input {...props} type="text" placeholder="Name" autocomplete="name" bind:value={$signupForm.name} />
 					{/snippet}
 				</Form.Control>
@@ -71,7 +71,7 @@
 			<Form.Field form={sf_signup} name="email">
 				<Form.Control>
 					{#snippet children({ props })}
-						<Form.Label for="email">Email</Form.Label>
+						<Form.Label>Email</Form.Label>
 						<Input {...props} type="email" placeholder="Email" autocomplete="email" bind:value={$signupForm.email} />
 					{/snippet}
 				</Form.Control>
@@ -80,7 +80,7 @@
 			<Form.Field form={sf_signup} name="password">
 				<Form.Control>
 					{#snippet children({ props })}
-						<Form.Label for="password">Password</Form.Label>
+						<Form.Label>Password</Form.Label>
 						<Input
 							{...props}
 							type="password"
@@ -95,7 +95,7 @@
 			<Form.Field form={sf_signup} name="confirm_password">
 				<Form.Control>
 					{#snippet children({ props })}
-						<Form.Label for="confirm_password">Confirm Password</Form.Label>
+						<Form.Label>Confirm Password</Form.Label>
 						<Input
 							{...props}
 							type="password"

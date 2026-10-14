@@ -43,7 +43,7 @@
 - **Usage**: `LoginRequestsService` and `ResetPasswordRequestsService` call `mailer.send(...)`
   and do not catch mailer errors — a mailer failure surfaces as a request failure
 - **Note**: in `dev`, this posts to a local Mailpit-compatible endpoint; in `prod`, `ProdMailerService`
-  only `console.log`s and does not actually send mail (see [Dependencies](./dependencies.md))
+  only `console.log`s and does not actually send mail
 
 ### Downstream Dependencies (services that depend on IAM)
 
@@ -152,6 +152,4 @@ Client → IamController → UsersRepository (lookup)
 ## Related Documentation
 
 - [Overview](./overview.md)
-- [API Documentation](./api-doc.md)
 - [Business Processes](./business-processes.md)
-- [Dependencies](./dependencies.md)

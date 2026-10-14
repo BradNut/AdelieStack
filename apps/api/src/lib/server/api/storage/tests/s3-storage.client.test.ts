@@ -9,7 +9,7 @@ import {
   S3Client,
 } from '@aws-sdk/client-s3';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { buildEndpoint, S3StorageClient } from '../s3-storage.client';
+import { buildEndpoint, S3StorageClient } from '#lib/server/api/storage/s3-storage.client';
 
 const createClient = () =>
   new S3StorageClient({

@@ -1,11 +1,14 @@
 import { paraglideVitePlugin } from '@inlang/paraglide-js';
-import { sentrySvelteKit } from '@sentry/sveltekit';
+import { sentrySvelteKit } from '@sentry/sveltekit/vite';
+import adapter from '@sveltejs/adapter-node';
 import { enhancedImages } from '@sveltejs/enhanced-img';
 import { sveltekit } from '@sveltejs/kit/vite';
+import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
 import tailwindcss from '@tailwindcss/vite';
 import { svelteTesting } from '@testing-library/svelte/vite';
 import { varlockVitePlugin } from '@varlock/vite-integration';
 import { defineConfig } from 'vitest/config';
+import cspDirectives from './csp-directives.mjs';
 
 export default defineConfig(({ mode }) => {
   const isProductionEnvironment = mode === 'production' && process.env.ENVIRONMENT === 'production';
@@ -22,7 +25,18 @@ export default defineConfig(({ mode }) => {
     // must come before the SvelteKit plugin
     enhancedImages(),
     varlockVitePlugin(),
-    sveltekit(),
+    sveltekit({
+      preprocess: vitePreprocess(),
+      adapter: adapter(),
+      // adapter-node 6 no longer reads ORIGIN. By default the origin comes from the request (Host header, https unless PROTOCOL_HEADER says otherwise),
+      // which is wrong for a plain-HTTP deployment and fails the CSRF check on form actions. Set WEB_ORIGIN at build time to pin it.
+      // Deliberately not ORIGIN: that is shared with the API and has a localhost default in .env.schema, which would be baked into the image.
+      paths: { origin: process.env.WEB_ORIGIN || undefined },
+      csp: {
+        mode: 'auto',
+        directives: cspDirectives,
+      },
+    }),
     // Resolves Svelte's browser build under Vitest so components can be mounted in jsdom.
     svelteTesting(),
     paraglideVitePlugin({
@@ -35,13 +49,11 @@ export default defineConfig(({ mode }) => {
   const plugins = shouldEnableSentryBuildPlugin
     ? [
         sentrySvelteKit({
-          sourceMapsUploadOptions: {
-            org: process.env.SENTRY_ORG,
-            project: process.env.SENTRY_PROJECT,
-            url: process.env.SENTRY_URL,
-            authToken: process.env.SENTRY_AUTH_TOKEN,
-            telemetry: false,
-          },
+          org: process.env.SENTRY_ORG,
+          project: process.env.SENTRY_PROJECT,
+          sentryUrl: process.env.SENTRY_URL,
+          authToken: process.env.SENTRY_AUTH_TOKEN,
+          telemetry: false,
         }),
         ...basePlugins,
       ]
@@ -58,6 +70,7 @@ export default defineConfig(({ mode }) => {
     },
     test: {
       include: ['src/**/*.{test,spec}.{js,ts}'],
+      setupFiles: ['src/lib/client/tests/sveltekit-client-mocks.ts'],
     },
   };
 });

@@ -1,6 +1,6 @@
 # API Agent Guide
 
-API work lives in `apps/api` and uses Hono, TypeScript, Drizzle, PostgreSQL, Redis, SeaweedFS (S3), and Mailpit. Repo-wide rules are in the root [AGENTS.md](../../AGENTS.md); coding, error, security, and testing rules live in [`standards/`](../../.knowledge-base/api/standards/).
+Repo-wide rules are in the root [AGENTS.md](../../AGENTS.md); coding, error, security, and testing rules live in [`standards/`](../../.knowledge-base/api/standards/).
 
 ## Read Only What You Need
 
@@ -14,7 +14,3 @@ API work lives in `apps/api` and uses Hono, TypeScript, Drizzle, PostgreSQL, Red
 
 - **Server-only stays server-only**: keep secrets/configs/credentials in server-only modules and sanitize responses.
 - **Controllers are the contract**: a controller must be registered in `application.controller.ts` to appear in the RPC contract.
-
-## Code Layout
-
-Modules are organized by feature under `src/lib/server/api`, each with controller, service, repository, and tables, wired together by the application module. See the [API overview](../../.knowledge-base/api/overview.md) and [platform architecture](../../.knowledge-base/api/platform-architecture.md) for the map, and [API conventions](../../.knowledge-base/api/standards/api-conventions.md) for adding a module.

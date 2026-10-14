@@ -14,58 +14,21 @@ const getCaptchaConfig = vi.fn<() => Promise<CaptchaPublicConfig>>();
 const widget = { reset: vi.fn(), destroy: vi.fn() };
 const renderWidget = vi.fn();
 
-vi.mock('$lib/auth-client', () => ({ authClient }));
-vi.mock('$lib/client/captcha/config', () => ({ getCaptchaConfig: () => getCaptchaConfig() }));
-vi.mock('$lib/client/captcha/widgets', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('$lib/client/captcha/widgets')>()),
+vi.mock('#lib/auth-client.ts', () => ({ authClient }));
+vi.mock('#lib/client/captcha/config.ts', () => ({ getCaptchaConfig: () => getCaptchaConfig() }));
+vi.mock('#lib/client/captcha/widgets.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('#lib/client/captcha/widgets.ts')>()),
   captchaWidgetFor: (provider: string) => ({ provider, render: renderWidget }),
 }));
-vi.mock('$lib/client/auth-form', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('$lib/client/auth-form')>()),
+vi.mock('#lib/client/auth-form.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('#lib/client/auth-form.ts')>()),
   refreshSession: vi.fn(),
 }));
 vi.mock('mode-watcher', () => ({ mode: { current: 'light' } }));
 vi.mock('svelte-sonner', () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
-// Superforms hands validation errors to SvelteKit's client router, which does not exist under Vitest.
-// Stand in for it: applying an action result publishes it on the page store, which superforms subscribes to.
-const pageStore = vi.hoisted(() => {
-  let value: Record<string, unknown> = { form: null, status: 200, url: new URL('http://localhost/'), data: {}, params: {}, route: { id: '/' } };
-  const subscribers = new Set<(v: unknown) => void>();
-  return {
-    subscribe(run: (v: unknown) => void) {
-      subscribers.add(run);
-      run(value);
-      return () => subscribers.delete(run);
-    },
-    publish(result: { data?: unknown; status?: number }) {
-      value = { ...value, form: result.data, status: result.status };
-      for (const run of subscribers) run(value);
-    },
-  };
-});
-const constantStore = vi.hoisted(() => (value: unknown) => (run: (v: unknown) => void) => {
-  run(value);
-  return () => {};
-});
-vi.mock('$app/stores', () => ({
-  page: { subscribe: pageStore.subscribe },
-  navigating: { subscribe: constantStore(null) },
-  updated: { subscribe: constantStore(false) },
-}));
-vi.mock('$app/forms', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('$app/forms')>()),
-  applyAction: async (result: { data?: unknown; status?: number }) => pageStore.publish(result),
-}));
-vi.mock('$app/navigation', () => ({
-  goto: vi.fn(),
-  invalidateAll: vi.fn(),
-  beforeNavigate: vi.fn(),
-  afterNavigate: vi.fn(),
-  onNavigate: vi.fn(),
-}));
 
 import { toast } from 'svelte-sonner';
-import ResendVerificationButton from '$lib/components/auth/resend-verification-button.svelte';
+import ResendVerificationButton from '#lib/components/auth/resend-verification-button.svelte';
 import LoginPage from '../login/+page.svelte';
 import ResetPage from '../password/reset/+page.svelte';
 import SignupPage from '../signup/+page.svelte';
@@ -107,7 +70,7 @@ async function type(label: RegExp | string, value: string) {
 const forms = [
   {
     name: 'sign-in',
-    mount: () => render(LoginPage, { data: { signUpEnabled: true, authedUser: null, showOAuthButtons: false } }),
+    mount: () => render(LoginPage, { data: { signUpEnabled: true, flash: undefined, authedUser: null, showOAuthButtons: false } }),
     fill: async () => {
       await type('Email', 'a@example.com');
       await type('Password', 'correct horse battery');
@@ -129,7 +92,7 @@ const forms = [
   },
   {
     name: 'request-password-reset',
-    mount: () => render(ResetPage, { data: { signUpEnabled: true, authedUser: null, token: null, linkError: null } }),
+    mount: () => render(ResetPage, { data: { signUpEnabled: true, flash: undefined, authedUser: null, token: null, linkError: null } }),
     fill: () => type('Email', 'a@example.com'),
     submit: () => fireEvent.click(screen.getByRole('button', { name: 'Send reset link' })),
     call: () => authClient.requestPasswordReset,

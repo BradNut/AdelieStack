@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ConfigService } from '../../common/configs/config.service';
-import { DevMailerService } from '../dev-mailer.service';
-import type { EmailTemplate } from '../interfaces/email-template.interface';
-import { MailerService } from '../mailer.service';
-import { MailerTransport, type MailerTransportType } from '../mailer-transport.constant';
-import type { ProdMailerService } from '../prod-mailer.service';
+import type { ConfigService } from '#lib/server/api/common/configs/config.service';
+import { DevMailerService } from '#lib/server/api/mail/dev-mailer.service';
+import type { EmailTemplate } from '#lib/server/api/mail/interfaces/email-template.interface';
+import { MailerService } from '#lib/server/api/mail/mailer.service';
+import { MailerTransport, type MailerTransportType } from '#lib/server/api/mail/mailer-transport.constant';
+import type { ProdMailerService } from '#lib/server/api/mail/prod-mailer.service';
 
 const template: EmailTemplate = {
   subject: () => 'Welcome',

@@ -1,6 +1,6 @@
 import { inject, injectable } from '@needle-di/core';
-import { ConfigService } from '../common/configs/config.service';
-import { LoggerService } from '../common/services/logger.service';
+import { ConfigService } from '#lib/server/api/common/configs/config.service';
+import { LoggerService } from '#lib/server/api/common/services/logger.service';
 import { S3StorageClient } from './s3-storage.client';
 import { ScanStatus, ScanTag } from './storage.types';
 import { ScanResult, VirusScannerService } from './virus-scanner.service';

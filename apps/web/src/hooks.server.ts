@@ -1,18 +1,19 @@
+import { StatusCodes } from '@adelie/shared/constants';
 import { getDevOnlySentryOptions } from '@adelie/shared/sentry';
 import * as Sentry from '@sentry/sveltekit';
 import { sentryHandle } from '@sentry/sveltekit';
-import type { Handle, HandleServerError } from '@sveltejs/kit';
+import type { Handle, HandleServerError } from '@sveltejs/kit/hooks';
 import { sequence } from '@sveltejs/kit/hooks';
 import { createInitialModeExpression } from 'mode-watcher';
-import { dev } from '$app/environment';
-import { env } from '$env/dynamic/public';
-import { loadSessionUser } from '$lib/server/session-user';
-import { honoClient, parseApiResponse } from '$lib/utils/api';
-import type { Api } from '$lib/utils/types';
+import { loadSessionUser } from '#lib/server/session-user.ts';
+import { honoClient, parseApiResponse } from '#lib/utils/api.ts';
+import type { Api } from '#lib/utils/types.ts';
+import { dev } from '$app/env';
+import { PUBLIC_SENTRY_DSN } from '$app/env/public';
 import { i18n } from './lib/i18n';
 
 Sentry.init({
-  dsn: env.PUBLIC_SENTRY_DSN || undefined,
+  dsn: PUBLIC_SENTRY_DSN,
   environment: dev ? 'development' : 'production',
   tracesSampleRate: dev ? 1 : 0,
   ...getDevOnlySentryOptions(dev ? 'development' : 'production'),
@@ -48,10 +49,11 @@ const apiClient: Handle = async ({ event, resolve }) => {
 
 export const handle: Handle = sequence(sentryHandle(), apiClient, i18n);
 
-export const handleError: HandleServerError = ({ error, status, message }) => {
+export const handleError: HandleServerError = ({ kind, error }) => {
   const errorId = crypto.randomUUID();
+  const status = kind === 'unknown' ? StatusCodes.INTERNAL_SERVER_ERROR : error.status;
   if (status !== 404) {
     Sentry.captureException(error, { tags: { errorId } });
   }
-  return { message, errorId };
+  return { errorId };
 };

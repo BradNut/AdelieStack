@@ -22,13 +22,17 @@ COPY packages/shared/src packages/shared/src
 COPY packages/api-contract/src packages/api-contract/src
 
 # PUBLIC_-prefixed vars are inlined into the client bundle at build time via
-# SvelteKit's `$env/static/public`, so they must be supplied as build args
+# SvelteKit's `$app/env/public`, so they must be supplied as build args
 # (never real secrets: this schema only exposes non-sensitive PUBLIC_ values).
 # PUBLIC_IMAGE_URI is required by apps/web/.env.schema; override it with
 # `--build-arg PUBLIC_IMAGE_URI=...` to point at a real deployment's public
 # object storage origin.
 ARG PUBLIC_IMAGE_URI=http://localhost:8333/adelie-public-development
 ENV PUBLIC_IMAGE_URI=${PUBLIC_IMAGE_URI}
+# Optional: pin the origin SvelteKit trusts for form-action CSRF checks (paths.origin in vite.config.ts).
+# Leave empty behind a TLS proxy; set it for plain-HTTP deployments. adapter-node 6 no longer reads ORIGIN at runtime.
+ARG WEB_ORIGIN=
+ENV WEB_ORIGIN=${WEB_ORIGIN}
 ENV ENVIRONMENT=production
 RUN pnpm --filter @adelie/web run build
 

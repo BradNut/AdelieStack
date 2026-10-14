@@ -1,13 +1,13 @@
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { describe, expect, it, vi } from 'vitest';
-import type { ConfigService } from '../../common/configs/config.service';
-import { envsDto } from '../../common/configs/dtos/env.dto';
-import { validEnvs } from '../../common/configs/tests/env-fixtures';
-import type { LoggerService } from '../../common/services/logger.service';
-import type { DrizzleService } from '../../databases/postgres/drizzle.service';
-import * as drizzleSchema from '../../databases/postgres/drizzle-schema';
-import type { MailerService } from '../../mail/mailer.service';
-import { AuthService } from '../auth.service';
+import { AuthService } from '#lib/server/api/auth/auth.service';
+import type { ConfigService } from '#lib/server/api/common/configs/config.service';
+import { envsDto } from '#lib/server/api/common/configs/dtos/env.dto';
+import { validEnvs } from '#lib/server/api/common/configs/tests/env-fixtures';
+import type { LoggerService } from '#lib/server/api/common/services/logger.service';
+import type { DrizzleService } from '#lib/server/api/databases/postgres/drizzle.service';
+import * as drizzleSchema from '#lib/server/api/databases/postgres/drizzle-schema';
+import type { MailerService } from '#lib/server/api/mail/mailer.service';
 
 function buildService(envs: Record<string, string> = {}) {
   const dbRead = vi.fn();

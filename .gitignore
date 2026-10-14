@@ -40,3 +40,6 @@ src/lib/paraglide
 
 # Local agent ticket workspace (never committed)
 .issues
+
+# CodeGraph index (local, regenerable)
+.codegraph/

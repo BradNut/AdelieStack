@@ -29,7 +29,7 @@ describe('ConfigService', () => {
   });
 
   async function createConfigService() {
-    const { ConfigService } = await import('../config.service');
+    const { ConfigService } = await import('#lib/server/api/common/configs/config.service');
     return new ConfigService();
   }
 
@@ -50,13 +50,13 @@ describe('ConfigService', () => {
 
   it('throws a wrapped error when a required env is missing', async () => {
     setProcessEnvs({ ...validEnvs, SIGNING_SECRET: undefined });
-    const { ConfigService } = await import('../config.service');
+    const { ConfigService } = await import('#lib/server/api/common/configs/config.service');
     expect(() => new ConfigService()).toThrowError(/Missing environment variables:/);
   });
 
   it('throws a wrapped error when ports are not numbers', async () => {
     setProcessEnvs({ ...validEnvs, DATABASE_PORT: 'nope', PORT: 'nope', STORAGE_PORT: 'nope' });
-    const { ConfigService } = await import('../config.service');
+    const { ConfigService } = await import('#lib/server/api/common/configs/config.service');
     expect(() => new ConfigService()).toThrowError(/Missing environment variables:/);
   });
 
@@ -68,7 +68,7 @@ describe('ConfigService', () => {
 
   it('rejects a HIBP_ENABLED value that is not a boolean string', async () => {
     setProcessEnvs({ ...validEnvs, HIBP_ENABLED: 'maybe' });
-    const { ConfigService } = await import('../config.service');
+    const { ConfigService } = await import('#lib/server/api/common/configs/config.service');
     expect(() => new ConfigService()).toThrowError(/HIBP_ENABLED/);
   });
 });
@@ -86,7 +86,7 @@ describe('ConfigService captcha settings', () => {
 
   async function create(envs: Record<string, string | undefined>) {
     setProcessEnvs({ ...validEnvs, ...envs });
-    const { ConfigService } = await import('../config.service');
+    const { ConfigService } = await import('#lib/server/api/common/configs/config.service');
     return new ConfigService();
   }
 

@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { AppRoute } from "@adelie/shared";
-	import Logo from "@/components/logo.svelte";
+	import Logo from "#lib/components/logo.svelte";
+	import ThemeDropdown from "#lib/components/theme-dropdown.svelte";
+	import { Button } from "#lib/components/ui/button/index.ts";
 	import { page } from "$app/state";
-	import ThemeDropdown from "$lib/components/theme-dropdown.svelte";
-	import { Button } from "$lib/components/ui/button";
 
 	let { data, children } = $props();
 </script>
@@ -26,7 +26,7 @@
 			class="image"
 			style="
 				background-image:
-					url(https://images.unsplash.com/photo-1730804518415-75297e8d2a41?q=80&w=1462&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D"
+					url(https://images.unsplash.com/photo-1730804518415-75297e8d2a41?q=80&w=1462&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D)"
 		></div>
 		<div class="quote-wrapper">
 			<blockquote class="quote">

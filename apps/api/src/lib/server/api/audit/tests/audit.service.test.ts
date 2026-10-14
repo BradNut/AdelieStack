@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { generateId } from '../../common/utils/crypto';
-import { RequestContextService } from '../../common/services/request-context.service';
-import { createTestContainer, mockProvider } from '../../common/testing/test-container';
-import { AuditRepository } from '../audit.repository';
-import { AuditService, SecurityAuditAction } from '../audit.service';
-import type { AuditLog, CreateAuditLog } from '../tables/audit_log.table';
+import { AuditRepository } from '#lib/server/api/audit/audit.repository';
+import { AuditService, SecurityAuditAction } from '#lib/server/api/audit/audit.service';
+import type { AuditLog, CreateAuditLog } from '#lib/server/api/audit/tables/audit_log.table';
+import { RequestContextService } from '#lib/server/api/common/services/request-context.service';
+import { createTestContainer, mockProvider } from '#lib/server/api/common/testing/test-container';
+import { generateId } from '#lib/server/api/common/utils/crypto';
 
 /**
  * In-memory stand-in for {@link AuditRepository}. It genuinely stores rows and

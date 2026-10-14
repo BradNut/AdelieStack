@@ -1,5 +1,5 @@
 import { inject, injectable } from '@needle-di/core';
-import { RequestContextService } from '../common/services/request-context.service';
+import { RequestContextService } from '#lib/server/api/common/services/request-context.service';
 import { AuditRepository } from './audit.repository';
 
 /**

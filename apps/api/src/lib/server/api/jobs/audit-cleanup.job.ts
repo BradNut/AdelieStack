@@ -1,7 +1,7 @@
 import { inject, injectable } from '@needle-di/core';
 import type { Job, Queue, Worker } from 'bullmq';
 import dayjs from 'dayjs';
-import { AuditRepository } from '../audit/audit.repository';
+import { AuditRepository } from '#lib/server/api/audit/audit.repository';
 import { JobsService } from './jobs.service';
 
 /* -------------------------------------------------------------------------- */
@@ -57,11 +57,14 @@ export class AuditCleanupJob {
    * run at import time.
    */
   async register(): Promise<void> {
-    await this.getQueue().add(AUDIT_CLEANUP_JOB, null, {
-      repeat: { pattern: AUDIT_CLEANUP_SCHEDULE },
-      removeOnComplete: true,
-      removeOnFail: 50,
-    });
+    await this.getQueue().upsertJobScheduler(
+      AUDIT_CLEANUP_JOB,
+      { pattern: AUDIT_CLEANUP_SCHEDULE },
+      {
+        name: AUDIT_CLEANUP_JOB,
+        opts: { removeOnComplete: true, removeOnFail: 50 },
+      },
+    );
 
     this.worker ??= this.jobsService.createWorker(AUDIT_CLEANUP_QUEUE, (job) => this.process(job));
   }

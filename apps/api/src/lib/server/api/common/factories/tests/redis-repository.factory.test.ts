@@ -1,9 +1,9 @@
 import { injectable } from '@needle-di/core';
 import { describe, expect, it } from 'vitest';
-import { RedisService } from '../../../databases/redis/redis.service';
-import { ConfigService } from '../../configs/config.service';
-import { createTestContainer, mockProvider } from '../../testing/test-container';
-import { RedisRepository } from '../redis-repository.factory';
+import { ConfigService } from '#lib/server/api/common/configs/config.service';
+import { RedisRepository } from '#lib/server/api/common/factories/redis-repository.factory';
+import { createTestContainer, mockProvider } from '#lib/server/api/common/testing/test-container';
+import { RedisService } from '#lib/server/api/databases/redis/redis.service';
 
 @injectable()
 class SessionsRepository extends RedisRepository<'session'> {

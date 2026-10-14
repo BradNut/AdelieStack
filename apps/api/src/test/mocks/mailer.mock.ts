@@ -1,5 +1,5 @@
 import { vi } from 'vitest';
-import type { Mailer, SendProps } from '../../lib/server/api/mail/interfaces/mailer.interface';
+import type { Mailer, SendProps } from '#lib/server/api/mail/interfaces/mailer.interface';
 
 /** Records outgoing mail instead of hitting Mailpit or the production provider. */
 export function createMailerServiceMock() {

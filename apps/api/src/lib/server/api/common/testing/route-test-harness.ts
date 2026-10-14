@@ -1,7 +1,7 @@
 import type { Hono, MiddlewareHandler } from 'hono';
 import { type MockedFunction, vi } from 'vitest';
-import type { AuthUser } from '../../auth/auth.config';
-import { type AppOpenAPI, createHono } from '../utils/hono';
+import type { AuthUser } from '#lib/server/api/auth/auth.config';
+import { type AppOpenAPI, createHono } from '#lib/server/api/common/utils/hono';
 import { buildAuthSession } from './factories';
 
 /**
@@ -19,7 +19,7 @@ const harnessMocks = vi.hoisted(() => ({
 
 export const rateLimitMock = harnessMocks.rateLimitMock as MockedFunction<(...args: unknown[]) => MiddlewareHandler>;
 
-vi.mock('../middleware/rate-limit.middleware', () => ({
+vi.mock('#lib/server/api/common/middleware/rate-limit.middleware', () => ({
   rateLimit: rateLimitMock,
 }));
 

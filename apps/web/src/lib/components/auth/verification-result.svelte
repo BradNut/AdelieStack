@@ -1,11 +1,11 @@
 <script lang="ts">
 	import { AppRoute, VerificationKind } from '@adelie/shared';
 	import { onMount } from 'svelte';
+	import { refreshSession } from '#lib/client/auth-form.ts';
+	import ResendVerificationButton from '#lib/components/auth/resend-verification-button.svelte';
+	import { Button } from '#lib/components/ui/button/index.ts';
+	import * as Card from '#lib/components/ui/card/index.ts';
 	import { page } from '$app/state';
-	import { refreshSession } from '$lib/client/auth-form';
-	import ResendVerificationButton from '$lib/components/auth/resend-verification-button.svelte';
-	import { Button } from '$lib/components/ui/button';
-	import * as Card from '$lib/components/ui/card';
 
 	interface Props {
 		/** What the link was for: shapes the wording and the recovery action. */

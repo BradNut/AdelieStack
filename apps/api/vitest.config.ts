@@ -1,16 +1,6 @@
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
 
-const currentDirectory = path.dirname(fileURLToPath(import.meta.url));
-
 export default defineConfig({
-  resolve: {
-    alias: {
-      $lib: path.resolve(currentDirectory, 'src/lib'),
-      '@': path.resolve(currentDirectory, 'src/lib'),
-    },
-  },
   test: {
     include: ['src/**/*.{test,spec}.{js,ts}'],
     environment: 'node',

@@ -1,5 +1,5 @@
 import { inject, injectable } from '@needle-di/core';
-import { ConfigService } from '../common/configs/config.service';
+import { ConfigService } from '#lib/server/api/common/configs/config.service';
 import { DevMailerService } from './dev-mailer.service';
 import type { Mailer, SendProps } from './interfaces/mailer.interface';
 import { MailerTransport } from './mailer-transport.constant';

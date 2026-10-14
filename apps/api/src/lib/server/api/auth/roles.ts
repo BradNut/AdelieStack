@@ -1,8 +1,8 @@
 import { RoleName } from '@adelie/shared';
 import { inject, injectable } from '@needle-di/core';
 import type pino from 'pino';
-import { ConfigService } from '../common/configs/config.service';
-import { LoggerService } from '../common/services/logger.service';
+import { ConfigService } from '#lib/server/api/common/configs/config.service';
+import { LoggerService } from '#lib/server/api/common/services/logger.service';
 
 const ROLE_NAMES: readonly string[] = Object.values(RoleName);
 const ROLE_SEPARATOR = ',';

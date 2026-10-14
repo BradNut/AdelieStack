@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { Api } from '$lib/utils/types';
+import type { Api } from '#lib/utils/types.ts';
 import { loadSignUpEnabled } from '../public-config';
 
 function apiReturning(response: Partial<Response> & { json?: () => Promise<unknown> }) {

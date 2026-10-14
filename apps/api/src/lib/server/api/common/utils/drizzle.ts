@@ -1,6 +1,6 @@
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { customType, timestamp } from 'drizzle-orm/pg-core';
-import type * as drizzleSchema from '../../databases/postgres/drizzle-schema';
+import type * as drizzleSchema from '#lib/server/api/databases/postgres/drizzle-schema';
 import { NotFound } from './exceptions';
 
 /* -------------------------------------------------------------------------- */

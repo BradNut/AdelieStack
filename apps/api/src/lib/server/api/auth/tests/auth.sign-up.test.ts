@@ -1,7 +1,7 @@
 import { RoleName } from '@adelie/shared';
 import { memoryAdapter } from 'better-auth/adapters/memory';
 import { describe, expect, it } from 'vitest';
-import { type Auth, createAuth } from '../auth.config';
+import { type Auth, createAuth } from '#lib/server/api/auth/auth.config';
 
 const ORIGIN = 'http://localhost:5173';
 const PASSWORD = 'Correct-horse-9';

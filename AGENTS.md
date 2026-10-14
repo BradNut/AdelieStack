@@ -1,6 +1,6 @@
 # Agent Guide
 
-AdelieStack is a pnpm + Turbo monorepo: a Hono API and a SvelteKit web app sharing typed contracts. Token-light entry; read deeper docs only when needed.
+AdelieStack is a pnpm + Turbo monorepo: a Hono API (`apps/api`) and a SvelteKit web app (`apps/web`) sharing typed contracts (`packages/shared` for client-safe constants/DTOs/validations, `packages/api-contract` for Hono RPC types). Token-light entry; read deeper docs only when needed.
 
 ## Commands
 
@@ -9,11 +9,12 @@ AdelieStack is a pnpm + Turbo monorepo: a Hono API and a SvelteKit web app shari
 - `pnpm test` runs API and web unit tests; `pnpm test:e2e` runs Playwright.
 - `pnpm initialize` boots local infra (Docker), storage, and runs DB generate/migrate/seed.
 
-## Load Order
+## Where to Look
 
-1. Nearest guide: [API](./apps/api/AGENTS.md) or [Web](./apps/web/AGENTS.md).
-2. If unfamiliar, one overview: [API](./.knowledge-base/api/overview.md) or [Web](./.knowledge-base/web/overview.md).
-3. Then only the matching service/feature/standard: [API index](./.knowledge-base/api/index.md) or [Web index](./.knowledge-base/web/index.md).
+Locate code with CodeGraph (`codegraph_explore`) before grep or Read. Then start with the nearest guide (cross-stack work: both), then one overview if unfamiliar, then only the matching service/feature/standard from the index.
+
+- **API** (route/service/repository/schema): [guide](./apps/api/AGENTS.md), [overview](./.knowledge-base/api/overview.md), [index](./.knowledge-base/api/index.md), [runbooks](./.knowledge-base/api/runbooks/index.md), [decisions](./.knowledge-base/api/decisions/index.md)
+- **Web** (route/component/form/state/style): [guide](./apps/web/AGENTS.md), [overview](./.knowledge-base/web/overview.md), [index](./.knowledge-base/web/index.md), [runbooks](./.knowledge-base/web/runbooks/index.md), [decisions](./.knowledge-base/web/decisions/index.md)
 
 ## Non-Negotiable Rules
 
@@ -25,24 +26,6 @@ AdelieStack is a pnpm + Turbo monorepo: a Hono API and a SvelteKit web app shari
 - **Tests**: cover happy paths plus negative/edge cases.
 - **Drizzle**: never hand-edit migration SQL or metadata; use Drizzle tooling.
 - **Lazy infra**: no import-time external connections.
-
-## Scope Router
-
-- **API** (route/service/repository/schema) -> `apps/api/AGENTS.md`.
-- **Web** (route/component/form/state/style) -> `apps/web/AGENTS.md`.
-- **Cross-stack**: both app guides.
-- **Ops**: [API](./.knowledge-base/api/runbooks/index.md) or [Web](./.knowledge-base/web/runbooks/index.md) runbooks.
-- **Decisions**: [API](./.knowledge-base/api/decisions/index.md) or [Web](./.knowledge-base/web/decisions/index.md).
-
-## Repo Layout
-
-- `apps/api` Hono API; `apps/web` SvelteKit app.
-- `packages/shared` client-safe constants, domain values, DTOs, validations.
-- `packages/api-contract` Hono RPC types shared by both apps.
-
-## Stack
-
-Hono, PostgreSQL, Drizzle, Redis, SeaweedFS (S3), Mailpit; SvelteKit 2, Svelte 5 runes, Tailwind v4, Shadcn/UI; TypeScript strict, pnpm, Turbo, Biome, Vitest, Playwright.
 
 ## Agent skills
 

@@ -38,9 +38,9 @@
     "machine-translate": "pnpm --filter @adelie/web machine-translate"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.5.5",
-    "turbo": "2.10.5",
-    "typescript": "^6.0.3"
+    "@biomejs/biome": "2.5.15",
+    "turbo": "2.11.7",
+    "typescript": "^7.0.2"
   },
   "packageManager": "pnpm@10.26.0"
 }

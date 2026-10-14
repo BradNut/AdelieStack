@@ -2,12 +2,12 @@
 	import { AuthCallbackPath, changeEmailDto } from '@adelie/shared';
 	import { defaults, setError, superForm } from 'sveltekit-superforms';
 	import { zod4, zod4Client } from 'sveltekit-superforms/adapters';
-	import { authClient } from '$lib/auth-client';
-	import { authErrorMessage } from '$lib/client/auth-form';
-	import * as Alert from '$lib/components/ui/alert';
-	import * as Card from '$lib/components/ui/card';
-	import * as Form from '$lib/components/ui/form';
-	import { Input } from '$lib/components/ui/input';
+	import { authClient } from '#lib/auth-client.ts';
+	import { authErrorMessage } from '#lib/client/auth-form.ts';
+	import * as Alert from '#lib/components/ui/alert/index.ts';
+	import * as Card from '#lib/components/ui/card/index.ts';
+	import * as Form from '#lib/components/ui/form/index.ts';
+	import { Input } from '#lib/components/ui/input/index.ts';
 
 	const { data } = $props();
 
@@ -52,7 +52,7 @@
 			<Form.Field form={sf_email} name="email">
 				<Form.Control>
 					{#snippet children({ props })}
-						<Form.Label for="email">New email</Form.Label>
+						<Form.Label>New email</Form.Label>
 						<Input {...props} type="email" autocomplete="email" bind:value={$emailForm.email} />
 					{/snippet}
 				</Form.Control>

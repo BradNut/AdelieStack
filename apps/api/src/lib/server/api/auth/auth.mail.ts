@@ -1,12 +1,12 @@
 import { createAuthMiddleware, isAPIError } from 'better-auth/api';
-import type { Mailer } from '../mail/interfaces/mailer.interface';
-import { EmailChangeNoticeEmail } from '../mail/templates/email-change-notice.template';
-import { EmailChangeRequestEmail } from '../mail/templates/email-change-request.template';
-import { EmailVerificationEmail } from '../mail/templates/email-verification.template';
-import { PasswordChangedEmail } from '../mail/templates/password-changed.template';
-import { PasswordResetLinkEmail } from '../mail/templates/password-reset-link.template';
-import { RecoveryCodesRegeneratedEmail } from '../mail/templates/recovery-codes-regenerated.template';
-import { RecoveryCodesUsedEmail } from '../mail/templates/recovery-codes-used.template';
+import type { Mailer } from '#lib/server/api/mail/interfaces/mailer.interface';
+import { EmailChangeNoticeEmail } from '#lib/server/api/mail/templates/email-change-notice.template';
+import { EmailChangeRequestEmail } from '#lib/server/api/mail/templates/email-change-request.template';
+import { EmailVerificationEmail } from '#lib/server/api/mail/templates/email-verification.template';
+import { PasswordChangedEmail } from '#lib/server/api/mail/templates/password-changed.template';
+import { PasswordResetLinkEmail } from '#lib/server/api/mail/templates/password-reset-link.template';
+import { RecoveryCodesRegeneratedEmail } from '#lib/server/api/mail/templates/recovery-codes-regenerated.template';
+import { RecoveryCodesUsedEmail } from '#lib/server/api/mail/templates/recovery-codes-used.template';
 import { CHANGE_EMAIL_REQUEST_TYPE, readVerificationToken } from './auth.verification-token';
 
 /** Auth endpoints whose successful completion triggers a security-event email. */

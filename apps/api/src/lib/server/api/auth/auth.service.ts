@@ -1,9 +1,9 @@
 import type { CaptchaPublicConfig } from '@adelie/shared';
 import { inject, injectable } from '@needle-di/core';
-import { ConfigService } from '../common/configs/config.service';
-import { LoggerService } from '../common/services/logger.service';
-import { DrizzleService } from '../databases/postgres/drizzle.service';
-import { MailerService } from '../mail/mailer.service';
+import { ConfigService } from '#lib/server/api/common/configs/config.service';
+import { LoggerService } from '#lib/server/api/common/services/logger.service';
+import { DrizzleService } from '#lib/server/api/databases/postgres/drizzle.service';
+import { MailerService } from '#lib/server/api/mail/mailer.service';
 import { type CaptchaConfig, CaptchaStatus, captchaConfigFromEnvs } from './auth.captcha';
 import { type Auth, createAuth, drizzleAuthDatabase } from './auth.config';
 import { HibpStatus } from './auth.hibp-status';

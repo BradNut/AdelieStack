@@ -1,10 +1,10 @@
 <script lang="ts">
-	import { invalidateAll } from '$app/navigation';
+	import * as Alert from '#lib/components/ui/alert/index.ts';
+	import { Button } from '#lib/components/ui/button/index.ts';
+	import * as Card from '#lib/components/ui/card/index.ts';
+	import * as m from '#lib/paraglide/messages.js';
+	import { refreshAll } from '$app/navigation';
 	import { page } from '$app/state';
-	import * as Alert from '$lib/components/ui/alert/index.js';
-	import { Button } from '$lib/components/ui/button/index.js';
-	import * as Card from '$lib/components/ui/card/index.js';
-	import * as m from '$lib/paraglide/messages.js';
 
 	const NOT_FOUND = 404;
 
@@ -37,7 +37,7 @@
 		<Card.Footer class="gap-2">
 			<Button href="/">{m.errors_go_home()}</Button>
 			{#if !isNotFound}
-				<Button variant="outline" onclick={() => invalidateAll()}>{m.errors_try_again()}</Button>
+				<Button variant="outline" onclick={() => refreshAll()}>{m.errors_try_again()}</Button>
 			{/if}
 		</Card.Footer>
 	</Card.Root>

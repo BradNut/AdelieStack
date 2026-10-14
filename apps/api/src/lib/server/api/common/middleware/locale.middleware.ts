@@ -1,6 +1,6 @@
 import type { MiddlewareHandler } from 'hono';
 import { createMiddleware } from 'hono/factory';
-import { type Locale, resolveRequestLocale } from '../i18n';
+import { type Locale, resolveRequestLocale } from '#lib/server/api/common/i18n/index';
 
 /**
  * Resolves the request locale from `Accept-Language` (falling back to the base

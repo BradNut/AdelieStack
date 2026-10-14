@@ -2,7 +2,7 @@ import { AuthErrorCode, SIGN_UP_CLOSED_MESSAGE } from '@adelie/shared';
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('svelte-sonner', () => ({ toast: { error: vi.fn() } }));
-vi.mock('$app/navigation', () => ({ invalidateAll: vi.fn() }));
+vi.mock('$app/navigation', () => ({ refreshAll: vi.fn() }));
 
 import { PASSWORD_CHECK_UNAVAILABLE, PASSWORD_COMPROMISED, PASSWORD_POLICY_RULES, PASSWORD_POLICY_VIOLATION } from '@adelie/shared';
 import { toast } from 'svelte-sonner';

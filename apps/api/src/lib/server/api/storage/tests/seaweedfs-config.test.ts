@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { BucketVisibility, buildBucketName } from '../storage.buckets';
+import { BucketVisibility, buildBucketName } from '#lib/server/api/storage/storage.buckets';
 
 // Local defaults: PROJECT_NAME=adelie, ENVIRONMENT=development (see apps/api/.env.schema).
 const DEV_PROJECT_NAME = 'adelie';

@@ -1,8 +1,8 @@
 import { type AuthedUser, type RoleName, StatusCodes } from '@adelie/shared';
 import { error, type RequestEvent } from '@sveltejs/kit';
 import { redirect } from 'sveltekit-flash-message/server';
-import { evaluateRouteAccess, RouteAccess } from '$lib/auth/guards';
-import { forbiddenMessage, notSignedInMessage } from '$lib/utils/flashMessages';
+import { evaluateRouteAccess, RouteAccess } from '#lib/auth/guards.ts';
+import { forbiddenMessage, notSignedInMessage } from '#lib/utils/flashMessages.ts';
 
 /**
  * Throws unless the request's user may open the route: a redirect to sign in when signed out,

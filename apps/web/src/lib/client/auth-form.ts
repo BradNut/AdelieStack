@@ -7,7 +7,7 @@ import {
   type PasswordPolicyRule,
 } from '@adelie/shared';
 import { toast } from 'svelte-sonner';
-import { invalidateAll } from '$app/navigation';
+import { refreshAll } from '$app/navigation';
 
 export const GENERIC_AUTH_ERROR = 'Something went wrong. Please try again.';
 
@@ -46,5 +46,5 @@ export function toastIfError(error: AuthClientError | null | undefined, fallback
 
 /** Re-runs server loads so the layout picks up the new (or ended) session. */
 export async function refreshSession(): Promise<void> {
-  await invalidateAll();
+  await refreshAll();
 }
