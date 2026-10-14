@@ -1,5 +1,5 @@
 import { paraglideVitePlugin } from '@inlang/paraglide-js';
-import { sentrySvelteKit } from '@sentry/sveltekit';
+import { sentrySvelteKit } from '@sentry/sveltekit/vite';
 import adapter from '@sveltejs/adapter-node';
 import { enhancedImages } from '@sveltejs/enhanced-img';
 import { sveltekit } from '@sveltejs/kit/vite';
@@ -49,13 +49,11 @@ export default defineConfig(({ mode }) => {
   const plugins = shouldEnableSentryBuildPlugin
     ? [
         sentrySvelteKit({
-          sourceMapsUploadOptions: {
-            org: process.env.SENTRY_ORG,
-            project: process.env.SENTRY_PROJECT,
-            url: process.env.SENTRY_URL,
-            authToken: process.env.SENTRY_AUTH_TOKEN,
-            telemetry: false,
-          },
+          org: process.env.SENTRY_ORG,
+          project: process.env.SENTRY_PROJECT,
+          sentryUrl: process.env.SENTRY_URL,
+          authToken: process.env.SENTRY_AUTH_TOKEN,
+          telemetry: false,
         }),
         ...basePlugins,
       ]
