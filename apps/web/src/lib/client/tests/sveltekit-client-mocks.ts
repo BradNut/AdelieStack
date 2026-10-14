@@ -19,7 +19,8 @@ vi.mock('$app/forms', async (importOriginal) => ({
 }));
 vi.mock('$app/navigation', () => ({
   goto: vi.fn(),
-  invalidateAll: vi.fn(),
+  invalidateAll: vi.fn(), // superforms still calls it
+  refreshAll: vi.fn(),
   beforeNavigate: vi.fn(),
   afterNavigate: vi.fn(),
   onNavigate: vi.fn(),

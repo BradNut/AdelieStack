@@ -9,6 +9,9 @@
 	const increment = 1;
 
 	onNavigate((navigation) => {
+		// Kit 3 reports shallow (pushState) navigations here too; they load nothing, so there is no progress to show.
+		if (navigation.shallow) return;
+
 		const typical_load_time = average_load || 200; //ms
 		const frequency = typical_load_time / 100;
 		let start = performance.now();
