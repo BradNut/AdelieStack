@@ -26,26 +26,6 @@ vi.mock('$lib/client/auth-form', async (importOriginal) => ({
 }));
 vi.mock('mode-watcher', () => ({ mode: { current: 'light' } }));
 vi.mock('svelte-sonner', () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
-// Superforms hands validation errors to SvelteKit's client router, which does not exist under Vitest.
-// Stand in for it: applying an action result publishes it on the page state, which superforms reads.
-vi.mock('$app/state', async () => {
-  const { page, navigating } = await import('$lib/client/tests/page-state.svelte');
-  return { page, navigating, updated: { current: false, check: async () => false } };
-});
-vi.mock('$app/forms', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('$app/forms')>()),
-  applyAction: async (result: { data?: unknown; status?: number }) => {
-    const { publishActionResult } = await import('$lib/client/tests/page-state.svelte');
-    publishActionResult(result);
-  },
-}));
-vi.mock('$app/navigation', () => ({
-  goto: vi.fn(),
-  invalidateAll: vi.fn(),
-  beforeNavigate: vi.fn(),
-  afterNavigate: vi.fn(),
-  onNavigate: vi.fn(),
-}));
 
 import { toast } from 'svelte-sonner';
 import ResendVerificationButton from '$lib/components/auth/resend-verification-button.svelte';

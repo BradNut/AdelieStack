@@ -58,6 +58,7 @@ export default defineConfig(({ mode }) => {
     },
     test: {
       include: ['src/**/*.{test,spec}.{js,ts}'],
+      setupFiles: ['src/lib/client/tests/sveltekit-client-mocks.ts'],
     },
   };
 });

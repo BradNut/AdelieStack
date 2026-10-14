@@ -4,19 +4,21 @@
 	import { cn, type WithElementRef } from "$lib/utils.js";
 	import { getFormFieldContext } from "./form-context.svelte.js";
 
+	interface Props extends Omit<WithElementRef<HTMLAttributes<HTMLDivElement>>, "children"> {
+		errorClasses?: string | undefined | null;
+		children?: Snippet<[{ errors: string[]; errorProps: { "data-field-error": "" } }]>;
+	}
+
 	let {
 		ref = $bindable(null),
 		class: className,
 		errorClasses,
 		children: childrenProp,
 		...restProps
-	}: Omit<WithElementRef<HTMLAttributes<HTMLDivElement>>, "children"> & {
-		errorClasses?: string | undefined | null;
-		children?: Snippet<[{ errors: string[]; errorProps: { "data-fs-field-error": "" } }]>;
-	} = $props();
+	}: Props = $props();
 
 	const field = getFormFieldContext();
-	const errorProps = { "data-fs-field-error": "" } as const;
+	const errorProps = { "data-field-error": "" } as const;
 </script>
 
 <div

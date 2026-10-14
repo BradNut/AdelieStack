@@ -19,8 +19,8 @@
 	{...restProps}
 	for={field.id}
 	data-slot="form-label"
-	data-fs-error={field.invalid ? "" : undefined}
-	class={cn("data-[fs-error]:text-destructive", className)}
+	data-invalid={field.invalid ? "" : undefined}
+	class={cn("data-[invalid]:text-destructive", className)}
 >
 	{@render children?.()}
 </Label>

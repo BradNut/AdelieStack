@@ -22,3 +22,8 @@ export function publishActionResult(result: { data?: unknown; status?: number })
   page.form = result.data;
   page.status = result.status ?? 200;
 }
+
+export function resetPageState() {
+  page.form = null;
+  page.status = 200;
+}
