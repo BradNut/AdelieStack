@@ -1,6 +1,6 @@
 <script lang="ts" generics="T extends Record<string, unknown>, U extends FormPathLeaves<T>">
 	import type { Snippet } from "svelte";
-	import type { HTMLAttributes } from "svelte/elements";
+	import type { HTMLFieldsetAttributes } from "svelte/elements";
 	import { fromStore } from "svelte/store";
 	import { type FormPathLeaves, formFieldProxy, type InputConstraint, type SuperForm } from "sveltekit-superforms";
 	import { Field } from "#lib/components/ui/field/index.ts";
@@ -14,7 +14,7 @@
 		value: T[U];
 	}
 
-	interface Props extends WithoutChildren<WithElementRef<HTMLAttributes<HTMLDivElement>>> {
+	interface Props extends WithoutChildren<Omit<WithElementRef<HTMLFieldsetAttributes>, "form">> {
 		form: SuperForm<T>;
 		name: U;
 		children?: Snippet<[FieldState]>;
