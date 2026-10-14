@@ -5,7 +5,7 @@ import { paraglideMiddleware } from '$lib/paraglide/server';
 const DEFAULT_HTML_LANG = '<html lang="en">';
 
 export const i18n: Handle = ({ event, resolve }) =>
-  // SvelteKit 3 made `event.request` read-only. The cookie/baseLocale strategy never rewrites the request, so the original is passed through.
+  // SvelteKit 3 made `event.request` read-only. The cookie/baseLocale strategy never rewrites the request, so the original is passed through (guarded by src/lib/tests/i18n-strategy.test.ts).
   paraglideMiddleware(event.request, ({ locale }) => {
     return resolve(event, {
       transformPageChunk: ({ html }) => {
