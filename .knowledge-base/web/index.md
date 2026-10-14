@@ -13,6 +13,7 @@ Open the smallest file that answers the task. If feature-specific docs are absen
 - [Coding Standards](./standards/coding-standards.md) - TypeScript, Svelte, and code organization
 - [Data Fetching](./standards/data-fetching.md) - Server `load`/actions vs. the browser RPC proxy
 - [Testing Standards](./standards/testing-standards.md) - Svelte/SvelteKit-specific testing patterns
+- [Forms](./standards/forms.md) - `Form.*` components, SPA-mode and server-action superforms
 
 ### Features
 

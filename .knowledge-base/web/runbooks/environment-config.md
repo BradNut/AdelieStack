@@ -35,7 +35,8 @@ Docker). At build time, `@varlock/vite-integration`'s Vite plugin (wired in
 | Variable | Type | Required | Default | Notes |
 |---|---|---|---|---|
 | `ENVIRONMENT` | `enum(development, staging, production)` | has default | `development` | Deployment environment. |
-| `ORIGIN` | `url` | no (`@required=false`) | `http://localhost:5173` | SvelteKit CSRF + cookie validation. Must match the exact public URL. |
+| `ORIGIN` | `url` | no (`@required=false`) | `http://localhost:5173` | Not read by the web server since adapter-node 6 (the API still uses its own `ORIGIN` for CORS). To pin the origin SvelteKit trusts, use `WEB_ORIGIN` below. |
+| `WEB_ORIGIN` | `url` | build-time, optional | unset | Passed to `paths.origin` in `vite.config.ts`. Baked into the build. Set it for plain-HTTP deployments; see [Deployment](./deployment.md#request-origin-adapter-node-6). |
 | `DOMAIN` | `string` | no (`@required=false`) | `localhost` | Hostname only — no protocol, no path. Used for session cookie domain. |
 | `PORT` | `number(min=1)` | no (`@required=false`) | `5173` | Node server port (adapter-node runtime). |
 | `HOST` | `string` | no (`@required=false`) | `0.0.0.0` | Bind address. |

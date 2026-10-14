@@ -29,6 +29,10 @@ COPY packages/api-contract/src packages/api-contract/src
 # object storage origin.
 ARG PUBLIC_IMAGE_URI=http://localhost:8333/adelie-public-development
 ENV PUBLIC_IMAGE_URI=${PUBLIC_IMAGE_URI}
+# Optional: pin the origin SvelteKit trusts for form-action CSRF checks (paths.origin in vite.config.ts).
+# Leave empty behind a TLS proxy; set it for plain-HTTP deployments. adapter-node 6 no longer reads ORIGIN at runtime.
+ARG WEB_ORIGIN=
+ENV WEB_ORIGIN=${WEB_ORIGIN}
 ENV ENVIRONMENT=production
 RUN pnpm --filter @adelie/web run build
 

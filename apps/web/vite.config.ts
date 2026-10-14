@@ -28,6 +28,10 @@ export default defineConfig(({ mode }) => {
     sveltekit({
       preprocess: vitePreprocess(),
       adapter: adapter(),
+      // adapter-node 6 no longer reads ORIGIN. By default the origin comes from the request (Host header, https unless PROTOCOL_HEADER says otherwise),
+      // which is wrong for a plain-HTTP deployment and fails the CSRF check on form actions. Set WEB_ORIGIN at build time to pin it.
+      // Deliberately not ORIGIN: that is shared with the API and has a localhost default in .env.schema, which would be baked into the image.
+      paths: { origin: process.env.WEB_ORIGIN || undefined },
       alias: {
         $lib: './src/lib',
         '@/*': './src/lib/*',

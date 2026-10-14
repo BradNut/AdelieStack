@@ -27,5 +27,6 @@ NODE_ENV = "production"
 PORT = "3000"
 # Host binding - 0.0.0.0 required for most PaaS/container routing.
 HOST = "0.0.0.0"
-# ORIGIN must be set for SvelteKit SSR (set this to the deployed origin).
-# ORIGIN = "https://example.com"
+# adapter-node 6 ignores ORIGIN. Behind a TLS proxy nothing is needed; for plain HTTP set the build-time
+# WEB_ORIGIN (see .knowledge-base/web/runbooks/deployment.md, "Request Origin").
+# WEB_ORIGIN = "https://example.com"
