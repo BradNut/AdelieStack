@@ -1,6 +1,6 @@
 # Web Agent Guide
 
-Web work lives in `apps/web` and uses SvelteKit 2, Svelte 5 runes, TypeScript, Tailwind CSS v4, Shadcn/UI, Lucide, Vitest, and Playwright. Repo-wide rules are in the root [AGENTS.md](../../AGENTS.md); conventions live in [`standards/`](../../.knowledge-base/web/standards/).
+Web work lives in `apps/web` and uses SvelteKit 3, Svelte 5 runes, TypeScript, Tailwind CSS v4, Shadcn/UI, Lucide, Vitest, and Playwright. Repo-wide rules are in the root [AGENTS.md](../../AGENTS.md); conventions live in [`standards/`](../../.knowledge-base/web/standards/).
 
 ## Read Only What You Need
 

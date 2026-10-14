@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+// Vitest resolves the browser export condition (vite.config.ts), so Kit 3's redirect() takes its client build, which reads `window`.
 import { AppRoute, SIGN_UP_CLOSED_MESSAGE } from '@adelie/shared';
 import { describe, expect, it, vi } from 'vitest';
 import { load } from '../+page.server';

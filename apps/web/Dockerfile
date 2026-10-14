@@ -22,7 +22,7 @@ COPY packages/shared/src packages/shared/src
 COPY packages/api-contract/src packages/api-contract/src
 
 # PUBLIC_-prefixed vars are inlined into the client bundle at build time via
-# SvelteKit's `$env/static/public`, so they must be supplied as build args
+# SvelteKit's `$app/env/public`, so they must be supplied as build args
 # (never real secrets: this schema only exposes non-sensitive PUBLIC_ values).
 # PUBLIC_IMAGE_URI is required by apps/web/.env.schema; override it with
 # `--build-arg PUBLIC_IMAGE_URI=...` to point at a real deployment's public

@@ -1,5 +1,5 @@
-import type { OnNavigate } from '@sveltejs/kit';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { OnNavigate } from '$app/navigation';
 import { startViewTransition } from '../view-transition';
 
 function createNavigation(complete: Promise<void>): OnNavigate {

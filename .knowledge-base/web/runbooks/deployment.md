@@ -18,7 +18,7 @@ Push to `main` → Coolify auto-builds → replaces container on success.
 - Start: `pnpm --filter @adelie/web start`
 
 PUBLIC_-prefixed vars (e.g. `PUBLIC_IMAGE_URI`, required by `apps/web/.env.schema`) are inlined
-into the client bundle at build time via `$env/static/public`, so they must be set as build-time
+into the client bundle at build time via `$app/env/public`, so they must be set as build-time
 variables on the platform, not only at runtime.
 
 ## Docker (`apps/web/Dockerfile`)

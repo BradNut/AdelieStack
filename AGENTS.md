@@ -42,7 +42,7 @@ AdelieStack is a pnpm + Turbo monorepo: a Hono API and a SvelteKit web app shari
 
 ## Stack
 
-Hono, PostgreSQL, Drizzle, Redis, SeaweedFS (S3), Mailpit; SvelteKit 2, Svelte 5 runes, Tailwind v4, Shadcn/UI; TypeScript strict, pnpm, Turbo, Biome, Vitest, Playwright.
+Hono, PostgreSQL, Drizzle, Redis, SeaweedFS (S3), Mailpit; SvelteKit 3, Svelte 5 runes, Tailwind v4, Shadcn/UI; TypeScript strict, pnpm, Turbo, Biome, Vitest, Playwright.
 
 ## Agent skills
 

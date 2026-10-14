@@ -1,6 +1,6 @@
 /**
  * Content-Security-Policy directives for the web app, consumed by
- * `svelte.config.js` (`kit.csp.directives`). SvelteKit's `csp.mode: 'auto'`
+ * `vite.config.ts` (`sveltekit({ csp: { directives } })`). SvelteKit's `csp.mode: 'auto'`
  * (the default) hashes the framework's own inline bootstrap script
  * automatically, so `script-src` does not need `'unsafe-inline'`.
  *

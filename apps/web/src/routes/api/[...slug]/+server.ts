@@ -1,6 +1,6 @@
 import { StatusCodes } from '@adelie/shared';
 import type { RequestEvent, RequestHandler } from '@sveltejs/kit';
-import { env } from '$env/dynamic/private';
+import { API_PROXY_BASE_URL } from '$app/env/private';
 
 const DEFAULT_API_PROXY_BASE_URL = 'http://127.0.0.1:3001';
 
@@ -21,7 +21,7 @@ const HOP_BY_HOP_REQUEST_HEADERS = [
 const METHODS_WITHOUT_BODY = new Set(['GET', 'HEAD']);
 
 function getUpstreamUrl(requestUrl: URL): URL {
-  const upstreamBase = new URL(env.API_PROXY_BASE_URL || DEFAULT_API_PROXY_BASE_URL);
+  const upstreamBase = new URL(API_PROXY_BASE_URL || DEFAULT_API_PROXY_BASE_URL);
   const upstreamUrl = new URL(requestUrl);
 
   upstreamUrl.protocol = upstreamBase.protocol;

@@ -19,6 +19,7 @@
   },
   "exports": {
     ".": "./src/index.ts",
+    "./constants": "./src/constants/index.ts",
     "./otel": "./src/otel.ts",
     "./sentry": "./src/sentry.ts"
   },

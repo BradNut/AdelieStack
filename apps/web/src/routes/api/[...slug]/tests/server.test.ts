@@ -6,8 +6,10 @@ const { envMock, fetchMock } = vi.hoisted(() => ({
   fetchMock: vi.fn<typeof fetch>(),
 }));
 
-vi.mock('$env/dynamic/private', () => ({
-  env: envMock,
+vi.mock('$app/env/private', () => ({
+  get API_PROXY_BASE_URL() {
+    return envMock.API_PROXY_BASE_URL;
+  },
 }));
 
 import { DELETE, fallback, GET, HEAD, OPTIONS, PATCH, POST, PUT } from '../+server';

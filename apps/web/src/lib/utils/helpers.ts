@@ -1,4 +1,4 @@
-import { PUBLIC_IMAGE_URI } from '$env/static/public';
+import { PUBLIC_IMAGE_URI } from '$app/env/public';
 
 export function ciEquals(a: string, b: string) {
   return typeof a === 'string' && typeof b === 'string' ? a.localeCompare(b, undefined, { sensitivity: 'accent' }) === 0 : a === b;

@@ -23,7 +23,7 @@ It is deliberately not an "all batteries included" boilerplate. See [How to Use]
 ## Repo Layout
 
 - `apps/api` - Hono API (controllers, services, repositories, Drizzle schema, jobs).
-- `apps/web` - SvelteKit 2 app (Svelte 5 runes, Tailwind v4, Shadcn/UI).
+- `apps/web` - SvelteKit 3 app (Svelte 5 runes, Tailwind v4, Shadcn/UI).
 - `packages/shared` - client-safe constants, domain values, DTOs, validations.
 - `packages/api-contract` - Hono RPC types shared by both apps.
 - `packages/test-utils` - shared test helpers.

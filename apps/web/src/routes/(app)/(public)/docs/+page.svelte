@@ -1,6 +1,6 @@
 <script lang="ts">
 	const stack = [
-		{ name: 'SvelteKit 2 + Svelte 5', note: 'Runes, SSR, progressive enhancement' },
+		{ name: 'SvelteKit 3 + Svelte 5', note: 'Runes, SSR, progressive enhancement' },
 		{ name: 'Hono API', note: 'Mounted in-process at /api/[...slug]' },
 		{ name: 'PostgreSQL + Drizzle', note: 'Type-safe queries and migrations' },
 		{ name: 'Better Auth', note: 'Email/password, sessions, roles, 2FA, passkeys' },

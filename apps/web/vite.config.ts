@@ -1,11 +1,14 @@
 import { paraglideVitePlugin } from '@inlang/paraglide-js';
 import { sentrySvelteKit } from '@sentry/sveltekit';
+import adapter from '@sveltejs/adapter-node';
 import { enhancedImages } from '@sveltejs/enhanced-img';
 import { sveltekit } from '@sveltejs/kit/vite';
+import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
 import tailwindcss from '@tailwindcss/vite';
 import { svelteTesting } from '@testing-library/svelte/vite';
 import { varlockVitePlugin } from '@varlock/vite-integration';
 import { defineConfig } from 'vitest/config';
+import cspDirectives from './csp-directives.mjs';
 
 export default defineConfig(({ mode }) => {
   const isProductionEnvironment = mode === 'production' && process.env.ENVIRONMENT === 'production';
@@ -22,7 +25,18 @@ export default defineConfig(({ mode }) => {
     // must come before the SvelteKit plugin
     enhancedImages(),
     varlockVitePlugin(),
-    sveltekit(),
+    sveltekit({
+      preprocess: vitePreprocess(),
+      adapter: adapter(),
+      alias: {
+        $lib: './src/lib',
+        '@/*': './src/lib/*',
+      },
+      csp: {
+        mode: 'auto',
+        directives: cspDirectives,
+      },
+    }),
     // Resolves Svelte's browser build under Vitest so components can be mounted in jsdom.
     svelteTesting(),
     paraglideVitePlugin({

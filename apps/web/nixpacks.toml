@@ -14,7 +14,7 @@ cmds = [
 
 [phases.build]
 # PUBLIC_-prefixed vars (e.g. PUBLIC_IMAGE_URI, required by apps/web/.env.schema)
-# are inlined into the client bundle at build time via `$env/static/public`,
+# are inlined into the client bundle at build time via `$app/env/public`,
 # so they must be set as build-time variables on the platform, not only at
 # runtime.
 cmds = ["pnpm --filter @adelie/web run build"]
