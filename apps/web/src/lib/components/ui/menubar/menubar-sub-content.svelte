@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { Menubar as MenubarPrimitive } from "bits-ui";
-	import { cn, type WithoutChildrenOrChild } from "$lib/utils.js";
-	import MenubarPortal from "./menubar-portal.svelte";
 	import type { ComponentProps } from "svelte";
+	import { cn, type WithoutChildrenOrChild } from "#lib/utils.js";
+	import MenubarPortal from "./menubar-portal.svelte";
 
 	let {
 		ref = $bindable(null),

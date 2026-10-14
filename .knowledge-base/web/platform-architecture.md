@@ -179,7 +179,7 @@ individual cookies or reconstruct headers by hand.
 ### Server State (Load Functions)
 ```typescript
 // +page.server.ts
-import { honoClient, parseApiResponse } from '$lib/utils/api';
+import { honoClient, parseApiResponse } from '#lib/utils/api';
 
 export async function load({ fetch }) {
   const { data } = await parseApiResponse(await honoClient(fetch).users.me.$get());

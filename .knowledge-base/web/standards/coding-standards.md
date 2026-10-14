@@ -6,8 +6,8 @@
 ```svelte
 <script lang="ts">
   // 1. Imports - External packages first, then internal
-  import { Button } from '$lib/components/ui/button';
-  import { cn } from '$lib/utils';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import { cn } from '#lib/utils.js';
 
   // 2. Type definitions
   interface Props {
@@ -198,7 +198,7 @@ export const db = drizzle(process.env.DATABASE_URL);
 
 // ❌ Never import server code in components
 // +page.svelte
-import { db } from '$lib/server/db'; // ERROR!
+import { db } from '#lib/server/db.js'; // ERROR!
 ```
 
 ### Shared Code
@@ -235,7 +235,7 @@ export function trackEvent(name: string) {
 
 <!-- ✅ Use cn() for conditional classes -->
 <script>
-  import { cn } from '$lib/utils';
+  import { cn } from '#lib/utils.js';
   let isActive = $state(false);
 </script>
 
@@ -255,9 +255,9 @@ export function trackEvent(name: string) {
 ### Shadcn Components
 ```svelte
 <script>
-  import { Button } from '$lib/components/ui/button';
-  import { Input } from '$lib/components/ui/input';
-  import { Label } from '$lib/components/ui/label';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import { Input } from '#lib/components/ui/input';
+  import { Label } from '#lib/components/ui/label';
 </script>
 
 <div class="space-y-4">
@@ -306,7 +306,7 @@ import { fail } from '@sveltejs/kit';
 import { zod4 } from 'sveltekit-superforms/adapters';
 import { setError, superValidate } from 'sveltekit-superforms/server';
 import { StatusCodes, updateEmailDto } from '@adelie/shared';
-import { honoClient, parseApiResponse } from '$lib/utils/api';
+import { honoClient, parseApiResponse } from '#lib/utils/api';
 
 export const actions = {
   updateEmail: async ({ request, fetch }) => {
@@ -329,7 +329,7 @@ export const actions = {
 };
 ```
 
-See [Data Fetching](./data-fetching.md) — `honoClient`/`parseApiResponse` from `$lib/utils/api.ts`
+See [Data Fetching](./data-fetching.md) — `honoClient`/`parseApiResponse` from `#lib/utils/api.ts`
 is the standard way to call the API from `load`/actions; branch on `error`/`status`, since
 `parseApiResponse` never throws for non-2xx responses.
 
@@ -339,7 +339,7 @@ is the standard way to call the API from `load`/actions; branch on `error`/`stat
 ```typescript
 // +page.server.ts
 import { error } from '@sveltejs/kit';
-import { honoClient, parseApiResponse } from '$lib/utils/api';
+import { honoClient, parseApiResponse } from '#lib/utils/api';
 
 export async function load({ fetch }) {
   // Has access to server-side APIs and SvelteKit's cookie-aware fetch
@@ -360,7 +360,7 @@ export async function load({ fetch }) {
 ### Universal Load
 ```typescript
 // +page.ts
-import { honoClient, parseApiResponse } from '$lib/utils/api';
+import { honoClient, parseApiResponse } from '#lib/utils/api';
 
 export async function load({ fetch }) {
   // Runs on both server and client
@@ -395,7 +395,7 @@ fields directly, no `$` prefix), unlike the deprecated `$app/stores` reactive st
 ### Error Branching in Load
 ```typescript
 import { error } from '@sveltejs/kit';
-import { honoClient, parseApiResponse } from '$lib/utils/api';
+import { honoClient, parseApiResponse } from '#lib/utils/api';
 
 export async function load({ fetch }) {
   const { data, error: apiError, status } = await parseApiResponse(await honoClient(fetch).users.me.$get());

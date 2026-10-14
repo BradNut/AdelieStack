@@ -3,12 +3,12 @@
 	import { toast } from 'svelte-sonner';
 	import { defaults, setError, superForm } from 'sveltekit-superforms';
 	import { zod4, zod4Client } from 'sveltekit-superforms/adapters';
-	import { authClient } from '$lib/auth-client';
-	import { authErrorMessage, passwordRejectionCodes } from '$lib/client/auth-form';
-	import PasswordFieldErrors from '$lib/components/auth/password-field-errors.svelte';
-	import * as Card from '$lib/components/ui/card';
-	import * as Form from '$lib/components/ui/form';
-	import { Input } from '$lib/components/ui/input';
+	import { authClient } from '#lib/auth-client.js';
+	import { authErrorMessage, passwordRejectionCodes } from '#lib/client/auth-form.js';
+	import PasswordFieldErrors from '#lib/components/auth/password-field-errors.svelte';
+	import * as Card from '#lib/components/ui/card/index.js';
+	import * as Form from '#lib/components/ui/form/index.js';
+	import { Input } from '#lib/components/ui/input/index.js';
 
 	const sf_password = superForm(defaults(zod4(changePasswordDto)), {
 		SPA: true,

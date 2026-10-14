@@ -7,8 +7,8 @@ import {
   PASSWORD_POLICY_RULES,
   type PasswordPolicyRule,
 } from '@adelie/shared';
-import * as m from '$lib/paraglide/messages.js';
-import type { Locale } from '$lib/paraglide/runtime.js';
+import * as m from '#lib/paraglide/messages.js';
+import type { Locale } from '#lib/paraglide/runtime.js';
 
 type MessageOptions = { locale?: Locale };
 

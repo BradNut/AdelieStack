@@ -3,18 +3,18 @@
 	import { toast } from 'svelte-sonner';
 	import { defaults, setError, superForm } from 'sveltekit-superforms';
 	import { zod4, zod4Client } from 'sveltekit-superforms/adapters';
+	import { authClient } from '#lib/auth-client.js';
+	import { authErrorMessage, passwordRejectionCodes } from '#lib/client/auth-form.js';
+	import { createCaptchaForm } from '#lib/client/captcha/captcha-form.svelte.js';
+	import CaptchaField from '#lib/components/auth/captcha-field.svelte';
+	import PasswordFieldErrors from '#lib/components/auth/password-field-errors.svelte';
+	import * as Alert from '#lib/components/ui/alert/index.js';
+	import { Button } from '#lib/components/ui/button/index.js';
+	import * as Card from '#lib/components/ui/card/index.js';
+	import * as Form from '#lib/components/ui/form/index.js';
+	import { Input } from '#lib/components/ui/input/index.js';
+	import { captchaErrorMessage } from '#lib/utils/captcha-messages.js';
 	import { goto } from '$app/navigation';
-	import { authClient } from '$lib/auth-client';
-	import { authErrorMessage, passwordRejectionCodes } from '$lib/client/auth-form';
-	import { createCaptchaForm } from '$lib/client/captcha/captcha-form.svelte';
-	import CaptchaField from '$lib/components/auth/captcha-field.svelte';
-	import PasswordFieldErrors from '$lib/components/auth/password-field-errors.svelte';
-	import * as Alert from '$lib/components/ui/alert/index.js';
-	import { Button } from '$lib/components/ui/button/index.js';
-	import * as Card from '$lib/components/ui/card/index.js';
-	import * as Form from '$lib/components/ui/form/index.js';
-	import { Input } from '$lib/components/ui/input/index.js';
-	import { captchaErrorMessage } from '$lib/utils/captcha-messages';
 
 	const { data } = $props();
 

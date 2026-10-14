@@ -2,12 +2,12 @@
 	import "../app.css";
 	import { ModeWatcher } from "mode-watcher";
 	import { getFlash } from "sveltekit-flash-message";
-	import { toastMessage } from "@/utils/superforms";
+	import { startViewTransition } from "#lib/client/view-transition.js";
+	import { Toaster } from "#lib/components/ui/sonner/index.js";
+	import PageLoadingIndicator from "#lib/utils/page_loading_indicator.svelte";
+	import { toastMessage } from "#lib/utils/superforms.js";
 	import { onNavigate } from "$app/navigation";
 	import { page } from "$app/state";
-	import { startViewTransition } from "$lib/client/view-transition";
-	import { Toaster } from "$lib/components/ui/sonner";
-	import PageLoadingIndicator from "$lib/utils/page_loading_indicator.svelte";
 
 	const { data, children } = $props();
 

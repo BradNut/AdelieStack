@@ -1,5 +1,5 @@
 import type { Handle } from '@sveltejs/kit/hooks';
-import { paraglideMiddleware } from '$lib/paraglide/server';
+import { paraglideMiddleware } from '#lib/paraglide/server.js';
 
 /** The opening tag in app.html, written with a valid default so it passes the lang lint; swapped for the request's locale. */
 const DEFAULT_HTML_LANG = '<html lang="en">';

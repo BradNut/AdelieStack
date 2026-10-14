@@ -1,6 +1,6 @@
 import type { AuthedUser } from '@adelie/shared';
 import type { InferResponseType } from 'hono/client';
-import type { Api } from '$lib/utils/types';
+import type { Api } from '#lib/utils/types.js';
 
 /** Better Auth names its session cookie `<prefix>.session_token`, with a `__Secure-` prefix over https. */
 const SESSION_COOKIE_MARKER = 'session_token';

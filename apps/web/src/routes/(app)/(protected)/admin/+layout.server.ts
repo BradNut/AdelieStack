@@ -1,5 +1,5 @@
 import { RoleName } from '@adelie/shared';
-import { requireUser } from '$lib/server/guards';
+import { requireUser } from '#lib/server/guards.js';
 import type { LayoutServerLoad } from './$types';
 
 export const load: LayoutServerLoad = async (event) => {

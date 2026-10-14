@@ -1,6 +1,6 @@
 import { CAPTCHA_MISSING_RESPONSE, CAPTCHA_UNAVAILABLE, CAPTCHA_VERIFICATION_FAILED } from '@adelie/shared';
-import * as m from '$lib/paraglide/messages.js';
-import type { Locale } from '$lib/paraglide/runtime.js';
+import * as m from '#lib/paraglide/messages.js';
+import type { Locale } from '#lib/paraglide/runtime.js';
 
 type MessageOptions = { locale?: Locale };
 

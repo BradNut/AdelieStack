@@ -3,8 +3,8 @@
 	import type { HTMLAttributes } from "svelte/elements";
 	import { fromStore } from "svelte/store";
 	import { type FormPathLeaves, formFieldProxy, type InputConstraint, type SuperForm } from "sveltekit-superforms";
-	import { Field } from "$lib/components/ui/field/index.js";
-	import { cn, type WithElementRef, type WithoutChildren } from "$lib/utils.js";
+	import { Field } from "#lib/components/ui/field/index.js";
+	import { cn, type WithElementRef, type WithoutChildren } from "#lib/utils.js";
 	import { setFormFieldContext } from "./form-context.svelte.js";
 
 	interface FieldState {

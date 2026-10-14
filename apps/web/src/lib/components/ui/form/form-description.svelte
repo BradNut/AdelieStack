@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { HTMLAttributes } from "svelte/elements";
-	import { FieldDescription } from "$lib/components/ui/field/index.js";
+	import { FieldDescription } from "#lib/components/ui/field/index.js";
 	import { getFormFieldContext } from "./form-context.svelte.js";
 
 	let { children, ...restProps }: HTMLAttributes<HTMLParagraphElement> = $props();

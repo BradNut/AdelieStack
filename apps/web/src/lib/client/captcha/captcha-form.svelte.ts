@@ -1,4 +1,4 @@
-import type CaptchaField from '$lib/components/auth/captcha-field.svelte';
+import type CaptchaField from '#lib/components/auth/captcha-field.svelte';
 import { captchaFetchOptions } from './request';
 
 /**

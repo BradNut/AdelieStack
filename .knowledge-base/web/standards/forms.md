@@ -49,4 +49,4 @@ secondchancepuzzles project.
 ## Rules
 
 - Client constraints must match the server validation limits in `@adelie/shared`.
-- Import `Form.*` from `$lib/components/ui/form`; do not add formsnap back without revisiting the ADR.
+- Import `Form.*` from `#lib/components/ui/form`; do not add formsnap back without revisiting the ADR.

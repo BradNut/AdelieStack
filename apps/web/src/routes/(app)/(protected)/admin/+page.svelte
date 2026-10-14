@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { authClient } from '$lib/auth-client';
-	import { toastIfError } from '$lib/client/auth-form';
-	import * as Card from '$lib/components/ui/card';
-	import * as Table from '$lib/components/ui/table';
+	import { authClient } from '#lib/auth-client.js';
+	import { toastIfError } from '#lib/client/auth-form.js';
+	import * as Card from '#lib/components/ui/card/index.js';
+	import * as Table from '#lib/components/ui/table/index.js';
 
 	const USERS_PAGE_SIZE = 50;
 

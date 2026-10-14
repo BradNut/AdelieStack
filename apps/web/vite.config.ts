@@ -32,10 +32,6 @@ export default defineConfig(({ mode }) => {
       // which is wrong for a plain-HTTP deployment and fails the CSRF check on form actions. Set WEB_ORIGIN at build time to pin it.
       // Deliberately not ORIGIN: that is shared with the API and has a localhost default in .env.schema, which would be baked into the image.
       paths: { origin: process.env.WEB_ORIGIN || undefined },
-      alias: {
-        $lib: './src/lib',
-        '@/*': './src/lib/*',
-      },
       csp: {
         mode: 'auto',
         directives: cspDirectives,

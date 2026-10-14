@@ -4,7 +4,7 @@
 
 1. **Default — server `load`/actions over Hono RPC.** Call the API from `+page.server.ts`,
    `+layout.server.ts`, or form actions using `honoClient`/`parseApiResponse` from
-   `$lib/utils/api.ts`. This is SSR, type-safe end to end via `@adelie/api-contract`, and keeps
+   `#lib/utils/api.ts`. This is SSR, type-safe end to end via `@adelie/api-contract`, and keeps
    secrets and cookies off the client. Use this unless you have a specific reason not to.
 2. **Browser-side fetches — the `/api/[...slug]` proxy.** When code in a component or
    browser-only module (`src/lib/client/**`) must call the API directly (not through a server
@@ -20,7 +20,7 @@
 ## `honoClient` / `parseApiResponse`
 
 ```typescript
-import { honoClient, parseApiResponse } from '$lib/utils/api';
+import { honoClient, parseApiResponse } from '#lib/utils/api';
 
 const { data, error, status } = await parseApiResponse(await honoClient(fetch).puzzles.$get());
 ```
@@ -46,7 +46,7 @@ Not worth it for a page that server `load` already covers well: one-shot SSR rea
 anything that only needs to be correct at request time. Adding TanStack Query there is extra
 dependency and complexity for no behavior change — the data already arrives with the page.
 
-If you do enable it (`pnpm setup:query`), it adds `$lib/query/` (QueryClient factory, typed
+If you do enable it (`pnpm setup:query`), it adds `#lib/query/` (QueryClient factory, typed
 query-option factories built on `honoClient`/`parseApiResponse`), a `QueryClientProvider` in the
 root layout, and two worked examples under `src/routes/(app)/(public)/examples/`: an
 SSR-prefetch-and-hydrate example and an SSR-only fallback. Follow the prefetch example's shape —

@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { AppRoute } from "@adelie/shared";
-	import Logo from "@/components/logo.svelte";
+	import Logo from "#lib/components/logo.svelte";
+	import ThemeDropdown from "#lib/components/theme-dropdown.svelte";
+	import { Button } from "#lib/components/ui/button/index.js";
 	import { page } from "$app/state";
-	import ThemeDropdown from "$lib/components/theme-dropdown.svelte";
-	import { Button } from "$lib/components/ui/button";
 
 	let { data, children } = $props();
 </script>

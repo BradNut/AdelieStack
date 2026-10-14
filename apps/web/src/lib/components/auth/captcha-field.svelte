@@ -1,11 +1,11 @@
 <script lang="ts">
 	import { mode } from 'mode-watcher';
 	import { onMount } from 'svelte';
-	import { getCaptchaConfig } from '$lib/client/captcha/config';
-	import type { CaptchaWidgetHandle } from '$lib/client/captcha/types';
-	import { CaptchaConfigError, captchaWidgetFor } from '$lib/client/captcha/widgets';
-	import * as m from '$lib/paraglide/messages.js';
-	import { getLocale } from '$lib/paraglide/runtime.js';
+	import { getCaptchaConfig } from '#lib/client/captcha/config.js';
+	import type { CaptchaWidgetHandle } from '#lib/client/captcha/types.js';
+	import { CaptchaConfigError, captchaWidgetFor } from '#lib/client/captcha/widgets.js';
+	import * as m from '#lib/paraglide/messages.js';
+	import { getLocale } from '#lib/paraglide/runtime.js';
 
 	interface Props {
 		/** Called with the Captcha Token when one is ready, and with '' when it expires or is reset. */

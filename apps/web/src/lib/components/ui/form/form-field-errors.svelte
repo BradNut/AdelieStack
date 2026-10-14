@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { Snippet } from "svelte";
 	import type { HTMLAttributes } from "svelte/elements";
-	import { cn, type WithElementRef } from "$lib/utils.js";
+	import { cn, type WithElementRef } from "#lib/utils.js";
 	import { getFormFieldContext } from "./form-context.svelte.js";
 
 	interface Props extends Omit<WithElementRef<HTMLAttributes<HTMLDivElement>>, "children"> {

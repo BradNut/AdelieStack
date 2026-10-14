@@ -48,7 +48,7 @@
 ```svelte
 <script lang="ts">
   // 1. Imports
-  import { Button } from '$lib/components/ui/button';
+  import { Button } from '#lib/components/ui/button';
 
   // 2. Props
   interface Props {
@@ -106,7 +106,7 @@
 - Use Tailwind config for theme customization
 
 ### Shadcn Components
-- Import from `$lib/components/ui`
+- Import from `#lib/components/ui`
 - Customize via Tailwind classes
 - Maintain accessibility features
 - Follow component API conventions
@@ -114,8 +114,8 @@
 ### Example
 ```svelte
 <script>
-  import { Button } from '$lib/components/ui/button';
-  import { cn } from '$lib/utils';
+  import { Button } from '#lib/components/ui/button';
+  import { cn } from '#lib/utils';
 
   let isActive = $state(false);
 </script>
@@ -154,7 +154,7 @@ let fullName = $derived(`${user.firstName} ${user.lastName}`);
 
 ## Data Fetching
 
-Data fetching goes over Hono RPC via `honoClient`/`parseApiResponse` (`$lib/utils/api.ts`), not
+Data fetching goes over Hono RPC via `honoClient`/`parseApiResponse` (`#lib/utils/api.ts`), not
 raw `fetch('/api/...')`. Full decision, examples, and the browser-side proxy pattern are
 documented in [Data Fetching](./standards/data-fetching.md) — read that file rather than
 duplicating examples here.

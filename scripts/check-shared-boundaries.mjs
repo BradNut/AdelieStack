@@ -17,6 +17,7 @@ const targetExtensions = new Set(['.ts', '.js', '.svelte']);
 
 const forbiddenPatterns = [
   { label: '$lib/server import', regex: /from\s+['"]\$lib\/server\//g },
+  { label: '#lib/server import', regex: /from\s+['"]#lib\/server\//g },
   { label: '$env/static/private import', regex: /from\s+['"]\$env\/static\/private['"]/g },
   { label: '$env/dynamic/private import', regex: /from\s+['"]\$env\/dynamic\/private['"]/g },
   { label: '$app/env/private import', regex: /from\s+['"]\$app\/env\/private['"]/g },

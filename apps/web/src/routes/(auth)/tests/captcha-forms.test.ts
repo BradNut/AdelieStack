@@ -14,21 +14,21 @@ const getCaptchaConfig = vi.fn<() => Promise<CaptchaPublicConfig>>();
 const widget = { reset: vi.fn(), destroy: vi.fn() };
 const renderWidget = vi.fn();
 
-vi.mock('$lib/auth-client', () => ({ authClient }));
-vi.mock('$lib/client/captcha/config', () => ({ getCaptchaConfig: () => getCaptchaConfig() }));
-vi.mock('$lib/client/captcha/widgets', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('$lib/client/captcha/widgets')>()),
+vi.mock('#lib/auth-client.js', () => ({ authClient }));
+vi.mock('#lib/client/captcha/config.js', () => ({ getCaptchaConfig: () => getCaptchaConfig() }));
+vi.mock('#lib/client/captcha/widgets.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('#lib/client/captcha/widgets.js')>()),
   captchaWidgetFor: (provider: string) => ({ provider, render: renderWidget }),
 }));
-vi.mock('$lib/client/auth-form', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('$lib/client/auth-form')>()),
+vi.mock('#lib/client/auth-form.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('#lib/client/auth-form.js')>()),
   refreshSession: vi.fn(),
 }));
 vi.mock('mode-watcher', () => ({ mode: { current: 'light' } }));
 vi.mock('svelte-sonner', () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
 import { toast } from 'svelte-sonner';
-import ResendVerificationButton from '$lib/components/auth/resend-verification-button.svelte';
+import ResendVerificationButton from '#lib/components/auth/resend-verification-button.svelte';
 import LoginPage from '../login/+page.svelte';
 import ResetPage from '../password/reset/+page.svelte';
 import SignupPage from '../signup/+page.svelte';

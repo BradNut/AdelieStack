@@ -5,11 +5,11 @@ import { sentryHandle } from '@sentry/sveltekit';
 import type { Handle, HandleServerError } from '@sveltejs/kit/hooks';
 import { sequence } from '@sveltejs/kit/hooks';
 import { createInitialModeExpression } from 'mode-watcher';
+import { loadSessionUser } from '#lib/server/session-user.js';
+import { honoClient, parseApiResponse } from '#lib/utils/api.js';
+import type { Api } from '#lib/utils/types.js';
 import { dev } from '$app/env';
 import { PUBLIC_SENTRY_DSN } from '$app/env/public';
-import { loadSessionUser } from '$lib/server/session-user';
-import { honoClient, parseApiResponse } from '$lib/utils/api';
-import type { Api } from '$lib/utils/types';
 import { i18n } from './lib/i18n';
 
 Sentry.init({

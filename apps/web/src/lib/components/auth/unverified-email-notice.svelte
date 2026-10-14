@@ -1,6 +1,6 @@
 <script lang="ts">
-	import ResendVerificationButton from '$lib/components/auth/resend-verification-button.svelte';
-	import * as Alert from '$lib/components/ui/alert';
+	import ResendVerificationButton from '#lib/components/auth/resend-verification-button.svelte';
+	import * as Alert from '#lib/components/ui/alert/index.js';
 
 	interface Props {
 		email: string;

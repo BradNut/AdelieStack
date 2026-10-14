@@ -89,6 +89,9 @@
     "zod": "^4.6.7"
   },
   "type": "module",
+  "imports": {
+    "#lib/*": "./src/lib/*"
+  },
   "dependencies": {
     "@adelie/api-contract": "workspace:*",
     "@adelie/shared": "workspace:*",

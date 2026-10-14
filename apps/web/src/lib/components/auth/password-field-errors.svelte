@@ -1,6 +1,6 @@
 <script lang="ts">
-	import * as Form from '$lib/components/ui/form';
-	import { passwordFieldErrors } from '$lib/utils/password-policy-messages';
+	import * as Form from '#lib/components/ui/form/index.js';
+	import { passwordFieldErrors } from '#lib/utils/password-policy-messages.js';
 </script>
 
 <!-- Form.FieldErrors that translates password rule codes and the breached-password code. Use inside a Form.Field. -->

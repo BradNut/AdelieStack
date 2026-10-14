@@ -3,14 +3,14 @@
 	import { toast } from 'svelte-sonner';
 	import { defaults, setError, superForm } from 'sveltekit-superforms';
 	import { zod4, zod4Client } from 'sveltekit-superforms/adapters';
+	import { authClient } from '#lib/auth-client.js';
+	import { authErrorMessage, refreshSession, toastIfError } from '#lib/client/auth-form.js';
+	import { Button } from '#lib/components/ui/button/index.js';
+	import * as Card from '#lib/components/ui/card/index.js';
+	import * as Form from '#lib/components/ui/form/index.js';
+	import { Input } from '#lib/components/ui/input/index.js';
+	import * as Tabs from '#lib/components/ui/tabs/index.js';
 	import { goto } from '$app/navigation';
-	import { authClient } from '$lib/auth-client';
-	import { authErrorMessage, refreshSession, toastIfError } from '$lib/client/auth-form';
-	import { Button } from '$lib/components/ui/button';
-	import * as Card from '$lib/components/ui/card';
-	import * as Form from '$lib/components/ui/form';
-	import { Input } from '$lib/components/ui/input';
-	import * as Tabs from '$lib/components/ui/tabs';
 
 	async function finishSignIn() {
 		await refreshSession();
