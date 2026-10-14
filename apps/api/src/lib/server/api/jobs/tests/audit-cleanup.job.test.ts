@@ -55,7 +55,7 @@ function createInMemoryAuditRepository() {
  * invoke it as BullMQ would when a job runs.
  */
 function createFakeJobsService() {
-  const added: Array<{ name: string; data: unknown; opts: unknown }> = [];
+  const added: Array<{ id: string; repeat: unknown; template: unknown }> = [];
   let captured: Processor | null = null;
 
   const jobsService = {
@@ -66,8 +66,8 @@ function createFakeJobsService() {
     createQueue(_name: string) {
       return {
         name: _name,
-        add: vi.fn(async (name: string, data: unknown, opts: unknown) => {
-          added.push({ name, data, opts });
+        upsertJobScheduler: vi.fn(async (id: string, repeat: unknown, template: unknown) => {
+          added.push({ id, repeat, template });
         }),
       };
     },
@@ -101,8 +101,9 @@ describe('AuditCleanupJob', () => {
 
     expect(jobsService.added).toHaveLength(1);
     expect(jobsService.added[0]).toMatchObject({
-      name: AUDIT_CLEANUP_JOB,
-      opts: { repeat: { pattern: '0 0 * * 0' } },
+      id: AUDIT_CLEANUP_JOB,
+      repeat: { pattern: '0 0 * * 0' },
+      template: { name: AUDIT_CLEANUP_JOB },
     });
     // Worker processor was registered for the cleanup queue.
     expect(jobsService.processor).toBeTypeOf('function');

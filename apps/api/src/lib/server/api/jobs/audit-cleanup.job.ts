@@ -57,11 +57,14 @@ export class AuditCleanupJob {
    * run at import time.
    */
   async register(): Promise<void> {
-    await this.getQueue().add(AUDIT_CLEANUP_JOB, null, {
-      repeat: { pattern: AUDIT_CLEANUP_SCHEDULE },
-      removeOnComplete: true,
-      removeOnFail: 50,
-    });
+    await this.getQueue().upsertJobScheduler(
+      AUDIT_CLEANUP_JOB,
+      { pattern: AUDIT_CLEANUP_SCHEDULE },
+      {
+        name: AUDIT_CLEANUP_JOB,
+        opts: { removeOnComplete: true, removeOnFail: 50 },
+      },
+    );
 
     this.worker ??= this.jobsService.createWorker(AUDIT_CLEANUP_QUEUE, (job) => this.process(job));
   }
