@@ -1,4 +1,4 @@
-<svg width="265" height="46" viewBox="0 0 265 46" fill="none" xmlns="http://www.w3.org/2000/svg">
+<svg role="img" aria-label="AdelieStack" width="265" height="46" viewBox="0 0 265 46" fill="none" xmlns="http://www.w3.org/2000/svg">
 	<path
 		d="M68.3545 2.7142C65.7271 1.43779 62.777 0.721863 59.6597 0.721863C56.5424 0.721863 53.5923 1.43779 50.9649 2.7142H68.3545Z"
 		fill="url(#paint0_linear_5015_976)"

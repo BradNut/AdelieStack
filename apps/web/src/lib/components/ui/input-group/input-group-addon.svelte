@@ -31,20 +31,26 @@
 	}: WithElementRef<HTMLAttributes<HTMLDivElement>> & {
 		align?: InputGroupAddonAlign;
 	} = $props();
+
+	// Mouse-only convenience: clicking the addon padding focuses the sibling input.
+	function focusInputOnClick(node: HTMLElement) {
+		const onClick = (e: MouseEvent) => {
+			if ((e.target as HTMLElement).closest("button")) {
+				return;
+			}
+			node.parentElement?.querySelector("input")?.focus();
+		};
+		node.addEventListener("click", onClick);
+		return () => node.removeEventListener("click", onClick);
+	}
 </script>
 
 <div
 	bind:this={ref}
-	role="group"
 	data-slot="input-group-addon"
 	data-align={align}
 	class={cn(inputGroupAddonVariants({ align }), className)}
-	onclick={(e) => {
-		if ((e.target as HTMLElement).closest("button")) {
-			return;
-		}
-		e.currentTarget.parentElement?.querySelector("input")?.focus();
-	}}
+	{@attach focusInputOnClick}
 	{...restProps}
 >
 	{@render children?.()}
