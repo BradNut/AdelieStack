@@ -2,6 +2,9 @@
   "name": "@adelie/web",
   "version": "0.0.1",
   "private": true,
+  "engines": {
+    "node": ">=22.17"
+  },
   "scripts": {
     "dev": "NODE_OPTIONS=\"--inspect=9229\" vite dev --host",
     "build": "vite build",
