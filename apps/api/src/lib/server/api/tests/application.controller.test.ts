@@ -1,16 +1,16 @@
 import { Hono } from 'hono';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { AdminExampleController } from '../admin/admin-example.controller';
-import { ApplicationController } from '../application.controller';
-import type { AuthService } from '../auth/auth.service';
-import { RolesService } from '../auth/roles';
-import type { ConfigService } from '../common/configs/config.service';
-import { validEnvs } from '../common/configs/tests/env-fixtures';
-import type { LoggerService } from '../common/services/logger.service';
-import { buildAuthSession, buildAuthUser } from '../common/testing/factories';
-import { ConfigController } from '../config/config.controller';
-import type { StorageWebhookController } from '../storage/storage-webhook.controller';
-import { UsersController } from '../users/users.controller';
+import { AdminExampleController } from '#lib/server/api/admin/admin-example.controller';
+import { ApplicationController } from '#lib/server/api/application.controller';
+import type { AuthService } from '#lib/server/api/auth/auth.service';
+import { RolesService } from '#lib/server/api/auth/roles';
+import type { ConfigService } from '#lib/server/api/common/configs/config.service';
+import { validEnvs } from '#lib/server/api/common/configs/tests/env-fixtures';
+import type { LoggerService } from '#lib/server/api/common/services/logger.service';
+import { buildAuthSession, buildAuthUser } from '#lib/server/api/common/testing/factories';
+import { ConfigController } from '#lib/server/api/config/config.controller';
+import type { StorageWebhookController } from '#lib/server/api/storage/storage-webhook.controller';
+import { UsersController } from '#lib/server/api/users/users.controller';
 
 const handler = vi.fn();
 const getSession = vi.fn();

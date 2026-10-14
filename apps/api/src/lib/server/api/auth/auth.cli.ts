@@ -1,6 +1,6 @@
 import { APP_NAME } from '@adelie/shared';
 import { drizzle } from 'drizzle-orm/node-postgres';
-import * as drizzleSchema from '../databases/postgres/drizzle-schema';
+import * as drizzleSchema from '#lib/server/api/databases/postgres/drizzle-schema';
 import { AUTH_PLACEHOLDER, createAuth, drizzleAuthDatabase } from './auth.config';
 
 /**

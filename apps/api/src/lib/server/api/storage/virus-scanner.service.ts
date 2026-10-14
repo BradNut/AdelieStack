@@ -1,8 +1,8 @@
 import { Readable } from 'node:stream';
 import { inject, injectable } from '@needle-di/core';
 import NodeClam from 'clamscan';
-import { ConfigService } from '../common/configs/config.service';
-import { LoggerService } from '../common/services/logger.service';
+import { ConfigService } from '#lib/server/api/common/configs/config.service';
+import { LoggerService } from '#lib/server/api/common/services/logger.service';
 
 export const ScanResult = {
   CLEAN: 'clean',

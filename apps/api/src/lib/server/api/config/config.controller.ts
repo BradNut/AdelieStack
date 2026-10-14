@@ -1,7 +1,7 @@
 import { type PublicConfigDto, StatusCodes } from '@adelie/shared';
 import { inject, injectable } from '@needle-di/core';
-import { ConfigService } from '../common/configs/config.service';
-import { Controller } from '../common/factories/controllers.factory';
+import { ConfigService } from '#lib/server/api/common/configs/config.service';
+import { Controller } from '#lib/server/api/common/factories/controllers.factory';
 
 /** Public, unauthenticated runtime config for clients. Only non-secret values belong here. */
 @injectable()

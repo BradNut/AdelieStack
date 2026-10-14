@@ -3,7 +3,7 @@ import { PASSWORD_COMPROMISED, PASSWORD_POLICY_RULES, PASSWORD_POLICY_VIOLATION 
 import { memoryAdapter } from 'better-auth/adapters/memory';
 import { hashPassword } from 'better-auth/crypto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { type Auth, createAuth } from '../auth.config';
+import { type Auth, createAuth } from '#lib/server/api/auth/auth.config';
 
 const ORIGIN = 'http://localhost:5173';
 const COMPLIANT_PASSWORD = 'correct horse battery';

@@ -1,5 +1,5 @@
 import { vi } from 'vitest';
-import type { RedisService } from '../../lib/server/api/databases/redis/redis.service';
+import type { RedisService } from '#lib/server/api/databases/redis/redis.service';
 
 /** Records real Redis keys/values in memory instead of hitting a live Redis instance. */
 export function createRedisServiceMock() {

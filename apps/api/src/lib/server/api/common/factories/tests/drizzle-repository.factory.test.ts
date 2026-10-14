@@ -1,9 +1,9 @@
 import { injectable } from '@needle-di/core';
 import { describe, expect, it } from 'vitest';
-import { DrizzleService } from '../../../databases/postgres/drizzle.service';
-import { ConfigService } from '../../configs/config.service';
-import { createTestContainer, mockProvider } from '../../testing/test-container';
-import { DrizzleRepository } from '../drizzle-repository.factory';
+import { ConfigService } from '#lib/server/api/common/configs/config.service';
+import { DrizzleRepository } from '#lib/server/api/common/factories/drizzle-repository.factory';
+import { createTestContainer, mockProvider } from '#lib/server/api/common/testing/test-container';
+import { DrizzleService } from '#lib/server/api/databases/postgres/drizzle.service';
 
 @injectable()
 class FirstRepository extends DrizzleRepository {}

@@ -1,4 +1,4 @@
-import type { EmailTemplate } from '../interfaces/email-template.interface';
+import type { EmailTemplate } from '#lib/server/api/mail/interfaces/email-template.interface';
 
 export class EmailVerificationEmail implements EmailTemplate {
   constructor(private readonly url: string) {}

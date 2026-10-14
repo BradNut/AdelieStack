@@ -1,4 +1,4 @@
-import type { EnvsDto } from '../../lib/server/api/common/configs/dtos/env.dto';
+import type { EnvsDto } from '#lib/server/api/common/configs/dtos/env.dto';
 
 type TestEnvKey = 'ENV' | 'LOG_LEVEL' | 'ORIGIN' | 'SIGNING_SECRET';
 

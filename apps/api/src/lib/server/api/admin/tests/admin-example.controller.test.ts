@@ -1,12 +1,12 @@
 import { RoleName } from '@adelie/shared';
 import { onError } from 'stoker/middlewares';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { roles } from '../../auth/auth.permissions';
-import type { AuthService } from '../../auth/auth.service';
-import { type RolesService, resolveRoles } from '../../auth/roles';
-import { buildAuthUser } from '../../common/testing/factories';
-import { createHono } from '../../common/utils/hono';
-import { AdminExampleController } from '../admin-example.controller';
+import { AdminExampleController } from '#lib/server/api/admin/admin-example.controller';
+import { roles } from '#lib/server/api/auth/auth.permissions';
+import type { AuthService } from '#lib/server/api/auth/auth.service';
+import { type RolesService, resolveRoles } from '#lib/server/api/auth/roles';
+import { buildAuthUser } from '#lib/server/api/common/testing/factories';
+import { createHono } from '#lib/server/api/common/utils/hono';
 
 const roleSwitch = vi.hoisted(() => ({ allowMultiple: false }));
 

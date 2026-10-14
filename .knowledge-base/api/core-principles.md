@@ -19,8 +19,11 @@ Modules under `apps/api/src/lib/server/api/` are flat, not nested by layer:
   dtos/                    # Request/response DTOs
 ```
 
-API source files use relative imports, not path aliases: the API's types reach the web typecheck
-through the RPC contract, so API code must not depend on API-only aliases.
+Import across directories with the `#lib/*` subpath import (`package.json` `imports`, mapped to
+`./src/lib/*.ts`), extensionless: `#lib/server/api/auth/auth.service`. Use `./` for siblings.
+Directories need `/index` (`#lib/server/api/common/i18n/index`), and generated Paraglide files stay
+relative because they are `.js`. Subpath imports resolve per package, so the web typecheck that
+follows the RPC contract into API files still finds them. There is no `paths` alias.
 
 ## Naming
 

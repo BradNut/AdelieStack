@@ -7,11 +7,11 @@ const { getClientIpMock } = vi.hoisted(() => ({
   getClientIpMock: vi.fn(),
 }));
 
-vi.mock('../../utils/ip', () => ({
+vi.mock('#lib/server/api/common/utils/ip', () => ({
   getClientIp: getClientIpMock,
 }));
 
-import { rateLimit } from '../rate-limit.middleware';
+import { rateLimit } from '#lib/server/api/common/middleware/rate-limit.middleware';
 
 describe('rate-limit.middleware', () => {
   beforeEach(() => {

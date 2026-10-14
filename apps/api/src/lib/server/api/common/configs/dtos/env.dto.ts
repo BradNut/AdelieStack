@@ -1,6 +1,6 @@
 import { APP_NAME, CAPTCHA_PROVIDERS } from '@adelie/shared';
 import { z } from 'zod/v4';
-import { MailerTransport } from '../../../mail/mailer-transport.constant';
+import { MailerTransport } from '#lib/server/api/mail/mailer-transport.constant';
 
 /** An env file declares optional variables as `NAME=`; treat that empty string as unset. */
 const emptyAsUndefined = (value: unknown) => (value === '' ? undefined : value);

@@ -1,7 +1,7 @@
 import { inject, injectable } from '@needle-di/core';
 import pino from 'pino';
 import pretty from 'pino-pretty';
-import { ConfigService } from '../../common/configs/config.service';
+import { ConfigService } from '#lib/server/api/common/configs/config.service';
 
 @injectable()
 export class LoggerService {

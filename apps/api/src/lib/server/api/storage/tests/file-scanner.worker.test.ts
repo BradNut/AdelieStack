@@ -1,11 +1,11 @@
 import { Container } from '@needle-di/core';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ConfigService } from '../../common/configs/config.service';
-import { LoggerService } from '../../common/services/logger.service';
-import { FileScannerWorker } from '../file-scanner.worker';
-import { S3StorageClient } from '../s3-storage.client';
-import { ScanStatus, ScanTag } from '../storage.types';
-import { type ScanResponse, ScanResult, VirusScannerService } from '../virus-scanner.service';
+import { ConfigService } from '#lib/server/api/common/configs/config.service';
+import { LoggerService } from '#lib/server/api/common/services/logger.service';
+import { FileScannerWorker } from '#lib/server/api/storage/file-scanner.worker';
+import { S3StorageClient } from '#lib/server/api/storage/s3-storage.client';
+import { ScanStatus, ScanTag } from '#lib/server/api/storage/storage.types';
+import { type ScanResponse, ScanResult, VirusScannerService } from '#lib/server/api/storage/virus-scanner.service';
 
 const loggerStub = { log: { info: vi.fn(), warn: vi.fn(), debug: vi.fn(), error: vi.fn() } } as unknown as LoggerService;
 

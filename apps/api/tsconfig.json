@@ -14,11 +14,7 @@
     "moduleResolution": "bundler",
     "ignoreDeprecations": "6.0",
     "experimentalDecorators": true,
-    "types": ["node"],
-    "paths": {
-      "$lib/*": ["./src/lib/*"],
-      "@/*": ["./src/lib/*"]
-    }
+    "types": ["node"]
   },
   "include": ["src/**/*.ts", "drizzle.config.ts", "env.d.ts"]
 }

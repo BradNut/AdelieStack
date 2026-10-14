@@ -1,11 +1,11 @@
 import { Container } from '@needle-di/core';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { ConfigService } from '../../common/configs/config.service';
-import { LoggerService } from '../../common/services/logger.service';
-import { buildRouteApp } from '../../common/testing/route-test-harness';
-import type { AppOpenAPI } from '../../common/utils/hono';
-import { FileScannerWorker } from '../file-scanner.worker';
-import { extractScanJobs, StorageWebhookController } from '../storage-webhook.controller';
+import { ConfigService } from '#lib/server/api/common/configs/config.service';
+import { LoggerService } from '#lib/server/api/common/services/logger.service';
+import { buildRouteApp } from '#lib/server/api/common/testing/route-test-harness';
+import type { AppOpenAPI } from '#lib/server/api/common/utils/hono';
+import { FileScannerWorker } from '#lib/server/api/storage/file-scanner.worker';
+import { extractScanJobs, StorageWebhookController } from '#lib/server/api/storage/storage-webhook.controller';
 
 const loggerStub = { log: { info: vi.fn(), warn: vi.fn(), debug: vi.fn(), error: vi.fn() } } as unknown as LoggerService;
 

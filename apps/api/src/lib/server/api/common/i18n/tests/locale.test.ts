@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { baseLocale, getRequestLocale, locales, m, resolveRequestLocale } from '../index';
+import { baseLocale, getRequestLocale, locales, m, resolveRequestLocale } from '#lib/server/api/common/i18n/index';
 
 function requestWith(acceptLanguage?: string) {
   const headers = new Headers();

@@ -1,12 +1,12 @@
 import type { Processor } from 'bullmq';
 import dayjs from 'dayjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { AuditRepository } from '../../audit/audit.repository';
-import type { AuditLog } from '../../audit/tables/audit_log.table';
-import { createTestContainer, mockProvider } from '../../common/testing/test-container';
-import { generateId } from '../../common/utils/crypto';
-import { AUDIT_CLEANUP_JOB, AUDIT_CLEANUP_QUEUE, AUDIT_RETENTION_DAYS, AuditCleanupJob } from '../audit-cleanup.job';
-import { JobsService } from '../jobs.service';
+import { AuditRepository } from '#lib/server/api/audit/audit.repository';
+import type { AuditLog } from '#lib/server/api/audit/tables/audit_log.table';
+import { createTestContainer, mockProvider } from '#lib/server/api/common/testing/test-container';
+import { generateId } from '#lib/server/api/common/utils/crypto';
+import { AUDIT_CLEANUP_JOB, AUDIT_CLEANUP_QUEUE, AUDIT_RETENTION_DAYS, AuditCleanupJob } from '#lib/server/api/jobs/audit-cleanup.job';
+import { JobsService } from '#lib/server/api/jobs/jobs.service';
 
 /**
  * In-memory stand-in for {@link AuditRepository}. It genuinely stores rows and

@@ -7,7 +7,7 @@ import {
 } from '@adelie/shared';
 import type { BetterAuthPlugin } from 'better-auth';
 import { captcha } from 'better-auth/plugins';
-import type { EnvsDto } from '../common/configs/dtos/env.dto';
+import type { EnvsDto } from '#lib/server/api/common/configs/dtos/env.dto';
 
 /** Stable, greppable log message for every failed Captcha Token verification. */
 export const CAPTCHA_VERIFY_FAILED_LOG = 'CAPTCHA_VERIFY_FAILED';

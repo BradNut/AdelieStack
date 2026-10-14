@@ -24,6 +24,9 @@
     "site:update": "pnpm update -i -L"
   },
   "type": "module",
+  "imports": {
+    "#lib/*": "./src/lib/*.ts"
+  },
   "devDependencies": {
     "@adelie/test-utils": "workspace:*",
     "@biomejs/biome": "2.5.15",

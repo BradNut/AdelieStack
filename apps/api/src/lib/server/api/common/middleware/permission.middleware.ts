@@ -1,12 +1,12 @@
 import type { MiddlewareHandler } from 'hono';
 import { createMiddleware } from 'hono/factory';
-import type { ac } from '../../auth/auth.permissions';
-import type { AuthService } from '../../auth/auth.service';
-import type { RolesService } from '../../auth/roles';
-import { m } from '../i18n';
-import { assertSignedIn } from '../utils/assert-signed-in';
-import { Forbidden } from '../utils/exceptions';
-import type { HonoEnv } from '../utils/hono';
+import type { ac } from '#lib/server/api/auth/auth.permissions';
+import type { AuthService } from '#lib/server/api/auth/auth.service';
+import type { RolesService } from '#lib/server/api/auth/roles';
+import { m } from '#lib/server/api/common/i18n/index';
+import { assertSignedIn } from '#lib/server/api/common/utils/assert-signed-in';
+import { Forbidden } from '#lib/server/api/common/utils/exceptions';
+import type { HonoEnv } from '#lib/server/api/common/utils/hono';
 
 type Statements = (typeof ac)['statements'];
 

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { getClientIp } from '../ip';
+import { getClientIp } from '#lib/server/api/common/utils/ip';
 
 describe('getClientIp', () => {
   it('returns first forwarded IP when trust proxy is enabled', () => {

@@ -1,8 +1,8 @@
 import { getTableColumns, type InferInsertModel, type InferSelectModel, relations } from 'drizzle-orm';
 import { index, jsonb, pgTable, text } from 'drizzle-orm/pg-core';
-import { generateId } from '../../common/utils/crypto';
-import { id, timestamps } from '../../common/utils/drizzle';
-import { users } from '../../auth/tables/auth.table';
+import { users } from '#lib/server/api/auth/tables/auth.table';
+import { generateId } from '#lib/server/api/common/utils/crypto';
+import { id, timestamps } from '#lib/server/api/common/utils/drizzle';
 
 /* -------------------------------------------------------------------------- */
 /*                                    Table                                   */

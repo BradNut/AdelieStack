@@ -1,7 +1,7 @@
 import { inject, injectable } from '@needle-di/core';
 import type { Job, Queue, Worker } from 'bullmq';
 import dayjs from 'dayjs';
-import { AuditRepository } from '../audit/audit.repository';
+import { AuditRepository } from '#lib/server/api/audit/audit.repository';
 import { JobsService } from './jobs.service';
 
 /* -------------------------------------------------------------------------- */

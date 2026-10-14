@@ -1,7 +1,7 @@
 import type { MiddlewareHandler } from 'hono';
 import { createMiddleware } from 'hono/factory';
-import type { AuthService } from '../../auth/auth.service';
-import type { HonoEnv } from '../utils/hono';
+import type { AuthService } from '#lib/server/api/auth/auth.service';
+import type { HonoEnv } from '#lib/server/api/common/utils/hono';
 
 /**
  * Resolves the Better Auth session from the request cookies and exposes it as `c.var.user`

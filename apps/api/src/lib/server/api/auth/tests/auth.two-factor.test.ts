@@ -1,8 +1,8 @@
 import { totpCode } from '@adelie/test-utils/totp';
 import { memoryAdapter } from 'better-auth/adapters/memory';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { SendProps } from '../../mail/interfaces/mailer.interface';
-import { type Auth, createAuth, TWO_FACTOR_OTP_PERIOD_MINUTES } from '../auth.config';
+import { type Auth, createAuth, TWO_FACTOR_OTP_PERIOD_MINUTES } from '#lib/server/api/auth/auth.config';
+import type { SendProps } from '#lib/server/api/mail/interfaces/mailer.interface';
 
 const ORIGIN = 'http://localhost:5173';
 const PASSWORD = 'Correct-horse-9';

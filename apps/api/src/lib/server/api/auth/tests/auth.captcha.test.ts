@@ -9,8 +9,8 @@ import {
 } from '@adelie/shared';
 import { memoryAdapter } from 'better-auth/adapters/memory';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { CAPTCHA_VERIFY_FAILED_LOG, CaptchaHealth, CaptchaStatus } from '../auth.captcha';
-import { createAuth } from '../auth.config';
+import { CAPTCHA_VERIFY_FAILED_LOG, CaptchaHealth, CaptchaStatus } from '#lib/server/api/auth/auth.captcha';
+import { createAuth } from '#lib/server/api/auth/auth.config';
 
 const ORIGIN = 'http://localhost:5173';
 const PASSWORD = 'correct horse battery';

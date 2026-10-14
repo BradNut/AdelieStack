@@ -1,6 +1,6 @@
 import { RoleName } from '@adelie/shared';
 import { describe, expect, it, vi } from 'vitest';
-import { resolveRoles } from '../roles';
+import { resolveRoles } from '#lib/server/api/auth/roles';
 
 function setup(allowMultiple: boolean) {
   const logger = { warn: vi.fn() };

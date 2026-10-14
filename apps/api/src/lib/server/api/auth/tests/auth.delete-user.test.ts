@@ -1,8 +1,8 @@
 import { memoryAdapter } from 'better-auth/adapters/memory';
 import { getTableConfig } from 'drizzle-orm/pg-core';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { accounts, passkeys, sessions, twoFactors } from '../../databases/postgres/drizzle-schema';
-import { type Auth, createAuth } from '../auth.config';
+import { type Auth, createAuth } from '#lib/server/api/auth/auth.config';
+import { accounts, passkeys, sessions, twoFactors } from '#lib/server/api/databases/postgres/drizzle-schema';
 
 const ORIGIN = 'http://localhost:5173';
 const PASSWORD = 'Correct-horse-9';

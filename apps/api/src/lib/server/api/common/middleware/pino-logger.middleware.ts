@@ -2,7 +2,7 @@ import { Container } from '@needle-di/core';
 import { pinoLogger as logger } from 'hono-pino';
 import pino from 'pino';
 import pretty from 'pino-pretty';
-import { ConfigService } from '../configs/config.service';
+import { ConfigService } from '#lib/server/api/common/configs/config.service';
 
 export function pinoLogger() {
   const container = new Container();
