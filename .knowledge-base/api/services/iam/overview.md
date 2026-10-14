@@ -96,9 +96,7 @@ There are no passkey, WebAuthn, 2FA/MFA, auth-step, or audit modules under `iam/
 
 ## Related Documentation
 
-- [API Documentation](./api-doc.md)
 - [Business Processes](./business-processes.md)
 - [Context](./context.md)
 - [Data Model](./data-model.md)
-- [Dependencies](./dependencies.md)
 - [Runbook](./runbook.md)

@@ -1,58 +1,31 @@
 # API Environment Configuration
 
 Reference: `apps/api/.env.schema` — the varlock (`@env-spec`) source of truth for every env var
-the API reads. Real values live in `.env` (local, gitignored) or `.env.local` (personal
-overrides, gitignored, highest precedence) — never commit real secrets to `.env.schema`.
+the API reads: names, types and defaults. Real values live in `.env` (local, gitignored) or
+`.env.local` (personal overrides, gitignored, highest precedence) — never commit real secrets to
+`.env.schema`. This runbook keeps what the schema cannot say: behaviour, gotchas and outage
+procedures.
 
-## Environment
+## Gotchas
 
-| Variable | Example | Notes |
-|---|---|---|
-| `ENVIRONMENT` | `development` | `development`, `staging`, or `production`; also used as the storage bucket name suffix. |
-| `ENV` | `dev` | Legacy short-form flag (`dev` or `prod`) consumed by several services. |
-| `NODE_ENV` | `development` | `development` or `production`; optional. |
-
-## Server
-
-| Variable | Example | Notes |
-|---|---|---|
-| `ORIGIN` | `http://localhost:5173` | Allowed CORS / session origin. Default is the local web dev URL. |
-| `DOMAIN` | `localhost` | Hostname only. Used for session cookie domain. |
-| `PORT` | `3001` | API server port. |
-| `HOST` | `0.0.0.0` | Bind address; optional. |
-| `LOG_LEVEL` | `debug` | Pino log level. |
-| `SITE_VERSION` | — | Semver string; optional. |
-
-## Database
-
-| Variable | Example | Notes |
-|---|---|---|
-| `DATABASE_USER` | `postgres` | DB user. |
-| `DATABASE_PASSWORD` | `postgres` | DB password. |
-| `DATABASE_HOST` | `localhost` | DB hostname. |
-| `DATABASE_PORT` | `5432` | DB port. |
-| `DATABASE_DB` | `postgres` | DB name. |
-
-## Drizzle / Seed
-
-| Variable | Default | Notes |
-|---|---|---|
-| `DB_MIGRATING` | `false` | Set `true` to run migrations on start (Docker sets this automatically). |
-| `DB_SEEDING` | `false` | Set `true` to run seed after migration. |
-| `ADMIN_EMAIL` | `admin@example.com` | Seed admin user email; optional. `ADMIN_PASSWORD` is required to seed. |
-| `ADMIN_PASSWORD` | — | Seed admin user password. With `SIGN_UP_ENABLED` false and no password set, the seed warns that nobody can sign in. |
+- `ENVIRONMENT` (`development`, `staging`, `production`) also suffixes the storage bucket names.
+  `ENV` (`dev` or `prod`) is a legacy short-form flag several services still read; it controls the
+  session cookie's `secure` flag.
+- `ORIGIN` is the allowed CORS / session origin; `DOMAIN` (hostname only) is the session cookie
+  domain.
+- `DB_MIGRATING=true` runs migrations on start (Docker sets it automatically); `DB_SEEDING=true`
+  seeds after migration.
+- Seeding the admin needs `ADMIN_PASSWORD`. With `SIGN_UP_ENABLED` false and no password set, the
+  seed warns that nobody can sign in.
+- `SIGNING_SECRET` is required and sensitive; generate it with `openssl rand -hex 32`.
+- Local setup: `cp apps/api/.env.schema apps/api/.env`, fill `DATABASE_*`, `REDIS_URL`,
+  `SIGNING_SECRET` and `STORAGE_*`, then `pnpm --filter @adelie/api dev`.
 
 ## Registration
 
 | Variable | Default | Notes |
 |---|---|---|
 | `SIGN_UP_ENABLED` | `false` | Allow anyone to register. Closed by default: accounts then come from the seeded admin and the admin plugin's create-user. Set `true` for local dev and the e2e suite. Read at startup; the web app learns it from the public `GET /api/config`. See [ADR 0002](../../../docs/adr/0002-sign-up-closed-by-default.md). |
-
-## Security
-
-| Variable | Notes |
-|---|---|
-| `SIGNING_SECRET` | Required, sensitive. Generate with `openssl rand -hex 32`. |
 
 ## Breached-password screening (Have I Been Pwned)
 
@@ -100,54 +73,12 @@ The reCAPTCHA keys above are v2 and always pass, so they do not exercise `CAPTCH
 - **Find it**: every failed verification writes one error log entry starting with `CAPTCHA_VERIFY_FAILED` (grep for it). `GET /healthz` returns `captcha`: `available` (last verification reached the provider), `unavailable` (last one did not), `unknown` (none since start) or `disabled`. Probes read the last result and never call the provider, so `captcha` only changes when a token is verified. The overall `status` stays `ok`.
 - **Mitigate**: set `CAPTCHA_ENABLED=false` and restart the API. The protected endpoints are unchallenged until you set it back to `true` and restart.
 
-## Redis
-
-| Variable | Example | Notes |
-|---|---|---|
-| `REDIS_URL` | `redis://localhost:6379` | Used for sessions, rate limiting, and cached lookups. |
-
-## Storage (SeaweedFS S3 locally; any S3-compatible provider in production)
+## Storage
 
 Buckets: `${PROJECT_NAME}-public-${ENVIRONMENT}` and `${PROJECT_NAME}-private-${ENVIRONMENT}`.
 Provision locally with `pnpm storage:setup`. Credentials must match
-`docker/seaweedfs/s3-config.json`.
-
-| Variable | Example | Notes |
-|---|---|---|
-| `PROJECT_NAME` | `adelie` | Bucket namespace prefix. |
-| `STORAGE_URL` | `http://localhost:8333` | S3 endpoint URL. |
-| `STORAGE_ACCESS_KEY` | `adelie-local-access-key` | S3 access key. |
-| `STORAGE_SECRET_KEY` | `adelie-local-secret-key` | S3 secret key. |
-| `STORAGE_HOST` | `localhost` | S3 hostname. |
-| `STORAGE_PORT` | `8333` | S3 port (SeaweedFS default `8333`). |
-| `STORAGE_SSL` | `false` | `true` if storage is behind HTTPS. |
-| `PUBLIC_IMAGE_URI` | `http://localhost:8333/adelie-public-development` | Public bucket base URI. |
-
-## Sentry (backend)
-
-| Variable | Notes |
-|---|---|
-| `SENTRY_BACKEND_URL` | Sentry DSN/URL for backend error tracking; optional. |
-
-## OpenTelemetry (Observability)
-
-| Variable | Notes |
-|---|---|
-| `OTEL_ENABLED` | `true` to enable OpenTelemetry tracing. |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | OTLP trace endpoint, e.g. `http://localhost:4318/v1/traces`. |
-
-## Local Dev Setup
-
-```bash
-cp apps/api/.env.schema apps/api/.env
-# Edit real values: DATABASE_*, REDIS_URL, SIGNING_SECRET, STORAGE_*
-pnpm --filter @adelie/api dev
-```
-
-## Related
-
-- [Deployment](./deployment.md)
-- [Database Migrations](./database-migrations.md)
+`docker/seaweedfs/s3-config.json`. SeaweedFS S3 runs locally; production takes any S3-compatible
+provider. `PUBLIC_IMAGE_URI` is the public bucket base URI and must equal the web app's value.
 
 ## Leak scanner and storage credentials
 
@@ -160,3 +91,8 @@ Manual check that the scanner still works: run the API and temporarily return
 `DETECTED LEAKED SENSITIVE CONFIG - STORAGE_SECRET_KEY`.
 `local-storage-credentials.test.ts` guards that the defaults stay collision-free and in sync with
 `docker/seaweedfs/s3-config.json` and `scripts/setup-seaweedfs.sh`.
+
+## Related
+
+- [Deployment](./deployment.md)
+- [Database Migrations](./database-migrations.md)

@@ -11,7 +11,7 @@ AdelieStack is a pnpm + Turbo monorepo: a Hono API (`apps/api`) and a SvelteKit 
 
 ## Where to Look
 
-Start with the nearest guide (cross-stack work: both), then one overview if unfamiliar, then only the matching service/feature/standard from the index.
+Locate code with CodeGraph (`codegraph_explore`) before grep or Read. Then start with the nearest guide (cross-stack work: both), then one overview if unfamiliar, then only the matching service/feature/standard from the index.
 
 - **API** (route/service/repository/schema): [guide](./apps/api/AGENTS.md), [overview](./.knowledge-base/api/overview.md), [index](./.knowledge-base/api/index.md), [runbooks](./.knowledge-base/api/runbooks/index.md), [decisions](./.knowledge-base/api/decisions/index.md)
 - **Web** (route/component/form/state/style): [guide](./apps/web/AGENTS.md), [overview](./.knowledge-base/web/overview.md), [index](./.knowledge-base/web/index.md), [runbooks](./.knowledge-base/web/runbooks/index.md), [decisions](./.knowledge-base/web/decisions/index.md)

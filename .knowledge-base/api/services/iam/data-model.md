@@ -5,52 +5,12 @@ Better Auth owns identity and session data. Its tables are generated into
 re-exported from `apps/api/src/lib/server/api/databases/postgres/drizzle-schema.ts`. Never
 hand-edit the generated file or its migrations; change the auth config, regenerate, then run
 `drizzle-kit generate`. A test (`auth/tests/auth.schema.test.ts`) fails when the schema lacks a
-table or column a configured plugin needs.
+table or column a configured plugin needs. Read the tables and relations from `auth.table.ts`.
 
-## Database Schema (PostgreSQL via Drizzle)
-
-All auth tables use `text` primary keys filled with a uuidv7 from `generateAuthId`
-(`advanced.database.generateId`), so ids sort by creation time.
-
-### `users`
-
-| Column | Notes |
-| --- | --- |
-| `id`, `name`, `email` (unique), `image` | Identity |
-| `email_verified` | Set by the email verification flow |
-| `role` | `admin`, `support` or `user`; admin plugin, defaults to `user` |
-| `banned`, `ban_reason`, `ban_expires` | Admin plugin |
-| `two_factor_enabled` | Two-factor plugin |
-| `created_at`, `updated_at` | Timestamps |
-
-### `sessions`
-
-One row per signed-in browser: `token` (unique), `expires_at`, `ip_address`, `user_agent`,
-`impersonated_by`, and `user_id` (cascade delete). Sessions live in PostgreSQL, not Redis.
-
-### `accounts`
-
-One row per sign-in method of a user (`provider_id`, `account_id`, `user_id`). For email and
-password the `password` column holds the hash Better Auth produced; OAuth token columns exist
-for providers added later.
-
-### `verifications`
-
-Short-lived tokens for email verification and password reset: `identifier`, `value`,
-`expires_at`.
-
-### `two_factors` and `passkeys`
-
-Created by the two-factor and passkey plugins. See the [security standards](../../standards/security-standards.md) for the overview.
-
-### Relations
-
-```
-users (1) ──< (N) sessions      (sessions.user_id → users.id, cascade delete)
-users (1) ──< (N) accounts      (accounts.user_id → users.id, cascade delete)
-users (1) ──< (N) two_factors   (cascade delete)
-users (1) ──< (N) passkeys      (cascade delete)
-```
+- All auth tables use `text` primary keys filled with a uuidv7 from `generateAuthId`
+  (`advanced.database.generateId`), so ids sort by creation time.
+- Sessions live in PostgreSQL, not Redis.
+- For email and password sign-in, `accounts.password` holds the hash Better Auth produced.
 
 ## Roles
 
@@ -94,6 +54,5 @@ Only the admin endpoints and server-side calls (such as the seed) can set a role
 ## Related Documentation
 
 - [Overview](./overview.md)
-- [API Documentation](./api-doc.md)
 - [Business Processes](./business-processes.md)
 - [Context](./context.md)

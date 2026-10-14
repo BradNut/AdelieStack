@@ -180,6 +180,5 @@ it revoke existing sessions for the user — there is no session-revocation step
 ## Related Documentation
 
 - [Overview](./overview.md)
-- [API Documentation](./api-doc.md)
 - [Data Model](./data-model.md)
 - [Runbook](./runbook.md)
