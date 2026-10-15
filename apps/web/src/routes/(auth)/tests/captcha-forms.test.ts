@@ -9,6 +9,7 @@ const authClient = vi.hoisted(() => ({
   requestPasswordReset: vi.fn(),
   resetPassword: vi.fn(),
   sendVerificationEmail: vi.fn(),
+  getLastUsedLoginMethod: vi.fn(() => null),
 }));
 const getCaptchaConfig = vi.fn<() => Promise<CaptchaPublicConfig>>();
 const widget = { reset: vi.fn(), destroy: vi.fn() };

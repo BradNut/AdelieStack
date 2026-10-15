@@ -1,5 +1,6 @@
+import { LAST_LOGIN_METHOD_COOKIE } from '@adelie/shared';
 import { passkeyClient } from '@better-auth/passkey/client';
-import { adminClient, twoFactorClient } from 'better-auth/client/plugins';
+import { adminClient, lastLoginMethodClient, twoFactorClient } from 'better-auth/client/plugins';
 import { createAuthClient } from 'better-auth/svelte';
 import { goto } from '$app/navigation';
 
@@ -19,5 +20,6 @@ export const authClient = createAuthClient({
     }),
     passkeyClient(),
     adminClient(),
+    lastLoginMethodClient({ cookieName: LAST_LOGIN_METHOD_COOKIE }),
   ],
 });

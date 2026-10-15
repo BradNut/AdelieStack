@@ -1,8 +1,8 @@
-import { APP_NAME, MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH, RoleName } from '@adelie/shared';
+import { APP_NAME, LAST_LOGIN_METHOD_COOKIE, MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH, RoleName } from '@adelie/shared';
 import { passkey } from '@better-auth/passkey';
 import { type BetterAuthOptions, betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
-import { admin, haveIBeenPwned, openAPI, twoFactor } from 'better-auth/plugins';
+import { admin, haveIBeenPwned, lastLoginMethod, openAPI, twoFactor } from 'better-auth/plugins';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { uuidv7 } from '#lib/server/api/common/utils/crypto';
 import type * as drizzleSchema from '#lib/server/api/databases/postgres/drizzle-schema';
@@ -177,6 +177,9 @@ export function createAuth({
       haveIBeenPwned({ enabled: hibpStatus.enabled, paths: [...HIBP_PLUGIN_PATHS] }),
       // Must come after haveIBeenPwned: it wraps that plugin's hashing to record each check's outcome.
       hibpMonitor(hibpStatus),
+      // Remembers how the user last signed in, in a browser-readable cookie only (no `storeInDatabase`,
+      // so no schema change) for the login page's hint. Not a secret and not used for access decisions.
+      lastLoginMethod({ cookieName: LAST_LOGIN_METHOD_COOKIE }),
       // Only registered when captcha is on, so off means no behaviour change. Its `onRequest` runs before every hook.
       ...(captchaConfig ? [captchaPlugin(captchaConfig, captchaStatus)] : []),
       ...(openApiReference ? [openAPI()] : []),

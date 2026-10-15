@@ -1,11 +1,13 @@
 <script lang="ts">
-	import { signinDto } from '@adelie/shared';
+	import { LoginMethod, signinDto } from '@adelie/shared';
+	import { onMount } from 'svelte';
 	import { defaults, setError, superForm } from 'sveltekit-superforms';
 	import { zod4, zod4Client } from 'sveltekit-superforms/adapters';
 	import { authClient } from '#lib/auth-client.ts';
 	import { authErrorMessage, refreshSession, toastIfError } from '#lib/client/auth-form.ts';
 	import { createCaptchaForm } from '#lib/client/captcha/captcha-form.svelte.ts';
 	import CaptchaField from '#lib/components/auth/captcha-field.svelte';
+	import LastUsedBadge from '#lib/components/auth/last-used-badge.svelte';
 	import { Button } from '#lib/components/ui/button/index.ts';
 	import * as Card from '#lib/components/ui/card/index.ts';
 	import * as Form from '#lib/components/ui/form/index.ts';
@@ -15,6 +17,12 @@
 
 	let { data } = $props();
 	const captcha = createCaptchaForm();
+
+	// The hint lives in a browser cookie, so it is read after mount; the server render shows none.
+	let lastMethod = $state<string | null>(null);
+	onMount(() => {
+		lastMethod = authClient.getLastUsedLoginMethod();
+	});
 
 	const sf_login = superForm(defaults(zod4(signinDto)), {
 		SPA: true,
@@ -93,16 +101,25 @@
 			</Form.Field>
 			<CaptchaField bind:this={captcha.field} onchange={captcha.setToken} />
 			<div class="grid grid-cols-2">
-				<Form.Button>Login</Form.Button>
+				<div class="flex items-center gap-2">
+						<Form.Button>Login</Form.Button>
+						<LastUsedBadge method={LoginMethod.PASSWORD} {lastMethod} />
+					</div>
 				<Button variant="link" class="text-secondary-foreground" href="/password/reset">Forgot Password?</Button>
 			</div>
 		</form>
 		<span class="text-center text-sm text-muted-foreground">or</span>
-		<Button variant="outline" class="w-full" onclick={signInWithPasskey}>Sign in with a passkey</Button>
+		<Button variant="outline" class="w-full" onclick={signInWithPasskey}>
+			Sign in with a passkey
+			<LastUsedBadge method={LoginMethod.PASSKEY} {lastMethod} />
+		</Button>
 		{#if data.showOAuthButtons}
 			<span class="text-center text-sm text-muted-foreground">or sign in with</span>
 			<div class="grid gap-4">
-				<Button href="/login/google" variant="outline" class="w-full flex items-center gap-2">Google</Button>
+				<Button href="/login/google" variant="outline" class="w-full flex items-center gap-2">
+						Google
+						<LastUsedBadge method={LoginMethod.GOOGLE} {lastMethod} />
+					</Button>
 			</div>
 		{/if}
 		<p class="px-8 py-4 text-center text-sm text-muted-foreground">
