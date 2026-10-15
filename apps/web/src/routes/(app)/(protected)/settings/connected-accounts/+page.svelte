@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { SOCIAL_PROVIDER_LABELS, SOCIAL_PROVIDERS, type SocialProvider } from '@adelie/shared';
+	import { AppRoute, SOCIAL_PROVIDER_LABELS, SOCIAL_PROVIDERS, type SocialProvider } from '@adelie/shared';
 	import { onMount } from 'svelte';
 	import { toast } from 'svelte-sonner';
 	import { authClient } from '#lib/auth-client.ts';
@@ -15,8 +15,6 @@
 	}
 
 	let { data } = $props();
-
-	const RETURN_TO = '/settings/connected-accounts';
 
 	let accounts = $state<AccountRow[]>([]);
 
@@ -79,7 +77,7 @@
 		{#if linkable.length > 0}
 			<div class="flex flex-wrap gap-2 border-t pt-6" data-testid="linkable-providers">
 				{#each linkable as provider (provider)}
-					<Button variant="outline" onclick={() => linkProvider(provider, RETURN_TO)}>Connect {SOCIAL_PROVIDER_LABELS[provider]}</Button>
+					<Button variant="outline" onclick={() => linkProvider(provider, AppRoute.SETTINGS_CONNECTED_ACCOUNTS)}>Connect {SOCIAL_PROVIDER_LABELS[provider]}</Button>
 				{/each}
 			</div>
 		{/if}

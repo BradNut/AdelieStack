@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { AppRoute } from '@adelie/shared';
 	import { cn } from '#lib/utils/ui.ts';
 	import { page } from '$app/state';
 
@@ -12,7 +13,7 @@
 		{ href: '/settings/security', label: 'Sessions' },
 		{ href: '/settings/two-factor', label: 'Two-factor' },
 		{ href: '/settings/passkeys', label: 'Passkeys' },
-		...(page.data.socialProviders?.length ? [{ href: '/settings/connected-accounts', label: 'Connected accounts' }] : [])
+		...(page.data.socialProviders?.length ? [{ href: AppRoute.SETTINGS_CONNECTED_ACCOUNTS, label: 'Connected accounts' }] : [])
 	]);
 </script>
 
