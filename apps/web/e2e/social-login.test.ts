@@ -1,3 +1,4 @@
+import { SOCIAL_WEB_ORIGIN } from '../playwright.config';
 import { newUser, signUp } from './support/auth';
 import { expect, test } from './support/test';
 
@@ -39,5 +40,30 @@ test.describe('with no social provider configured', () => {
     const res = await request.post('/api/auth/sign-in/social', { data: { provider: 'github' }, headers: { origin: 'http://localhost:4173' } });
 
     expect(res.ok()).toBe(false);
+  });
+});
+
+// A second API holds a placeholder GitHub credential pair (see playwright.config.ts); Google stays unset.
+test.describe('with a social provider configured', () => {
+  test.use({ baseURL: SOCIAL_WEB_ORIGIN });
+
+  test('the public config lists only the configured provider', async ({ request }) => {
+    const res = await request.get('/api/config');
+
+    expect(((await res.json()) as { socialProviders: string[] }).socialProviders).toEqual(['github']);
+  });
+
+  test('the login page shows a button for the configured provider only', async ({ page }) => {
+    await page.goto('/login');
+
+    await expect(page.getByTestId('social-buttons')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'GitHub' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Google' })).toHaveCount(0);
+  });
+
+  test('the sign-up page shows the same button', async ({ page }) => {
+    await page.goto('/signup');
+
+    await expect(page.getByRole('button', { name: 'GitHub' })).toBeVisible();
   });
 });
