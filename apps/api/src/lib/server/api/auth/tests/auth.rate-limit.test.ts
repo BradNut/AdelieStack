@@ -1,29 +1,23 @@
 import { AUTH_RATE_LIMIT_RULES } from '@adelie/shared';
 import { memoryAdapter } from 'better-auth/adapters/memory';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { type Auth, createAuth } from '#lib/server/api/auth/auth.config';
-import { AUTH_RATE_LIMIT_REDIS_PREFIX, type AuthRateLimitStorage, createRedisRateLimitStorage } from '#lib/server/api/auth/auth.rate-limit';
+import type { AuthRateLimitStorage } from '#lib/server/api/auth/auth.rate-limit';
+import { AUTH_RATE_LIMIT_REDIS_PREFIX, AuthRateLimitRepository } from '#lib/server/api/auth/auth.rate-limit.repository';
+import type { RedisService } from '#lib/server/api/databases/redis/redis.service';
+import { createRedisServiceMock } from '../../../../../test/mocks/redis.mock';
 
 const ORIGIN = 'http://localhost:5173';
 const SIGN_IN_MAX = AUTH_RATE_LIMIT_RULES['/sign-in/*'].max;
 
-/** Fixed-window counters in a Map, standing in for Redis. `size` shows that counting went through it. */
-function createMemoryRateLimitStorage(): AuthRateLimitStorage & { keys: string[] } {
-  const counters = new Map<string, number>();
-  return {
-    get keys() {
-      return [...counters.keys()];
-    },
-    async consume(key, rule) {
-      const count = (counters.get(key) ?? 0) + 1;
-      counters.set(key, count);
-      return count <= rule.max ? { allowed: true, retryAfter: null } : { allowed: false, retryAfter: rule.window };
-    },
-  };
+/** The repository over the shared RedisService mock, so the counters land in its in-memory `store`. */
+function createRepository() {
+  const redis = createRedisServiceMock();
+  return { redis, repository: new AuthRateLimitRepository(redis as unknown as RedisService) };
 }
 
 function build({ withRateLimit = true, override }: { withRateLimit?: boolean; override?: AuthRateLimitStorage } = {}) {
-  const storage = createMemoryRateLimitStorage();
+  const { redis, repository } = createRepository();
   const db = { user: [], session: [], account: [], verification: [], twoFactor: [], passkey: [] };
   const auth: Auth = createAuth({
     database: memoryAdapter(db),
@@ -35,9 +29,9 @@ function build({ withRateLimit = true, override }: { withRateLimit?: boolean; ov
     mailer: { send: async () => {} },
     signUpEnabled: true,
     hibpEnabled: false,
-    ...(withRateLimit ? { rateLimitStorage: override ?? storage } : {}),
+    ...(withRateLimit ? { rateLimitStorage: override ?? repository } : {}),
   });
-  return { auth, storage, db };
+  return { auth, redis, db };
 }
 
 const post = (auth: Auth, path: string, body: unknown, ip = '203.0.113.7') =>
@@ -83,22 +77,22 @@ describe('auth rate limiting', () => {
   });
 
   it('keeps its counters in the injected storage, not in process memory', async () => {
-    const { auth, storage } = build();
+    const { auth, redis } = build();
 
     await signIn(auth);
 
-    expect(storage.keys.length).toBeGreaterThan(0);
+    expect(redis.incrementWithExpiry).toHaveBeenCalled();
   });
 
   it('keeps sessions in the database and only counters in the rate-limit storage', async () => {
-    const { auth, storage, db } = build();
+    const { auth, redis, db } = build();
     await auth.api.createUser({ body: { name: 'Member', email: 'member@example.com', password: 'Correct-horse-9' } });
 
     const res = await post(auth, '/sign-in/email', { email: 'member@example.com', password: 'Correct-horse-9' });
 
     expect(res.status).toBe(200);
     expect(db.session).toHaveLength(1);
-    expect(storage.keys.every((key) => key.includes('/sign-in/email'))).toBe(true);
+    expect([...redis.store.keys()].every((key) => key.startsWith(`${AUTH_RATE_LIMIT_REDIS_PREFIX}:`))).toBe(true);
   });
 
   it('fails the request rather than skipping the limit when the storage is unreachable', async () => {
@@ -113,46 +107,42 @@ describe('auth rate limiting', () => {
   });
 });
 
-describe('Redis rate-limit storage', () => {
+describe('AuthRateLimitRepository', () => {
   const rule = { window: 60, max: 2 };
-  const storageWith = (reply: [number, number]) => {
-    const evalMock = vi.fn(async () => reply);
-    return { evalMock, storage: createRedisRateLimitStorage(() => ({ eval: evalMock }) as never) };
-  };
 
-  it('allows requests up to the maximum', async () => {
-    const { storage } = storageWith([2, 40]);
+  it('allows requests up to the maximum and refuses the next, with the seconds to wait', async () => {
+    const { repository } = createRepository();
 
-    expect(await storage.consume('k', rule)).toEqual({ allowed: true, retryAfter: null });
+    expect(await repository.consume('k', rule)).toEqual({ allowed: true, retryAfter: null });
+    expect(await repository.consume('k', rule)).toEqual({ allowed: true, retryAfter: null });
+    expect(await repository.consume('k', rule)).toEqual({ allowed: false, retryAfter: 60 });
   });
 
-  it('refuses past the maximum and reports the seconds left in the window', async () => {
-    const { storage } = storageWith([3, 40]);
+  it('counts each key separately', async () => {
+    const { repository } = createRepository();
+    await repository.consume('a', rule);
+    await repository.consume('a', rule);
+    await repository.consume('a', rule);
 
-    expect(await storage.consume('k', rule)).toEqual({ allowed: false, retryAfter: 40 });
+    expect(await repository.consume('b', rule)).toEqual({ allowed: true, retryAfter: null });
   });
 
-  it('falls back to the whole window when Redis reports no expiry', async () => {
-    const { storage } = storageWith([3, -1]);
+  it('falls back to the whole window when Redis reports no time left', async () => {
+    const { redis, repository } = createRepository();
+    redis.incrementWithExpiry.mockResolvedValue({ count: 3, ttl: -1 });
 
-    expect(await storage.consume('k', rule)).toEqual({ allowed: false, retryAfter: rule.window });
+    expect(await repository.consume('k', rule)).toEqual({ allowed: false, retryAfter: rule.window });
   });
 
-  it('counts under a prefixed key with the rule window as expiry', async () => {
-    const { storage, evalMock } = storageWith([1, 60]);
+  it('counts under its own prefix with the rule window as expiry', async () => {
+    const { redis, repository } = createRepository();
 
-    await storage.consume('1.2.3.4|/sign-in/email', rule);
+    await repository.consume('1.2.3.4|/sign-in/email', rule);
 
-    expect(evalMock).toHaveBeenCalledWith(expect.any(String), 1, `${AUTH_RATE_LIMIT_REDIS_PREFIX}1.2.3.4|/sign-in/email`, rule.window);
-  });
-
-  it('opens no connection until the first request', async () => {
-    const getRedis = vi.fn(() => ({ eval: vi.fn(async () => [1, 60]) }) as never);
-    const storage = createRedisRateLimitStorage(getRedis);
-    expect(getRedis).not.toHaveBeenCalled();
-
-    await storage.consume('k', rule);
-
-    expect(getRedis).toHaveBeenCalledTimes(1);
+    expect(redis.incrementWithExpiry).toHaveBeenCalledWith({
+      prefix: AUTH_RATE_LIMIT_REDIS_PREFIX,
+      key: '1.2.3.4|/sign-in/email',
+      expiry: rule.window,
+    });
   });
 });

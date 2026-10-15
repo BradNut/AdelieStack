@@ -1,5 +1,6 @@
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { describe, expect, it, vi } from 'vitest';
+import { AuthRateLimitRepository } from '#lib/server/api/auth/auth.rate-limit.repository';
 import { AuthService } from '#lib/server/api/auth/auth.service';
 import type { ConfigService } from '#lib/server/api/common/configs/config.service';
 import { envsDto } from '#lib/server/api/common/configs/dtos/env.dto';
@@ -9,6 +10,7 @@ import type { DrizzleService } from '#lib/server/api/databases/postgres/drizzle.
 import * as drizzleSchema from '#lib/server/api/databases/postgres/drizzle-schema';
 import type { RedisService } from '#lib/server/api/databases/redis/redis.service';
 import type { MailerService } from '#lib/server/api/mail/mailer.service';
+import { createRedisServiceMock } from '../../../../../test/mocks/redis.mock';
 
 function buildService(envs: Record<string, string> = {}) {
   const dbRead = vi.fn();
@@ -19,22 +21,15 @@ function buildService(envs: Record<string, string> = {}) {
     },
   } as unknown as DrizzleService;
   const configService = { envs: envsDto.parse({ ...validEnvs, ...envs }) } as ConfigService;
-  const redisEval = vi.fn(async () => [1, 60]);
-  const redisRead = vi.fn();
-  const redisService = {
-    get redis() {
-      redisRead();
-      return { eval: redisEval };
-    },
-  } as unknown as RedisService;
+  const redis = createRedisServiceMock();
   const service = new AuthService(
     configService,
     drizzleService,
     { send: async () => {} } as unknown as MailerService,
     { log: { error: vi.fn() } } as unknown as LoggerService,
-    redisService,
+    new AuthRateLimitRepository(redis as unknown as RedisService),
   );
-  return { service, dbRead, redisEval, redisRead };
+  return { service, dbRead, redis };
 }
 
 describe('AuthService', () => {
@@ -43,27 +38,26 @@ describe('AuthService', () => {
       service.auth.handler(new Request('http://localhost:3000/api/auth/ok', { headers: { 'x-forwarded-for': '203.0.113.7' } }));
 
     it('counts auth requests in Redis', async () => {
-      const { service, redisEval } = buildService();
+      const { service, redis } = buildService();
 
       await request(service);
 
-      expect(redisEval).toHaveBeenCalledOnce();
+      expect(redis.incrementWithExpiry).toHaveBeenCalledOnce();
     });
 
-    it('opens no Redis connection until an auth request arrives', () => {
-      const { service, redisRead } = buildService();
+    it('does not count anything before an auth request arrives', () => {
+      const { service, redis } = buildService();
 
       expect(service.auth).toBeDefined();
-      expect(redisRead).not.toHaveBeenCalled();
+      expect(redis.incrementWithExpiry).not.toHaveBeenCalled();
     });
 
-    it('neither counts nor touches Redis when DISABLE_RATE_LIMIT is on', async () => {
-      const { service, redisEval, redisRead } = buildService({ DISABLE_RATE_LIMIT: 'true' });
+    it('does not count or touch Redis when DISABLE_RATE_LIMIT is on', async () => {
+      const { service, redis } = buildService({ DISABLE_RATE_LIMIT: 'true' });
 
       await request(service);
 
-      expect(redisEval).not.toHaveBeenCalled();
-      expect(redisRead).not.toHaveBeenCalled();
+      expect(redis.incrementWithExpiry).not.toHaveBeenCalled();
     });
   });
 
