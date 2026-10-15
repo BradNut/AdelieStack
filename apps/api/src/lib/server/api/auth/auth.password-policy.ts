@@ -1,7 +1,8 @@
 import { PASSWORD_COMPROMISED, PASSWORD_POLICY_VIOLATION, validatePasswordPolicy } from '@adelie/shared';
 import { APIError, createAuthMiddleware } from 'better-auth/api';
 import { isPasswordCompromised } from 'better-auth/plugins';
-import { type HibpStatus, passwordCheckUnavailable } from './auth.hibp-status';
+import { passwordCheckUnavailable } from './auth.hibp-status';
+import type { ProviderHealth } from './auth.provider-health';
 
 /** Better Auth endpoint paths that set a password. */
 export const PasswordPolicyPath = {
@@ -41,7 +42,7 @@ const PRE_SCREENED_PATHS: readonly string[] = [PasswordPolicyPath.ADMIN_CREATE_U
 export const HIBP_PLUGIN_PATHS = [PasswordPolicyPath.SIGN_UP, PasswordPolicyPath.CHANGE_PASSWORD, PasswordPolicyPath.ADMIN_SET_USER_PASSWORD];
 
 /** Runs the plugin's own check, recording the outcome; an outage becomes a 503 with the stable unavailable code. */
-export async function checkPasswordCompromised(password: string, hibpStatus: HibpStatus): Promise<boolean> {
+export async function checkPasswordCompromised(password: string, hibpStatus: ProviderHealth): Promise<boolean> {
   try {
     const compromised = await isPasswordCompromised(password);
     hibpStatus.recordSuccess();
@@ -57,7 +58,7 @@ export async function checkPasswordCompromised(password: string, hibpStatus: Hib
  * With screening enabled on `hibpStatus`, also screens {@link PRE_SCREENED_PATHS} with the plugin's own check: a breached
  * password is `PASSWORD_COMPROMISED` and an unreachable HIBP rejects the request (fail closed, as a 503 `PASSWORD_CHECK_UNAVAILABLE`).
  */
-export const createPasswordPolicyHook = (hibpStatus: HibpStatus): ReturnType<typeof createAuthMiddleware> =>
+export const createPasswordPolicyHook = (hibpStatus: ProviderHealth): ReturnType<typeof createAuthMiddleware> =>
   createAuthMiddleware(async (ctx) => {
     const field = isPasswordPolicyPath(ctx.path) ? PASSWORD_FIELD_BY_PATH[ctx.path] : undefined;
     if (!field) return;

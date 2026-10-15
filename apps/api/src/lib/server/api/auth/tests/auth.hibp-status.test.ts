@@ -2,7 +2,7 @@ import { PASSWORD_CHECK_UNAVAILABLE } from '@adelie/shared';
 import { memoryAdapter } from 'better-auth/adapters/memory';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createAuth } from '#lib/server/api/auth/auth.config';
-import { HIBP_CHECK_FAILED_LOG, HibpHealth, HibpStatus } from '#lib/server/api/auth/auth.hibp-status';
+import { createHibpHealth, HIBP_CHECK_FAILED_LOG, HibpHealth } from '#lib/server/api/auth/auth.hibp-status';
 
 const ORIGIN = 'http://localhost:5173';
 const PASSWORD = 'correct horse battery';
@@ -15,7 +15,7 @@ function mockHibp(status: number) {
 
 function build(enabled: boolean) {
   const log = { error: vi.fn() };
-  const hibpStatus = new HibpStatus({ enabled, log });
+  const hibpStatus = createHibpHealth({ enabled, log });
   const auth = createAuth({
     database: memoryAdapter({ user: [], session: [], account: [], verification: [], twoFactor: [] }),
     secret: 'test-secret-that-is-at-least-32-characters',
@@ -41,38 +41,6 @@ function build(enabled: boolean) {
 
 afterEach(() => {
   vi.unstubAllGlobals();
-});
-
-describe('HibpStatus', () => {
-  it('reports disabled when the switch is off, whatever happened since', () => {
-    const status = new HibpStatus({ enabled: false });
-    status.recordFailure(new Error('x'));
-
-    expect(status.health).toBe(HibpHealth.DISABLED);
-  });
-
-  it('is unknown before any check, then follows the most recent check', () => {
-    const status = new HibpStatus({ enabled: true, log: { error: vi.fn() } });
-    expect(status.health).toBe(HibpHealth.UNKNOWN);
-
-    status.recordFailure(new Error('x'));
-    expect(status.health).toBe(HibpHealth.UNAVAILABLE);
-
-    status.recordSuccess();
-    expect(status.health).toBe(HibpHealth.AVAILABLE);
-  });
-
-  it('logs one stable entry per failed check and none for a success', () => {
-    const log = { error: vi.fn() };
-    const status = new HibpStatus({ enabled: true, log });
-
-    status.recordSuccess();
-    expect(log.error).not.toHaveBeenCalled();
-
-    status.recordFailure(new Error('boom'));
-    expect(log.error).toHaveBeenCalledOnce();
-    expect(log.error.mock.calls[0]?.[1]).toContain(HIBP_CHECK_FAILED_LOG);
-  });
 });
 
 describe('HIBP monitoring through Better Auth', () => {
@@ -143,7 +111,7 @@ describe('outage detection', () => {
   it('does not treat a non-HIBP 500 from hashing as an outage', async () => {
     const { APIError } = await import('better-auth/api');
     const { hibpMonitor } = await import('#lib/server/api/auth/auth.hibp-status');
-    const status = new HibpStatus({ enabled: true, log: { error: vi.fn() } });
+    const status = createHibpHealth({ enabled: true, log: { error: vi.fn() } });
     const failure = new APIError('INTERNAL_SERVER_ERROR', { message: 'disk on fire' });
     const init = hibpMonitor(status).init as (ctx: unknown) => { context: { password: { hash: (p: string) => Promise<string> } } };
     const { context } = init({ password: { hash: async () => Promise.reject(failure) } });
