@@ -12,7 +12,8 @@ export const NODE_SERVER_ORIGIN = `http://localhost:${NODE_SERVER_PORT}`;
  * origin settings and the HIBP switch are set below so a shell or `.env.local` pointing at the
  * dev origin (:5173) cannot break the run with "Invalid origin". Breached-password screening
  * is off because the flows must not depend on the external HIBP service. Sign-up is on, because
- * the flows register users through it and it is closed by default.
+ * the flows register users through it and it is closed by default. Auth rate limiting is off
+ * because the flows sign in far more often from one address than a person would.
  *
  * Email arrives in Mailpit on :8025. Global setup starts a small stand-in when nothing is
  * listening there; with a real Mailpit running, that is used instead.
@@ -32,7 +33,14 @@ export default defineConfig({
   webServer: [
     {
       command: 'pnpm --filter @adelie/api start',
-      env: { ORIGIN: WEB_ORIGIN, BETTER_AUTH_URL: WEB_ORIGIN, PASSKEY_RP_ID: 'localhost', HIBP_ENABLED: 'false', SIGN_UP_ENABLED: 'true' },
+      env: {
+        ORIGIN: WEB_ORIGIN,
+        BETTER_AUTH_URL: WEB_ORIGIN,
+        PASSKEY_RP_ID: 'localhost',
+        HIBP_ENABLED: 'false',
+        SIGN_UP_ENABLED: 'true',
+        DISABLE_RATE_LIMIT: 'true',
+      },
       url: `http://localhost:${API_PORT}/api/healthz`,
       reuseExistingServer: !process.env.CI,
       timeout: 60_000,

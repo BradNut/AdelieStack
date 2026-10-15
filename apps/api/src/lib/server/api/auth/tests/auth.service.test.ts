@@ -7,6 +7,7 @@ import { validEnvs } from '#lib/server/api/common/configs/tests/env-fixtures';
 import type { LoggerService } from '#lib/server/api/common/services/logger.service';
 import type { DrizzleService } from '#lib/server/api/databases/postgres/drizzle.service';
 import * as drizzleSchema from '#lib/server/api/databases/postgres/drizzle-schema';
+import type { RedisService } from '#lib/server/api/databases/redis/redis.service';
 import type { MailerService } from '#lib/server/api/mail/mailer.service';
 
 function buildService(envs: Record<string, string> = {}) {
@@ -18,16 +19,54 @@ function buildService(envs: Record<string, string> = {}) {
     },
   } as unknown as DrizzleService;
   const configService = { envs: envsDto.parse({ ...validEnvs, ...envs }) } as ConfigService;
+  const redisEval = vi.fn(async () => [1, 60]);
+  const redisRead = vi.fn();
+  const redisService = {
+    get redis() {
+      redisRead();
+      return { eval: redisEval };
+    },
+  } as unknown as RedisService;
   const service = new AuthService(
     configService,
     drizzleService,
     { send: async () => {} } as unknown as MailerService,
     { log: { error: vi.fn() } } as unknown as LoggerService,
+    redisService,
   );
-  return { service, dbRead };
+  return { service, dbRead, redisEval, redisRead };
 }
 
 describe('AuthService', () => {
+  describe('auth rate limiting', () => {
+    const request = (service: AuthService) =>
+      service.auth.handler(new Request('http://localhost:3000/api/auth/ok', { headers: { 'x-forwarded-for': '203.0.113.7' } }));
+
+    it('counts auth requests in Redis', async () => {
+      const { service, redisEval } = buildService();
+
+      await request(service);
+
+      expect(redisEval).toHaveBeenCalledOnce();
+    });
+
+    it('opens no Redis connection until an auth request arrives', () => {
+      const { service, redisRead } = buildService();
+
+      expect(service.auth).toBeDefined();
+      expect(redisRead).not.toHaveBeenCalled();
+    });
+
+    it('neither counts nor touches Redis when DISABLE_RATE_LIMIT is on', async () => {
+      const { service, redisEval, redisRead } = buildService({ DISABLE_RATE_LIMIT: 'true' });
+
+      await request(service);
+
+      expect(redisEval).not.toHaveBeenCalled();
+      expect(redisRead).not.toHaveBeenCalled();
+    });
+  });
+
   it('creates the Better Auth instance on first use, not on construction', () => {
     const { service, dbRead } = buildService();
 
