@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { SOCIAL_AUTH_ERROR_MESSAGES, SocialProvider } from '@adelie/shared';
+import { SocialProvider } from '@adelie/shared';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -13,6 +13,7 @@ vi.mock('#lib/auth-client.ts', () => ({ authClient }));
 vi.mock('svelte-sonner', () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
 import { toast } from 'svelte-sonner';
+import { socialErrorMessage } from '#lib/client/social-auth.ts';
 import { page } from '$app/state';
 import ConnectedAccountsPage from '../+page.svelte';
 
@@ -107,6 +108,6 @@ describe('connected accounts page', () => {
     mount([SocialProvider.GITHUB]);
 
     await screen.findByRole('button', { name: 'Connect GitHub' });
-    expect(screen.getByTestId('link-error').textContent).toBe(SOCIAL_AUTH_ERROR_MESSAGES.email_does_not_match);
+    expect(screen.getByTestId('link-error').textContent).toBe(socialErrorMessage('email_does_not_match'));
   });
 });

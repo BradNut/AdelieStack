@@ -1,4 +1,4 @@
-import { RETRY_AFTER_HEADER, StatusCodes } from '@adelie/shared';
+import { CONTENT_LENGTH_HEADER, CONTENT_TYPE_HEADER, JSON_CONTENT_TYPE, RETRY_AFTER_HEADER, StatusCodes } from '@adelie/shared';
 
 /**
  * Wraps a fetch so a throttled (429) JSON response carries its `X-Retry-After` header as a `retryAfter` number in
@@ -18,8 +18,8 @@ export function withRetryAfter(base: typeof fetch): typeof fetch {
       // Not JSON: the status alone still marks the error as throttled.
     }
     const headers = new Headers(response.headers);
-    headers.delete('content-length');
-    headers.set('content-type', 'application/json');
+    headers.delete(CONTENT_LENGTH_HEADER);
+    headers.set(CONTENT_TYPE_HEADER, JSON_CONTENT_TYPE);
     return new Response(JSON.stringify({ ...(body && typeof body === 'object' ? body : {}), retryAfter: seconds }), {
       status: response.status,
       statusText: response.statusText,

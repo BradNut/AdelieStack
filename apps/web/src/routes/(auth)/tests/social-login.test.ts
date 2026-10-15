@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { SOCIAL_AUTH_ERROR_FALLBACK, SOCIAL_AUTH_ERROR_MESSAGES, SocialProvider } from '@adelie/shared';
+import { SocialAuthErrorCode, SocialProvider } from '@adelie/shared';
 import { cleanup, fireEvent, render, screen } from '@testing-library/svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -15,6 +15,7 @@ vi.mock('mode-watcher', () => ({ mode: { current: 'light' } }));
 vi.mock('svelte-sonner', () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
 import { toast } from 'svelte-sonner';
+import { socialErrorMessage } from '#lib/client/social-auth.ts';
 import { page } from '$app/state';
 import LoginPage from '../login/+page.svelte';
 import SignupPage from '../signup/+page.svelte';
@@ -68,18 +69,18 @@ describe('login page social buttons', () => {
     expect(screen.queryByTestId('social-error')).toBeNull();
   });
 
-  it.each(Object.entries(SOCIAL_AUTH_ERROR_MESSAGES))('explains the %s refusal', (code, message) => {
+  it.each(Object.values(SocialAuthErrorCode))('explains the %s refusal', (code) => {
     page.url = new URL(`http://localhost/login?error=${code}`);
     render(LoginPage, { data: data([SocialProvider.GITHUB]) });
 
-    expect(screen.getByTestId('social-error').textContent).toBe(message);
+    expect(screen.getByTestId('social-error').textContent).toBe(socialErrorMessage(code));
   });
 
   it('uses a generic message for a refusal it has no copy for', () => {
     page.url = new URL('http://localhost/login?error=something_new');
     render(LoginPage, { data: data([SocialProvider.GITHUB]) });
 
-    expect(screen.getByTestId('social-error').textContent).toBe(SOCIAL_AUTH_ERROR_FALLBACK);
+    expect(screen.getByTestId('social-error').textContent).toBe(socialErrorMessage('something_new'));
   });
 });
 

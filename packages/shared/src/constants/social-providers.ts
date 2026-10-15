@@ -14,17 +14,20 @@ export const SOCIAL_PROVIDER_LABELS: Readonly<Record<SocialProvider, string>> = 
 };
 
 /**
- * `?error=` codes Better Auth redirects to when a social sign-in or link fails, with the copy to show.
- * Codes not listed here fall back to a generic message.
+ * `?error=` codes Better Auth redirects to when a social sign-in or link fails. The copy for each lives in the
+ * web's translated messages (`auth_social_error_<code>`); codes not listed here get a generic message.
  */
-export const SOCIAL_AUTH_ERROR_MESSAGES: Readonly<Record<string, string>> = {
-  signup_disabled: 'Registration is closed. Ask an administrator to create an account for you.',
-  account_not_linked: 'An account with this email already exists. Sign in the usual way and link the provider from your account settings.',
-  email_not_verified: 'Verify your email address with the provider first, then try again.',
-  email_does_not_match: 'The provider account uses a different email address than your account.',
-  account_already_linked_to_different_user: 'That provider account is already linked to another user.',
-  unable_to_link_account: 'The provider account could not be linked.',
-  email_not_found: 'The provider did not share an email address.',
-};
+export const SocialAuthErrorCode = {
+  SIGNUP_DISABLED: 'signup_disabled',
+  ACCOUNT_NOT_LINKED: 'account_not_linked',
+  EMAIL_NOT_VERIFIED: 'email_not_verified',
+  EMAIL_DOES_NOT_MATCH: 'email_does_not_match',
+  ACCOUNT_ALREADY_LINKED_TO_DIFFERENT_USER: 'account_already_linked_to_different_user',
+  UNABLE_TO_LINK_ACCOUNT: 'unable_to_link_account',
+  EMAIL_NOT_FOUND: 'email_not_found',
+} as const;
+export type SocialAuthErrorCode = (typeof SocialAuthErrorCode)[keyof typeof SocialAuthErrorCode];
 
-export const SOCIAL_AUTH_ERROR_FALLBACK = 'Sign-in with the provider failed. Please try again.';
+export function isSocialAuthErrorCode(code: string): code is SocialAuthErrorCode {
+  return (Object.values(SocialAuthErrorCode) as string[]).includes(code);
+}

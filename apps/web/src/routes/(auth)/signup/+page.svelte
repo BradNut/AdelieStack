@@ -6,7 +6,6 @@
 	import { authClient } from '#lib/auth-client.ts';
 	import { authErrorMessage, passwordRejectionCodes, refreshSession } from '#lib/client/auth-form.ts';
 	import { createCaptchaForm } from '#lib/client/captcha/captcha-form.svelte.ts';
-	import { signInWithProvider } from '#lib/client/social-auth.ts';
 	import CaptchaField from '#lib/components/auth/captcha-field.svelte';
 	import PasswordFieldErrors from '#lib/components/auth/password-field-errors.svelte';
 	import SocialButtons from '#lib/components/auth/social-buttons.svelte';
@@ -117,7 +116,7 @@
 			</div>
 		</form>
 		<div class="mt-4">
-			<SocialButtons providers={data.socialProviders} onselect={signInWithProvider} />
+			<SocialButtons providers={data.socialProviders} />
 		</div>
 		<div class="mt-4 text-center text-sm">
 			By registering, you agree to our <a href="/terms" class="underline">Terms of Service</a>
