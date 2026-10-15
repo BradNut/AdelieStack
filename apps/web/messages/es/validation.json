@@ -6,6 +6,8 @@
   "validation_password_invalid": "Contraseña inválida",
   "validation_captcha_invalid": "Captcha inválido, inténtalo de nuevo.",
   "validation_captcha_unavailable": "El captcha no está disponible temporalmente. Inténtalo de nuevo más tarde.",
+  "validation_throttled": "Demasiados intentos. Inténtalo de nuevo más tarde.",
+  "validation_throttled_wait": "Demasiados intentos. Inténtalo de nuevo en {wait}.",
   "validation_password_rule_min_length": "La contraseña debe tener al menos {min} caracteres",
   "validation_password_rule_max_length": "La contraseña debe tener como máximo {max} caracteres",
   "validation_password_rule_leading_or_trailing_space": "La contraseña no debe empezar ni terminar con un espacio",

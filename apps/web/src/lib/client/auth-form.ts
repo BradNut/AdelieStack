@@ -7,19 +7,22 @@ import {
   type PasswordPolicyRule,
 } from '@adelie/shared';
 import { toast } from 'svelte-sonner';
+import { throttledMessage } from '#lib/utils/throttle-messages.ts';
 import { refreshAll } from '$app/navigation';
 
 export const GENERIC_AUTH_ERROR = 'Something went wrong. Please try again.';
 
 interface AuthClientError {
+  status?: number;
+  retryAfter?: unknown;
   code?: string;
   message?: string;
   rules?: unknown;
 }
 
-/** Our copy for the error's code when we have it, else the message Better Auth returned, else a generic one. */
+/** The translated too-many-attempts message for a throttled error, else our copy for the error's code when we have it, else the message Better Auth returned, else a generic one. */
 export function authErrorMessage(error: AuthClientError | null | undefined, fallback = GENERIC_AUTH_ERROR): string {
-  return (error?.code && AUTH_ERROR_MESSAGES[error.code]) || error?.message || fallback;
+  return throttledMessage(error) || (error?.code && AUTH_ERROR_MESSAGES[error.code]) || error?.message || fallback;
 }
 
 export type PasswordRejectionCode = PasswordPolicyRule | typeof PASSWORD_COMPROMISED | typeof PASSWORD_CHECK_UNAVAILABLE;
