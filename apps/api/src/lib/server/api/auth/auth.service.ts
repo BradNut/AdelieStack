@@ -4,9 +4,10 @@ import { ConfigService } from '#lib/server/api/common/configs/config.service';
 import { LoggerService } from '#lib/server/api/common/services/logger.service';
 import { DrizzleService } from '#lib/server/api/databases/postgres/drizzle.service';
 import { MailerService } from '#lib/server/api/mail/mailer.service';
-import { type CaptchaConfig, CaptchaStatus, captchaConfigFromEnvs } from './auth.captcha';
+import { type CaptchaConfig, captchaConfigFromEnvs, createCaptchaHealth } from './auth.captcha';
 import { type Auth, createAuth, drizzleAuthDatabase } from './auth.config';
-import { HibpStatus } from './auth.hibp-status';
+import { createHibpHealth } from './auth.hibp-status';
+import type { ProviderHealth } from './auth.provider-health';
 
 /** Owns the single Better Auth instance, created on first use rather than at import time. */
 @injectable()
@@ -19,15 +20,15 @@ export class AuthService {
     private readonly mailerService = inject(MailerService),
     private readonly loggerService = inject(LoggerService),
   ) {
-    this.hibpStatus = new HibpStatus({ enabled: configService.envs.HIBP_ENABLED, log: this.loggerService.log });
+    this.hibpStatus = createHibpHealth({ enabled: configService.envs.HIBP_ENABLED, log: this.loggerService.log });
     this.captchaConfig = captchaConfigFromEnvs(configService.envs);
-    this.captchaStatus = new CaptchaStatus({ enabled: Boolean(this.captchaConfig), log: this.loggerService.log });
+    this.captchaStatus = createCaptchaHealth({ enabled: Boolean(this.captchaConfig), log: this.loggerService.log });
   }
 
   private readonly captchaConfig: CaptchaConfig | undefined;
 
   /** Outcome of the most recent Captcha Token verification, for the health surface. */
-  readonly captchaStatus: CaptchaStatus;
+  readonly captchaStatus: ProviderHealth;
 
   /** What the web may know about captcha: never the secret. */
   get captchaPublicConfig(): CaptchaPublicConfig {
@@ -36,7 +37,7 @@ export class AuthService {
   }
 
   /** Outcome of the most recent breached-password check, for the health surface. */
-  readonly hibpStatus: HibpStatus;
+  readonly hibpStatus: ProviderHealth;
 
   get auth(): Auth {
     this.instance ??= createAuth({

@@ -9,7 +9,7 @@ import {
 } from '@adelie/shared';
 import { memoryAdapter } from 'better-auth/adapters/memory';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { CAPTCHA_VERIFY_FAILED_LOG, CaptchaHealth, CaptchaStatus } from '#lib/server/api/auth/auth.captcha';
+import { CAPTCHA_VERIFY_FAILED_LOG, CaptchaHealth, createCaptchaHealth } from '#lib/server/api/auth/auth.captcha';
 import { createAuth } from '#lib/server/api/auth/auth.config';
 
 const ORIGIN = 'http://localhost:5173';
@@ -53,7 +53,7 @@ function build(
   },
 ) {
   const log = { error: vi.fn() };
-  const captchaStatus = new CaptchaStatus({ enabled: Boolean(captcha), log });
+  const captchaStatus = createCaptchaHealth({ enabled: Boolean(captcha), log });
   const db = { user: [], session: [], account: [], verification: [], twoFactor: [], passkey: [] };
   const auth = createAuth({
     database: memoryAdapter(db),
