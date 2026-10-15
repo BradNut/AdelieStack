@@ -22,7 +22,8 @@ function createMemoryRateLimitStorage(): AuthRateLimitStorage & { size: number }
   };
 }
 
-function build({ withRateLimit = true, storage = createMemoryRateLimitStorage() }: { withRateLimit?: boolean; storage?: AuthRateLimitStorage } = {}) {
+function build({ withRateLimit = true, override }: { withRateLimit?: boolean; override?: AuthRateLimitStorage } = {}) {
+  const storage = createMemoryRateLimitStorage();
   const auth: Auth = createAuth({
     database: memoryAdapter({ user: [], session: [], account: [], verification: [], twoFactor: [], passkey: [] }),
     secret: 'test-secret-that-is-at-least-32-characters',
@@ -33,7 +34,7 @@ function build({ withRateLimit = true, storage = createMemoryRateLimitStorage() 
     mailer: { send: async () => {} },
     signUpEnabled: true,
     hibpEnabled: false,
-    ...(withRateLimit ? { rateLimit: { storage } } : {}),
+    ...(withRateLimit ? { rateLimit: { storage: override ?? storage } } : {}),
   });
   return { auth, storage };
 }
@@ -88,7 +89,7 @@ describe('auth rate limiting', () => {
   });
 
   it('fails the request rather than skipping the limit when the storage is unreachable', async () => {
-    const { auth } = build({ storage: { consume: async () => Promise.reject(new Error('redis down')) } });
+    const { auth } = build({ override: { consume: async () => Promise.reject(new Error('redis down')) } });
 
     await expect(signIn(auth)).rejects.toThrow('redis down');
   });
