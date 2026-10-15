@@ -15,9 +15,14 @@ export function createRedisServiceMock() {
   const del = vi.fn<RedisService['delete']>(async ({ prefix, key }) => {
     store.delete(`${prefix}:${key}`);
   });
+  const incrementWithExpiry = vi.fn<RedisService['incrementWithExpiry']>(async ({ prefix, key, expiry }) => {
+    const count = Number(store.get(`${prefix}:${key}`)?.value ?? 0) + 1;
+    store.set(`${prefix}:${key}`, { value: String(count), expiry });
+    return { count, ttl: expiry };
+  });
   const scan = vi.fn<RedisService['scan']>(async () => []);
 
-  return { get, set, setWithExpiry, delete: del, scan, store };
+  return { get, set, setWithExpiry, delete: del, incrementWithExpiry, scan, store };
 }
 
 export type RedisServiceMock = ReturnType<typeof createRedisServiceMock>;

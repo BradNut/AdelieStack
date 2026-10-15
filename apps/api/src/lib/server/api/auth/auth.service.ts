@@ -7,6 +7,7 @@ import { MailerService } from '#lib/server/api/mail/mailer.service';
 import { type CaptchaConfig, CaptchaStatus, captchaConfigFromEnvs } from './auth.captcha';
 import { type Auth, createAuth, drizzleAuthDatabase } from './auth.config';
 import { HibpStatus } from './auth.hibp-status';
+import { AuthRateLimitRepository } from './auth.rate-limit.repository';
 
 /** Owns the single Better Auth instance, created on first use rather than at import time. */
 @injectable()
@@ -18,6 +19,7 @@ export class AuthService {
     private readonly drizzleService = inject(DrizzleService),
     private readonly mailerService = inject(MailerService),
     private readonly loggerService = inject(LoggerService),
+    private readonly rateLimitRepository = inject(AuthRateLimitRepository),
   ) {
     this.hibpStatus = new HibpStatus({ enabled: configService.envs.HIBP_ENABLED, log: this.loggerService.log });
     this.captchaConfig = captchaConfigFromEnvs(configService.envs);
@@ -57,6 +59,8 @@ export class AuthService {
       hibpStatus: this.hibpStatus,
       captcha: this.captchaConfig,
       captchaStatus: this.captchaStatus,
+      // The Redis connection opens on the first limited request, not here.
+      rateLimitStorage: this.configService.envs.DISABLE_RATE_LIMIT ? undefined : this.rateLimitRepository,
     });
     return this.instance;
   }

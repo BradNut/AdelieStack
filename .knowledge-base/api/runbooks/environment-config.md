@@ -39,6 +39,16 @@ procedures.
 - **Find it**: every failed check writes one error log entry starting with `HIBP_CHECK_FAILED` (grep for it). `GET /healthz` returns `hibp`: `available` (last check succeeded), `unavailable` (last check failed), `unknown` (no check since start) or `disabled` (`HIBP_ENABLED=false`). Health probes read the last result and never call HIBP, so `hibp` only changes when a password is checked. The overall `status` stays `ok`.
 - **Mitigate**: set `HIBP_ENABLED=false` and restart the API. Breached passwords are accepted until you set it back to `true` and restart.
 
+## Auth rate limiting
+
+Better Auth's own limiter guards every `/api/auth/*` request, keyed by client IP and path. Counters live in Redis (key prefix `auth-rate-limit:`), so limits hold across API instances; sessions stay in Postgres. Decision: `docs/adr/0006-better-auth-owns-auth-rate-limiting.md`. The app's own `rateLimit()` middleware is not applied to auth routes.
+
+- **Rules**: `AUTH_RATE_LIMIT_DEFAULT` and the stricter `AUTH_RATE_LIMIT_RULES` (sign-in, two-factor, password reset, passkey) in `packages/shared/src/constants/auth-rate-limits.ts`. Change limits there, not in `auth.config.ts`.
+- **Throttled response**: `429` with an `X-Retry-After` header (seconds).
+- **`DISABLE_RATE_LIMIT=true`**: auth rate limiting is off and Redis is not touched by auth. Restart the API after changing it. Use it for tests and controlled environments only.
+- **Client IP**: the limiter reads the client IP from the request headers Better Auth is configured with. Behind a proxy, make sure it forwards the real client IP; without one, all clients share a single bucket per path.
+- **Redis outage**: a request whose limit check cannot reach Redis fails with a server error rather than skipping the limit.
+
 ## Captcha
 
 Protects sign-up, sign-in, request-password-reset and send-verification-email (`CAPTCHA_PROTECTED_PATHS`) with Better Auth's `captcha` plugin. Passkey, OAuth and session-bound endpoints are never challenged. Off by default. Decision: `docs/adr/0004-captcha-via-better-auth-plugin.md`.
