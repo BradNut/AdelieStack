@@ -72,6 +72,9 @@ describe('last login method cookie', () => {
   });
 
   it('stores nothing on the user row (no schema change)', () => {
-    expect(auth.options.plugins.find((p) => p.id === 'last-login-method')?.schema).toBeUndefined();
+    const plugin = auth.options.plugins.find((p) => p.id === 'last-login-method');
+
+    expect(plugin).toBeDefined();
+    expect(plugin && 'schema' in plugin ? plugin.schema : undefined).toBeUndefined();
   });
 });
