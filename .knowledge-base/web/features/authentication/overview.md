@@ -76,21 +76,16 @@ commented-out block in `login/+page.server.ts` that would call `locals.api.mfa.t
 redirect to a TOTP entry page after a successful password login. Until that block is
 re-enabled and a corresponding route is built, logging in never requires a second factor.
 
-### Google OAuth — route stubs, not implemented
+### Social login (GitHub, Google)
 
-A "Google" button is rendered on the login page when `SHOW_OAUTH_BUTTONS` is `true`
-(`(auth)/login/+page.svelte`, `oAuthButtons` snippet), and two dedicated routes exist for the
-flow:
-
-- `(auth)/login/google/+server.ts` — `GET` handler. Currently just `redirect(302, '/login')`;
-  it does not initiate an OAuth authorization request.
-- `(auth)/auth/callback/google/+server.ts` — `GET` handler. Currently returns a
-  `501 Not Implemented` JSON response (`{ message: 'OAuth not implemented' }`) and does not
-  exchange a code, create a session, or touch the API.
-
-There is no corresponding Google OAuth support on the API side (no `iam.google` or similar RPC
-endpoint). Treat Google login as a scaffolded route pair behind a feature flag, not a working
-sign-in method.
+Buttons render on `/login` and `/signup` for each provider in `socialProviders`, which the root
+layout loads from the public `GET /api/config` (`loadPublicConfig`). A fresh install reports none, so
+no buttons render. Clicking one calls `authClient.signIn.social` (`lib/client/social-auth.ts`); the
+provider redirects back through `/api/auth/callback/<provider>` (proxied to Better Auth) and a refusal
+lands on `/login?error=<code>`, shown with the copy in `SOCIAL_AUTH_ERROR_MESSAGES`. Signed-in users
+link and unlink providers at `/settings/connected-accounts` (the nav link appears only when a provider
+is configured). Setup and linking rules: the API
+[environment runbook](../../../api/runbooks/environment-config.md#social-login-github-google).
 
 ## Routes
 
@@ -98,18 +93,12 @@ sign-in method.
 
 - **Layout**: `(auth)`
 - **Load**: Redirects to `/` if already authenticated; returns `loginForm` and
-  `showOAuthButtons` (from `SHOW_OAUTH_BUTTONS` env var)
+  nothing (social providers come from the root layout data)
 - **Actions**: `default` — process login form via `locals.api.iam.login.$post`
 - **Components**: login form built from `sveltekit-superforms` + Shadcn `Form`/`Input`/`Button`;
-  a conditional Google OAuth button rendered inline (no separate `SocialLogin` component)
+  the shared `SocialButtons` component, rendered only for configured providers
 
-### `/login/google` — OAuth Entry Stub
 
-- Redirects back to `/login`. Not a working OAuth initiation endpoint yet.
-
-### `/auth/callback/google` — OAuth Callback Stub
-
-- Returns `501 Not Implemented`. Not a working OAuth callback yet.
 
 ### `/signup` — Signup Page
 

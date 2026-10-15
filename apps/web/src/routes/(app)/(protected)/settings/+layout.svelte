@@ -4,14 +4,16 @@
 
 	let { children } = $props();
 
-	const links = [
+	// Connected accounts only matter when the API has a provider configured.
+	const links = $derived([
 		{ href: '/settings', label: 'Profile' },
 		{ href: '/settings/email', label: 'Email' },
 		{ href: '/settings/password', label: 'Password' },
 		{ href: '/settings/security', label: 'Sessions' },
 		{ href: '/settings/two-factor', label: 'Two-factor' },
-		{ href: '/settings/passkeys', label: 'Passkeys' }
-	];
+		{ href: '/settings/passkeys', label: 'Passkeys' },
+		...(page.data.socialProviders?.length ? [{ href: '/settings/connected-accounts', label: 'Connected accounts' }] : [])
+	]);
 </script>
 
 <div class="mx-auto grid w-full max-w-6xl gap-2">
