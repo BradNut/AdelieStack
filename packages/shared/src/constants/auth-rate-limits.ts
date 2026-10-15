@@ -18,3 +18,6 @@ export const AUTH_RATE_LIMIT_RULES = {
   '/reset-password': { window: 300, max: 5 },
   '/passkey/*': { window: 60, max: 10 },
 } as const satisfies Record<string, AuthRateLimitRule>;
+
+/** Response header Better Auth sets on a throttled (429) request: seconds until the client may retry. */
+export const RETRY_AFTER_HEADER = 'X-Retry-After';
