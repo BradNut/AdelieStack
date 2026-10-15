@@ -9,5 +9,6 @@ export * from './captcha';
 export * from './file-limits';
 export * from './mfa-limits';
 export * from './pagination';
+export * from './social-providers';
 export * from './status-codes';
 export * from './validation-messages';

@@ -15,6 +15,7 @@ import { createPasswordPolicyHook, HIBP_PLUGIN_PATHS } from './auth.password-pol
 import { ac, roles } from './auth.permissions';
 import { type AuthRateLimitStorage, authRateLimitOptions } from './auth.rate-limit';
 import { createRoleGuard } from './auth.role-guard';
+import { socialProvidersOption } from './auth.social';
 
 /** Prefix of every API route. */
 export const API_BASE_PATH = '/api';
@@ -72,6 +73,11 @@ export interface CreateAuthOptions {
    * Better Auth's own default would limit in production only, over per-process memory.
    */
   rateLimitStorage?: AuthRateLimitStorage;
+  /**
+   * Social login providers, already filtered to the configured ones. Omit for none: nothing is registered.
+   * The sign-up gate is applied here, so a provider sign-in for an unknown email follows `signUpEnabled`.
+   */
+  socialProviders?: BetterAuthOptions['socialProviders'];
 }
 
 /** Better Auth's Drizzle adapter over our schema. Table names are plural (`users`, `sessions`, ...). */
@@ -104,6 +110,7 @@ export function createAuth({
   captcha: captchaConfig,
   captchaStatus = new CaptchaStatus({ enabled: Boolean(captchaConfig) }),
   rateLimitStorage,
+  socialProviders = {},
 }: CreateAuthOptions) {
   const authMail = createAuthMail(mailer);
   return betterAuth({
@@ -114,6 +121,19 @@ export function createAuth({
     trustedOrigins,
     database,
     rateLimit: authRateLimitOptions(rateLimitStorage),
+    socialProviders: socialProvidersOption(socialProviders, signUpEnabled),
+    account: {
+      accountLinking: {
+        // A provider sign-in links to the existing account with the same email only when the provider reports
+        // that email as verified (and the local one is verified too). No provider is trusted regardless: an
+        // unverified email never links. Linking from settings needs the same email on both sides.
+        enabled: true,
+        trustedProviders: [],
+        allowDifferentEmails: false,
+        // The last remaining sign-in account cannot be unlinked.
+        allowUnlinkingAll: false,
+      },
+    },
     emailVerification: {
       sendOnSignUp: true,
       sendVerificationEmail: authMail.sendVerificationEmail,

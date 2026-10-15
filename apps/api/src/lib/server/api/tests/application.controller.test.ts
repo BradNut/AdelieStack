@@ -144,6 +144,6 @@ describe('GET /api/config', () => {
     const res = await buildApp().request('/api/config');
 
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ signUpEnabled: true });
+    expect(await res.json()).toEqual({ signUpEnabled: true, socialProviders: [] });
   });
 });

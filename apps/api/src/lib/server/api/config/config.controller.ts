@@ -1,5 +1,6 @@
 import { type PublicConfigDto, StatusCodes } from '@adelie/shared';
 import { inject, injectable } from '@needle-di/core';
+import { enabledSocialProviders, socialCredentialsFromEnvs } from '#lib/server/api/auth/auth.social';
 import { ConfigService } from '#lib/server/api/common/configs/config.service';
 import { Controller } from '#lib/server/api/common/factories/controllers.factory';
 
@@ -12,7 +13,11 @@ export class ConfigController extends Controller {
 
   routes() {
     return this.controller.get('/', (c) => {
-      const body: PublicConfigDto = { signUpEnabled: this.configService.envs.SIGN_UP_ENABLED === true };
+      const { envs } = this.configService;
+      const body: PublicConfigDto = {
+        signUpEnabled: envs.SIGN_UP_ENABLED === true,
+        socialProviders: enabledSocialProviders(socialCredentialsFromEnvs(envs)),
+      };
       return c.json(body, StatusCodes.OK);
     });
   }
