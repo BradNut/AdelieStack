@@ -42,7 +42,6 @@ env:
   # Security
   ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
   SIGNING_SECRET: ${{ secrets.SIGNING_SECRET }}
-  SHOW_OAUTH_BUTTONS: ${{ secrets.SHOW_OAUTH_BUTTONS }}
   # Storage - PUBLIC_ from vars, private from secrets
   PUBLIC_IMAGE_URI: ${{ vars.PUBLIC_IMAGE_URI }}
   STORAGE_URL: ${{ secrets.STORAGE_URL }}

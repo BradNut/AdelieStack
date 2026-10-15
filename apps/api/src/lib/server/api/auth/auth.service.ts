@@ -8,6 +8,7 @@ import { type CaptchaConfig, CaptchaStatus, captchaConfigFromEnvs } from './auth
 import { type Auth, createAuth, drizzleAuthDatabase } from './auth.config';
 import { HibpStatus } from './auth.hibp-status';
 import { AuthRateLimitRepository } from './auth.rate-limit.repository';
+import { type SocialCredentialsByProvider, socialCredentialsFromEnvs } from './auth.social';
 
 /** Owns the single Better Auth instance, created on first use rather than at import time. */
 @injectable()
@@ -23,10 +24,13 @@ export class AuthService {
   ) {
     this.hibpStatus = new HibpStatus({ enabled: configService.envs.HIBP_ENABLED, log: this.loggerService.log });
     this.captchaConfig = captchaConfigFromEnvs(configService.envs);
+    this.socialCredentials = socialCredentialsFromEnvs(configService.envs);
     this.captchaStatus = new CaptchaStatus({ enabled: Boolean(this.captchaConfig), log: this.loggerService.log });
   }
 
   private readonly captchaConfig: CaptchaConfig | undefined;
+
+  private readonly socialCredentials: SocialCredentialsByProvider;
 
   /** Outcome of the most recent Captcha Token verification, for the health surface. */
   readonly captchaStatus: CaptchaStatus;
@@ -60,6 +64,7 @@ export class AuthService {
       captcha: this.captchaConfig,
       captchaStatus: this.captchaStatus,
       trustProxy: this.configService.envs.TRUST_PROXY,
+      socialProviders: this.socialCredentials,
       // The Redis connection opens on the first limited request, not here.
       rateLimitStorage: this.configService.envs.DISABLE_RATE_LIMIT ? undefined : this.rateLimitRepository,
       // Same switch as the rest of the app's dev-only behaviour (logging, pretty output): everything but prod.

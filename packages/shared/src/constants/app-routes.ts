@@ -5,4 +5,5 @@ export const AppRoute = {
   SIGNUP: '/signup',
   SETTINGS: '/settings',
   SETTINGS_EMAIL: '/settings/email',
+  SETTINGS_CONNECTED_ACCOUNTS: '/settings/connected-accounts',
 } as const;

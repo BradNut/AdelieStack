@@ -48,6 +48,11 @@ const baseEnvsDto = z.object({
   CAPTCHA_SITE_KEY: z.preprocess(emptyAsUndefined, z.string().optional()),
   // reCAPTCHA v3 only: scores below this are rejected.
   CAPTCHA_MIN_SCORE: z.preprocess(emptyAsUndefined, z.coerce.number().min(0).max(1).optional()),
+  // Social login: a provider is on only when both its client id and secret are set.
+  GITHUB_CLIENT_ID: z.preprocess(emptyAsUndefined, z.string().optional()),
+  GITHUB_CLIENT_SECRET: z.preprocess(emptyAsUndefined, z.string().optional()),
+  GOOGLE_CLIENT_ID: z.preprocess(emptyAsUndefined, z.string().optional()),
+  GOOGLE_CLIENT_SECRET: z.preprocess(emptyAsUndefined, z.string().optional()),
   ENV: z.enum(['dev', 'prod']),
   NODE_ENV: z.enum(['development', 'production']).default('development'),
   PORT: z.coerce.number(),
@@ -81,7 +86,19 @@ const baseEnvsDto = z.object({
 
 const CAPTCHA_REQUIRED_WHEN_ENABLED = ['CAPTCHA_PROVIDER', 'CAPTCHA_SECRET_KEY', 'CAPTCHA_SITE_KEY'] as const;
 
+/** Each social provider's credential pair; one half set without the other is a misconfiguration. */
+const SOCIAL_CREDENTIAL_PAIRS = [
+  ['GITHUB_CLIENT_ID', 'GITHUB_CLIENT_SECRET'],
+  ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET'],
+] as const;
+
 export const envsDto = baseEnvsDto.superRefine((envs, ctx) => {
+  for (const [idName, secretName] of SOCIAL_CREDENTIAL_PAIRS) {
+    if ((envs[idName] === undefined) !== (envs[secretName] === undefined)) {
+      const missing = envs[idName] === undefined ? idName : secretName;
+      ctx.addIssue({ code: 'custom', path: [missing], message: `${idName} and ${secretName} must be set together` });
+    }
+  }
   if (!envs.CAPTCHA_ENABLED) return;
   for (const name of CAPTCHA_REQUIRED_WHEN_ENABLED) {
     if (envs[name] === undefined) ctx.addIssue({ code: 'custom', path: [name], message: `${name} is required when CAPTCHA_ENABLED is true` });

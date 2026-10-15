@@ -31,8 +31,8 @@ async function type(label: RegExp | string, value: string) {
   await fireEvent.input(screen.getAllByLabelText(label)[0] as HTMLElement, { target: { value } });
 }
 
-const loginData = { signUpEnabled: true, flash: undefined, authedUser: null, showOAuthButtons: false };
-const resetData = { signUpEnabled: true, flash: undefined, authedUser: null, token: null, linkError: null };
+const loginData = { signUpEnabled: true, flash: undefined, authedUser: null, socialProviders: [] };
+const resetData = { signUpEnabled: true, flash: undefined, authedUser: null, socialProviders: [], token: null, linkError: null };
 
 // Each form field-error case: fill, submit, and the mock that the submit calls.
 const fieldForms = [

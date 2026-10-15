@@ -25,6 +25,7 @@ import { createPasswordPolicyHook, HIBP_PLUGIN_PATHS } from './auth.password-pol
 import { ac, roles } from './auth.permissions';
 import { type AuthRateLimitStorage, authRateLimitOptions } from './auth.rate-limit';
 import { createRoleGuard } from './auth.role-guard';
+import { socialProvidersOption } from './auth.social';
 
 /** Prefix of every API route. */
 export const API_BASE_PATH = '/api';
@@ -94,6 +95,12 @@ export interface CreateAuthOptions {
    * read, from {@link AUTH_CLIENT_IP_HEADER}; otherwise no request header is trusted. Defaults to off.
    */
   trustProxy?: boolean;
+
+  /**
+   * Social login providers, already filtered to the configured ones. Omit for none: nothing is registered.
+   * The sign-up gate is applied here, so a provider sign-in for an unknown email follows `signUpEnabled`.
+   */
+  socialProviders?: BetterAuthOptions['socialProviders'];
 }
 
 /** Better Auth's Drizzle adapter over our schema. Table names are plural (`users`, `sessions`, ...). */
@@ -133,6 +140,7 @@ export function createAuth({
   rateLimitStorage,
   openApiReference = false,
   trustProxy = false,
+  socialProviders = {},
 }: CreateAuthOptions) {
   const authMail = createAuthMail(mailer);
   return betterAuth({
@@ -149,6 +157,19 @@ export function createAuth({
       freshAge: AUTH_SESSION_FRESH_AGE,
       // Every request reads the session row, so a revoked session or a changed role applies at once.
       cookieCache: { enabled: false },
+    },
+    socialProviders: socialProvidersOption(socialProviders, signUpEnabled),
+    account: {
+      accountLinking: {
+        // A provider sign-in links to the existing account with the same email only when the provider reports
+        // that email as verified (and the local one is verified too). No provider is trusted regardless: an
+        // unverified email never links. Linking from settings needs the same email on both sides.
+        enabled: true,
+        trustedProviders: [],
+        allowDifferentEmails: false,
+        // The last remaining sign-in account cannot be unlinked.
+        allowUnlinkingAll: false,
+      },
     },
     emailVerification: {
       sendOnSignUp: true,

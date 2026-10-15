@@ -6,17 +6,21 @@
 	import { authClient } from '#lib/auth-client.ts';
 	import { authErrorMessage, refreshSession, toastIfError } from '#lib/client/auth-form.ts';
 	import { createCaptchaForm } from '#lib/client/captcha/captcha-form.svelte.ts';
+	import { SOCIAL_ERROR_PARAM, signInWithProvider, socialErrorMessage } from '#lib/client/social-auth.ts';
 	import CaptchaField from '#lib/components/auth/captcha-field.svelte';
 	import LastUsedBadge from '#lib/components/auth/last-used-badge.svelte';
+	import SocialButtons from '#lib/components/auth/social-buttons.svelte';
 	import { Button } from '#lib/components/ui/button/index.ts';
 	import * as Card from '#lib/components/ui/card/index.ts';
 	import * as Form from '#lib/components/ui/form/index.ts';
 	import { Input } from '#lib/components/ui/input/index.ts';
 	import { captchaErrorMessage } from '#lib/utils/captcha-messages.ts';
 	import { goto } from '$app/navigation';
+	import { page } from '$app/state';
 
 	let { data } = $props();
 	const captcha = createCaptchaForm();
+	const socialError = $derived(socialErrorMessage(page.url.searchParams.get(SOCIAL_ERROR_PARAM)));
 
 	// The hint lives in a browser cookie, so it is read after mount; the server render shows none.
 	let lastMethod = $state<string | null>(null);
@@ -113,15 +117,10 @@
 			Sign in with a passkey
 			<LastUsedBadge method={LoginMethod.PASSKEY} {lastMethod} />
 		</Button>
-		{#if data.showOAuthButtons}
-			<span class="text-center text-sm text-muted-foreground">or sign in with</span>
-			<div class="grid gap-4">
-				<Button href="/login/google" variant="outline" class="w-full flex items-center gap-2">
-						Google
-						<LastUsedBadge method={LoginMethod.GOOGLE} {lastMethod} />
-					</Button>
-			</div>
+		{#if socialError}
+			<p class="text-center text-sm text-destructive" role="alert" data-testid="social-error">{socialError}</p>
 		{/if}
+		<SocialButtons providers={data.socialProviders} onselect={signInWithProvider} {lastMethod} />
 		<p class="px-8 py-4 text-center text-sm text-muted-foreground">
 			By clicking continue, you agree to our
 			<a href="/terms" class="underline underline-offset-4 hover:text-primary"> Terms of Use </a>

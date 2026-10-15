@@ -27,6 +27,28 @@ procedures.
 |---|---|---|
 | `SIGN_UP_ENABLED` | `false` | Allow anyone to register. Closed by default: accounts then come from the seeded admin and the admin plugin's create-user. Set `true` for local dev and the e2e suite. Read at startup; the web app learns it from the public `GET /api/config`. See [ADR 0003](../../../docs/adr/0003-sign-up-closed-by-default.md). |
 
+## Social login (GitHub, Google)
+
+Optional. A provider is registered with Better Auth only when **both** its client id and secret are set; with none set, nothing is registered, `GET /api/config` returns `socialProviders: []` and the login page shows no social buttons. Setting only one half of a pair stops the API at startup (the error names the missing variable). Credentials stay on the API and are never returned by any endpoint. Restart after changing them.
+
+| Variable | Notes |
+|---|---|
+| `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | From a GitHub OAuth App (Settings, Developer settings, OAuth Apps). |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | From a Google Cloud OAuth 2.0 Client ID of type "Web application". |
+
+### Provider setup
+
+1. Create the OAuth app with the **authorization callback URL** `<BETTER_AUTH_URL>/api/auth/callback/github` (or `/google`). `BETTER_AUTH_URL` is the web origin (for example `http://localhost:5173` locally), because the web app proxies `/api` to the API. For Google also add that origin as an authorized JavaScript origin.
+2. Put the id and secret in `apps/api/.env.local` and restart the API.
+3. Open `/login`: a button per configured provider appears.
+
+### Behaviour
+
+- **Linking**: a social sign-in whose provider reports a **verified** email matching an existing account links to it, provided that account's own email is verified too. An unverified provider email, an unverified local email, or a different email never links (a different email creates a separate account if sign-up is open). No provider is trusted regardless of verification. GitHub's verified flag comes from its `/user/emails` data.
+- **Settings**: signed-in users link and unlink providers at `/settings/connected-accounts`. Linking needs the provider email to equal the account email. Unlinking needs a fresh session (sign in again if refused) and is refused for the last remaining sign-in account, which is a Better Auth rule: the password counts as one, passkeys and two-factor do not.
+- **Sign-up gate**: with `SIGN_UP_ENABLED=false`, a social sign-in for an unknown email is rejected (`?error=signup_disabled` on the login page) and creates no user; existing users still sign in socially. See [ADR 0003](../../../docs/adr/0003-sign-up-closed-by-default.md).
+- **Captcha**: OAuth endpoints are never challenged.
+
 ## Breached-password screening (Have I Been Pwned)
 
 | Variable | Default | Notes |

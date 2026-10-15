@@ -5,6 +5,7 @@
 export const LoginMethod = {
   PASSWORD: 'email',
   PASSKEY: 'passkey',
+  GITHUB: 'github',
   GOOGLE: 'google',
 } as const;
 export type LoginMethod = (typeof LoginMethod)[keyof typeof LoginMethod];
