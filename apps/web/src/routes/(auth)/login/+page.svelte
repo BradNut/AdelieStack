@@ -5,16 +5,20 @@
 	import { authClient } from '#lib/auth-client.ts';
 	import { authErrorMessage, refreshSession, toastIfError } from '#lib/client/auth-form.ts';
 	import { createCaptchaForm } from '#lib/client/captcha/captcha-form.svelte.ts';
+	import { SOCIAL_ERROR_PARAM, signInWithProvider, socialErrorMessage } from '#lib/client/social-auth.ts';
 	import CaptchaField from '#lib/components/auth/captcha-field.svelte';
+	import SocialButtons from '#lib/components/auth/social-buttons.svelte';
 	import { Button } from '#lib/components/ui/button/index.ts';
 	import * as Card from '#lib/components/ui/card/index.ts';
 	import * as Form from '#lib/components/ui/form/index.ts';
 	import { Input } from '#lib/components/ui/input/index.ts';
 	import { captchaErrorMessage } from '#lib/utils/captcha-messages.ts';
 	import { goto } from '$app/navigation';
+	import { page } from '$app/state';
 
 	let { data } = $props();
 	const captcha = createCaptchaForm();
+	const socialError = $derived(socialErrorMessage(page.url.searchParams.get(SOCIAL_ERROR_PARAM)));
 
 	const sf_login = superForm(defaults(zod4(signinDto)), {
 		SPA: true,
@@ -99,12 +103,10 @@
 		</form>
 		<span class="text-center text-sm text-muted-foreground">or</span>
 		<Button variant="outline" class="w-full" onclick={signInWithPasskey}>Sign in with a passkey</Button>
-		{#if data.showOAuthButtons}
-			<span class="text-center text-sm text-muted-foreground">or sign in with</span>
-			<div class="grid gap-4">
-				<Button href="/login/google" variant="outline" class="w-full flex items-center gap-2">Google</Button>
-			</div>
+		{#if socialError}
+			<p class="text-center text-sm text-destructive" role="alert" data-testid="social-error">{socialError}</p>
 		{/if}
+		<SocialButtons providers={data.socialProviders} onselect={signInWithProvider} />
 		<p class="px-8 py-4 text-center text-sm text-muted-foreground">
 			By clicking continue, you agree to our
 			<a href="/terms" class="underline underline-offset-4 hover:text-primary"> Terms of Use </a>

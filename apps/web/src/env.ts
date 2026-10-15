@@ -12,10 +12,6 @@ export const variables = defineEnvVars({
     schema: optional,
     description: 'Base URL of the API for the /api proxy; the proxy falls back to its default when empty.',
   },
-  SHOW_OAUTH_BUTTONS: {
-    static: true,
-    description: 'Whether the login page shows the OAuth provider buttons ("true" to show).',
-  },
   PUBLIC_IMAGE_URI: {
     public: true,
     static: true,

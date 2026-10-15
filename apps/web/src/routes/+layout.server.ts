@@ -1,9 +1,11 @@
 import { loadFlash } from 'sveltekit-flash-message/server';
-import { loadSignUpEnabled } from '#lib/server/public-config.ts';
+import { loadPublicConfig } from '#lib/server/public-config.ts';
 
 export const load = loadFlash(async ({ locals }) => {
+  const { signUpEnabled, socialProviders } = await loadPublicConfig(locals.api);
   return {
     authedUser: locals.user,
-    signUpEnabled: await loadSignUpEnabled(locals.api),
+    signUpEnabled,
+    socialProviders,
   };
 });

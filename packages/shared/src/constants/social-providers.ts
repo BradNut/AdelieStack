@@ -13,9 +13,6 @@ export const SOCIAL_PROVIDER_LABELS: Readonly<Record<SocialProvider, string>> = 
   [SocialProvider.GOOGLE]: 'Google',
 };
 
-/** Better Auth's account `providerId` for the email-and-password credential; every other account is a social provider. */
-export const CREDENTIAL_PROVIDER_ID = 'credential';
-
 /**
  * `?error=` codes Better Auth redirects to when a social sign-in or link fails, with the copy to show.
  * Codes not listed here fall back to a generic message.
