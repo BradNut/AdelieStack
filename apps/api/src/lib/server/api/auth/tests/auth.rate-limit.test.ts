@@ -16,7 +16,15 @@ function createRepository() {
   return { redis, repository: new AuthRateLimitRepository(redis as unknown as RedisService) };
 }
 
-function build({ withRateLimit = true, override }: { withRateLimit?: boolean; override?: AuthRateLimitStorage } = {}) {
+function build({
+  withRateLimit = true,
+  override,
+  trustProxy = true,
+}: {
+  withRateLimit?: boolean;
+  override?: AuthRateLimitStorage;
+  trustProxy?: boolean;
+} = {}) {
   const { redis, repository } = createRepository();
   const db = { user: [], session: [], account: [], verification: [], twoFactor: [], passkey: [] };
   const auth: Auth = createAuth({
@@ -29,7 +37,7 @@ function build({ withRateLimit = true, override }: { withRateLimit?: boolean; ov
     mailer: { send: async () => {} },
     signUpEnabled: true,
     hibpEnabled: false,
-    trustProxy: true,
+    trustProxy,
     ...(withRateLimit ? { rateLimitStorage: override ?? repository } : {}),
   });
   return { auth, redis, db };
@@ -105,6 +113,23 @@ describe('auth rate limiting', () => {
   it('does not throttle when no rate limit is configured, whatever the environment', async () => {
     const { auth } = build({ withRateLimit: false });
     for (let i = 0; i < SIGN_IN_MAX * 3; i++) expect((await signIn(auth)).status).not.toBe(429);
+  });
+});
+
+describe('auth rate limiting without a trusted proxy', () => {
+  it('ignores x-forwarded-for, so every client lands in one shared bucket per path', async () => {
+    const { auth } = build({ trustProxy: false });
+    for (let i = 0; i < SIGN_IN_MAX; i++) await signIn(auth, `203.0.113.${i + 1}`);
+
+    // A different client is throttled by the others' attempts: why production refuses this setup.
+    expect((await signIn(auth, '198.51.100.1')).status).toBe(429);
+  });
+
+  it('keeps clients apart when the proxy is trusted', async () => {
+    const { auth } = build({ trustProxy: true });
+    for (let i = 0; i < SIGN_IN_MAX; i++) await signIn(auth, `203.0.113.${i + 1}`);
+
+    expect((await signIn(auth, '198.51.100.1')).status).not.toBe(429);
   });
 });
 

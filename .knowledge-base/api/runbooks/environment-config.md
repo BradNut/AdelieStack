@@ -9,8 +9,8 @@ procedures.
 ## Gotchas
 
 - `ENVIRONMENT` (`development`, `staging`, `production`) also suffixes the storage bucket names.
-  `ENV` (`dev` or `prod`) is a legacy short-form flag several services still read; it controls the
-  session cookie's `secure` flag.
+  `ENV` (`dev` or `prod`, `AppEnv` in `@adelie/shared`) is a legacy short-form flag several services still read; it controls the
+  session cookie's `secure` flag, pretty logs, SQL logging and Better Auth's API reference (`/api/auth/reference`, off in prod). The app's own `/api/reference` is mounted regardless of `ENV`.
 - `ORIGIN` is the allowed CORS / session origin; `DOMAIN` (hostname only) is the session cookie
   domain.
 - `DB_MIGRATING=true` runs migrations on start (Docker sets it automatically); `DB_SEEDING=true`
@@ -68,7 +68,8 @@ Better Auth's own limiter guards every `/api/auth/*` request, keyed by client IP
 - **Rules**: `AUTH_RATE_LIMIT_DEFAULT` and the stricter `AUTH_RATE_LIMIT_RULES` (sign-in, two-factor, password reset, passkey) in `packages/shared/src/constants/auth-rate-limits.ts`. Change limits there, not in `auth.config.ts`.
 - **Throttled response**: `429` with an `X-Retry-After` header (seconds).
 - **`DISABLE_RATE_LIMIT=true`**: auth rate limiting is off and Redis is not touched by auth. Restart the API after changing it. Use it for tests and controlled environments only.
-- **Client IP**: the limiter reads the client IP from the request headers Better Auth is configured with. Behind a proxy, make sure it forwards the real client IP; without one, all clients share a single bucket per path.
+- **Client IP and `TRUST_PROXY`**: the limiter reads the client IP from `X-Forwarded-For` only when `TRUST_PROXY=true`; otherwise it reads no header, and every client shares one bucket per path (for example 5 sign-in attempts a minute for the whole site). The web app's `/api` proxy always sets `X-Forwarded-For`, so set `TRUST_PROXY=true` whenever the API is reachable only through the web proxy or another trusted proxy, and make sure that proxy overwrites the header rather than appending client-supplied values. Leave it off only when the API is exposed directly.
+- **Startup check**: with `ENV=prod`, auth rate limiting on and `TRUST_PROXY` off, the API refuses to start (the error names `TRUST_PROXY`); fix it with `TRUST_PROXY=true` or, deliberately, `DISABLE_RATE_LIMIT=true`. Outside prod it starts but logs a warning with the same advice. Why not silently disable the limiter instead: that would quietly drop brute-force protection, whereas a refusal makes the operator pick; a shared bucket locks every user out after a few requests, so it is never the right steady state.
 - **Redis outage**: a request whose limit check cannot reach Redis fails with a server error rather than skipping the limit.
 
 ## Captcha

@@ -12,7 +12,7 @@ import type { RedisService } from '#lib/server/api/databases/redis/redis.service
 import type { MailerService } from '#lib/server/api/mail/mailer.service';
 import { createRedisServiceMock } from '../../../../../test/mocks/redis.mock';
 
-function buildService(envs: Record<string, string> = {}) {
+function buildService(envs: Record<string, string> = {}, warn = vi.fn()) {
   const dbRead = vi.fn();
   const drizzleService = {
     get db() {
@@ -26,7 +26,7 @@ function buildService(envs: Record<string, string> = {}) {
     configService,
     drizzleService,
     { send: async () => {} } as unknown as MailerService,
-    { log: { error: vi.fn() } } as unknown as LoggerService,
+    { log: { error: vi.fn(), warn } } as unknown as LoggerService,
     new AuthRateLimitRepository(redis as unknown as RedisService),
   );
   return { service, dbRead, redis };
@@ -43,9 +43,25 @@ describe('AuthService', () => {
     });
 
     it('has no reference route in production', async () => {
-      const { service } = buildService({ ENV: 'prod' });
+      const { service } = buildService({ ENV: 'prod', TRUST_PROXY: 'true' });
 
       expect((await reference(service)).status).toBe(404);
+    });
+  });
+
+  describe('shared rate-limit bucket', () => {
+    it('warns at startup when rate limiting is on without a trusted proxy', () => {
+      const warn = vi.fn();
+      buildService({ ENV: 'dev', TRUST_PROXY: 'false' }, warn);
+
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('TRUST_PROXY'));
+    });
+
+    it.each<Record<string, string>>([{ TRUST_PROXY: 'true' }, { DISABLE_RATE_LIMIT: 'true' }])('does not warn with %o', (envs) => {
+      const warn = vi.fn();
+      buildService({ ENV: 'dev', ...envs }, warn);
+
+      expect(warn).not.toHaveBeenCalled();
     });
   });
 
