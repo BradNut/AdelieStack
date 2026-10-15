@@ -59,6 +59,7 @@ export class AuthService {
       hibpStatus: this.hibpStatus,
       captcha: this.captchaConfig,
       captchaStatus: this.captchaStatus,
+      trustProxy: this.configService.envs.TRUST_PROXY,
       // The Redis connection opens on the first limited request, not here.
       rateLimitStorage: this.configService.envs.DISABLE_RATE_LIMIT ? undefined : this.rateLimitRepository,
     });
