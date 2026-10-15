@@ -68,12 +68,9 @@ routes/
 ├── (auth)/                               # Auth layout (centered)
 │   ├── +layout.svelte
 │   ├── +layout.server.ts                 # redirect if already authed
-│   ├── login/
-│   │   ├── +page.svelte / +page.server.ts
-│   │   └── google/+server.ts             # Google OAuth kickoff
+│   ├── login/+page.svelte / +page.server.ts
 │   ├── signup/+page.svelte / +page.server.ts
-│   ├── password/reset/+page.svelte / +page.server.ts
-│   └── auth/callback/google/+server.ts   # Google OAuth callback
+│   └── password/reset/+page.svelte / +page.server.ts
 └── api/
     └── [...slug]/+server.ts              # Proxy to Hono API
 ```

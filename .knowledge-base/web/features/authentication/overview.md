@@ -2,8 +2,7 @@
 
 ## Purpose
 
-Provides user authentication flows: login, signup, password reset, and a Google OAuth entry
-point. MFA (TOTP) UI/API plumbing exists but the redirect flow that would activate it is
+Provides user authentication flows: login, signup, password reset, and social login (GitHub, Google). MFA (TOTP) UI/API plumbing exists but the redirect flow that would activate it is
 commented out, so MFA is not a live feature today.
 
 ## User Flows
@@ -82,7 +81,7 @@ Buttons render on `/login` and `/signup` for each provider in `socialProviders`,
 layout loads from the public `GET /api/config` (`loadPublicConfig`). A fresh install reports none, so
 no buttons render. Clicking one calls `authClient.signIn.social` (`lib/client/social-auth.ts`); the
 provider redirects back through `/api/auth/callback/<provider>` (proxied to Better Auth) and a refusal
-lands on `/login?error=<code>`, shown with the copy in `SOCIAL_AUTH_ERROR_MESSAGES`. Signed-in users
+lands on `/login?error=<code>`, shown with the translated copy for that code (`socialErrorMessage`; messages `auth_social_error_<code>` in `messages/<locale>/auth.json`, codes in `SocialAuthErrorCode`). Only the login page shows it: errors always return there, also when the attempt started on sign-up. Signed-in users
 link and unlink providers at `/settings/connected-accounts` (the nav link appears only when a provider
 is configured). Setup and linking rules: the API
 [environment runbook](../../../api/runbooks/environment-config.md#social-login-github-google).
@@ -158,8 +157,7 @@ const { error } = await locals.api.iam.password.reset.$post({ json: newPasswordF
 - Already-authenticated users are redirected away from all auth routes server-side
 - Session handling is via `locals.getAuthedUser()` / `locals.api`, not documented here in detail
   (see the core web narrative docs for session/cookie plumbing)
-- No MFA and no working social login are enforced today — do not describe either as an active
-  second factor or alternate credential path
+- MFA is not enforced today — do not describe it as an active second factor
 
 ## Error Handling
 
