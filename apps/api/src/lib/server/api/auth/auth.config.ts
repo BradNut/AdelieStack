@@ -1,4 +1,14 @@
-import { APP_NAME, LAST_LOGIN_METHOD_COOKIE, MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH, RoleName } from '@adelie/shared';
+import {
+  APP_NAME,
+  AUTH_CLIENT_IP_HEADER,
+  AUTH_SESSION_EXPIRES_IN,
+  AUTH_SESSION_FRESH_AGE,
+  AUTH_SESSION_UPDATE_AGE,
+  LAST_LOGIN_METHOD_COOKIE,
+  MAX_PASSWORD_LENGTH,
+  MIN_PASSWORD_LENGTH,
+  RoleName,
+} from '@adelie/shared';
 import { passkey } from '@better-auth/passkey';
 import { type BetterAuthOptions, betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
@@ -78,6 +88,12 @@ export interface CreateAuthOptions {
    * collide with the app's own `/api/reference`.
    */
   openApiReference?: boolean;
+
+  /**
+   * Whether the API sits behind a trusted reverse proxy (`TRUST_PROXY`). Only then is the client IP
+   * read, from {@link AUTH_CLIENT_IP_HEADER}; otherwise no request header is trusted. Defaults to off.
+   */
+  trustProxy?: boolean;
 }
 
 /** Better Auth's Drizzle adapter over our schema. Table names are plural (`users`, `sessions`, ...). */
@@ -88,6 +104,11 @@ export function drizzleAuthDatabase(db: NodePgDatabase<typeof drizzleSchema>): B
 /** Auth tables use `text` ids from our uuidv7 so they sort by creation time like domain ids. */
 export function generateAuthId(): string {
   return uuidv7();
+}
+
+/** Cookies are `Secure` whenever the API is served over https. */
+function isSecureCookies(baseURL: string): boolean {
+  return baseURL.startsWith('https://');
 }
 
 /**
@@ -111,6 +132,7 @@ export function createAuth({
   captchaStatus = new CaptchaStatus({ enabled: Boolean(captchaConfig) }),
   rateLimitStorage,
   openApiReference = false,
+  trustProxy = false,
 }: CreateAuthOptions) {
   const authMail = createAuthMail(mailer);
   return betterAuth({
@@ -121,6 +143,13 @@ export function createAuth({
     trustedOrigins,
     database,
     rateLimit: authRateLimitOptions(rateLimitStorage),
+    session: {
+      expiresIn: AUTH_SESSION_EXPIRES_IN,
+      updateAge: AUTH_SESSION_UPDATE_AGE,
+      freshAge: AUTH_SESSION_FRESH_AGE,
+      // Every request reads the session row, so a revoked session or a changed role applies at once.
+      cookieCache: { enabled: false },
+    },
     emailVerification: {
       sendOnSignUp: true,
       sendVerificationEmail: authMail.sendVerificationEmail,
@@ -190,6 +219,9 @@ export function createAuth({
       },
     ],
     advanced: {
+      ipAddress: { ipAddressHeaders: trustProxy ? [AUTH_CLIENT_IP_HEADER] : [] },
+      useSecureCookies: isSecureCookies(baseURL),
+      defaultCookieAttributes: { httpOnly: true, sameSite: 'lax' },
       database: {
         generateId: generateAuthId,
       },

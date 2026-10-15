@@ -29,6 +29,7 @@ function build({ withRateLimit = true, override }: { withRateLimit?: boolean; ov
     mailer: { send: async () => {} },
     signUpEnabled: true,
     hibpEnabled: false,
+    trustProxy: true,
     ...(withRateLimit ? { rateLimitStorage: override ?? repository } : {}),
   });
   return { auth, redis, db };
