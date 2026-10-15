@@ -33,6 +33,22 @@ function buildService(envs: Record<string, string> = {}) {
 }
 
 describe('AuthService', () => {
+  describe('auth API reference', () => {
+    const reference = (service: AuthService) => service.auth.handler(new Request('http://localhost:3000/api/auth/reference'));
+
+    it('serves the reference outside production', async () => {
+      const { service } = buildService({ ENV: 'dev' });
+
+      expect((await reference(service)).status).toBe(200);
+    });
+
+    it('has no reference route in production', async () => {
+      const { service } = buildService({ ENV: 'prod' });
+
+      expect((await reference(service)).status).toBe(404);
+    });
+  });
+
   describe('auth rate limiting', () => {
     const request = (service: AuthService) =>
       service.auth.handler(new Request('http://localhost:3000/api/auth/ok', { headers: { 'x-forwarded-for': '203.0.113.7' } }));

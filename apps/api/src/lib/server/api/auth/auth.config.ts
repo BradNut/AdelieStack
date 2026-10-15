@@ -2,7 +2,7 @@ import { APP_NAME, MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH, RoleName } from '@a
 import { passkey } from '@better-auth/passkey';
 import { type BetterAuthOptions, betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
-import { admin, haveIBeenPwned, twoFactor } from 'better-auth/plugins';
+import { admin, haveIBeenPwned, openAPI, twoFactor } from 'better-auth/plugins';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { uuidv7 } from '#lib/server/api/common/utils/crypto';
 import type * as drizzleSchema from '#lib/server/api/databases/postgres/drizzle-schema';
@@ -72,6 +72,12 @@ export interface CreateAuthOptions {
    * Better Auth's own default would limit in production only, over per-process memory.
    */
   rateLimitStorage?: AuthRateLimitStorage;
+  /**
+   * Serves Better Auth's API reference at `${AUTH_BASE_PATH}/reference` (and its schema at `/open-api/generate-schema`).
+   * Off by default; callers turn it on outside production. It sits below the auth basePath, so it cannot
+   * collide with the app's own `/api/reference`.
+   */
+  openApiReference?: boolean;
 }
 
 /** Better Auth's Drizzle adapter over our schema. Table names are plural (`users`, `sessions`, ...). */
@@ -104,6 +110,7 @@ export function createAuth({
   captcha: captchaConfig,
   captchaStatus = new CaptchaStatus({ enabled: Boolean(captchaConfig) }),
   rateLimitStorage,
+  openApiReference = false,
 }: CreateAuthOptions) {
   const authMail = createAuthMail(mailer);
   return betterAuth({
@@ -172,6 +179,7 @@ export function createAuth({
       hibpMonitor(hibpStatus),
       // Only registered when captcha is on, so off means no behaviour change. Its `onRequest` runs before every hook.
       ...(captchaConfig ? [captchaPlugin(captchaConfig, captchaStatus)] : []),
+      ...(openApiReference ? [openAPI()] : []),
       // Per-plugin before-hook, since the top-level `hooks.before` slot is taken by the password policy.
       {
         id: 'role-guard',

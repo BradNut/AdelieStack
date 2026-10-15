@@ -61,6 +61,8 @@ export class AuthService {
       captchaStatus: this.captchaStatus,
       // The Redis connection opens on the first limited request, not here.
       rateLimitStorage: this.configService.envs.DISABLE_RATE_LIMIT ? undefined : this.rateLimitRepository,
+      // Same switch as the rest of the app's dev-only behaviour (logging, pretty output): everything but prod.
+      openApiReference: this.configService.envs.ENV !== 'prod',
     });
     return this.instance;
   }
