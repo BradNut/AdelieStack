@@ -35,10 +35,12 @@ export function createRedisRateLimitStorage(getRedis: () => Pick<Redis, 'eval'>)
 }
 
 /**
- * Better Auth's `rateLimit` option over the given storage. Enabled explicitly, because the library
- * only enables itself in production and would otherwise fall back to per-process memory.
+ * Better Auth's `rateLimit` option over the given storage; without one, rate limiting is off. Both
+ * states are explicit, because the library enables itself in production only and would otherwise
+ * fall back to per-process memory.
  */
-export function authRateLimitOptions(storage: AuthRateLimitStorage): RateLimitOptions {
+export function authRateLimitOptions(storage?: AuthRateLimitStorage): RateLimitOptions {
+  if (!storage) return { enabled: false };
   return {
     enabled: true,
     ...AUTH_RATE_LIMIT_DEFAULT,

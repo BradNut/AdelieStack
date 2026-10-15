@@ -61,7 +61,7 @@ export class AuthService {
       captcha: this.captchaConfig,
       captchaStatus: this.captchaStatus,
       // The Redis connection opens on the first limited request, not here.
-      rateLimit: this.configService.envs.DISABLE_RATE_LIMIT ? undefined : { storage: createRedisRateLimitStorage(() => this.redisService.redis) },
+      rateLimitStorage: this.configService.envs.DISABLE_RATE_LIMIT ? undefined : createRedisRateLimitStorage(() => this.redisService.redis),
     });
     return this.instance;
   }

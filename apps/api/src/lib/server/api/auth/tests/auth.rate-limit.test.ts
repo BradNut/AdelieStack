@@ -8,11 +8,11 @@ const ORIGIN = 'http://localhost:5173';
 const SIGN_IN_MAX = AUTH_RATE_LIMIT_RULES['/sign-in/*'].max;
 
 /** Fixed-window counters in a Map, standing in for Redis. `size` shows that counting went through it. */
-function createMemoryRateLimitStorage(): AuthRateLimitStorage & { size: number } {
+function createMemoryRateLimitStorage(): AuthRateLimitStorage & { keys: string[] } {
   const counters = new Map<string, number>();
   return {
-    get size() {
-      return counters.size;
+    get keys() {
+      return [...counters.keys()];
     },
     async consume(key, rule) {
       const count = (counters.get(key) ?? 0) + 1;
@@ -24,8 +24,9 @@ function createMemoryRateLimitStorage(): AuthRateLimitStorage & { size: number }
 
 function build({ withRateLimit = true, override }: { withRateLimit?: boolean; override?: AuthRateLimitStorage } = {}) {
   const storage = createMemoryRateLimitStorage();
+  const db = { user: [], session: [], account: [], verification: [], twoFactor: [], passkey: [] };
   const auth: Auth = createAuth({
-    database: memoryAdapter({ user: [], session: [], account: [], verification: [], twoFactor: [], passkey: [] }),
+    database: memoryAdapter(db),
     secret: 'test-secret-that-is-at-least-32-characters',
     baseURL: ORIGIN,
     trustedOrigins: [ORIGIN],
@@ -34,9 +35,9 @@ function build({ withRateLimit = true, override }: { withRateLimit?: boolean; ov
     mailer: { send: async () => {} },
     signUpEnabled: true,
     hibpEnabled: false,
-    ...(withRateLimit ? { rateLimit: { storage: override ?? storage } } : {}),
+    ...(withRateLimit ? { rateLimitStorage: override ?? storage } : {}),
   });
-  return { auth, storage };
+  return { auth, storage, db };
 }
 
 const post = (auth: Auth, path: string, body: unknown, ip = '203.0.113.7') =>
@@ -71,6 +72,7 @@ describe('auth rate limiting', () => {
   it.each([
     ['/two-factor/verify-totp', '/two-factor/*'],
     ['/request-password-reset', '/request-password-reset'],
+    ['/reset-password', '/reset-password'],
     ['/passkey/generate-authenticate-options', '/passkey/*'],
   ] as const)('applies the stricter rule to %s', async (path, rule) => {
     const { auth } = build();
@@ -85,7 +87,18 @@ describe('auth rate limiting', () => {
 
     await signIn(auth);
 
-    expect(storage.size).toBeGreaterThan(0);
+    expect(storage.keys.length).toBeGreaterThan(0);
+  });
+
+  it('keeps sessions in the database and only counters in the rate-limit storage', async () => {
+    const { auth, storage, db } = build();
+    await auth.api.createUser({ body: { name: 'Member', email: 'member@example.com', password: 'Correct-horse-9' } });
+
+    const res = await post(auth, '/sign-in/email', { email: 'member@example.com', password: 'Correct-horse-9' });
+
+    expect(res.status).toBe(200);
+    expect(db.session).toHaveLength(1);
+    expect(storage.keys.every((key) => key.includes('/sign-in/email'))).toBe(true);
   });
 
   it('fails the request rather than skipping the limit when the storage is unreachable', async () => {

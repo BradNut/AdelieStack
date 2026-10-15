@@ -71,7 +71,7 @@ export interface CreateAuthOptions {
    * Where rate-limit counters live. Omit to turn auth rate limiting off (tests, `DISABLE_RATE_LIMIT`);
    * Better Auth's own default would limit in production only, over per-process memory.
    */
-  rateLimit?: { storage: AuthRateLimitStorage };
+  rateLimitStorage?: AuthRateLimitStorage;
 }
 
 /** Better Auth's Drizzle adapter over our schema. Table names are plural (`users`, `sessions`, ...). */
@@ -103,7 +103,7 @@ export function createAuth({
   hibpStatus = new HibpStatus({ enabled: hibpEnabled }),
   captcha: captchaConfig,
   captchaStatus = new CaptchaStatus({ enabled: Boolean(captchaConfig) }),
-  rateLimit,
+  rateLimitStorage,
 }: CreateAuthOptions) {
   const authMail = createAuthMail(mailer);
   return betterAuth({
@@ -113,7 +113,7 @@ export function createAuth({
     basePath: AUTH_BASE_PATH,
     trustedOrigins,
     database,
-    rateLimit: rateLimit ? authRateLimitOptions(rateLimit.storage) : { enabled: false },
+    rateLimit: authRateLimitOptions(rateLimitStorage),
     emailVerification: {
       sendOnSignUp: true,
       sendVerificationEmail: authMail.sendVerificationEmail,
