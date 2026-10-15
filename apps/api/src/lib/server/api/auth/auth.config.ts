@@ -4,6 +4,7 @@ import {
   AUTH_SESSION_EXPIRES_IN,
   AUTH_SESSION_FRESH_AGE,
   AUTH_SESSION_UPDATE_AGE,
+  DEFAULT_COOKIE_ATTRIBUTES,
   LAST_LOGIN_METHOD_COOKIE,
   MAX_PASSWORD_LENGTH,
   MIN_PASSWORD_LENGTH,
@@ -242,7 +243,7 @@ export function createAuth({
     advanced: {
       ipAddress: { ipAddressHeaders: trustProxy ? [AUTH_CLIENT_IP_HEADER] : [] },
       useSecureCookies: isSecureCookies(baseURL),
-      defaultCookieAttributes: { httpOnly: true, sameSite: 'lax' },
+      defaultCookieAttributes: { ...DEFAULT_COOKIE_ATTRIBUTES },
       database: {
         generateId: generateAuthId,
       },

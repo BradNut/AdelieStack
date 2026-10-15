@@ -1,6 +1,6 @@
-import { SOCIAL_PROVIDERS, SocialProvider } from '@adelie/shared';
+import { SOCIAL_PROVIDERS, type SocialProvider } from '@adelie/shared';
 import type { BetterAuthOptions } from 'better-auth';
-import type { EnvsDto } from '#lib/server/api/common/configs/dtos/env.dto';
+import { type EnvsDto, SOCIAL_PROVIDER_ENV_NAMES } from '#lib/server/api/common/configs/dtos/env.dto';
 
 /** What a deployer configures for one provider; the secret never leaves the API. */
 export interface SocialCredentials {
@@ -11,19 +11,12 @@ export interface SocialCredentials {
 /** Only the providers whose credentials are configured. Empty on a fresh install. */
 export type SocialCredentialsByProvider = Partial<Record<SocialProvider, SocialCredentials>>;
 
-type SocialProviderEnvNames = Record<SocialProvider, { id: keyof EnvsDto; secret: keyof EnvsDto }>;
-
-const ENV_NAMES: SocialProviderEnvNames = {
-  [SocialProvider.GITHUB]: { id: 'GITHUB_CLIENT_ID', secret: 'GITHUB_CLIENT_SECRET' },
-  [SocialProvider.GOOGLE]: { id: 'GOOGLE_CLIENT_ID', secret: 'GOOGLE_CLIENT_SECRET' },
-};
-
 /** A provider is on only when both its client id and secret are set. The env schema rejects half a pair. */
 export function socialCredentialsFromEnvs(envs: EnvsDto): SocialCredentialsByProvider {
   const credentials: SocialCredentialsByProvider = {};
   for (const provider of SOCIAL_PROVIDERS) {
-    const clientId = envs[ENV_NAMES[provider].id];
-    const clientSecret = envs[ENV_NAMES[provider].secret];
+    const clientId = envs[SOCIAL_PROVIDER_ENV_NAMES[provider].id];
+    const clientSecret = envs[SOCIAL_PROVIDER_ENV_NAMES[provider].secret];
     if (typeof clientId === 'string' && typeof clientSecret === 'string') credentials[provider] = { clientId, clientSecret };
   }
   return credentials;

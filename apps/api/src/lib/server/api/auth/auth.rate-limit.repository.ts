@@ -1,3 +1,4 @@
+import type { AuthRateLimitRule } from '@adelie/shared';
 import { inject, injectable } from '@needle-di/core';
 import { RedisRepository } from '#lib/server/api/common/factories/redis-repository.factory';
 import { RedisService } from '#lib/server/api/databases/redis/redis.service';
@@ -13,7 +14,7 @@ export class AuthRateLimitRepository extends RedisRepository<typeof AUTH_RATE_LI
     super(AUTH_RATE_LIMIT_REDIS_PREFIX, redis);
   }
 
-  async consume(key: string, rule: { window: number; max: number }) {
+  async consume(key: string, rule: AuthRateLimitRule) {
     const { count, ttl } = await this.redis.incrementWithExpiry({ prefix: this.prefix, key, expiry: rule.window });
     if (count <= rule.max) return { allowed: true, retryAfter: null };
     return { allowed: false, retryAfter: ttl > 0 ? ttl : rule.window };

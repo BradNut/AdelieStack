@@ -21,7 +21,13 @@ const rolesService = new RolesService(
   { envs: { ALLOW_MULTIPLE_ROLES: false } } as ConfigService,
   { log: { warn: vi.fn() } } as unknown as LoggerService,
 );
-const authService = { auth: { handler, api: { getSession } }, hibpStatus, captchaStatus, captchaPublicConfig } as unknown as AuthService;
+const authService = {
+  enabledSocialProviders: [],
+  auth: { handler, api: { getSession } },
+  hibpStatus,
+  captchaStatus,
+  captchaPublicConfig,
+} as unknown as AuthService;
 
 function buildApp() {
   return new ApplicationController(
@@ -30,7 +36,7 @@ function buildApp() {
     {
       routes: () => new Hono(),
     } as unknown as StorageWebhookController,
-    new ConfigController({ envs: { SIGN_UP_ENABLED: true } } as unknown as ConfigService),
+    new ConfigController({ envs: { SIGN_UP_ENABLED: true } } as unknown as ConfigService, authService),
     new AdminExampleController(authService, rolesService),
   ).registerControllers();
 }
