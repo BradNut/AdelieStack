@@ -7,6 +7,7 @@ export * from './auth-paths';
 export * from './auth-rate-limits';
 export * from './captcha';
 export * from './file-limits';
+export * from './login-methods';
 export * from './mfa-limits';
 export * from './pagination';
 export * from './status-codes';
