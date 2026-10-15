@@ -28,7 +28,7 @@ commented out, so MFA is not a live feature today.
 ### Signup Flow
 
 > **Registration is closed by default** (`SIGN_UP_ENABLED`, see
-> [ADR 0002](../../../../docs/adr/0002-sign-up-closed-by-default.md)). The root layout load reads the
+> [ADR 0003](../../../../docs/adr/0003-sign-up-closed-by-default.md)). The root layout load reads the
 > flag from the public `GET /api/config` endpoint (failing closed on any error) and exposes it as
 > `signUpEnabled`. When closed, `/signup` redirects to `/login` with a flash message, the
 > "Sign up" link in the auth layout and the landing page's "Create an account" button are hidden,

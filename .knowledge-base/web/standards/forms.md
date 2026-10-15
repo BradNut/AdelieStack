@@ -2,7 +2,7 @@
 
 Forms use `sveltekit-superforms` 3 with the local `Form.*` components in `src/lib/components/ui/form`
 (`Field`, `Control`, `Label`, `Description`, `FieldErrors`, `Button`). The components read the superform's field stores through
-`formFieldProxy`, so they work the same in both modes below. formsnap is not used (see `docs/adr/0003-local-form-components-instead-of-formsnap.md`).
+`formFieldProxy`, so they work the same in both modes below. formsnap is not used (see `docs/adr/0005-local-form-components-instead-of-formsnap.md`).
 
 ## SPA mode (current auth forms)
 

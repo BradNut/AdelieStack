@@ -20,4 +20,4 @@ The trigger: sign-up was always on, so any reachable deployment let anyone creat
 
 - A runtime, DB-backed toggle an admin flips in the UI: deferred. It adds a table, an endpoint, caching and an admin screen, and can sit behind the same flag later.
 - Open by default: rejected because a forgotten variable would leave a production install publicly registerable.
-- First registration becomes the admin: deferred to #68. It needs a race-free guard (a transactional or unique-constraint check, not a count) or a one-time setup token.
+- First registration becomes the admin, or a one-time setup token: rejected (#68, closed as not planned). Better Auth cannot override `disableSignUp` per request, so it would need its own endpoint, a race-free guard and extra hook wiring. The admin comes from `ADMIN_EMAIL` / `ADMIN_PASSWORD`.
