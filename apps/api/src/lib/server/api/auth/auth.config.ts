@@ -19,11 +19,12 @@ import { uuidv7 } from '#lib/server/api/common/utils/crypto';
 import type * as drizzleSchema from '#lib/server/api/databases/postgres/drizzle-schema';
 import type { Mailer } from '#lib/server/api/mail/interfaces/mailer.interface';
 import { TwoFactorOtpEmail } from '#lib/server/api/mail/templates/two-factor-otp.template';
-import { type CaptchaConfig, CaptchaStatus, captchaPlugin } from './auth.captcha';
-import { HibpStatus, hibpMonitor } from './auth.hibp-status';
+import { type CaptchaConfig, captchaPlugin, createCaptchaHealth } from './auth.captcha';
+import { createHibpHealth, hibpMonitor } from './auth.hibp-status';
 import { createAuthMail } from './auth.mail';
 import { createPasswordPolicyHook, HIBP_PLUGIN_PATHS } from './auth.password-policy';
 import { ac, roles } from './auth.permissions';
+import type { ProviderHealth } from './auth.provider-health';
 import { type AuthRateLimitStorage, authRateLimitOptions } from './auth.rate-limit';
 import { createRoleGuard } from './auth.role-guard';
 import { socialProvidersOption } from './auth.social';
@@ -74,11 +75,11 @@ export interface CreateAuthOptions {
   /** Screens new passwords against Have I Been Pwned. Defaults to on; an outage rejects the request while on. */
   hibpEnabled?: boolean;
   /** Records each HIBP check's outcome for the health surface and carries the on/off switch; overrides `hibpEnabled`. */
-  hibpStatus?: HibpStatus;
+  hibpStatus?: ProviderHealth;
   /** Requires a Captcha Token on anonymous auth endpoints. Omit to leave captcha off. */
   captcha?: CaptchaConfig;
   /** Records each verification's outcome for the health surface. */
-  captchaStatus?: CaptchaStatus;
+  captchaStatus?: ProviderHealth;
   /**
    * Where rate-limit counters live. Omit to turn auth rate limiting off (tests, `DISABLE_RATE_LIMIT`);
    * Better Auth's own default would limit in production only, over per-process memory.
@@ -135,9 +136,9 @@ export function createAuth({
   signUpEnabled,
   allowMultipleRoles = () => false,
   hibpEnabled = true,
-  hibpStatus = new HibpStatus({ enabled: hibpEnabled }),
+  hibpStatus = createHibpHealth({ enabled: hibpEnabled }),
   captcha: captchaConfig,
-  captchaStatus = new CaptchaStatus({ enabled: Boolean(captchaConfig) }),
+  captchaStatus = createCaptchaHealth({ enabled: Boolean(captchaConfig) }),
   rateLimitStorage,
   openApiReference = false,
   trustProxy = false,

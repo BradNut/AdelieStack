@@ -115,6 +115,20 @@ describe('AuthService', () => {
     expect(service.captchaStatus.health).toBe('disabled');
   });
 
+  it('reports breached-password screening as unknown until a check runs, and disabled when the switch is off', () => {
+    expect(buildService().service.hibpStatus.health).toBe('unknown');
+    expect(buildService({ HIBP_ENABLED: 'false' }).service.hibpStatus.health).toBe('disabled');
+  });
+
+  it('keeps one health object per provider, across the Better Auth instance', () => {
+    const { service } = buildService();
+    const { hibpStatus, captchaStatus } = service;
+
+    expect(service.auth).toBeDefined();
+    expect(service.hibpStatus).toBe(hibpStatus);
+    expect(service.captchaStatus).toBe(captchaStatus);
+  });
+
   it('exposes only enabled, provider and site key when captcha is on', () => {
     const { service } = buildService({ CAPTCHA_ENABLED: 'true', CAPTCHA_PROVIDER: 'hcaptcha', CAPTCHA_SECRET_KEY: 'shh', CAPTCHA_SITE_KEY: 'site' });
 

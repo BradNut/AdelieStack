@@ -5,9 +5,10 @@ import { SHARED_RATE_LIMIT_BUCKET_WARNING, sharesOneRateLimitBucket } from '#lib
 import { LoggerService } from '#lib/server/api/common/services/logger.service';
 import { DrizzleService } from '#lib/server/api/databases/postgres/drizzle.service';
 import { MailerService } from '#lib/server/api/mail/mailer.service';
-import { type CaptchaConfig, CaptchaStatus, captchaConfigFromEnvs } from './auth.captcha';
+import { type CaptchaConfig, captchaConfigFromEnvs, createCaptchaHealth } from './auth.captcha';
 import { type Auth, createAuth, drizzleAuthDatabase } from './auth.config';
-import { HibpStatus } from './auth.hibp-status';
+import { createHibpHealth } from './auth.hibp-status';
+import type { ProviderHealth } from './auth.provider-health';
 import { AuthRateLimitRepository } from './auth.rate-limit.repository';
 import { enabledSocialProviders, type SocialCredentialsByProvider, socialCredentialsFromEnvs } from './auth.social';
 
@@ -23,10 +24,10 @@ export class AuthService {
     private readonly loggerService = inject(LoggerService),
     private readonly rateLimitRepository = inject(AuthRateLimitRepository),
   ) {
-    this.hibpStatus = new HibpStatus({ enabled: configService.envs.HIBP_ENABLED, log: this.loggerService.log });
+    this.hibpStatus = createHibpHealth({ enabled: configService.envs.HIBP_ENABLED, log: this.loggerService.log });
     this.captchaConfig = captchaConfigFromEnvs(configService.envs);
     this.socialCredentials = socialCredentialsFromEnvs(configService.envs);
-    this.captchaStatus = new CaptchaStatus({ enabled: Boolean(this.captchaConfig), log: this.loggerService.log });
+    this.captchaStatus = createCaptchaHealth({ enabled: Boolean(this.captchaConfig), log: this.loggerService.log });
     // Production refuses to start in this state (env.dto.ts); elsewhere it is allowed but worth a loud note.
     if (!isProdEnv(configService.envs.ENV) && sharesOneRateLimitBucket(configService.envs)) {
       this.loggerService.log.warn(SHARED_RATE_LIMIT_BUCKET_WARNING);
@@ -43,7 +44,7 @@ export class AuthService {
   }
 
   /** Outcome of the most recent Captcha Token verification, for the health surface. */
-  readonly captchaStatus: CaptchaStatus;
+  readonly captchaStatus: ProviderHealth;
 
   /** What the web may know about captcha: never the secret. */
   get captchaPublicConfig(): CaptchaPublicConfig {
@@ -52,7 +53,7 @@ export class AuthService {
   }
 
   /** Outcome of the most recent breached-password check, for the health surface. */
-  readonly hibpStatus: HibpStatus;
+  readonly hibpStatus: ProviderHealth;
 
   get auth(): Auth {
     this.instance ??= createAuth({
