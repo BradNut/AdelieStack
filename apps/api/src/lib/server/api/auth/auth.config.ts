@@ -1,8 +1,19 @@
-import { APP_NAME, MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH, RoleName } from '@adelie/shared';
+import {
+  APP_NAME,
+  AUTH_CLIENT_IP_HEADER,
+  AUTH_SESSION_EXPIRES_IN,
+  AUTH_SESSION_FRESH_AGE,
+  AUTH_SESSION_UPDATE_AGE,
+  DEFAULT_COOKIE_ATTRIBUTES,
+  LAST_LOGIN_METHOD_COOKIE,
+  MAX_PASSWORD_LENGTH,
+  MIN_PASSWORD_LENGTH,
+  RoleName,
+} from '@adelie/shared';
 import { passkey } from '@better-auth/passkey';
 import { type BetterAuthOptions, betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
-import { admin, haveIBeenPwned, twoFactor } from 'better-auth/plugins';
+import { admin, haveIBeenPwned, lastLoginMethod, openAPI, twoFactor } from 'better-auth/plugins';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { uuidv7 } from '#lib/server/api/common/utils/crypto';
 import type * as drizzleSchema from '#lib/server/api/databases/postgres/drizzle-schema';
@@ -14,7 +25,9 @@ import { createAuthMail } from './auth.mail';
 import { createPasswordPolicyHook, HIBP_PLUGIN_PATHS } from './auth.password-policy';
 import { ac, roles } from './auth.permissions';
 import type { ProviderHealth } from './auth.provider-health';
+import { type AuthRateLimitStorage, authRateLimitOptions } from './auth.rate-limit';
 import { createRoleGuard } from './auth.role-guard';
+import { socialProvidersOption } from './auth.social';
 
 /** Prefix of every API route. */
 export const API_BASE_PATH = '/api';
@@ -67,6 +80,29 @@ export interface CreateAuthOptions {
   captcha?: CaptchaConfig;
   /** Records each verification's outcome for the health surface. */
   captchaStatus?: ProviderHealth;
+  /**
+   * Where rate-limit counters live. Omit to turn auth rate limiting off (tests, `DISABLE_RATE_LIMIT`);
+   * Better Auth's own default would limit in production only, over per-process memory.
+   */
+  rateLimitStorage?: AuthRateLimitStorage;
+  /**
+   * Serves Better Auth's API reference at `${AUTH_BASE_PATH}/reference` (and its schema at `/open-api/generate-schema`).
+   * Off by default; callers turn it on outside production. It sits below the auth basePath, so it cannot
+   * collide with the app's own `/api/reference`.
+   */
+  openApiReference?: boolean;
+
+  /**
+   * Whether the API sits behind a trusted reverse proxy (`TRUST_PROXY`). Only then is the client IP
+   * read, from {@link AUTH_CLIENT_IP_HEADER}; otherwise no request header is trusted. Defaults to off.
+   */
+  trustProxy?: boolean;
+
+  /**
+   * Social login providers, already filtered to the configured ones. Omit for none: nothing is registered.
+   * The sign-up gate is applied here, so a provider sign-in for an unknown email follows `signUpEnabled`.
+   */
+  socialProviders?: BetterAuthOptions['socialProviders'];
 }
 
 /** Better Auth's Drizzle adapter over our schema. Table names are plural (`users`, `sessions`, ...). */
@@ -77,6 +113,11 @@ export function drizzleAuthDatabase(db: NodePgDatabase<typeof drizzleSchema>): B
 /** Auth tables use `text` ids from our uuidv7 so they sort by creation time like domain ids. */
 export function generateAuthId(): string {
   return uuidv7();
+}
+
+/** Cookies are `Secure` whenever the API is served over https. */
+function isSecureCookies(baseURL: string): boolean {
+  return baseURL.startsWith('https://');
 }
 
 /**
@@ -98,6 +139,10 @@ export function createAuth({
   hibpStatus = createHibpHealth({ enabled: hibpEnabled }),
   captcha: captchaConfig,
   captchaStatus = createCaptchaHealth({ enabled: Boolean(captchaConfig) }),
+  rateLimitStorage,
+  openApiReference = false,
+  trustProxy = false,
+  socialProviders = {},
 }: CreateAuthOptions) {
   const authMail = createAuthMail(mailer);
   return betterAuth({
@@ -107,6 +152,27 @@ export function createAuth({
     basePath: AUTH_BASE_PATH,
     trustedOrigins,
     database,
+    rateLimit: authRateLimitOptions(rateLimitStorage),
+    session: {
+      expiresIn: AUTH_SESSION_EXPIRES_IN,
+      updateAge: AUTH_SESSION_UPDATE_AGE,
+      freshAge: AUTH_SESSION_FRESH_AGE,
+      // Every request reads the session row, so a revoked session or a changed role applies at once.
+      cookieCache: { enabled: false },
+    },
+    socialProviders: socialProvidersOption(socialProviders, signUpEnabled),
+    account: {
+      accountLinking: {
+        // A provider sign-in links to the existing account with the same email only when the provider reports
+        // that email as verified (and the local one is verified too). No provider is trusted regardless: an
+        // unverified email never links. Linking from settings needs the same email on both sides.
+        enabled: true,
+        trustedProviders: [],
+        allowDifferentEmails: false,
+        // The last remaining sign-in account cannot be unlinked.
+        allowUnlinkingAll: false,
+      },
+    },
     emailVerification: {
       sendOnSignUp: true,
       sendVerificationEmail: authMail.sendVerificationEmail,
@@ -163,8 +229,12 @@ export function createAuth({
       haveIBeenPwned({ enabled: hibpStatus.enabled, paths: [...HIBP_PLUGIN_PATHS] }),
       // Must come after haveIBeenPwned: it wraps that plugin's hashing to record each check's outcome.
       hibpMonitor(hibpStatus),
+      // Remembers how the user last signed in, in a browser-readable cookie only (no `storeInDatabase`,
+      // so no schema change) for the login page's hint. Not a secret and not used for access decisions.
+      lastLoginMethod({ cookieName: LAST_LOGIN_METHOD_COOKIE }),
       // Only registered when captcha is on, so off means no behaviour change. Its `onRequest` runs before every hook.
       ...(captchaConfig ? [captchaPlugin(captchaConfig, captchaStatus)] : []),
+      ...(openApiReference ? [openAPI()] : []),
       // Per-plugin before-hook, since the top-level `hooks.before` slot is taken by the password policy.
       {
         id: 'role-guard',
@@ -172,6 +242,9 @@ export function createAuth({
       },
     ],
     advanced: {
+      ipAddress: { ipAddressHeaders: trustProxy ? [AUTH_CLIENT_IP_HEADER] : [] },
+      useSecureCookies: isSecureCookies(baseURL),
+      defaultCookieAttributes: { ...DEFAULT_COOKIE_ATTRIBUTES },
       database: {
         generateId: generateAuthId,
       },

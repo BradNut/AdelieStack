@@ -71,6 +71,28 @@ describe('envsDto security switches', () => {
   });
 });
 
+describe('envsDto auth rate-limit bucket', () => {
+  const prod = { ...validEnv, ENV: 'prod' };
+
+  it('refuses production with rate limiting on and no trusted proxy', () => {
+    const result = envsDto.safeParse(prod);
+    expect(result.success).toBe(false);
+    expect(result.error?.issues.map((i) => i.path[0])).toContain('TRUST_PROXY');
+  });
+
+  it('accepts production behind a trusted proxy', () => {
+    expect(envsDto.safeParse({ ...prod, TRUST_PROXY: 'true' }).success).toBe(true);
+  });
+
+  it('accepts production with rate limiting turned off explicitly', () => {
+    expect(envsDto.safeParse({ ...prod, DISABLE_RATE_LIMIT: 'true' }).success).toBe(true);
+  });
+
+  it('allows development without a trusted proxy (the service warns instead)', () => {
+    expect(envsDto.safeParse({ ...validEnv, ENV: 'dev' }).success).toBe(true);
+  });
+});
+
 describe('envsDto required variables', () => {
   it.each(['DATABASE_USER', 'REDIS_URL', 'SIGNING_SECRET', 'BETTER_AUTH_SECRET', 'BETTER_AUTH_URL', 'DOMAIN', 'STORAGE_URL', 'PUBLIC_IMAGE_URI'])(
     'rejects env missing %s',

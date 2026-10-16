@@ -9,6 +9,7 @@ const authClient = vi.hoisted(() => ({
   requestPasswordReset: vi.fn(),
   resetPassword: vi.fn(),
   sendVerificationEmail: vi.fn(),
+  getLastUsedLoginMethod: vi.fn(() => null),
 }));
 const getCaptchaConfig = vi.fn<() => Promise<CaptchaPublicConfig>>();
 const widget = { reset: vi.fn(), destroy: vi.fn() };
@@ -70,7 +71,7 @@ async function type(label: RegExp | string, value: string) {
 const forms = [
   {
     name: 'sign-in',
-    mount: () => render(LoginPage, { data: { signUpEnabled: true, flash: undefined, authedUser: null, showOAuthButtons: false } }),
+    mount: () => render(LoginPage, { data: { signUpEnabled: true, flash: undefined, authedUser: null, socialProviders: [] } }),
     fill: async () => {
       await type('Email', 'a@example.com');
       await type('Password', 'correct horse battery');
@@ -80,7 +81,7 @@ const forms = [
   },
   {
     name: 'sign-up',
-    mount: () => render(SignupPage),
+    mount: () => render(SignupPage, { data: { signUpEnabled: true, socialProviders: [], flash: undefined, authedUser: null } }),
     fill: async () => {
       await type('Name', 'Ada');
       await type('Email', 'a@example.com');
@@ -92,7 +93,8 @@ const forms = [
   },
   {
     name: 'request-password-reset',
-    mount: () => render(ResetPage, { data: { signUpEnabled: true, flash: undefined, authedUser: null, token: null, linkError: null } }),
+    mount: () =>
+      render(ResetPage, { data: { signUpEnabled: true, socialProviders: [], flash: undefined, authedUser: null, token: null, linkError: null } }),
     fill: () => type('Email', 'a@example.com'),
     submit: () => fireEvent.click(screen.getByRole('button', { name: 'Send reset link' })),
     call: () => authClient.requestPasswordReset,
