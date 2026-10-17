@@ -1,4 +1,4 @@
-/** Values of the API's `ENV` switch: `dev` turns on development-only behaviour (pretty logs, query logging, API reference). */
+/** Values of the API's `ENV` switch: `dev` turns on development-only behaviour (pretty logs, query logging, the auth API reference). */
 export const AppEnv = {
   DEV: 'dev',
   PROD: 'prod',

@@ -77,7 +77,7 @@
 		{#if linkable.length > 0}
 			<div class="flex flex-wrap gap-2 border-t pt-6" data-testid="linkable-providers">
 				{#each linkable as provider (provider)}
-					<Button variant="outline" onclick={() => linkProvider(provider, AppRoute.SETTINGS_CONNECTED_ACCOUNTS)}>{m.connected_accounts_connect({ provider: SOCIAL_PROVIDER_LABELS[provider] })}</Button>
+					<Button variant="outline" onclick={() => linkProvider(provider, AppRoute.SETTINGS_CONNECTED_ACCOUNTS)}>{m.connected_accounts_connect({ provider: labelOf(provider) })}</Button>
 				{/each}
 			</div>
 		{/if}

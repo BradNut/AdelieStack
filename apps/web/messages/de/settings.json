@@ -38,12 +38,12 @@
   "newsletter_label": "Newsletter",
   "save_preferences_button": "Präferenzen speichern",
   "connected_accounts_title": "Verknüpfte Konten",
-  "connected_accounts_description": "Melden Sie sich mit einem Anbieter statt mit Ihrem Passwort an. Die E-Mail-Adresse beim Anbieter muss mit der Ihres Kontos übereinstimmen.",
+  "connected_accounts_description": "Melde dich mit einem Anbieter statt mit deinem Passwort an. Die E-Mail-Adresse beim Anbieter muss mit der deines Kontos übereinstimmen.",
   "connected_accounts_none": "Noch keine verknüpften Konten.",
-  "connected_accounts_only_way": "Ihre einzige Anmeldemöglichkeit",
+  "connected_accounts_only_way": "Deine einzige Anmeldemöglichkeit",
   "connected_accounts_unlink": "Verknüpfung aufheben",
   "connected_accounts_connect": "{provider} verknüpfen",
   "connected_accounts_unlinked": "Verknüpfung mit {provider} aufgehoben.",
-  "connected_accounts_load_failed": "Ihre verknüpften Konten konnten nicht geladen werden.",
+  "connected_accounts_load_failed": "Deine verknüpften Konten konnten nicht geladen werden.",
   "connected_accounts_unlink_failed": "Die Verknüpfung konnte nicht aufgehoben werden."
 }
