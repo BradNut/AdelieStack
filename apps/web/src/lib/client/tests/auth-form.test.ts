@@ -83,3 +83,15 @@ describe('passwordRejectionCodes', () => {
     expect(passwordRejectionCodes(error)).toBeNull();
   });
 });
+
+describe('authErrorMessage for throttled requests', () => {
+  it('shows the translated wait instead of the server text', () => {
+    expect(authErrorMessage({ status: 429, retryAfter: 30, message: 'Too many requests. Please try again later.' })).toBe(
+      'Too many attempts. Please try again in 30 seconds.',
+    );
+  });
+
+  it('keeps the server message for other failures', () => {
+    expect(authErrorMessage({ status: 401, message: 'Invalid email or password' })).toBe('Invalid email or password');
+  });
+});

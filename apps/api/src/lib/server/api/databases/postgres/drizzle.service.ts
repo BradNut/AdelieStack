@@ -1,3 +1,4 @@
+import { isProdEnv } from '@adelie/shared';
 import { inject, injectable } from '@needle-di/core';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import Pool from 'pg-pool';
@@ -23,7 +24,7 @@ export class DrizzleService {
       {
         casing: 'snake_case',
         schema: drizzleSchema,
-        logger: this.configService.envs.ENV !== 'prod',
+        logger: !isProdEnv(this.configService.envs.ENV),
       },
     );
   }

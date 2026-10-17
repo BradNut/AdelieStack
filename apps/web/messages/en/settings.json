@@ -36,5 +36,14 @@
   "notifications_section_description": "Manage email notifications",
   "email_notifications_label": "Email Notifications",
   "newsletter_label": "Newsletter",
-  "save_preferences_button": "Save Preferences"
+  "save_preferences_button": "Save Preferences",
+  "connected_accounts_title": "Connected accounts",
+  "connected_accounts_description": "Sign in with a provider instead of your password. The provider email must match your account email.",
+  "connected_accounts_none": "No connected accounts yet.",
+  "connected_accounts_only_way": "Your only way to sign in",
+  "connected_accounts_unlink": "Unlink",
+  "connected_accounts_connect": "Connect {provider}",
+  "connected_accounts_unlinked": "{provider} unlinked.",
+  "connected_accounts_load_failed": "Could not load your connected accounts.",
+  "connected_accounts_unlink_failed": "Could not unlink the account."
 }

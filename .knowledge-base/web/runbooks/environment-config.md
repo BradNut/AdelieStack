@@ -40,6 +40,13 @@ is on, the provider and the public site key at runtime from `GET /api/config/cap
 matching widget (Cloudflare Turnstile or hCaptcha ship; other providers need a `CaptchaWidget`
 implementation) and sends the token in the `x-captcha-response` header.
 
+## Social login
+
+The web has no social-login variables either. GitHub and Google are configured only in the API env (see
+[API environment runbook](../../api/runbooks/environment-config.md#social-login-github-google), including callback URLs).
+The web reads the enabled providers from `GET /api/config` and shows a button for each; OAuth redirects travel through the
+`/api` proxy, so there are no OAuth routes in the web app.
+
 ## Local Dev
 
 There is no `.env.example` to copy, and no `.env` is needed: every web variable, including
@@ -51,7 +58,7 @@ pnpm --filter @adelie/web dev
 ```
 
 Create `apps/web/.env.local` only to override a default (e.g. pointing `API_PROXY_BASE_URL` at a
-non-default API host/port, enabling `SHOW_OAUTH_BUTTONS`, or changing `PUBLIC_IMAGE_URI` outside
+non-default API host/port, or changing `PUBLIC_IMAGE_URI` outside
 local dev; keep it equal to the API's value).
 
 ## Related

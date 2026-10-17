@@ -1,3 +1,4 @@
+import { DEFAULT_COOKIE_ATTRIBUTES, isProdEnv } from '@adelie/shared';
 import { Container } from '@needle-di/core';
 import type { MiddlewareHandler } from 'hono';
 import { getSignedCookie, setSignedCookie } from 'hono/cookie';
@@ -15,9 +16,8 @@ export const browserSessions: MiddlewareHandler = createMiddleware(async (c, nex
   if (!browserSessionCookie) {
     browserSessionId = generateId();
     await setSignedCookie(c, BROWSER_SESSION_COOKIE_NAME, browserSessionId, configService.envs.SIGNING_SECRET, {
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: configService.envs.ENV === 'prod',
+      ...DEFAULT_COOKIE_ATTRIBUTES,
+      secure: isProdEnv(configService.envs.ENV),
       path: '/',
     });
   }

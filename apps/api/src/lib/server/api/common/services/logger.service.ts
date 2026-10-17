@@ -1,3 +1,4 @@
+import { isProdEnv } from '@adelie/shared';
 import { inject, injectable } from '@needle-di/core';
 import pino from 'pino';
 import pretty from 'pino-pretty';
@@ -12,7 +13,7 @@ export class LoggerService {
       {
         level: this.configService.envs.LOG_LEVEL || 'info',
       },
-      this.configService.envs.ENV === 'prod' ? undefined : pretty(),
+      isProdEnv(this.configService.envs.ENV) ? undefined : pretty(),
     );
   }
 }

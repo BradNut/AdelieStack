@@ -8,7 +8,20 @@ const PASSWORD = 'Correct-horse-9';
 /** The sign-up endpoints that are gated by `signUpEnabled`. A new one must be gated, then listed here. */
 const GATED_SIGN_UP_PATHS = ['/sign-up/email'];
 
-function buildAuth(signUpEnabled: boolean): Auth {
+/** A provider answered locally: its token check passes and its profile is an unknown, verified email. */
+const STRANGER_PROVIDER = {
+  clientId: 'client-id',
+  clientSecret: 'client-secret',
+  verifyIdToken: async () => true,
+  // Each provider types its user info and raw profile differently; Better Auth only passes them through.
+  getUserInfo: async () =>
+    ({
+      user: { id: 'sub-1', email: 'stranger@example.com', emailVerified: true, name: 'Stranger' },
+      data: { sub: 'sub-1' },
+    }) as never,
+};
+
+function buildAuth(signUpEnabled: boolean, socialProviders?: Parameters<typeof createAuth>[0]['socialProviders']): Auth {
   return createAuth({
     database: memoryAdapter({ user: [], session: [], account: [], verification: [], twoFactor: [], passkey: [] }),
     secret: 'test-secret-that-is-at-least-32-characters',
@@ -20,6 +33,7 @@ function buildAuth(signUpEnabled: boolean): Auth {
     signUpEnabled,
     // Not about breached passwords: keep these tests off the network.
     hibpEnabled: false,
+    socialProviders,
   });
 }
 
@@ -125,5 +139,34 @@ describe('sign-up gate coverage', () => {
     const res = await post(auth, path, { name: 'Test User', email: 'visitor@example.com', password: PASSWORD });
 
     expect(res.ok).toBe(false);
+  });
+});
+
+describe('sign-up gate for social sign-in', () => {
+  const socialSignIn = (auth: Auth) => post(auth, '/sign-in/social', { provider: 'google', idToken: { token: 'provider-token' } });
+
+  it('rejects a social sign-in for an unknown email while closed', async () => {
+    const auth = buildAuth(false, { google: STRANGER_PROVIDER });
+
+    const res = await socialSignIn(auth);
+
+    expect(res.ok).toBe(false);
+    const { internalAdapter } = await auth.$context;
+    expect(await internalAdapter.findUserByEmail('stranger@example.com')).toBeNull();
+  });
+
+  it('accepts a social sign-in for an unknown email while open', async () => {
+    const res = await socialSignIn(buildAuth(true, { google: STRANGER_PROVIDER }));
+
+    expect(res.status).toBe(200);
+  });
+
+  it('closes every registered provider, so a provider added later is gated too', async () => {
+    const auth = buildAuth(false, { google: STRANGER_PROVIDER, github: STRANGER_PROVIDER });
+
+    const providers = (await auth.$context).socialProviders;
+
+    expect(providers).toHaveLength(2);
+    expect(providers.every((provider) => provider.options?.disableSignUp === true)).toBe(true);
   });
 });

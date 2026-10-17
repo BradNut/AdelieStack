@@ -176,7 +176,7 @@ describe('routes/api/[...slug]/+server', () => {
         new Response(null, { status: StatusCodes.MOVED_TEMPORARILY, headers: { location: 'https://accounts.example.com/oauth' } }),
       );
 
-      const response = await GET(createEvent(new Request('http://localhost:5173/api/iam/login/google')));
+      const response = await GET(createEvent(new Request('http://localhost:5173/api/auth/callback/google')));
 
       expect(lastUpstreamCall().init.redirect).toBe('manual');
       expect(response.status).toBe(StatusCodes.MOVED_TEMPORARILY);

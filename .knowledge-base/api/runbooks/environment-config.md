@@ -9,8 +9,8 @@ procedures.
 ## Gotchas
 
 - `ENVIRONMENT` (`development`, `staging`, `production`) also suffixes the storage bucket names.
-  `ENV` (`dev` or `prod`) is a legacy short-form flag several services still read; it controls the
-  session cookie's `secure` flag.
+  `ENV` (`dev` or `prod`, `AppEnv` in `@adelie/shared`) is a legacy short-form flag several services still read; it controls the
+  session cookie's `secure` flag, pretty logs, SQL logging and Better Auth's API reference (`/api/auth/reference`, off in prod). The app's own `/api/reference` is mounted regardless of `ENV`.
 - `ORIGIN` is the allowed CORS / session origin; `DOMAIN` (hostname only) is the session cookie
   domain.
 - `DB_MIGRATING=true` runs migrations on start (Docker sets it automatically); `DB_SEEDING=true`
@@ -27,6 +27,28 @@ procedures.
 |---|---|---|
 | `SIGN_UP_ENABLED` | `false` | Allow anyone to register. Closed by default: accounts then come from the seeded admin and the admin plugin's create-user. Set `true` for local dev and the e2e suite. Read at startup; the web app learns it from the public `GET /api/config`. See [ADR 0003](../../../docs/adr/0003-sign-up-closed-by-default.md). |
 
+## Social login (GitHub, Google)
+
+Optional. A provider is registered with Better Auth only when **both** its client id and secret are set; with none set, nothing is registered, `GET /api/config` returns `socialProviders: []` and the login page shows no social buttons. Setting only one half of a pair stops the API at startup (the error names the missing variable). Credentials stay on the API and are never returned by any endpoint. Restart after changing them.
+
+| Variable | Notes |
+|---|---|
+| `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | From a GitHub OAuth App (Settings, Developer settings, OAuth Apps). |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | From a Google Cloud OAuth 2.0 Client ID of type "Web application". |
+
+### Provider setup
+
+1. Create the OAuth app with the **authorization callback URL** `<BETTER_AUTH_URL>/api/auth/callback/github` (or `/google`). `BETTER_AUTH_URL` is the web origin (for example `http://localhost:5173` locally), because the web app proxies `/api` to the API. For Google also add that origin as an authorized JavaScript origin.
+2. Put the id and secret in `apps/api/.env.local` and restart the API.
+3. Open `/login`: a button per configured provider appears.
+
+### Behaviour
+
+- **Linking**: a social sign-in whose provider reports a **verified** email matching an existing account links to it, provided that account's own email is verified too. An unverified provider email, an unverified local email, or a different email never links (a different email creates a separate account if sign-up is open). No provider is trusted regardless of verification. GitHub's verified flag comes from its `/user/emails` data.
+- **Settings**: signed-in users link and unlink providers at `/settings/connected-accounts`. Linking needs the provider email to equal the account email. Unlinking needs a fresh session (sign in again if refused) and is refused for the last remaining sign-in account, which is a Better Auth rule: the password counts as one, passkeys and two-factor do not.
+- **Sign-up gate**: with `SIGN_UP_ENABLED=false`, a social sign-in for an unknown email is rejected (`?error=signup_disabled` on the login page) and creates no user; existing users still sign in socially. See [ADR 0003](../../../docs/adr/0003-sign-up-closed-by-default.md).
+- **Captcha**: OAuth endpoints are never challenged.
+
 ## Breached-password screening (Have I Been Pwned)
 
 | Variable | Default | Notes |
@@ -38,6 +60,17 @@ procedures.
 - **Symptom**: sign-up, reset-password, change-password and admin password changes fail with `503 PASSWORD_CHECK_UNAVAILABLE`; the forms show "We can't verify your password right now". Sign-in is unaffected.
 - **Find it**: every failed check writes one error log entry starting with `HIBP_CHECK_FAILED` (grep for it). `GET /healthz` returns `hibp`: `available` (last check succeeded), `unavailable` (last check failed), `unknown` (no check since start) or `disabled` (`HIBP_ENABLED=false`). Health probes read the last result and never call HIBP, so `hibp` only changes when a password is checked. The overall `status` stays `ok`.
 - **Mitigate**: set `HIBP_ENABLED=false` and restart the API. Breached passwords are accepted until you set it back to `true` and restart.
+
+## Auth rate limiting
+
+Better Auth's own limiter guards every `/api/auth/*` request, keyed by client IP and path. Counters live in Redis (key prefix `auth-rate-limit:`), so limits hold across API instances; sessions stay in Postgres. Decision: `docs/adr/0006-better-auth-owns-auth-rate-limiting.md`. The app's own `rateLimit()` middleware is not applied to auth routes.
+
+- **Rules**: `AUTH_RATE_LIMIT_DEFAULT` and the stricter `AUTH_RATE_LIMIT_RULES` (sign-in, two-factor, password reset, passkey) in `packages/shared/src/constants/auth-rate-limits.ts`. Change limits there, not in `auth.config.ts`.
+- **Throttled response**: `429` with an `X-Retry-After` header (seconds).
+- **`DISABLE_RATE_LIMIT=true`**: auth rate limiting is off and Redis is not touched by auth. Restart the API after changing it. Use it for tests and controlled environments only.
+- **Client IP and `TRUST_PROXY`**: the limiter reads the client IP from `X-Forwarded-For` only when `TRUST_PROXY=true`; otherwise it reads no header, and every client shares one bucket per path (for example 5 sign-in attempts a minute for the whole site). The web app's `/api` proxy always sets `X-Forwarded-For`, so set `TRUST_PROXY=true` whenever the API is reachable only through the web proxy or another trusted proxy, and make sure that proxy overwrites the header rather than appending client-supplied values. Leave it off only when the API is exposed directly.
+- **Startup check**: with `ENV=prod`, auth rate limiting on and `TRUST_PROXY` off, the API refuses to start (the error names `TRUST_PROXY`); fix it with `TRUST_PROXY=true` or, deliberately, `DISABLE_RATE_LIMIT=true`. Outside prod it starts but logs a warning with the same advice. Why not silently disable the limiter instead: that would quietly drop brute-force protection, whereas a refusal makes the operator pick; a shared bucket locks every user out after a few requests, so it is never the right steady state.
+- **Redis outage**: a request whose limit check cannot reach Redis fails with a server error rather than skipping the limit.
 
 ## Captcha
 
