@@ -1,4 +1,4 @@
-import { APP_ENVS, APP_NAME, AppEnv, CAPTCHA_PROVIDERS, SocialProvider } from '@adelie/shared';
+import { APP_ENVS, APP_NAME, CAPTCHA_PROVIDERS, isProdEnv, SocialProvider } from '@adelie/shared';
 import { z } from 'zod/v4';
 import { MailerTransport } from '#lib/server/api/mail/mailer-transport.constant';
 
@@ -92,7 +92,7 @@ export const SOCIAL_PROVIDER_ENV_NAMES = {
   [SocialProvider.GOOGLE]: { id: 'GOOGLE_CLIENT_ID', secret: 'GOOGLE_CLIENT_SECRET' },
 } as const satisfies Record<SocialProvider, { id: keyof z.infer<typeof baseEnvsDto>; secret: keyof z.infer<typeof baseEnvsDto> }>;
 
-export const SHARED_RATE_LIMIT_BUCKET_WARNING =
+export const SHARED_RATE_LIMIT_BUCKET_MESSAGE =
   'Auth rate limiting is on but TRUST_PROXY is off: every client shares one rate-limit bucket per auth path, so a few requests lock everyone out. Set TRUST_PROXY=true behind a trusted proxy, or DISABLE_RATE_LIMIT=true.';
 
 /**
@@ -105,11 +105,11 @@ export function sharesOneRateLimitBucket(envs: Pick<z.infer<typeof baseEnvsDto>,
 }
 
 export const envsDto = baseEnvsDto.superRefine((envs, ctx) => {
-  if (envs.ENV === AppEnv.PROD && sharesOneRateLimitBucket(envs)) {
+  if (isProdEnv(envs.ENV) && sharesOneRateLimitBucket(envs)) {
     ctx.addIssue({
       code: 'custom',
       path: ['TRUST_PROXY'],
-      message: `${SHARED_RATE_LIMIT_BUCKET_WARNING} (refused in production)`,
+      message: `${SHARED_RATE_LIMIT_BUCKET_MESSAGE} (refused in production)`,
     });
   }
   for (const { id: idName, secret: secretName } of Object.values(SOCIAL_PROVIDER_ENV_NAMES)) {

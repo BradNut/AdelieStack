@@ -20,4 +20,4 @@ export const AUTH_RATE_LIMIT_RULES = {
 } as const satisfies Record<string, AuthRateLimitRule>;
 
 /** Response header Better Auth sets on a throttled (429) request: seconds until the client may retry. */
-export const RETRY_AFTER_HEADER = 'X-Retry-After';
+export const RETRY_AFTER_HEADER = 'x-retry-after';

@@ -3,6 +3,7 @@ import { CONTENT_LENGTH_HEADER, CONTENT_TYPE_HEADER, JSON_CONTENT_TYPE, RETRY_AF
 /**
  * Wraps a fetch so a throttled (429) JSON response carries its `X-Retry-After` header as a `retryAfter` number in
  * the body. Better Auth's client error holds only the body and status, so this is how the wait reaches the forms.
+ * A workaround for that client limitation: drop it if the client ever exposes response headers on errors.
  */
 export function withRetryAfter(base: typeof fetch): typeof fetch {
   return async (input, init) => {
