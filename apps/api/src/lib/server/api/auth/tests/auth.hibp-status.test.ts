@@ -2,7 +2,8 @@ import { PASSWORD_CHECK_UNAVAILABLE } from '@adelie/shared';
 import { memoryAdapter } from 'better-auth/adapters/memory';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createAuth } from '#lib/server/api/auth/auth.config';
-import { createHibpHealth, HIBP_CHECK_FAILED_LOG, HibpHealth } from '#lib/server/api/auth/auth.hibp-status';
+import { createHibpHealth, HIBP_CHECK_FAILED_LOG } from '#lib/server/api/auth/auth.hibp-status';
+import { ProviderHealthState } from '#lib/server/api/auth/auth.provider-health';
 
 const ORIGIN = 'http://localhost:5173';
 const PASSWORD = 'correct horse battery';
@@ -52,7 +53,7 @@ describe('HIBP monitoring through Better Auth', () => {
 
     expect(res.status).toBe(503);
     expect(((await res.json()) as { code: string }).code).toBe(PASSWORD_CHECK_UNAVAILABLE);
-    expect(hibpStatus.health).toBe(HibpHealth.UNAVAILABLE);
+    expect(hibpStatus.health).toBe(ProviderHealthState.UNAVAILABLE);
     expect(log.error).toHaveBeenCalledOnce();
     expect(log.error.mock.calls[0]?.[1]).toContain(HIBP_CHECK_FAILED_LOG);
   });
@@ -66,7 +67,7 @@ describe('HIBP monitoring through Better Auth', () => {
     const res = await signUp('a@example.com');
 
     expect(res.status).toBe(200);
-    expect(hibpStatus.health).toBe(HibpHealth.AVAILABLE);
+    expect(hibpStatus.health).toBe(ProviderHealthState.AVAILABLE);
   });
 
   it('counts a breached-password answer as HIBP being available', async () => {
@@ -83,7 +84,7 @@ describe('HIBP monitoring through Better Auth', () => {
     const res = await signUp('b@example.com');
 
     expect(res.status).toBe(400);
-    expect(hibpStatus.health).toBe(HibpHealth.AVAILABLE);
+    expect(hibpStatus.health).toBe(ProviderHealthState.AVAILABLE);
   });
 
   it('reports disabled, makes no HIBP request and logs nothing when the switch is off', async () => {
@@ -93,7 +94,7 @@ describe('HIBP monitoring through Better Auth', () => {
     const res = await signUp('a@example.com');
 
     expect(res.status).toBe(200);
-    expect(hibpStatus.health).toBe(HibpHealth.DISABLED);
+    expect(hibpStatus.health).toBe(ProviderHealthState.DISABLED);
     expect(fetchMock).not.toHaveBeenCalled();
     expect(log.error).not.toHaveBeenCalled();
   });
@@ -102,7 +103,7 @@ describe('HIBP monitoring through Better Auth', () => {
     const fetchMock = mockHibp(200);
     const { hibpStatus } = build(true);
 
-    expect(hibpStatus.health).toBe(HibpHealth.UNKNOWN);
+    expect(hibpStatus.health).toBe(ProviderHealthState.UNKNOWN);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });
@@ -117,6 +118,6 @@ describe('outage detection', () => {
     const { context } = init({ password: { hash: async () => Promise.reject(failure) } });
 
     await expect(context.password.hash('x')).rejects.toBe(failure);
-    expect(status.health).toBe(HibpHealth.UNKNOWN);
+    expect(status.health).toBe(ProviderHealthState.UNKNOWN);
   });
 });

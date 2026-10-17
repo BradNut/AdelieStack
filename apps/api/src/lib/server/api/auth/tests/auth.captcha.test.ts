@@ -9,8 +9,9 @@ import {
 } from '@adelie/shared';
 import { memoryAdapter } from 'better-auth/adapters/memory';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { CAPTCHA_VERIFY_FAILED_LOG, CaptchaHealth, createCaptchaHealth } from '#lib/server/api/auth/auth.captcha';
+import { CAPTCHA_VERIFY_FAILED_LOG, createCaptchaHealth } from '#lib/server/api/auth/auth.captcha';
 import { createAuth } from '#lib/server/api/auth/auth.config';
+import { ProviderHealthState } from '#lib/server/api/auth/auth.provider-health';
 
 const ORIGIN = 'http://localhost:5173';
 const PASSWORD = 'correct horse battery';
@@ -95,7 +96,7 @@ describe('captcha disabled', () => {
 
     expect(res.status).toBe(200);
     expect(verifyCalls(fetchMock)).toHaveLength(0);
-    expect(captchaStatus.health).toBe(CaptchaHealth.DISABLED);
+    expect(captchaStatus.health).toBe(ProviderHealthState.DISABLED);
   });
 });
 
@@ -203,24 +204,24 @@ describe('captcha provider outage', () => {
 
     expect(log.error).toHaveBeenCalledOnce();
     expect(String(log.error.mock.calls[0]?.[1])).toContain(CAPTCHA_VERIFY_FAILED_LOG);
-    expect(captchaStatus.health).toBe(CaptchaHealth.UNAVAILABLE);
+    expect(captchaStatus.health).toBe(ProviderHealthState.UNAVAILABLE);
   });
 
   it('reports unknown before any check, available after a good one and available after a refused token', async () => {
     const { post, captchaStatus } = build();
-    expect(captchaStatus.health).toBe(CaptchaHealth.UNKNOWN);
+    expect(captchaStatus.health).toBe(ProviderHealthState.UNKNOWN);
 
     stubNetwork('valid');
     await post('/sign-in/email', BODY_BY_PATH['/sign-in/email'], TOKEN);
-    expect(captchaStatus.health).toBe(CaptchaHealth.AVAILABLE);
+    expect(captchaStatus.health).toBe(ProviderHealthState.AVAILABLE);
 
     stubNetwork('down');
     await post('/sign-in/email', BODY_BY_PATH['/sign-in/email'], TOKEN);
-    expect(captchaStatus.health).toBe(CaptchaHealth.UNAVAILABLE);
+    expect(captchaStatus.health).toBe(ProviderHealthState.UNAVAILABLE);
 
     stubNetwork('invalid');
     await post('/sign-in/email', BODY_BY_PATH['/sign-in/email'], TOKEN);
-    expect(captchaStatus.health).toBe(CaptchaHealth.AVAILABLE);
+    expect(captchaStatus.health).toBe(ProviderHealthState.AVAILABLE);
   });
 
   it('does not touch the health state for a request with no token', async () => {
@@ -229,7 +230,7 @@ describe('captcha provider outage', () => {
 
     await post('/sign-in/email', BODY_BY_PATH['/sign-in/email']);
 
-    expect(captchaStatus.health).toBe(CaptchaHealth.UNKNOWN);
+    expect(captchaStatus.health).toBe(ProviderHealthState.UNKNOWN);
   });
 
   it('is bypassed by turning captcha off (the kill switch)', async () => {

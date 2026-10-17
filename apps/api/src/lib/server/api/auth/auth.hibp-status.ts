@@ -1,15 +1,10 @@
 import { PASSWORD_CHECK_UNAVAILABLE, PASSWORD_COMPROMISED } from '@adelie/shared';
 import type { BetterAuthPlugin } from 'better-auth';
 import { APIError } from 'better-auth/api';
-import { ProviderHealth, type ProviderHealthOptions, ProviderHealthState, type ProviderHealthStateName } from './auth.provider-health';
+import { ProviderHealth, type ProviderHealthOptions } from './auth.provider-health';
 
 /** Stable, greppable log message for every failed breached-password check. */
 export const HIBP_CHECK_FAILED_LOG = 'HIBP_CHECK_FAILED';
-
-/** What the health surface reports about Have I Been Pwned. */
-export const HibpHealth = ProviderHealthState;
-
-export type HibpHealthStatus = ProviderHealthStateName;
 
 /** The 503 returned when the breached-password check could not run; the web maps its code to a translated message. */
 export const passwordCheckUnavailable = () =>

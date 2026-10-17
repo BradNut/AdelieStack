@@ -8,15 +8,10 @@ import {
 import type { BetterAuthPlugin } from 'better-auth';
 import { captcha } from 'better-auth/plugins';
 import type { EnvsDto } from '#lib/server/api/common/configs/dtos/env.dto';
-import { ProviderHealth, type ProviderHealthOptions, ProviderHealthState, type ProviderHealthStateName } from './auth.provider-health';
+import { ProviderHealth, type ProviderHealthOptions } from './auth.provider-health';
 
 /** Stable, greppable log message for every failed Captcha Token verification. */
 export const CAPTCHA_VERIFY_FAILED_LOG = 'CAPTCHA_VERIFY_FAILED';
-
-/** What the health surface reports about the Captcha Provider. */
-export const CaptchaHealth = ProviderHealthState;
-
-export type CaptchaHealthStatus = ProviderHealthStateName;
 
 /** Better Auth's code for a verification that threw: here, only a provider that cannot be reached or answers an error. */
 const PLUGIN_UNKNOWN_ERROR = 'UNKNOWN_ERROR';
