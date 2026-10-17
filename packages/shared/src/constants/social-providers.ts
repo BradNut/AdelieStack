@@ -7,6 +7,10 @@ export type SocialProvider = (typeof SocialProvider)[keyof typeof SocialProvider
 
 export const SOCIAL_PROVIDERS = Object.values(SocialProvider) as [SocialProvider, ...SocialProvider[]];
 
+export function isSocialProvider(id: string): id is SocialProvider {
+  return (SOCIAL_PROVIDERS as readonly string[]).includes(id);
+}
+
 /** Provider names as shown on buttons and in account settings. */
 export const SOCIAL_PROVIDER_LABELS: Readonly<Record<SocialProvider, string>> = {
   [SocialProvider.GITHUB]: 'GitHub',

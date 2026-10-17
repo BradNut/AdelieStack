@@ -36,5 +36,14 @@
   "notifications_section_description": "Administra notificaciones por correo",
   "email_notifications_label": "Notificaciones por correo",
   "newsletter_label": "Boletín",
-  "save_preferences_button": "Guardar preferencias"
+  "save_preferences_button": "Guardar preferencias",
+  "connected_accounts_title": "Cuentas conectadas",
+  "connected_accounts_description": "Inicia sesión con un proveedor en lugar de tu contraseña. El correo del proveedor debe coincidir con el de tu cuenta.",
+  "connected_accounts_none": "Aún no hay cuentas conectadas.",
+  "connected_accounts_only_way": "Tu única forma de iniciar sesión",
+  "connected_accounts_unlink": "Desvincular",
+  "connected_accounts_connect": "Conectar {provider}",
+  "connected_accounts_unlinked": "{provider} desvinculado.",
+  "connected_accounts_load_failed": "No se pudieron cargar tus cuentas conectadas.",
+  "connected_accounts_unlink_failed": "No se pudo desvincular la cuenta."
 }
