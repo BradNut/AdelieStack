@@ -35,6 +35,12 @@ A named group of permissions assigned to a user: `admin`, `support` or `user` (`
 **Permission**
 An action on a resource (for example `user: ban`) that a role grants, defined by `ac` and `roles` in `auth/auth.permissions.ts`. Routes check permissions through Better Auth's `userHasPermission`, not role names. See [ADR 0002](../../docs/adr/0002-authorization-delegates-to-better-auth.md).
 
+**Role Policy**
+The rules for which roles a user may hold and how a stored role value becomes the roles a permission check uses: one role per user unless multiple roles are allowed, and the least-privileged role for anything empty or unknown. Applies when roles are written and when they are read.
+
+**Provider Health**
+Whether the most recent call to an external screening provider (the Captcha Provider, Have I Been Pwned) reached it: disabled, unknown (no call since start), available or unavailable. Reported on the health endpoint without calling the provider again.
+
 ## Data & Storage
 
 **Drizzle ORM**

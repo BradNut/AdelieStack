@@ -1,20 +1,21 @@
 {
-	"$schema": "https://inlang.com/schema/project-settings",
-	"baseLocale": "en",
-	"locales": ["en", "de", "es"],
-	"modules": [
-		"https://cdn.jsdelivr.net/npm/@inlang/plugin-message-format@4/dist/index.js",
-		"https://cdn.jsdelivr.net/npm/@inlang/plugin-m-function-matcher@2/dist/index.js"
-	],
-	"plugin.inlang.messageFormat": {
-		"pathPattern": [
-			"./messages/{locale}/common.json",
-			"./messages/{locale}/validation.json",
-			"./messages/{locale}/flash.json",
-			"./messages/{locale}/settings.json",
-			"./messages/{locale}/admin.json",
-			"./messages/{locale}/api.json",
-			"./messages/{locale}/errors.json"
-		]
-	}
+  "$schema": "https://inlang.com/schema/project-settings",
+  "baseLocale": "en",
+  "locales": ["en", "de", "es"],
+  "modules": [
+    "https://cdn.jsdelivr.net/npm/@inlang/plugin-message-format@4/dist/index.js",
+    "https://cdn.jsdelivr.net/npm/@inlang/plugin-m-function-matcher@2/dist/index.js"
+  ],
+  "plugin.inlang.messageFormat": {
+    "pathPattern": [
+      "./messages/{locale}/common.json",
+      "./messages/{locale}/validation.json",
+      "./messages/{locale}/flash.json",
+      "./messages/{locale}/settings.json",
+      "./messages/{locale}/admin.json",
+      "./messages/{locale}/api.json",
+      "./messages/{locale}/errors.json",
+      "./messages/{locale}/auth.json"
+    ]
+  }
 }

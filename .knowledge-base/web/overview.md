@@ -55,10 +55,9 @@ src/
 │   │   │       └── account/        # +page.svelte, +page.server.ts
 │   │   └── +page.svelte            # root app page
 │   ├── (auth)/
-│   │   ├── login/                  # +page.svelte, +page.server.ts, google/+server.ts
+│   │   ├── login/                  # +page.svelte, +page.server.ts
 │   │   ├── signup/                 # +page.svelte, +page.server.ts
-│   │   ├── password/reset/         # +page.svelte, +page.server.ts
-│   │   └── auth/callback/google/   # +server.ts
+│   │   └── password/reset/         # +page.svelte, +page.server.ts
 │   └── api/
 │       └── [...slug]/+server.ts    # API proxy route
 ├── lib/

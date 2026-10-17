@@ -118,3 +118,42 @@ describe('ConfigService captcha settings', () => {
     await expect(create({ ...enabled, CAPTCHA_MIN_SCORE: '2' })).rejects.toThrowError(/CAPTCHA_MIN_SCORE/);
   });
 });
+
+describe('ConfigService social login settings', () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  afterEach(() => {
+    setProcessEnvs(validEnvs);
+  });
+
+  async function create(envs: Record<string, string | undefined>) {
+    setProcessEnvs({ ...validEnvs, ...envs });
+    const { ConfigService } = await import('#lib/server/api/common/configs/config.service');
+    return new ConfigService();
+  }
+
+  it('needs no provider credentials', async () => {
+    const { envs } = await create({});
+    expect(envs.GITHUB_CLIENT_ID).toBeUndefined();
+    expect(envs.GOOGLE_CLIENT_ID).toBeUndefined();
+  });
+
+  it('accepts a complete credential pair', async () => {
+    const { envs } = await create({ GITHUB_CLIENT_ID: 'id', GITHUB_CLIENT_SECRET: 'secret' });
+    expect(envs).toMatchObject({ GITHUB_CLIENT_ID: 'id', GITHUB_CLIENT_SECRET: 'secret' });
+  });
+
+  it.each([
+    ['GITHUB_CLIENT_ID', 'GITHUB_CLIENT_SECRET'],
+    ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET'],
+  ])('names the missing half when only %s is set', async (idName, secretName) => {
+    await expect(create({ [idName]: 'id' })).rejects.toThrowError(new RegExp(secretName));
+  });
+
+  it('treats empty credential variables as unset', async () => {
+    const { envs } = await create({ GOOGLE_CLIENT_ID: '', GOOGLE_CLIENT_SECRET: '' });
+    expect(envs.GOOGLE_CLIENT_ID).toBeUndefined();
+  });
+});

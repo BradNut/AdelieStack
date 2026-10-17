@@ -1,4 +1,4 @@
-import { APP_NAME, CAPTCHA_PROVIDERS } from '@adelie/shared';
+import { APP_ENVS, APP_NAME, AppEnv, CAPTCHA_PROVIDERS, SocialProvider } from '@adelie/shared';
 import { z } from 'zod/v4';
 import { MailerTransport } from '#lib/server/api/mail/mailer-transport.constant';
 
@@ -48,7 +48,12 @@ const baseEnvsDto = z.object({
   CAPTCHA_SITE_KEY: z.preprocess(emptyAsUndefined, z.string().optional()),
   // reCAPTCHA v3 only: scores below this are rejected.
   CAPTCHA_MIN_SCORE: z.preprocess(emptyAsUndefined, z.coerce.number().min(0).max(1).optional()),
-  ENV: z.enum(['dev', 'prod']),
+  // Social login: a provider is on only when both its client id and secret are set.
+  GITHUB_CLIENT_ID: z.preprocess(emptyAsUndefined, z.string().optional()),
+  GITHUB_CLIENT_SECRET: z.preprocess(emptyAsUndefined, z.string().optional()),
+  GOOGLE_CLIENT_ID: z.preprocess(emptyAsUndefined, z.string().optional()),
+  GOOGLE_CLIENT_SECRET: z.preprocess(emptyAsUndefined, z.string().optional()),
+  ENV: z.enum(APP_ENVS),
   NODE_ENV: z.enum(['development', 'production']).default('development'),
   PORT: z.coerce.number(),
   ADMIN_EMAIL: z.email().optional(),
@@ -81,7 +86,38 @@ const baseEnvsDto = z.object({
 
 const CAPTCHA_REQUIRED_WHEN_ENABLED = ['CAPTCHA_PROVIDER', 'CAPTCHA_SECRET_KEY', 'CAPTCHA_SITE_KEY'] as const;
 
+/** Each social provider's credential pair of env names; one half set without the other is a misconfiguration. */
+export const SOCIAL_PROVIDER_ENV_NAMES = {
+  [SocialProvider.GITHUB]: { id: 'GITHUB_CLIENT_ID', secret: 'GITHUB_CLIENT_SECRET' },
+  [SocialProvider.GOOGLE]: { id: 'GOOGLE_CLIENT_ID', secret: 'GOOGLE_CLIENT_SECRET' },
+} as const satisfies Record<SocialProvider, { id: keyof z.infer<typeof baseEnvsDto>; secret: keyof z.infer<typeof baseEnvsDto> }>;
+
+export const SHARED_RATE_LIMIT_BUCKET_WARNING =
+  'Auth rate limiting is on but TRUST_PROXY is off: every client shares one rate-limit bucket per auth path, so a few requests lock everyone out. Set TRUST_PROXY=true behind a trusted proxy, or DISABLE_RATE_LIMIT=true.';
+
+/**
+ * Auth rate limiting keys clients by IP. Without a trusted proxy no IP header is read, so every client would
+ * share one bucket per path: a handful of requests would lock everyone out of sign-in. In production that is
+ * refused at startup; turn the limiter off explicitly (`DISABLE_RATE_LIMIT`) or declare the proxy (`TRUST_PROXY`).
+ */
+export function sharesOneRateLimitBucket(envs: Pick<z.infer<typeof baseEnvsDto>, 'TRUST_PROXY' | 'DISABLE_RATE_LIMIT'>): boolean {
+  return !envs.DISABLE_RATE_LIMIT && !envs.TRUST_PROXY;
+}
+
 export const envsDto = baseEnvsDto.superRefine((envs, ctx) => {
+  if (envs.ENV === AppEnv.PROD && sharesOneRateLimitBucket(envs)) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['TRUST_PROXY'],
+      message: `${SHARED_RATE_LIMIT_BUCKET_WARNING} (refused in production)`,
+    });
+  }
+  for (const { id: idName, secret: secretName } of Object.values(SOCIAL_PROVIDER_ENV_NAMES)) {
+    if ((envs[idName] === undefined) !== (envs[secretName] === undefined)) {
+      const missing = envs[idName] === undefined ? idName : secretName;
+      ctx.addIssue({ code: 'custom', path: [missing], message: `${idName} and ${secretName} must be set together` });
+    }
+  }
   if (!envs.CAPTCHA_ENABLED) return;
   for (const name of CAPTCHA_REQUIRED_WHEN_ENABLED) {
     if (envs[name] === undefined) ctx.addIssue({ code: 'custom', path: [name], message: `${name} is required when CAPTCHA_ENABLED is true` });

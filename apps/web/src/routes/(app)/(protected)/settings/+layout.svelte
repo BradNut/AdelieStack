@@ -1,17 +1,20 @@
 <script lang="ts">
+	import { AppRoute } from '@adelie/shared';
 	import { cn } from '#lib/utils/ui.ts';
 	import { page } from '$app/state';
 
 	let { children } = $props();
 
-	const links = [
+	// Connected accounts only matter when the API has a provider configured.
+	const links = $derived([
 		{ href: '/settings', label: 'Profile' },
 		{ href: '/settings/email', label: 'Email' },
 		{ href: '/settings/password', label: 'Password' },
 		{ href: '/settings/security', label: 'Sessions' },
 		{ href: '/settings/two-factor', label: 'Two-factor' },
-		{ href: '/settings/passkeys', label: 'Passkeys' }
-	];
+		{ href: '/settings/passkeys', label: 'Passkeys' },
+		...(page.data.socialProviders?.length ? [{ href: AppRoute.SETTINGS_CONNECTED_ACCOUNTS, label: 'Connected accounts' }] : [])
+	]);
 </script>
 
 <div class="mx-auto grid w-full max-w-6xl gap-2">

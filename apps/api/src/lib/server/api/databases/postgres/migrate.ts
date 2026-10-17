@@ -1,4 +1,5 @@
 import 'varlock/auto-load';
+import { isProdEnv } from '@adelie/shared';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import Pool from 'pg-pool';
@@ -26,7 +27,7 @@ const db = drizzle(
   {
     casing: 'snake_case',
     schema: drizzleSchema,
-    logger: process.env.ENV !== 'prod',
+    logger: !isProdEnv(process.env.ENV),
   },
 );
 
