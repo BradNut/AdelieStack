@@ -1,10 +1,10 @@
 <script lang="ts">
-	import { AppRoute, isSocialProvider, SOCIAL_PROVIDER_LABELS, type SocialProvider } from '@adelie/shared';
-	import { onMount } from 'svelte';
-	import { toast } from 'svelte-sonner';
-	import { authClient } from '#lib/auth-client.ts';
+	import { AppRoute, isSocialProvider, type SocialProvider } from '@adelie/shared';
+		import { authClient } from '#lib/auth-client.ts';
 	import { toastIfError } from '#lib/client/auth-form.ts';
+	import { notifyUnlinked, providerLabel } from '#lib/client/connected-accounts.ts';
 	import { withFreshSession } from '#lib/client/fresh-session.svelte.ts';
+	import { ReplayActionKey, replayProgress } from '#lib/client/reauth-replay.svelte.ts';
 	import { linkProvider, SOCIAL_ERROR_PARAM, socialErrorMessage } from '#lib/client/social-auth.ts';
 	import { Button } from '#lib/components/ui/button/index.ts';
 	import * as Card from '#lib/components/ui/card/index.ts';
@@ -28,8 +28,6 @@
 	);
 	const linkError = $derived(socialErrorMessage(page.url.searchParams.get(SOCIAL_ERROR_PARAM)));
 
-	const labelOf = (providerId: string) => (isSocialProvider(providerId) ? SOCIAL_PROVIDER_LABELS[providerId] : providerId);
-
 	async function load() {
 		const { data: rows, error } = await authClient.listAccounts();
 		if (toastIfError(error, m.connected_accounts_load_failed())) return;
@@ -38,13 +36,19 @@
 
 	async function unlink(account: AccountRow) {
 		if (isOnlyAccount) return;
-		const { error } = await withFreshSession(() => authClient.unlinkAccount({ accountId: account.id }));
-		if (toastIfError(error, m.connected_accounts_unlink_failed())) return;
-		toast.success(m.connected_accounts_unlinked({ provider: labelOf(account.providerId) }));
+		const { error } = await withFreshSession(() => authClient.unlinkAccount({ accountId: account.id }), {
+			key: ReplayActionKey.UNLINK_ACCOUNT,
+			args: { accountId: account.id },
+		});
+		if (!notifyUnlinked(error, providerLabel(account.providerId))) return;
 		await load();
 	}
 
-	onMount(load);
+	// Loads on mount, and again when an action replayed after a provider re-authentication changed the accounts.
+	$effect(() => {
+		void replayProgress.completed;
+		load();
+	});
 </script>
 
 <svelte:head>
@@ -63,7 +67,7 @@
 		<ul class="grid gap-3" data-testid="connected-accounts">
 			{#each linked as account (account.id)}
 				<li class="flex items-center justify-between gap-4 rounded-md border p-3" data-testid="connected-account-row">
-					<p class="text-sm font-medium">{labelOf(account.providerId)}</p>
+					<p class="text-sm font-medium">{providerLabel(account.providerId)}</p>
 					<div class="flex items-center gap-3">
 						{#if isOnlyAccount}
 							<span class="text-sm text-muted-foreground">{m.connected_accounts_only_way()}</span>
@@ -78,7 +82,7 @@
 		{#if linkable.length > 0}
 			<div class="flex flex-wrap gap-2 border-t pt-6" data-testid="linkable-providers">
 				{#each linkable as provider (provider)}
-					<Button variant="outline" onclick={() => linkProvider(provider, AppRoute.SETTINGS_CONNECTED_ACCOUNTS)}>{m.connected_accounts_connect({ provider: labelOf(provider) })}</Button>
+					<Button variant="outline" onclick={() => linkProvider(provider, AppRoute.SETTINGS_CONNECTED_ACCOUNTS)}>{m.connected_accounts_connect({ provider: providerLabel(provider) })}</Button>
 				{/each}
 			</div>
 		{/if}

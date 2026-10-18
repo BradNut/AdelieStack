@@ -5,9 +5,12 @@
 	import Menu from '@lucide/svelte/icons/menu';
 	import Package2 from '@lucide/svelte/icons/package-2';
 	import Search from '@lucide/svelte/icons/search';
+	import { onMount } from 'svelte';
 	import { hasAnyRole } from '#lib/auth/guards.ts';
 	import { authClient } from '#lib/auth-client.ts';
 	import { refreshSession } from '#lib/client/auth-form.ts';
+	import { replayPendingReauth } from '#lib/client/reauth-replay.svelte.ts';
+	import { SOCIAL_ERROR_PARAM, socialErrorMessage } from '#lib/client/social-auth.ts';
 	import ReauthDialog from '#lib/components/auth/reauth-dialog.svelte';
 	import UnverifiedEmailNotice from '#lib/components/auth/unverified-email-notice.svelte';
 	import ThemeDropdown from '#lib/components/theme-dropdown.svelte';
@@ -20,6 +23,14 @@
 	import { page } from '$app/state';
 
 	const { children, data } = $props();
+
+	// Back from a provider re-authentication: finish the action that was pending, once.
+	onMount(() =>
+		replayPendingReauth({
+			userId: data.authedUser?.id ?? null,
+			providerError: socialErrorMessage(page.url.searchParams.get(SOCIAL_ERROR_PARAM)),
+		}),
+	);
 
 	async function signOut() {
 		await authClient.signOut();
