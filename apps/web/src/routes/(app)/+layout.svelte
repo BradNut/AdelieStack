@@ -8,6 +8,7 @@
 	import { hasAnyRole } from '#lib/auth/guards.ts';
 	import { authClient } from '#lib/auth-client.ts';
 	import { refreshSession } from '#lib/client/auth-form.ts';
+	import ReauthDialog from '#lib/components/auth/reauth-dialog.svelte';
 	import UnverifiedEmailNotice from '#lib/components/auth/unverified-email-notice.svelte';
 	import ThemeDropdown from '#lib/components/theme-dropdown.svelte';
 	import { Button } from '#lib/components/ui/button/index.ts';
@@ -122,6 +123,8 @@
 		{/if}
 	</footer>
 </div>
+
+<ReauthDialog />
 
 {#snippet userDropdown()}
 	<DropdownMenu.Root>
