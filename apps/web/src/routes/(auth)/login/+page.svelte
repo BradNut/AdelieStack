@@ -36,14 +36,15 @@
 		resetForm: false,
 		async onUpdate({ form }) {
 			if (!form.valid) return;
-			const { data: result, error } = await authClient.signIn.email(
-				{
-					email: form.data.email,
-					password: form.data.password,
-				},
-				captcha.fetchOptions(),
+			const { data: result, error } = await captcha.attempt((fetchOptions) =>
+				authClient.signIn.email(
+					{
+						email: form.data.email,
+						password: form.data.password,
+					},
+					fetchOptions,
+				),
 			);
-			captcha.afterAttempt();
 			if (error) {
 				form.data.password = '';
 				return setError(form, 'email', captchaErrorMessage(error) ?? authErrorMessage(error, 'Invalid email or password.'));
