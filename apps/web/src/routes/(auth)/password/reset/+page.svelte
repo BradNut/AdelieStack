@@ -28,14 +28,15 @@
 		resetForm: false,
 		async onUpdate({ form }) {
 			if (!form.valid) return;
-			const { error } = await authClient.requestPasswordReset(
-				{
-					email: form.data.email,
-					redirectTo: RESET_PATH,
-				},
-				captcha.fetchOptions(),
+			const { error } = await captcha.attempt((fetchOptions) =>
+				authClient.requestPasswordReset(
+					{
+						email: form.data.email,
+						redirectTo: RESET_PATH,
+					},
+					fetchOptions,
+				),
 			);
-			captcha.afterAttempt();
 			if (error) return setError(form, 'email', captchaErrorMessage(error) ?? authErrorMessage(error));
 			emailSent = true;
 		},

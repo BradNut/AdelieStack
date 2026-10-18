@@ -1,27 +1,66 @@
 // @vitest-environment jsdom
-import { CREDENTIAL_PROVIDER_ID } from '@adelie/shared';
+import {
+  CAPTCHA_MISSING_RESPONSE,
+  CAPTCHA_RESPONSE_HEADER,
+  CAPTCHA_UNAVAILABLE,
+  CAPTCHA_VERIFICATION_FAILED,
+  CaptchaProvider,
+  CREDENTIAL_PROVIDER_ID,
+  RETRY_AFTER_HEADER,
+  StatusCodes,
+} from '@adelie/shared';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { authPath, stubFetch } from '#lib/client/tests/fetch-stub.ts';
+import { CAPTCHA_BINDING_HEADER } from '#lib/constants/captcha.ts';
 
-const authClient = vi.hoisted(() => ({
-  getSession: vi.fn(),
-  listAccounts: vi.fn(),
-  passkey: { listUserPasskeys: vi.fn() },
-  signIn: { email: vi.fn(), passkey: vi.fn() },
+const credentialsGet = vi.fn();
+const widget = { reset: vi.fn(), destroy: vi.fn() };
+const renderWidget = vi.fn();
+
+// The network, the WebAuthn browser API and the Captcha Provider widget are the only stand-ins; the real auth client runs.
+vi.mock('#lib/client/captcha/widgets.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('#lib/client/captcha/widgets.ts')>()),
+  captchaWidgetFor: (provider: string) => ({ provider, render: renderWidget }),
 }));
-
-vi.mock('#lib/auth-client.ts', () => ({ authClient }));
+vi.mock('mode-watcher', () => ({ mode: { current: 'light' } }));
 vi.mock('svelte-sonner', () => ({ toast: { error: vi.fn() } }));
 
 import { freshSession, ReauthOutcome } from '#lib/client/fresh-session.svelte.ts';
 import ReauthDialog from '../reauth-dialog.svelte';
 
-const USER = { email: 'a@example.com', twoFactorEnabled: false };
+const USER = { id: 'u1', email: 'a@example.com', twoFactorEnabled: false };
+const ENABLED = { enabled: true, provider: CaptchaProvider.TURNSTILE, siteKey: 'site' } as const;
+const TOKEN = 'widget-token';
+const SIGN_IN = authPath('/sign-in/email');
+const PASSKEY_VERIFY = authPath('/passkey/verify-authentication');
+
+const THROTTLED = { status: StatusCodes.TOO_MANY_REQUESTS, body: { message: 'Too many requests' }, headers: { [RETRY_AFTER_HEADER]: '42' } };
+
+let network: ReturnType<typeof stubFetch>;
+
+/** What `navigator.credentials.get` resolves with when the user approves a passkey. */
+const ASSERTION = {
+  id: 'pk',
+  rawId: new ArrayBuffer(1),
+  type: 'public-key',
+  response: { authenticatorData: new ArrayBuffer(1), clientDataJSON: new ArrayBuffer(1), signature: new ArrayBuffer(1), userHandle: null },
+  getClientExtensionResults: () => ({}),
+  authenticatorAttachment: 'platform',
+};
+
+function stubWebAuthn() {
+  vi.stubGlobal('PublicKeyCredential', class {});
+  // jsdom has no `navigator.credentials`.
+  Object.defineProperty(navigator, 'credentials', { value: { get: credentialsGet }, configurable: true });
+  credentialsGet.mockReset().mockResolvedValue(ASSERTION);
+}
 
 function setup({ user = USER, accounts = [{ providerId: CREDENTIAL_PROVIDER_ID }], passkeys = [] as unknown[] } = {}) {
-  authClient.getSession.mockResolvedValue({ data: { user }, error: null });
-  authClient.listAccounts.mockResolvedValue({ data: accounts, error: null });
-  authClient.passkey.listUserPasskeys.mockResolvedValue({ data: passkeys, error: null });
+  network.reply(authPath('/get-session'), { body: { user, session: { id: 's1' } } });
+  network.reply(authPath('/list-accounts'), { body: accounts });
+  network.reply(authPath('/passkey/list-user-passkeys'), { body: passkeys });
+  network.reply(authPath('/passkey/generate-authenticate-options'), { body: { challenge: 'Y2hhbGxlbmdl' } });
 }
 
 function open() {
@@ -29,14 +68,31 @@ function open() {
   return freshSession.request();
 }
 
+/** Waits for the widget to render, then plays the part of the provider handing back a token. */
+async function solveCaptcha() {
+  await waitFor(() => expect(renderWidget).toHaveBeenCalled());
+  renderWidget.mock.calls.at(-1)?.[1].onToken(TOKEN);
+}
+
+async function confirmPassword(value = 'Correct-Horse-9') {
+  await fireEvent.input(await screen.findByLabelText('Password'), { target: { value } });
+  await fireEvent.click(screen.getByRole('button', { name: 'Confirm' }));
+}
+
 beforeEach(() => {
   freshSession.settle(ReauthOutcome.DISMISSED);
-  authClient.signIn.email.mockReset().mockResolvedValue({ data: {}, error: null });
-  authClient.signIn.passkey.mockReset().mockResolvedValue({ data: {}, error: null });
+  network = stubFetch();
+  widget.reset.mockReset();
+  widget.destroy.mockReset();
+  renderWidget.mockReset().mockResolvedValue(widget);
+  stubWebAuthn();
   setup();
 });
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
 
 describe('ReauthDialog', () => {
   it('stays closed until a stale session asks for it', () => {
@@ -48,42 +104,55 @@ describe('ReauthDialog', () => {
   it('signs in again with the typed password and confirms', async () => {
     const outcome = open();
 
-    await fireEvent.input(await screen.findByLabelText('Password'), { target: { value: 'Correct-Horse-9' } });
-    await fireEvent.click(screen.getByRole('button', { name: 'Confirm' }));
+    await confirmPassword();
 
     expect(await outcome).toBe(ReauthOutcome.CONFIRMED);
-    expect(authClient.signIn.email).toHaveBeenCalledWith({ email: 'a@example.com', password: 'Correct-Horse-9' });
+    expect(network.sent(SIGN_IN).map((request) => request.body)).toEqual([
+      expect.objectContaining({ email: 'a@example.com', password: 'Correct-Horse-9' }),
+    ]);
   });
 
   it('keeps the dialog open with a translated error on a wrong password', async () => {
-    authClient.signIn.email.mockResolvedValue({ data: null, error: { status: 401, message: 'Invalid email or password' } });
+    network.reply(SIGN_IN, { status: StatusCodes.UNAUTHORIZED, body: { message: 'Invalid email or password' } });
     const outcome = open();
     const settled = vi.fn();
     outcome.then(settled);
 
-    await fireEvent.input(await screen.findByLabelText('Password'), { target: { value: 'nope' } });
-    await fireEvent.click(screen.getByRole('button', { name: 'Confirm' }));
+    await confirmPassword('nope');
 
     expect((await screen.findByTestId('reauth-error')).textContent).toBe('Password is incorrect.');
     expect(freshSession.open).toBe(true);
     expect(settled).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ['off', false],
+    ['on', true],
+  ])('shows the throttled message when password sign-in is rate limited with captcha %s', async (_name, captchaOn) => {
+    if (captchaOn) network.captcha(ENABLED);
+    network.reply(SIGN_IN, THROTTLED);
+    open();
+    if (captchaOn) await solveCaptcha();
+
+    await confirmPassword();
+
+    expect((await screen.findByTestId('reauth-error')).textContent).toBe('Too many attempts. Please try again in 42 seconds.');
+  });
+
   it('does not confirm when password sign-in answers with a two-factor challenge', async () => {
-    authClient.signIn.email.mockResolvedValue({ data: { twoFactorRedirect: true }, error: null });
+    network.reply(SIGN_IN, { body: { twoFactorRedirect: true } });
     const outcome = open();
     const settled = vi.fn();
     outcome.then(settled);
 
-    await fireEvent.input(await screen.findByLabelText('Password'), { target: { value: 'Correct-Horse-9' } });
-    await fireEvent.click(screen.getByRole('button', { name: 'Confirm' }));
+    await confirmPassword();
 
     expect((await screen.findByTestId('reauth-error')).textContent).toBe('Sign out and sign in again to continue.');
     expect(settled).not.toHaveBeenCalled();
   });
 
   it('falls back to sign out and in when the lookup fails', async () => {
-    authClient.listAccounts.mockRejectedValue(new Error('offline'));
+    network.reply(authPath('/list-accounts'), { status: StatusCodes.INTERNAL_SERVER_ERROR, body: { message: 'offline' } });
     open();
 
     expect((await screen.findByTestId('reauth-fallback')).textContent).toBe('Sign out and sign in again to continue.');
@@ -95,7 +164,7 @@ describe('ReauthDialog', () => {
     await fireEvent.click(await screen.findByRole('button', { name: 'Cancel' }));
 
     expect(await outcome).toBe(ReauthOutcome.DISMISSED);
-    expect(authClient.signIn.email).not.toHaveBeenCalled();
+    expect(network.sent(SIGN_IN)).toEqual([]);
   });
 
   it('offers a passkey when the user has one, and confirms with it', async () => {
@@ -105,7 +174,7 @@ describe('ReauthDialog', () => {
     await fireEvent.click(await screen.findByRole('button', { name: 'Use a passkey' }));
 
     expect(await outcome).toBe(ReauthOutcome.CONFIRMED);
-    expect(authClient.signIn.passkey).toHaveBeenCalledOnce();
+    expect(network.sent(PASSKEY_VERIFY)).toHaveLength(1);
   });
 
   it('offers only a passkey to a user without a password', async () => {
@@ -118,7 +187,7 @@ describe('ReauthDialog', () => {
 
   it('shows an error and stays open when the passkey fails', async () => {
     setup({ passkeys: [{ id: 'pk' }] });
-    authClient.signIn.passkey.mockResolvedValue({ data: null, error: { message: 'cancelled' } });
+    credentialsGet.mockRejectedValue(new DOMException('cancelled', 'NotAllowedError'));
     open();
 
     await fireEvent.click(await screen.findByRole('button', { name: 'Use a passkey' }));
@@ -136,5 +205,86 @@ describe('ReauthDialog', () => {
 
     expect((await screen.findByTestId('reauth-fallback')).textContent).toBe('Sign out and sign in again to continue.');
     expect(screen.queryByLabelText('Password')).toBeNull();
+  });
+
+  describe('with captcha on', () => {
+    beforeEach(() => {
+      network.captcha(ENABLED);
+    });
+
+    it('binds the Captcha Token to password confirmation and confirms', async () => {
+      const outcome = open();
+      await solveCaptcha();
+
+      await confirmPassword();
+
+      expect(await outcome).toBe(ReauthOutcome.CONFIRMED);
+      const [request] = network.sent(SIGN_IN);
+      expect(request?.headers.get(CAPTCHA_RESPONSE_HEADER)).toBe(TOKEN);
+      // The binding guard requires the marker and strips it before the request leaves.
+      expect(request?.headers.has(CAPTCHA_BINDING_HEADER)).toBe(false);
+    });
+
+    it.each([
+      [CAPTCHA_MISSING_RESPONSE, StatusCodes.BAD_REQUEST, 'Invalid captcha, please try again.'],
+      [CAPTCHA_VERIFICATION_FAILED, StatusCodes.FORBIDDEN, 'Invalid captcha, please try again.'],
+      [CAPTCHA_UNAVAILABLE, StatusCodes.SERVICE_UNAVAILABLE, 'Captcha is temporarily unavailable. Please try again later.'],
+    ])('shows the captcha message for %s, not "password incorrect"', async (code, status, text) => {
+      network.reply(SIGN_IN, { status, body: { code, message: 'raw server text' } });
+      open();
+      await solveCaptcha();
+
+      await confirmPassword();
+
+      expect((await screen.findByTestId('reauth-error')).textContent).toBe(text);
+      expect(freshSession.open).toBe(true);
+    });
+
+    it.each([
+      ['a successful', {}],
+      ['a failed', { status: StatusCodes.UNAUTHORIZED, body: { message: 'Invalid email or password' } }],
+    ])('starts a new challenge after %s attempt, because the token is single-use', async (_name, reply) => {
+      network.reply(SIGN_IN, reply);
+      open();
+      await solveCaptcha();
+
+      await confirmPassword();
+
+      await waitFor(() => expect(widget.reset).toHaveBeenCalledOnce());
+    });
+
+    it('renders a fresh challenge on each opening and tears it down on close', async () => {
+      open();
+      await solveCaptcha();
+
+      await fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+      await waitFor(() => expect(widget.destroy).toHaveBeenCalledOnce());
+
+      freshSession.request();
+      await waitFor(() => expect(renderWidget).toHaveBeenCalledTimes(2));
+    });
+
+    it('shows no challenge for passkey-only confirmation', async () => {
+      setup({ accounts: [{ providerId: 'github' }], passkeys: [{ id: 'pk' }] });
+      const outcome = open();
+
+      await fireEvent.click(await screen.findByRole('button', { name: 'Use a passkey' }));
+
+      expect(await outcome).toBe(ReauthOutcome.CONFIRMED);
+      expect(screen.queryByTestId('captcha-widget')).toBeNull();
+      expect(renderWidget).not.toHaveBeenCalled();
+    });
+
+    it('sends no Captcha Token with passkey confirmation when the password form shows a challenge', async () => {
+      setup({ passkeys: [{ id: 'pk' }] });
+      const outcome = open();
+      await solveCaptcha();
+
+      await fireEvent.click(screen.getByRole('button', { name: 'Use a passkey' }));
+
+      expect(await outcome).toBe(ReauthOutcome.CONFIRMED);
+      expect(network.sent(PASSKEY_VERIFY)[0]?.headers.has(CAPTCHA_RESPONSE_HEADER)).toBe(false);
+      expect(widget.reset).not.toHaveBeenCalled();
+    });
   });
 });

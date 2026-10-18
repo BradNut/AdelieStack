@@ -1,9 +1,9 @@
+import { API_BASE_PATH, AUTH_ROUTE } from '@adelie/shared';
 import { inject, injectable } from '@needle-di/core';
 import { contextStorage } from 'hono/context-storage';
 import { requestId } from 'hono/request-id';
 import { notFound, onError, serveEmojiFavicon } from 'stoker/middlewares';
 import { AdminExampleController } from './admin/admin-example.controller';
-import { API_BASE_PATH, AUTH_ROUTE } from './auth/auth.config';
 import { AuthService } from './auth/auth.service';
 import { RootController } from './common/factories/controllers.factory';
 import { authSession } from './common/middleware/auth-session.middleware';

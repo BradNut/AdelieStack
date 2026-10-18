@@ -1,5 +1,6 @@
 import {
   APP_NAME,
+  AUTH_BASE_PATH,
   AUTH_CLIENT_IP_HEADER,
   AUTH_SESSION_EXPIRES_IN,
   AUTH_SESSION_FRESH_AGE,
@@ -29,15 +30,6 @@ import type { ProviderHealth } from './auth.provider-health';
 import { type AuthRateLimitStorage, authRateLimitOptions } from './auth.rate-limit';
 import { createRoleGuard } from './auth.role-guard';
 import { socialProvidersOption } from './auth.social';
-
-/** Prefix of every API route. */
-export const API_BASE_PATH = '/api';
-
-/** Path of the auth handler below {@link API_BASE_PATH}; the Hono app routes `${AUTH_ROUTE}/*` to it. */
-export const AUTH_ROUTE = '/auth';
-
-/** Better Auth mounts its handler here. */
-export const AUTH_BASE_PATH = `${API_BASE_PATH}${AUTH_ROUTE}`;
 
 /** Stand-ins for values the schema generator and the seed never use for real (no connection, no env). */
 export const AUTH_PLACEHOLDER = {

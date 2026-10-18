@@ -19,12 +19,13 @@
 
 	async function resend() {
 		sending = true;
-		const { error } = await authClient.sendVerificationEmail(
-			{ email, callbackURL: AuthCallbackPath.EMAIL_VERIFIED },
-			captcha.fetchOptions(),
+		const { error } = await captcha.attempt((fetchOptions) =>
+			authClient.sendVerificationEmail(
+				{ email, callbackURL: AuthCallbackPath.EMAIL_VERIFIED },
+				fetchOptions,
+			),
 		);
 		sending = false;
-		captcha.afterAttempt();
 		const captchaMessage = captchaErrorMessage(error);
 		if (captchaMessage) return void toast.error(captchaMessage);
 		if (toastIfError(error, 'Could not send the verification email.')) return;
