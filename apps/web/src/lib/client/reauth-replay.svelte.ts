@@ -103,18 +103,21 @@ interface ReplayContext {
 
 /**
  * Finishes a provider re-authentication after the page reloads. The entry is cleared first, so it can only run once,
- * and dropped on every outcome: a provider error, another user, an old entry. The action runs only for the same user.
+ * and dropped on every outcome: a provider error, another user, an old entry. A provider error is toasted once even
+ * with no entry. The action runs only for the same user.
  */
 export async function replayPendingReauth({ userId, providerError }: ReplayContext): Promise<void> {
   const raw = sessionStorage.getItem(PENDING_REAUTH_STORAGE_KEY);
-  if (raw === null) return;
   clearPendingReauth();
-  const pending = parsePending(raw);
-  if (!pending || Date.now() - pending.at > REPLAY_MAX_AGE_MS) return;
+  // The layout is the one place a provider error becomes a toast, whether or not an entry was waiting (a plain link
+  // or sign-in that failed has none).
   if (providerError) {
     toast.error(providerError);
     return;
   }
+  if (raw === null) return;
+  const pending = parsePending(raw);
+  if (!pending || Date.now() - pending.at > REPLAY_MAX_AGE_MS) return;
   if (userId !== pending.userId) {
     toast.error(m.reauth_provider_mismatch());
     return;

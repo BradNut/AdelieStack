@@ -210,4 +210,19 @@ describe('returning from the provider', () => {
     expect(toast.error).toHaveBeenCalledExactlyOnceWith('Could not unlink the account.');
     expect(toast.success).not.toHaveBeenCalled();
   });
+
+  it('shows the provider error once even when nothing was pending', async () => {
+    await replayPendingReauth({ userId: 'u1', providerError: 'Registration is closed.' });
+
+    expect(toast.error).toHaveBeenCalledExactlyOnceWith('Registration is closed.');
+  });
+
+  it('shows the provider error once when the stored entry is unreadable', async () => {
+    sessionStorage.setItem(PENDING_REAUTH_STORAGE_KEY, 'not json');
+
+    await replayPendingReauth({ userId: 'u1', providerError: 'Registration is closed.' });
+
+    expect(toast.error).toHaveBeenCalledExactlyOnceWith('Registration is closed.');
+    expect(sessionStorage.getItem(PENDING_REAUTH_STORAGE_KEY)).toBeNull();
+  });
 });
