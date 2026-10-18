@@ -1,17 +1,20 @@
 import {
   AUTH_RATE_LIMIT_DEFAULT,
   AUTH_RATE_LIMIT_DEFAULT_PATHS,
+  AUTH_RATE_LIMIT_EMAIL,
   AUTH_RATE_LIMIT_RULES,
   AUTH_RATE_LIMIT_STRICT,
   type AuthRateLimitRule,
   RETRY_AFTER_HEADER,
 } from '@adelie/shared';
+import { totpCode } from '@adelie/test-utils/totp';
 import { memoryAdapter } from 'better-auth/adapters/memory';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { type Auth, createAuth } from '#lib/server/api/auth/auth.config';
 import type { AuthRateLimitStorage } from '#lib/server/api/auth/auth.rate-limit';
 import { AUTH_RATE_LIMIT_REDIS_PREFIX, AuthRateLimitRepository } from '#lib/server/api/auth/auth.rate-limit.repository';
 import type { RedisService } from '#lib/server/api/databases/redis/redis.service';
+import type { SendProps } from '#lib/server/api/mail/interfaces/mailer.interface';
 import { createRedisServiceMock } from '../../../../../test/mocks/redis.mock';
 
 const ORIGIN = 'http://localhost:5173';
@@ -80,6 +83,7 @@ function build({
 } = {}) {
   const { redis, repository } = createRepository();
   const db = { user: [], session: [], account: [], verification: [], twoFactor: [], passkey: [] };
+  const send = vi.fn<(data: SendProps) => Promise<void>>().mockResolvedValue();
   const auth: Auth = createAuth({
     database: memoryAdapter(db),
     secret: 'test-secret-that-is-at-least-32-characters',
@@ -87,23 +91,42 @@ function build({
     trustedOrigins: [ORIGIN],
     twoFactorIssuer: 'AdelieStack',
     passkey: { rpID: 'localhost', rpName: 'AdelieStack', origin: ORIGIN },
-    mailer: { send: async () => {} },
+    mailer: { send },
     signUpEnabled: true,
     hibpEnabled: false,
     trustProxy,
     ...(withRateLimit ? { rateLimitStorage: override ?? repository } : {}),
   });
-  return { auth, redis, db };
+  return { auth, redis, db, send };
 }
 
-const post = (auth: Auth, path: string, body: unknown, ip = '203.0.113.7') =>
+const post = (auth: Auth, path: string, body: unknown, ip = '203.0.113.7', cookie?: string) =>
   auth.handler(
     new Request(`${ORIGIN}/api/auth${path}`, {
       method: 'POST',
-      headers: new Headers({ origin: ORIGIN, 'content-type': 'application/json', 'x-forwarded-for': ip }),
+      headers: new Headers({ origin: ORIGIN, 'content-type': 'application/json', 'x-forwarded-for': ip, ...(cookie ? { cookie } : {}) }),
       body: JSON.stringify(body),
     }),
   );
+
+/** The response's Set-Cookie pairs as a Cookie header. */
+const cookiesFrom = (res: Response) =>
+  res.headers
+    .getSetCookie()
+    .map((c) => c.split(';')[0])
+    .join('; ');
+
+/** Signs up, enrols TOTP, then starts a password sign-in: returns the two-factor challenge cookie. */
+async function startTwoFactorSignIn(auth: Auth) {
+  const credentials = { email: 'member@example.com', password: 'Correct-horse-9' };
+  const session = cookiesFrom(await post(auth, '/sign-up/email', { name: 'Member', ...credentials }));
+  const enable = await post(auth, '/two-factor/enable', { password: credentials.password }, undefined, session);
+  const { totpURI } = (await enable.json()) as { totpURI: string };
+  await post(auth, '/two-factor/verify-totp', { code: totpCode(totpURI) }, undefined, session);
+  const signIn = await post(auth, '/sign-in/email', credentials);
+  expect(await signIn.json()).toMatchObject({ twoFactorRedirect: true });
+  return cookiesFrom(signIn);
+}
 
 const signIn = (auth: Auth, ip?: string) => post(auth, '/sign-in/email', { email: 'nobody@example.com', password: 'Wrong-password-1' }, ip);
 
@@ -125,11 +148,12 @@ describe('auth rate limiting', () => {
     expect((await signIn(auth, '203.0.113.8')).status).not.toBe(429);
   });
 
-  // The two-factor management endpoints need a session, so they answer 401 until the limiter, which runs first, refuses them.
+  // The two-factor management endpoints and sending a code need a session or a challenge cookie, so they answer 401 until the limiter, which runs first, refuses them.
   // Strict rows come from the rule table itself; the explicit rows are the own rules, where the passkey path differs from its key.
   it.each<readonly [path: string, rule: string]>([
     ...EXACT_RULE_KEYS.filter((key) => RULES[key] === AUTH_RATE_LIMIT_STRICT).map((key) => [key, key] as const),
     ['/request-password-reset', '/request-password-reset'],
+    ['/two-factor/send-otp', '/two-factor/send-otp'],
     ['/reset-password', '/reset-password'],
     ['/passkey/generate-authenticate-options', '/passkey/*'],
   ])('applies the stricter rule to %s, with a retry time', async (path, rule) => {
@@ -143,6 +167,23 @@ describe('auth rate limiting', () => {
 
     expect(res.status).toBe(429);
     expect(Number(res.headers.get(RETRY_AFTER_HEADER))).toBeGreaterThan(0);
+  });
+
+  it('emails a two-factor code only up to the email limit, then refuses with a retry time and sends nothing', async () => {
+    const { auth, send } = build();
+    const challenge = await startTwoFactorSignIn(auth);
+    send.mockClear(); // drop the sign-up verification email
+    const sendOtp = () => post(auth, '/two-factor/send-otp', {}, undefined, challenge);
+    for (let i = 1; i <= AUTH_RATE_LIMIT_EMAIL.max; i++) {
+      expect((await sendOtp()).status).toBe(200);
+      expect(send).toHaveBeenCalledTimes(i);
+    }
+
+    const res = await sendOtp();
+
+    expect(res.status).toBe(429);
+    expect(Number(res.headers.get(RETRY_AFTER_HEADER))).toBeGreaterThan(0);
+    expect(send).toHaveBeenCalledTimes(AUTH_RATE_LIMIT_EMAIL.max);
   });
 
   // A union of every endpoint's fields, so one payload serves them all.
@@ -205,8 +246,12 @@ describe('auth rate limiting', () => {
     expect(shadowedExactKeys(reordered)).toEqual(['/sign-in/email after /sign-in/*', '/two-factor/verify-totp after /two-factor/*']);
   });
 
-  it('keeps the strict limit below the default', () => {
-    expect(AUTH_RATE_LIMIT_STRICT.max).toBeLessThan(AUTH_RATE_LIMIT_DEFAULT.max);
+  it.each([
+    ['strict', AUTH_RATE_LIMIT_STRICT],
+    ['email', AUTH_RATE_LIMIT_EMAIL],
+  ] as const)('keeps the %s limit below the default', (_name, rule) => {
+    // Fewer requests per second than the default: max / window, compared without division.
+    expect(rule.max * AUTH_RATE_LIMIT_DEFAULT.window).toBeLessThan(AUTH_RATE_LIMIT_DEFAULT.max * rule.window);
   });
 
   it('keeps its counters in the injected storage, not in process memory', async () => {
