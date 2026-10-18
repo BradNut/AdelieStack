@@ -1,4 +1,4 @@
-import { AUTH_RATE_LIMIT_RULES } from '@adelie/shared';
+import { AUTH_RATE_LIMIT_DEFAULT, AUTH_RATE_LIMIT_RULES, AUTH_RATE_LIMIT_STRICT } from '@adelie/shared';
 import { memoryAdapter } from 'better-auth/adapters/memory';
 import { describe, expect, it } from 'vitest';
 import { type Auth, createAuth } from '#lib/server/api/auth/auth.config';
@@ -8,7 +8,7 @@ import type { RedisService } from '#lib/server/api/databases/redis/redis.service
 import { createRedisServiceMock } from '../../../../../test/mocks/redis.mock';
 
 const ORIGIN = 'http://localhost:5173';
-const SIGN_IN_MAX = AUTH_RATE_LIMIT_RULES['/sign-in/*'].max;
+const SIGN_IN_MAX = AUTH_RATE_LIMIT_STRICT.max;
 
 /** The repository over the shared RedisService mock, so the counters land in its in-memory `store`. */
 function createRepository() {
@@ -73,7 +73,10 @@ describe('auth rate limiting', () => {
   });
 
   it.each([
-    ['/two-factor/verify-totp', '/two-factor/*'],
+    ['/sign-in/email', '/sign-in/email'],
+    ['/two-factor/verify-totp', '/two-factor/verify-totp'],
+    ['/two-factor/verify-otp', '/two-factor/verify-otp'],
+    ['/two-factor/verify-backup-code', '/two-factor/verify-backup-code'],
     ['/request-password-reset', '/request-password-reset'],
     ['/reset-password', '/reset-password'],
     ['/passkey/generate-authenticate-options', '/passkey/*'],
@@ -83,6 +86,17 @@ describe('auth rate limiting', () => {
     for (let i = 0; i < max; i++) expect((await post(auth, path, { email: 'a@example.com', code: '000000' })).status).not.toBe(429);
 
     expect((await post(auth, path, { email: 'a@example.com', code: '000000' })).status).toBe(429);
+  });
+
+  it.each(['/sign-in/social', '/two-factor/enable', '/two-factor/send-otp'])('does not apply the strict limit to %s', async (path) => {
+    const { auth } = build();
+    for (let i = 0; i <= SIGN_IN_MAX * 2; i++) {
+      expect((await post(auth, path, { provider: 'github', callbackURL: '/', password: 'Wrong-password-1' })).status).not.toBe(429);
+    }
+  });
+
+  it('keeps the strict limit below the default', () => {
+    expect(AUTH_RATE_LIMIT_STRICT.max).toBeLessThan(AUTH_RATE_LIMIT_DEFAULT.max);
   });
 
   it('keeps its counters in the injected storage, not in process memory', async () => {
