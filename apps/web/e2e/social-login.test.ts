@@ -1,5 +1,6 @@
 import { SOCIAL_WEB_ORIGIN } from '../playwright.config';
 import { newUser, signUp } from './support/auth';
+import { linkProviderAccount, makeSessionsStale } from './support/db';
 import { expect, test } from './support/test';
 
 // The e2e API runs without provider credentials, as a fresh install does.
@@ -65,5 +66,51 @@ test.describe('with a social provider configured', () => {
     await page.goto('/signup');
 
     await expect(page.getByRole('button', { name: 'GitHub' })).toBeVisible();
+  });
+});
+
+// Re-authenticating with a provider on a stale session. The authorize request is intercepted, so no provider is contacted.
+test.describe('re-authentication with a linked provider', () => {
+  test.use({ baseURL: SOCIAL_WEB_ORIGIN });
+
+  test('the dialog sends the browser to the provider asking for an account choice, and keeps the action pending', async ({ page }) => {
+    const user = newUser();
+    await signUp(page, user);
+    await linkProviderAccount(user.email, 'github');
+    await makeSessionsStale(user.email);
+    let authorizeUrl: URL | undefined;
+    // The page leaves for the provider's origin, taking its sessionStorage along, so every write to it is reported out.
+    let stored: string | null = null;
+    await page.exposeFunction('reportStorageWrite', (key: string, value: string) => {
+      if (key === 'adelie.reauth.pending') stored = value;
+    });
+    await page.addInitScript(() => {
+      const setItem = Storage.prototype.setItem;
+      Storage.prototype.setItem = function (key: string, value: string) {
+        (window as unknown as { reportStorageWrite(key: string, value: string): void }).reportStorageWrite(key, value);
+        return setItem.call(this, key, value);
+      };
+    });
+    await page.route('https://github.com/login/oauth/authorize**', async (route) => {
+      authorizeUrl = new URL(route.request().url());
+      await route.fulfill({ status: 200, contentType: 'text/html', body: '<title>provider</title>' });
+    });
+
+    await page.goto('/settings/connected-accounts?tab=1');
+    const startRequest = page.waitForRequest((request) => request.url().endsWith('/api/auth/sign-in/social'));
+    await page.getByRole('button', { name: 'Unlink' }).click();
+    const dialog = page.getByTestId('reauth-dialog');
+    await expect(dialog.getByLabel('Password')).toBeVisible();
+    await dialog.getByRole('button', { name: 'Continue with GitHub' }).click();
+
+    await expect.poll(() => authorizeUrl?.searchParams.get('prompt')).toBe('select_account');
+    // Whether the provider honours the hint is up to it (GitHub's authorize URL carries none), so it is checked where it is sent.
+    expect((await startRequest).postDataJSON()).toMatchObject({
+      provider: 'github',
+      loginHint: user.email,
+      callbackURL: '/settings/connected-accounts?tab=1',
+      errorCallbackURL: '/settings/connected-accounts?tab=1',
+    });
+    expect(JSON.parse(stored ?? 'null')).toMatchObject({ action: { key: 'unlink-account' }, userId: expect.any(String) });
   });
 });

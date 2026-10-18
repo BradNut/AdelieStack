@@ -30,3 +30,22 @@ export async function makeSessionsStale(email: string): Promise<void> {
     await client.end();
   }
 }
+
+/**
+ * Links a provider account to the user without the provider round trip, as if they had connected it earlier.
+ * Only for flows that need a linked provider to exist; no provider is ever contacted.
+ */
+export async function linkProviderAccount(email: string, providerId: string): Promise<void> {
+  const client = new pg.Client(connectionConfig());
+  await client.connect();
+  try {
+    const result = await client.query(
+      `INSERT INTO accounts (id, account_id, provider_id, user_id, created_at, updated_at)
+       SELECT $1, $2, $3, id, now(), now() FROM users WHERE email = $4`,
+      [`e2e-${providerId}-${Date.now()}`, `e2e-${providerId}-subject`, providerId, email],
+    );
+    if (result.rowCount === 0) throw new Error(`No user found for ${email}`);
+  } finally {
+    await client.end();
+  }
+}
