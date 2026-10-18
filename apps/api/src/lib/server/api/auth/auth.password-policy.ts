@@ -33,8 +33,9 @@ const isPasswordPolicyPath = (path: string): path is keyof typeof PASSWORD_FIELD
  * `haveIBeenPwned` plugin (which screens while hashing, too late on these two):
  * - admin create-user inserts the user before hashing, so a rejection would leave an account
  *   without credentials (better-auth/better-auth#11706);
- * - reset-password consumes the reset token before hashing, so a rejection would burn the link
- *   (better-auth/better-auth#10632, fixed on main but not in 1.7.7).
+ * - reset-password: Better Auth 1.7.8 no longer burns the reset link on a rejected password
+ *   (better-auth/better-auth#10632); it stays here so a breached or unscreenable password is
+ *   rejected with the same codes as the other paths, before any token or session work.
  */
 const PRE_SCREENED_PATHS: readonly string[] = [PasswordPolicyPath.ADMIN_CREATE_USER, PasswordPolicyPath.RESET_PASSWORD];
 
