@@ -47,12 +47,17 @@ export const replayProgress = $state({ completed: 0 });
 /** Every replayable action: runs it with its stored arguments and shows its normal success or error message. */
 const REPLAYABLE_ACTIONS: { [K in ReplayActionKey]: (args: ReplayArgs[K]) => Promise<void> } = {
   async [ReplayActionKey.UNLINK_ACCOUNT]({ accountId }) {
-    const { data: accounts } = await authClient.listAccounts();
-    const account = accounts?.find((row) => row.id === accountId);
-    // Already unlinked, e.g. from another tab: nothing is left to do.
-    if (!account) return;
-    const { error } = await authClient.unlinkAccount({ accountId });
-    notifyUnlinked(error, providerLabel(account.providerId));
+    try {
+      const { data: accounts } = await authClient.listAccounts();
+      const account = accounts?.find((row) => row.id === accountId);
+      // Already unlinked, e.g. from another tab: nothing is left to do.
+      if (!account) return;
+      const { error } = await authClient.unlinkAccount({ accountId });
+      notifyUnlinked(error, providerLabel(account.providerId));
+    } catch {
+      // A thrown network error: nothing returned an error object, so show the action's own failure message.
+      toast.error(m.connected_accounts_unlink_failed());
+    }
   },
 };
 

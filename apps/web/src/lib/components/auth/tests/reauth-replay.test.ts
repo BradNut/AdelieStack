@@ -200,4 +200,14 @@ describe('returning from the provider', () => {
     expect(network.sent(UNLINK)).toEqual([]);
     expect(toast.error).not.toHaveBeenCalled();
   });
+
+  it('shows the normal failure toast when the replayed action throws', async () => {
+    await leaveForProvider(UNLINK_GITHUB);
+    vi.mocked(fetch).mockRejectedValue(new TypeError('Failed to fetch'));
+
+    await expect(replayPendingReauth({ userId: 'u1', providerError: null })).resolves.toBeUndefined();
+
+    expect(toast.error).toHaveBeenCalledExactlyOnceWith('Could not unlink the account.');
+    expect(toast.success).not.toHaveBeenCalled();
+  });
 });
