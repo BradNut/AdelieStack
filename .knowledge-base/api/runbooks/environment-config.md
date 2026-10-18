@@ -67,8 +67,10 @@ Better Auth's own limiter guards every `/api/auth/*` request, keyed by client IP
 
 - **Rules**: `AUTH_RATE_LIMIT_DEFAULT` (100 a minute) and the per-path `AUTH_RATE_LIMIT_RULES` in `packages/shared/src/constants/auth-rate-limits.ts`. Change limits there, not in `auth.config.ts`.
   - **Strict** (`AUTH_RATE_LIMIT_STRICT`, 5 a minute): email sign-in; the two-factor verify endpoints (TOTP, OTP, backup code); and the password-checking two-factor endpoints (disable, get TOTP URI, generate backup codes).
-  - **Own rules**: password reset and passkey.
-  - **Default**: social sign-in starts, enabling two-factor and sending an OTP. The rule table pins `/sign-in/*` and `/two-factor/*` to the default, because Better Auth's own built-in limit for those paths is much tighter and applies otherwise.
+  - **Email** (`AUTH_RATE_LIMIT_EMAIL`, 3 per 5 minutes): the endpoints that send an email, emailing a two-factor code and requesting a password reset. The window is derived from `TWO_FACTOR_OTP_PERIOD_MINUTES`, how long an emailed code stays valid.
+    - Counted per client IP, like every auth rule: it stops one client flooding an inbox, not many IPs sending to the same account. There is no per-account cap.
+  - **Own rules**: resetting a password and passkey.
+  - **Default**: social sign-in starts and enabling two-factor. The rule table pins `/sign-in/*` and `/two-factor/*` to the default, because Better Auth's own built-in limit for those paths is much tighter and applies otherwise.
   - **New endpoints**: a new credential or code-guessing endpoint needs its own exact entry, above the wildcards. Tests fail when an exact entry comes after a wildcard that matches it, when an endpoint starting with `/sign-in` or `/two-factor` (with or without a slash) has no exact entry and is not deliberately on the default, and when a deliberately-default path no longer exists or has gained an exact entry. That allow-list is `AUTH_RATE_LIMIT_DEFAULT_PATHS`, next to the rules.
 - **Throttled response**: `429` with an `X-Retry-After` header (seconds).
 - **`DISABLE_RATE_LIMIT=true`**: auth rate limiting is off and Redis is not touched by auth. Restart the API after changing it. Use it for tests and controlled environments only.

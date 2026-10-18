@@ -1,7 +1,8 @@
+import { TWO_FACTOR_OTP_PERIOD_MINUTES } from '@adelie/shared';
 import { totpCode } from '@adelie/test-utils/totp';
 import { memoryAdapter } from 'better-auth/adapters/memory';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { type Auth, createAuth, TWO_FACTOR_OTP_PERIOD_MINUTES } from '#lib/server/api/auth/auth.config';
+import { type Auth, createAuth } from '#lib/server/api/auth/auth.config';
 import type { SendProps } from '#lib/server/api/mail/interfaces/mailer.interface';
 
 const ORIGIN = 'http://localhost:5173';
