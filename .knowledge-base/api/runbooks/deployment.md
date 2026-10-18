@@ -11,7 +11,7 @@ Push to `main` → Coolify auto-builds → replaces container on success.
 
 ## Nixpacks (`apps/api/nixpacks.toml`)
 
-- Node 22 (`nodejs_22`), apt: `libvips-dev libvips-tools build-essential libpng-dev libjpeg-dev
+- Node 24 (`nodejs_24`), apt: `libvips-dev libvips-tools build-essential libpng-dev libjpeg-dev
   zlib1g-dev` (sharp + argon2 native deps)
 - Install: `corepack enable && corepack prepare pnpm@10.26.0 --activate`, then
   `pnpm install --frozen-lockfile --filter @adelie/api...`

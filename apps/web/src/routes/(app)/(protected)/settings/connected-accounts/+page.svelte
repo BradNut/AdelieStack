@@ -4,6 +4,7 @@
 	import { toast } from 'svelte-sonner';
 	import { authClient } from '#lib/auth-client.ts';
 	import { toastIfError } from '#lib/client/auth-form.ts';
+	import { withFreshSession } from '#lib/client/fresh-session.svelte.ts';
 	import { linkProvider, SOCIAL_ERROR_PARAM, socialErrorMessage } from '#lib/client/social-auth.ts';
 	import { Button } from '#lib/components/ui/button/index.ts';
 	import * as Card from '#lib/components/ui/card/index.ts';
@@ -37,7 +38,7 @@
 
 	async function unlink(account: AccountRow) {
 		if (isOnlyAccount) return;
-		const { error } = await authClient.unlinkAccount({ accountId: account.id });
+		const { error } = await withFreshSession(() => authClient.unlinkAccount({ accountId: account.id }));
 		if (toastIfError(error, m.connected_accounts_unlink_failed())) return;
 		toast.success(m.connected_accounts_unlinked({ provider: labelOf(account.providerId) }));
 		await load();
