@@ -1,5 +1,6 @@
 import { AUTH_BASE_PATH, CAPTCHA_PROTECTED_PATHS, CAPTCHA_RESPONSE_HEADER, RETRY_AFTER_HEADER, StatusCodes } from '@adelie/shared';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { CAPTCHA_CONFIG_PATH } from '#lib/client/captcha/config.ts';
 import { CAPTCHA_BINDING_HEADER, CAPTCHA_BINDING_VALUE } from '#lib/constants/captcha.ts';
 import { withCaptchaBinding } from '../captcha-binding';
 import { withRetryAfter } from '../retry-after';
@@ -61,7 +62,7 @@ describe('withCaptchaBinding', () => {
     });
   });
 
-  it.each([`${AUTH_BASE_PATH}/get-session`, `${AUTH_BASE_PATH}/sign-in/passkey`, `${AUTH_BASE_PATH}/sign-in/email/extra`, '/api/config/captcha'])(
+  it.each([`${AUTH_BASE_PATH}/get-session`, `${AUTH_BASE_PATH}/sign-in/passkey`, `${AUTH_BASE_PATH}/sign-in/email/extra`, CAPTCHA_CONFIG_PATH])(
     'passes the unprotected path %s through untouched',
     async (path) => {
       const { base, fetch } = guarded();

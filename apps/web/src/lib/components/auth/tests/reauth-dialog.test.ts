@@ -35,6 +35,8 @@ const TOKEN = 'widget-token';
 const SIGN_IN = authPath('/sign-in/email');
 const PASSKEY_VERIFY = authPath('/passkey/verify-authentication');
 
+const THROTTLED = { status: StatusCodes.TOO_MANY_REQUESTS, body: { message: 'Too many requests' }, headers: { [RETRY_AFTER_HEADER]: '42' } };
+
 let network: ReturnType<typeof stubFetch>;
 
 /** What `navigator.credentials.get` resolves with when the user approves a passkey. */
@@ -123,13 +125,14 @@ describe('ReauthDialog', () => {
     expect(settled).not.toHaveBeenCalled();
   });
 
-  it('shows the throttled message when password sign-in is rate limited', async () => {
-    network.reply(SIGN_IN, {
-      status: StatusCodes.TOO_MANY_REQUESTS,
-      body: { message: 'Too many requests' },
-      headers: { [RETRY_AFTER_HEADER]: '42' },
-    });
+  it.each([
+    ['off', false],
+    ['on', true],
+  ])('shows the throttled message when password sign-in is rate limited with captcha %s', async (_name, captchaOn) => {
+    if (captchaOn) network.captcha(ENABLED);
+    network.reply(SIGN_IN, THROTTLED);
     open();
+    if (captchaOn) await solveCaptcha();
 
     await confirmPassword();
 
@@ -237,20 +240,6 @@ describe('ReauthDialog', () => {
       expect(freshSession.open).toBe(true);
     });
 
-    it('still shows the throttled message', async () => {
-      network.reply(SIGN_IN, {
-        status: StatusCodes.TOO_MANY_REQUESTS,
-        body: { message: 'Too many requests' },
-        headers: { [RETRY_AFTER_HEADER]: '42' },
-      });
-      open();
-      await solveCaptcha();
-
-      await confirmPassword();
-
-      expect((await screen.findByTestId('reauth-error')).textContent).toBe('Too many attempts. Please try again in 42 seconds.');
-    });
-
     it.each([
       ['a successful', {}],
       ['a failed', { status: StatusCodes.UNAUTHORIZED, body: { message: 'Invalid email or password' } }],
@@ -284,6 +273,18 @@ describe('ReauthDialog', () => {
       expect(await outcome).toBe(ReauthOutcome.CONFIRMED);
       expect(screen.queryByTestId('captcha-widget')).toBeNull();
       expect(renderWidget).not.toHaveBeenCalled();
+    });
+
+    it('sends no Captcha Token with passkey confirmation when the password form shows a challenge', async () => {
+      setup({ passkeys: [{ id: 'pk' }] });
+      const outcome = open();
+      await solveCaptcha();
+
+      await fireEvent.click(screen.getByRole('button', { name: 'Use a passkey' }));
+
+      expect(await outcome).toBe(ReauthOutcome.CONFIRMED);
+      expect(network.sent(PASSKEY_VERIFY)[0]?.headers.has(CAPTCHA_RESPONSE_HEADER)).toBe(false);
+      expect(widget.reset).not.toHaveBeenCalled();
     });
   });
 });

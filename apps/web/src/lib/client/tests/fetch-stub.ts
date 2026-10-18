@@ -1,4 +1,4 @@
-import { AUTH_BASE_PATH, type CaptchaPublicConfig, CONTENT_TYPE_HEADER, JSON_CONTENT_TYPE } from '@adelie/shared';
+import { AUTH_BASE_PATH, type CaptchaPublicConfig, CONTENT_TYPE_HEADER, JSON_CONTENT_TYPE, StatusCodes } from '@adelie/shared';
 import { vi } from 'vitest';
 import { CAPTCHA_CONFIG_PATH, clearCaptchaConfigCache } from '#lib/client/captcha/config.ts';
 
@@ -38,7 +38,7 @@ export function stubFetch() {
       requests.push({ path, method: request.method, headers: request.headers, body: text ? JSON.parse(text) : undefined });
       const reply = replies.get(path) ?? (path === CAPTCHA_CONFIG_PATH ? { body: { enabled: false } } : {});
       return new Response(JSON.stringify(reply.body ?? {}), {
-        status: reply.status ?? 200,
+        status: reply.status ?? StatusCodes.OK,
         headers: { [CONTENT_TYPE_HEADER]: JSON_CONTENT_TYPE, ...reply.headers },
       });
     }),
