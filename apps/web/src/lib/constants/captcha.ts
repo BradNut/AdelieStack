@@ -1,8 +1,8 @@
 /**
  * Internal header that marks a Better Auth request as bound to a Captcha Token by `createCaptchaForm().attempt`.
- * Web-only: meant for a captcha binding guard in the web auth client to check on captcha-protected paths and strip
- * before sending. Until that guard exists it reaches the API, which ignores it. It marks the binding, not the token:
- * it is sent with captcha on or off.
+ * Web-only: the captcha binding guard in the web auth client (`withCaptchaBinding`) requires it on captcha-protected
+ * paths and strips it before sending, so it never reaches the API. It marks the binding, not the token: it is sent
+ * with captcha on or off.
  */
 export const CAPTCHA_BINDING_HEADER = 'x-adelie-captcha-bound';
 

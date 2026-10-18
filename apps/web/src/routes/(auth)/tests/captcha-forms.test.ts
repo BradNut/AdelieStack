@@ -1,23 +1,14 @@
 // @vitest-environment jsdom
-import { CAPTCHA_RESPONSE_HEADER, CAPTCHA_UNAVAILABLE, CAPTCHA_VERIFICATION_FAILED, CaptchaProvider, type CaptchaPublicConfig } from '@adelie/shared';
+import { CAPTCHA_RESPONSE_HEADER, CAPTCHA_UNAVAILABLE, CAPTCHA_VERIFICATION_FAILED, CaptchaProvider, StatusCodes } from '@adelie/shared';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { CAPTCHA_BINDING_HEADER, CAPTCHA_BINDING_VALUE } from '#lib/constants/captcha.ts';
+import { authPath, stubFetch } from '#lib/client/tests/fetch-stub.ts';
 
-const authClient = vi.hoisted(() => ({
-  signIn: { email: vi.fn(), passkey: vi.fn() },
-  signUp: { email: vi.fn() },
-  requestPasswordReset: vi.fn(),
-  resetPassword: vi.fn(),
-  sendVerificationEmail: vi.fn(),
-  getLastUsedLoginMethod: vi.fn(() => null),
-}));
-const getCaptchaConfig = vi.fn<() => Promise<CaptchaPublicConfig>>();
 const widget = { reset: vi.fn(), destroy: vi.fn() };
 const renderWidget = vi.fn();
 
-vi.mock('#lib/auth-client.ts', () => ({ authClient }));
-vi.mock('#lib/client/captcha/config.ts', () => ({ getCaptchaConfig: () => getCaptchaConfig() }));
+// The real auth client runs, so its captcha binding guard checks every protected call; only the network and the
+// Captcha Provider widget are stubbed.
 vi.mock('#lib/client/captcha/widgets.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('#lib/client/captcha/widgets.ts')>()),
   captchaWidgetFor: (provider: string) => ({ provider, render: renderWidget }),
@@ -37,29 +28,21 @@ import SignupPage from '../signup/+page.svelte';
 
 const ENABLED = { enabled: true, provider: CaptchaProvider.TURNSTILE, siteKey: 'site' } as const;
 const TOKEN = 'widget-token';
-const BOUND_NO_TOKEN = { headers: { [CAPTCHA_BINDING_HEADER]: CAPTCHA_BINDING_VALUE } };
-const WITH_TOKEN = { headers: { [CAPTCHA_BINDING_HEADER]: CAPTCHA_BINDING_VALUE, [CAPTCHA_RESPONSE_HEADER]: TOKEN } };
+
+let network: ReturnType<typeof stubFetch>;
 
 beforeEach(() => {
-  for (const fn of [
-    widget.reset,
-    widget.destroy,
-    renderWidget,
-    ...Object.values(authClient.signIn),
-    authClient.signUp.email,
-    authClient.requestPasswordReset,
-    authClient.sendVerificationEmail,
-  ]) {
-    fn.mockReset();
-  }
-  renderWidget.mockResolvedValue(widget);
-  getCaptchaConfig.mockResolvedValue({ enabled: false });
-  for (const call of [authClient.signIn.email, authClient.signUp.email, authClient.requestPasswordReset, authClient.sendVerificationEmail]) {
-    call.mockResolvedValue({ data: {}, error: null });
-  }
+  network = stubFetch();
+  widget.reset.mockReset();
+  widget.destroy.mockReset();
+  renderWidget.mockReset().mockResolvedValue(widget);
+  vi.mocked(toast.error).mockReset();
 });
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
 
 /** Waits for the widget to render, then plays the part of the provider handing back a token. */
 async function solveCaptcha() {
@@ -71,6 +54,9 @@ async function type(label: RegExp | string, value: string) {
   await fireEvent.input(screen.getAllByLabelText(label)[0] as HTMLElement, { target: { value } });
 }
 
+/** The requests that reached the network for a Better Auth endpoint, after the binding guard let them through. */
+const sentTo = (endpoint: string) => network.sent(authPath(endpoint));
+
 const forms = [
   {
     name: 'sign-in',
@@ -80,7 +66,7 @@ const forms = [
       await type('Password', 'correct horse battery');
     },
     submit: () => fireEvent.click(screen.getByRole('button', { name: 'Login' })),
-    call: () => authClient.signIn.email,
+    endpoint: '/sign-in/email',
   },
   {
     name: 'sign-up',
@@ -92,7 +78,7 @@ const forms = [
       await type('Confirm Password', 'correct horse battery');
     },
     submit: () => fireEvent.click(screen.getByRole('button', { name: 'Signup' })),
-    call: () => authClient.signUp.email,
+    endpoint: '/sign-up/email',
   },
   {
     name: 'request-password-reset',
@@ -100,35 +86,35 @@ const forms = [
       render(ResetPage, { data: { signUpEnabled: true, socialProviders: [], flash: undefined, authedUser: null, token: null, linkError: null } }),
     fill: () => type('Email', 'a@example.com'),
     submit: () => fireEvent.click(screen.getByRole('button', { name: 'Send reset link' })),
-    call: () => authClient.requestPasswordReset,
+    endpoint: '/request-password-reset',
   },
 ];
 
-describe.each(forms)('$name form', ({ mount, fill, submit, call }) => {
-  it('shows no widget and sends only the binding marker when captcha is disabled', async () => {
+describe.each(forms)('$name form', ({ mount, fill, submit, endpoint }) => {
+  it('shows no widget and sends no Captcha Token when captcha is disabled', async () => {
     mount();
     await fill();
     await submit();
 
-    await waitFor(() => expect(call()).toHaveBeenCalled());
+    await waitFor(() => expect(sentTo(endpoint)).toHaveLength(1));
     expect(screen.queryByTestId('captcha-widget')).toBeNull();
-    expect(call().mock.calls[0]?.[1]).toEqual(BOUND_NO_TOKEN);
+    expect(sentTo(endpoint)[0]?.headers.has(CAPTCHA_RESPONSE_HEADER)).toBe(false);
   });
 
-  it('renders the widget and sends the token in the captcha header when enabled', async () => {
-    getCaptchaConfig.mockResolvedValue(ENABLED);
+  it('renders the widget when config reports captcha enabled, and sends its token', async () => {
+    network.captcha(ENABLED);
     mount();
     expect(await screen.findByTestId('captcha-widget')).toBeTruthy();
     await solveCaptcha();
     await fill();
     await submit();
 
-    await waitFor(() => expect(call()).toHaveBeenCalled());
-    expect(call().mock.calls[0]?.[1]).toEqual(WITH_TOKEN);
+    await waitFor(() => expect(sentTo(endpoint)).toHaveLength(1));
+    expect(sentTo(endpoint)[0]?.headers.get(CAPTCHA_RESPONSE_HEADER)).toBe(TOKEN);
   });
 
   it('starts a new challenge after the attempt, because the token is single-use', async () => {
-    getCaptchaConfig.mockResolvedValue(ENABLED);
+    network.captcha(ENABLED);
     mount();
     await solveCaptcha();
     await fill();
@@ -138,11 +124,11 @@ describe.each(forms)('$name form', ({ mount, fill, submit, call }) => {
   });
 
   it.each([
-    [CAPTCHA_VERIFICATION_FAILED, 'Invalid captcha, please try again.'],
-    [CAPTCHA_UNAVAILABLE, 'Captcha is temporarily unavailable. Please try again later.'],
-  ])('shows the translated message for %s', async (code, text) => {
-    getCaptchaConfig.mockResolvedValue(ENABLED);
-    call().mockResolvedValue({ data: null, error: { code, message: 'raw server text' } });
+    [CAPTCHA_VERIFICATION_FAILED, StatusCodes.FORBIDDEN, 'Invalid captcha, please try again.'],
+    [CAPTCHA_UNAVAILABLE, StatusCodes.SERVICE_UNAVAILABLE, 'Captcha is temporarily unavailable. Please try again later.'],
+  ])('shows the translated message for %s', async (code, status, text) => {
+    network.captcha(ENABLED);
+    network.reply(authPath(endpoint), { status, body: { code, message: 'raw server text' } });
     mount();
     await solveCaptcha();
     await fill();
@@ -155,30 +141,32 @@ describe.each(forms)('$name form', ({ mount, fill, submit, call }) => {
 });
 
 describe('resend verification button', () => {
+  const ENDPOINT = '/send-verification-email';
+
   it('renders the widget when enabled and sends the token', async () => {
-    getCaptchaConfig.mockResolvedValue(ENABLED);
+    network.captcha(ENABLED);
     render(ResendVerificationButton, { email: 'a@example.com' });
     expect(await screen.findByTestId('captcha-widget')).toBeTruthy();
     await solveCaptcha();
     await fireEvent.click(screen.getByTestId('resend-verification'));
 
-    await waitFor(() => expect(authClient.sendVerificationEmail).toHaveBeenCalled());
-    expect(authClient.sendVerificationEmail.mock.calls[0]?.[1]).toEqual(WITH_TOKEN);
-    expect(widget.reset).toHaveBeenCalled();
+    await waitFor(() => expect(sentTo(ENDPOINT)).toHaveLength(1));
+    expect(sentTo(ENDPOINT)[0]?.headers.get(CAPTCHA_RESPONSE_HEADER)).toBe(TOKEN);
+    await waitFor(() => expect(widget.reset).toHaveBeenCalled());
   });
 
-  it('shows no widget and sends only the binding marker when disabled', async () => {
+  it('shows no widget and sends no Captcha Token when disabled', async () => {
     render(ResendVerificationButton, { email: 'a@example.com' });
     await fireEvent.click(screen.getByTestId('resend-verification'));
 
-    await waitFor(() => expect(authClient.sendVerificationEmail).toHaveBeenCalled());
+    await waitFor(() => expect(sentTo(ENDPOINT)).toHaveLength(1));
     expect(screen.queryByTestId('captcha-widget')).toBeNull();
-    expect(authClient.sendVerificationEmail.mock.calls[0]?.[1]).toEqual(BOUND_NO_TOKEN);
+    expect(sentTo(ENDPOINT)[0]?.headers.has(CAPTCHA_RESPONSE_HEADER)).toBe(false);
   });
 
   it('toasts the translated outage message', async () => {
-    getCaptchaConfig.mockResolvedValue(ENABLED);
-    authClient.sendVerificationEmail.mockResolvedValue({ data: null, error: { code: CAPTCHA_UNAVAILABLE, message: 'raw' } });
+    network.captcha(ENABLED);
+    network.reply(authPath(ENDPOINT), { status: StatusCodes.SERVICE_UNAVAILABLE, body: { code: CAPTCHA_UNAVAILABLE, message: 'raw' } });
     render(ResendVerificationButton, { email: 'a@example.com' });
     await solveCaptcha();
     await fireEvent.click(screen.getByTestId('resend-verification'));

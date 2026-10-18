@@ -218,7 +218,8 @@ describe('ReauthDialog', () => {
       expect(await outcome).toBe(ReauthOutcome.CONFIRMED);
       const [request] = network.sent(SIGN_IN);
       expect(request?.headers.get(CAPTCHA_RESPONSE_HEADER)).toBe(TOKEN);
-      expect(request?.headers.get(CAPTCHA_BINDING_HEADER)).not.toBeNull();
+      // The binding guard requires the marker and strips it before the request leaves.
+      expect(request?.headers.has(CAPTCHA_BINDING_HEADER)).toBe(false);
     });
 
     it.each([
