@@ -1,12 +1,15 @@
 <script lang="ts">
 	import { CREDENTIAL_PROVIDER_ID } from '@adelie/shared';
 	import { authClient } from '#lib/auth-client.ts';
+	import { createCaptchaForm } from '#lib/client/captcha/captcha-form.svelte.ts';
 	import { freshSession, ReauthOutcome } from '#lib/client/fresh-session.svelte.ts';
+	import CaptchaField from '#lib/components/auth/captcha-field.svelte';
 	import { Button } from '#lib/components/ui/button/index.ts';
 	import * as Dialog from '#lib/components/ui/dialog/index.ts';
 	import { Input } from '#lib/components/ui/input/index.ts';
 	import { Label } from '#lib/components/ui/label/index.ts';
 	import * as m from '#lib/paraglide/messages.js';
+	import { captchaErrorMessage } from '#lib/utils/captcha-messages.ts';
 	import { throttledMessage } from '#lib/utils/throttle-messages.ts';
 
 	/** How the signed-in user can prove who they are again. Null while still checking. */
@@ -20,6 +23,8 @@
 	let password = $state('');
 	let error = $state('');
 	let busy = $state(false);
+	// Password sign-in is captcha-protected; passkey sign-in is exempt (ADR 0004), so only the password form binds a token.
+	const captcha = createCaptchaForm();
 
 	const canReauthenticate = $derived(methods !== null && (methods.password || methods.passkey));
 
@@ -60,10 +65,11 @@
 		if (!methods?.password || busy) return;
 		busy = true;
 		error = '';
-		const { data, error: signInError } = await authClient.signIn.email({ email: methods.email, password });
+		const { email } = methods;
+		const { data, error: signInError } = await captcha.attempt((fetchOptions) => authClient.signIn.email({ email, password }, fetchOptions));
 		busy = false;
 		if (signInError) {
-			error = throttledMessage(signInError) ?? m.reauth_password_incorrect();
+			error = captchaErrorMessage(signInError) ?? throttledMessage(signInError) ?? m.reauth_password_incorrect();
 			return;
 		}
 		// A two-factor challenge is not a fresh session; the client already started its redirect.
@@ -109,6 +115,8 @@
 						<Label for="reauth-password">{m.reauth_password_label()}</Label>
 						<Input id="reauth-password" type="password" autocomplete="current-password" required bind:value={password} aria-invalid={error ? true : undefined} aria-describedby={error ? 'reauth-error' : undefined} />
 					</div>
+					<!-- Mounted only while the dialog is open, so each opening gets a fresh challenge that closing tears down. -->
+					<CaptchaField bind:this={captcha.field} onchange={captcha.setToken} />
 					<Button type="submit" disabled={busy}>{m.reauth_confirm()}</Button>
 				</form>
 			{/if}

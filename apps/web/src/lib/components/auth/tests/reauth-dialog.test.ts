@@ -220,5 +220,69 @@ describe('ReauthDialog', () => {
       expect(request?.headers.get(CAPTCHA_RESPONSE_HEADER)).toBe(TOKEN);
       expect(request?.headers.get(CAPTCHA_BINDING_HEADER)).not.toBeNull();
     });
+
+    it.each([
+      [CAPTCHA_MISSING_RESPONSE, StatusCodes.BAD_REQUEST, 'Invalid captcha, please try again.'],
+      [CAPTCHA_VERIFICATION_FAILED, StatusCodes.FORBIDDEN, 'Invalid captcha, please try again.'],
+      [CAPTCHA_UNAVAILABLE, StatusCodes.SERVICE_UNAVAILABLE, 'Captcha is temporarily unavailable. Please try again later.'],
+    ])('shows the captcha message for %s, not "password incorrect"', async (code, status, text) => {
+      network.reply(SIGN_IN, { status, body: { code, message: 'raw server text' } });
+      open();
+      await solveCaptcha();
+
+      await confirmPassword();
+
+      expect((await screen.findByTestId('reauth-error')).textContent).toBe(text);
+      expect(freshSession.open).toBe(true);
+    });
+
+    it('still shows the throttled message', async () => {
+      network.reply(SIGN_IN, {
+        status: StatusCodes.TOO_MANY_REQUESTS,
+        body: { message: 'Too many requests' },
+        headers: { [RETRY_AFTER_HEADER]: '42' },
+      });
+      open();
+      await solveCaptcha();
+
+      await confirmPassword();
+
+      expect((await screen.findByTestId('reauth-error')).textContent).toBe('Too many attempts. Please try again in 42 seconds.');
+    });
+
+    it.each([
+      ['a successful', {}],
+      ['a failed', { status: StatusCodes.UNAUTHORIZED, body: { message: 'Invalid email or password' } }],
+    ])('starts a new challenge after %s attempt, because the token is single-use', async (_name, reply) => {
+      network.reply(SIGN_IN, reply);
+      open();
+      await solveCaptcha();
+
+      await confirmPassword();
+
+      await waitFor(() => expect(widget.reset).toHaveBeenCalledOnce());
+    });
+
+    it('renders a fresh challenge on each opening and tears it down on close', async () => {
+      open();
+      await solveCaptcha();
+
+      await fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+      await waitFor(() => expect(widget.destroy).toHaveBeenCalledOnce());
+
+      freshSession.request();
+      await waitFor(() => expect(renderWidget).toHaveBeenCalledTimes(2));
+    });
+
+    it('shows no challenge for passkey-only confirmation', async () => {
+      setup({ accounts: [{ providerId: 'github' }], passkeys: [{ id: 'pk' }] });
+      const outcome = open();
+
+      await fireEvent.click(await screen.findByRole('button', { name: 'Use a passkey' }));
+
+      expect(await outcome).toBe(ReauthOutcome.CONFIRMED);
+      expect(screen.queryByTestId('captcha-widget')).toBeNull();
+      expect(renderWidget).not.toHaveBeenCalled();
+    });
   });
 });
