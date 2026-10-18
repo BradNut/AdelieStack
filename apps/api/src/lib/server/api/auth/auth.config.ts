@@ -9,6 +9,7 @@ import {
   MAX_PASSWORD_LENGTH,
   MIN_PASSWORD_LENGTH,
   RoleName,
+  TWO_FACTOR_OTP_PERIOD_MINUTES,
 } from '@adelie/shared';
 import { passkey } from '@better-auth/passkey';
 import { type BetterAuthOptions, betterAuth } from 'better-auth';
@@ -44,9 +45,6 @@ export const AUTH_PLACEHOLDER = {
   baseURL: 'http://localhost',
   passkey: { rpID: 'localhost', rpName: APP_NAME, origin: 'http://localhost' },
 } as const;
-
-/** Minutes an emailed two-factor code stays valid. */
-export const TWO_FACTOR_OTP_PERIOD_MINUTES = 5;
 
 /** WebAuthn relying-party settings. `origin` must be the web origin the browser runs on. */
 export interface PasskeyConfig {

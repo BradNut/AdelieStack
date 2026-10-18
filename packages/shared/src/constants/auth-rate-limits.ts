@@ -1,3 +1,6 @@
+import { SECONDS_PER_MINUTE } from './auth-session';
+import { TWO_FACTOR_OTP_PERIOD_MINUTES } from './mfa-limits';
+
 /** A rate-limit rule: at most `max` requests per client and path in a window of `window` seconds. */
 export interface AuthRateLimitRule {
   window: number;
@@ -11,10 +14,13 @@ export const AUTH_RATE_LIMIT_DEFAULT: AuthRateLimitRule = { window: 60, max: 100
 export const AUTH_RATE_LIMIT_STRICT: AuthRateLimitRule = { window: 60, max: 5 };
 
 /**
- * For endpoints that send an email, so repeated requests cannot flood an inbox. The 5-minute window
- * matches how long an emailed two-factor code stays valid.
+ * For endpoints that send an email, so repeated requests cannot flood an inbox. The window is how
+ * long an emailed two-factor code stays valid ({@link TWO_FACTOR_OTP_PERIOD_MINUTES}).
  */
-export const AUTH_RATE_LIMIT_EMAIL: AuthRateLimitRule = { window: 300, max: 3 };
+export const AUTH_RATE_LIMIT_EMAIL: AuthRateLimitRule = {
+  window: TWO_FACTOR_OTP_PERIOD_MINUTES * SECONDS_PER_MINUTE,
+  max: 3,
+};
 
 /**
  * Per-path rules: strict exact entries for the endpoints that check a credential or a code, email

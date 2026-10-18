@@ -100,7 +100,7 @@ function build({
   return { auth, redis, db, send };
 }
 
-const post = (auth: Auth, path: string, body: unknown, ip = '203.0.113.7', cookie?: string) =>
+const post = (auth: Auth, path: string, body: unknown, { ip = '203.0.113.7', cookie }: { ip?: string; cookie?: string } = {}) =>
   auth.handler(
     new Request(`${ORIGIN}/api/auth${path}`, {
       method: 'POST',
@@ -120,15 +120,15 @@ const cookiesFrom = (res: Response) =>
 async function startTwoFactorSignIn(auth: Auth) {
   const credentials = { email: 'member@example.com', password: 'Correct-horse-9' };
   const session = cookiesFrom(await post(auth, '/sign-up/email', { name: 'Member', ...credentials }));
-  const enable = await post(auth, '/two-factor/enable', { password: credentials.password }, undefined, session);
+  const enable = await post(auth, '/two-factor/enable', { password: credentials.password }, { cookie: session });
   const { totpURI } = (await enable.json()) as { totpURI: string };
-  await post(auth, '/two-factor/verify-totp', { code: totpCode(totpURI) }, undefined, session);
+  await post(auth, '/two-factor/verify-totp', { code: totpCode(totpURI) }, { cookie: session });
   const signIn = await post(auth, '/sign-in/email', credentials);
   expect(await signIn.json()).toMatchObject({ twoFactorRedirect: true });
   return cookiesFrom(signIn);
 }
 
-const signIn = (auth: Auth, ip?: string) => post(auth, '/sign-in/email', { email: 'nobody@example.com', password: 'Wrong-password-1' }, ip);
+const signIn = (auth: Auth, ip?: string) => post(auth, '/sign-in/email', { email: 'nobody@example.com', password: 'Wrong-password-1' }, { ip });
 
 describe('auth rate limiting', () => {
   it('throttles sign-in after the configured number of attempts, with a retry time', async () => {
@@ -149,11 +149,11 @@ describe('auth rate limiting', () => {
   });
 
   // The two-factor management endpoints and sending a code need a session or a challenge cookie, so they answer 401 until the limiter, which runs first, refuses them.
-  // Strict rows come from the rule table itself; the explicit rows are the own rules, where the passkey path differs from its key.
+  // Strict and email rows come from the rule table itself; the explicit rows are the own rules, where the passkey path differs from its key.
   it.each<readonly [path: string, rule: string]>([
-    ...EXACT_RULE_KEYS.filter((key) => RULES[key] === AUTH_RATE_LIMIT_STRICT).map((key) => [key, key] as const),
-    ['/request-password-reset', '/request-password-reset'],
-    ['/two-factor/send-otp', '/two-factor/send-otp'],
+    ...EXACT_RULE_KEYS.filter((key) => RULES[key] === AUTH_RATE_LIMIT_STRICT || RULES[key] === AUTH_RATE_LIMIT_EMAIL).map(
+      (key) => [key, key] as const,
+    ),
     ['/reset-password', '/reset-password'],
     ['/passkey/generate-authenticate-options', '/passkey/*'],
   ])('applies the stricter rule to %s, with a retry time', async (path, rule) => {
@@ -173,7 +173,7 @@ describe('auth rate limiting', () => {
     const { auth, send } = build();
     const challenge = await startTwoFactorSignIn(auth);
     send.mockClear(); // drop the sign-up verification email
-    const sendOtp = () => post(auth, '/two-factor/send-otp', {}, undefined, challenge);
+    const sendOtp = () => post(auth, '/two-factor/send-otp', {}, { cookie: challenge });
     for (let i = 1; i <= AUTH_RATE_LIMIT_EMAIL.max; i++) {
       expect((await sendOtp()).status).toBe(200);
       expect(send).toHaveBeenCalledTimes(i);
@@ -184,6 +184,16 @@ describe('auth rate limiting', () => {
     expect(res.status).toBe(429);
     expect(Number(res.headers.get(RETRY_AFTER_HEADER))).toBeGreaterThan(0);
     expect(send).toHaveBeenCalledTimes(AUTH_RATE_LIMIT_EMAIL.max);
+  });
+
+  // Without a challenge cookie the endpoint answers 401, but the limiter runs first and counts it all the same.
+  it('counts each client separately for the email limit', async () => {
+    const { auth } = build();
+    const sendOtp = (ip: string) => post(auth, '/two-factor/send-otp', {}, { ip });
+    for (let i = 0; i < AUTH_RATE_LIMIT_EMAIL.max; i++) await sendOtp('203.0.113.7');
+    expect((await sendOtp('203.0.113.7')).status).toBe(429);
+
+    expect((await sendOtp('203.0.113.8')).status).not.toBe(429);
   });
 
   // A union of every endpoint's fields, so one payload serves them all.
