@@ -1,4 +1,4 @@
-import { AUTH_RATE_LIMIT_DEFAULT, AUTH_RATE_LIMIT_RULES, AUTH_RATE_LIMIT_STRICT } from '@adelie/shared';
+import { AUTH_RATE_LIMIT_DEFAULT, AUTH_RATE_LIMIT_RULES, AUTH_RATE_LIMIT_STRICT, RETRY_AFTER_HEADER } from '@adelie/shared';
 import { memoryAdapter } from 'better-auth/adapters/memory';
 import { describe, expect, it } from 'vitest';
 import { type Auth, createAuth } from '#lib/server/api/auth/auth.config';
@@ -8,7 +8,11 @@ import type { RedisService } from '#lib/server/api/databases/redis/redis.service
 import { createRedisServiceMock } from '../../../../../test/mocks/redis.mock';
 
 const ORIGIN = 'http://localhost:5173';
-const SIGN_IN_MAX = AUTH_RATE_LIMIT_STRICT.max;
+const STRICT_MAX = AUTH_RATE_LIMIT_STRICT.max;
+/** Path prefixes whose wildcard rule is pinned to the default, so an endpoint below them without an exact rule gets 100 a minute. */
+const WILDCARD_PINNED_PREFIXES = ['/sign-in/', '/two-factor/'] as const;
+/** Endpoints below those prefixes that stay on the default on purpose: none of them checks a credential or a code. */
+const DELIBERATELY_DEFAULT_PATHS = ['/sign-in/social', '/two-factor/enable', '/two-factor/send-otp'] as const;
 
 /** The repository over the shared RedisService mock, so the counters land in its in-memory `store`. */
 function createRepository() {
@@ -57,42 +61,70 @@ const signIn = (auth: Auth, ip?: string) => post(auth, '/sign-in/email', { email
 describe('auth rate limiting', () => {
   it('throttles sign-in after the configured number of attempts, with a retry time', async () => {
     const { auth } = build();
-    for (let i = 0; i < SIGN_IN_MAX; i++) expect((await signIn(auth)).status).not.toBe(429);
+    for (let i = 0; i < STRICT_MAX; i++) expect((await signIn(auth)).status).not.toBe(429);
 
     const res = await signIn(auth);
 
     expect(res.status).toBe(429);
-    expect(Number(res.headers.get('x-retry-after'))).toBeGreaterThan(0);
+    expect(Number(res.headers.get(RETRY_AFTER_HEADER))).toBeGreaterThan(0);
   });
 
   it('counts each client separately', async () => {
     const { auth } = build();
-    for (let i = 0; i <= SIGN_IN_MAX; i++) await signIn(auth, '203.0.113.7');
+    for (let i = 0; i <= STRICT_MAX; i++) await signIn(auth, '203.0.113.7');
 
     expect((await signIn(auth, '203.0.113.8')).status).not.toBe(429);
   });
 
+  // The two-factor management endpoints need a session, so they answer 401 until the limiter, which runs first, refuses them.
   it.each([
     ['/sign-in/email', '/sign-in/email'],
     ['/two-factor/verify-totp', '/two-factor/verify-totp'],
     ['/two-factor/verify-otp', '/two-factor/verify-otp'],
     ['/two-factor/verify-backup-code', '/two-factor/verify-backup-code'],
+    ['/two-factor/disable', '/two-factor/disable'],
+    ['/two-factor/get-totp-uri', '/two-factor/get-totp-uri'],
+    ['/two-factor/generate-backup-codes', '/two-factor/generate-backup-codes'],
     ['/request-password-reset', '/request-password-reset'],
     ['/reset-password', '/reset-password'],
     ['/passkey/generate-authenticate-options', '/passkey/*'],
-  ] as const)('applies the stricter rule to %s', async (path, rule) => {
+  ] as const)('applies the stricter rule to %s, with a retry time', async (path, rule) => {
     const { auth } = build();
+    const body = { email: 'a@example.com', code: '000000', password: 'Wrong-password-1' };
     const { max } = AUTH_RATE_LIMIT_RULES[rule];
-    for (let i = 0; i < max; i++) expect((await post(auth, path, { email: 'a@example.com', code: '000000' })).status).not.toBe(429);
+    for (let i = 0; i < max; i++) expect((await post(auth, path, body)).status).not.toBe(429);
 
-    expect((await post(auth, path, { email: 'a@example.com', code: '000000' })).status).toBe(429);
+    const res = await post(auth, path, body);
+
+    expect(res.status).toBe(429);
+    expect(Number(res.headers.get(RETRY_AFTER_HEADER))).toBeGreaterThan(0);
   });
 
-  it.each(['/sign-in/social', '/two-factor/enable', '/two-factor/send-otp'])('does not apply the strict limit to %s', async (path) => {
+  it.each(DELIBERATELY_DEFAULT_PATHS)('does not apply the strict limit to %s', async (path) => {
     const { auth } = build();
-    for (let i = 0; i <= SIGN_IN_MAX * 2; i++) {
+    for (let i = 0; i <= STRICT_MAX * 2; i++) {
       expect((await post(auth, path, { provider: 'github', callbackURL: '/', password: 'Wrong-password-1' })).status).not.toBe(429);
     }
+  });
+
+  it("applies the default limit, not Better Auth's built-in one, to the pinned wildcards", async () => {
+    const { auth } = build();
+    const socialSignIn = () => post(auth, '/sign-in/social', { provider: 'github', callbackURL: '/' });
+    for (let i = 0; i < AUTH_RATE_LIMIT_DEFAULT.max; i++) expect((await socialSignIn()).status).not.toBe(429);
+
+    expect((await socialSignIn()).status).toBe(429);
+  });
+
+  it('gives every sign-in and two-factor endpoint an exact rule unless it is deliberately on the default', () => {
+    const { auth } = build();
+    const paths = Object.values(auth.api)
+      .map((endpoint) => endpoint.path)
+      .filter((path): path is string => typeof path === 'string' && WILDCARD_PINNED_PREFIXES.some((prefix) => path.startsWith(prefix)));
+    const exactRules: readonly string[] = Object.keys(AUTH_RATE_LIMIT_RULES);
+    const deliberatelyDefault: readonly string[] = DELIBERATELY_DEFAULT_PATHS;
+
+    expect(paths).toEqual(expect.arrayContaining(['/sign-in/email', '/two-factor/verify-totp']));
+    expect(paths.filter((path) => !exactRules.includes(path) && !deliberatelyDefault.includes(path))).toEqual([]);
   });
 
   it('keeps the strict limit below the default', () => {
@@ -126,14 +158,14 @@ describe('auth rate limiting', () => {
 
   it('does not throttle when no rate limit is configured, whatever the environment', async () => {
     const { auth } = build({ withRateLimit: false });
-    for (let i = 0; i < SIGN_IN_MAX * 3; i++) expect((await signIn(auth)).status).not.toBe(429);
+    for (let i = 0; i < STRICT_MAX * 3; i++) expect((await signIn(auth)).status).not.toBe(429);
   });
 });
 
 describe('auth rate limiting without a trusted proxy', () => {
   it('ignores x-forwarded-for, so every client lands in one shared bucket per path', async () => {
     const { auth } = build({ trustProxy: false });
-    for (let i = 0; i < SIGN_IN_MAX; i++) await signIn(auth, `203.0.113.${i + 1}`);
+    for (let i = 0; i < STRICT_MAX; i++) await signIn(auth, `203.0.113.${i + 1}`);
 
     // A different client is throttled by the others' attempts: why production refuses this setup.
     expect((await signIn(auth, '198.51.100.1')).status).toBe(429);
@@ -141,7 +173,7 @@ describe('auth rate limiting without a trusted proxy', () => {
 
   it('keeps clients apart when the proxy is trusted', async () => {
     const { auth } = build({ trustProxy: true });
-    for (let i = 0; i < SIGN_IN_MAX; i++) await signIn(auth, `203.0.113.${i + 1}`);
+    for (let i = 0; i < STRICT_MAX; i++) await signIn(auth, `203.0.113.${i + 1}`);
 
     expect((await signIn(auth, '198.51.100.1')).status).not.toBe(429);
   });
