@@ -1,10 +1,9 @@
 import { CAPTCHA_RESPONSE_HEADER } from '@adelie/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createCaptchaForm } from '#lib/client/captcha/captcha-form.svelte.ts';
-import { CAPTCHA_BINDING_HEADER } from '#lib/constants/captcha.ts';
+import { CAPTCHA_BINDING_HEADER, CAPTCHA_BINDING_VALUE } from '#lib/constants/captcha.ts';
 
 const TOKEN = 'widget-token';
-const MARKER = 'x-adelie-captcha-bound';
 
 /** Stands in for the mounted CaptchaField: resetting it clears the token, as the real field does via `onchange('')`. */
 function mountedForm() {
@@ -22,7 +21,7 @@ describe('createCaptchaForm attempt', () => {
   });
 
   it('uses the internal binding marker header name', () => {
-    expect(CAPTCHA_BINDING_HEADER).toBe(MARKER);
+    expect(CAPTCHA_BINDING_HEADER).toBe('x-adelie-captcha-bound');
   });
 
   it('attaches the Captcha Token and the binding marker when a token is present', async () => {
@@ -32,7 +31,7 @@ describe('createCaptchaForm attempt', () => {
     await form.captcha.attempt(fn);
 
     expect(fn).toHaveBeenCalledOnce();
-    expect(fn).toHaveBeenCalledWith({ headers: { [MARKER]: '1', [CAPTCHA_RESPONSE_HEADER]: TOKEN } });
+    expect(fn).toHaveBeenCalledWith({ headers: { [CAPTCHA_BINDING_HEADER]: CAPTCHA_BINDING_VALUE, [CAPTCHA_RESPONSE_HEADER]: TOKEN } });
   });
 
   it('sends only the binding marker when there is no token (captcha off)', async () => {
@@ -40,7 +39,7 @@ describe('createCaptchaForm attempt', () => {
 
     await form.captcha.attempt(fn);
 
-    expect(fn).toHaveBeenCalledWith({ headers: { [MARKER]: '1' } });
+    expect(fn).toHaveBeenCalledWith({ headers: { [CAPTCHA_BINDING_HEADER]: CAPTCHA_BINDING_VALUE } });
   });
 
   it('sends the binding marker even when no field is mounted', async () => {
@@ -48,7 +47,7 @@ describe('createCaptchaForm attempt', () => {
     const fn = vi.fn(async () => 'ok');
 
     expect(await captcha.attempt(fn)).toBe('ok');
-    expect(fn).toHaveBeenCalledWith({ headers: { [MARKER]: '1' } });
+    expect(fn).toHaveBeenCalledWith({ headers: { [CAPTCHA_BINDING_HEADER]: CAPTCHA_BINDING_VALUE } });
   });
 
   it("returns fn's result and resets the widget after a success result", async () => {
@@ -99,7 +98,7 @@ describe('createCaptchaForm attempt', () => {
 
     await form.captcha.attempt(next);
 
-    expect(next).toHaveBeenCalledWith({ headers: { [MARKER]: '1' } });
+    expect(next).toHaveBeenCalledWith({ headers: { [CAPTCHA_BINDING_HEADER]: CAPTCHA_BINDING_VALUE } });
   });
 
   it('keeps tokens separate between instances', async () => {
@@ -109,7 +108,7 @@ describe('createCaptchaForm attempt', () => {
 
     await other.captcha.attempt(fn);
 
-    expect(fn).toHaveBeenCalledWith({ headers: { [MARKER]: '1' } });
+    expect(fn).toHaveBeenCalledWith({ headers: { [CAPTCHA_BINDING_HEADER]: CAPTCHA_BINDING_VALUE } });
     expect(form.reset).not.toHaveBeenCalled();
     expect(other.reset).toHaveBeenCalledOnce();
   });

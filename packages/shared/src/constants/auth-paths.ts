@@ -1,4 +1,4 @@
-/** Prefix of every API route. The web app proxies the same prefix to the API. */
+/** Prefix of every API route. */
 export const API_BASE_PATH = '/api';
 
 /** Path of the auth handler below {@link API_BASE_PATH}; the API routes `${AUTH_ROUTE}/*` to Better Auth. */
