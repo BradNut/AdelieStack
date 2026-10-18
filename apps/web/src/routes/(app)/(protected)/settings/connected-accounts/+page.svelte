@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { AppRoute, isSocialProvider, type SocialProvider } from '@adelie/shared';
-		import { authClient } from '#lib/auth-client.ts';
+	import { authClient } from '#lib/auth-client.ts';
 	import { toastIfError } from '#lib/client/auth-form.ts';
 	import { notifyUnlinked, providerLabel } from '#lib/client/connected-accounts.ts';
 	import { withFreshSession } from '#lib/client/fresh-session.svelte.ts';
@@ -46,7 +46,8 @@
 
 	// Loads on mount, and again when an action replayed after a provider re-authentication changed the accounts.
 	$effect(() => {
-		void replayProgress.completed;
+		// Read only so the effect re-runs when the count changes; the value itself is not used.
+		void replayProgress.replayedCount;
 		load();
 	});
 </script>

@@ -1,3 +1,4 @@
+import { AppRoute, PENDING_REAUTH_STORAGE_KEY, ReplayActionKey } from '@adelie/shared';
 import { SOCIAL_WEB_ORIGIN } from '../playwright.config';
 import { newUser, signUp } from './support/auth';
 import { linkProviderAccount, makeSessionsStale } from './support/db';
@@ -75,6 +76,7 @@ test.describe('re-authentication with a linked provider', () => {
 
   test('the dialog sends the browser to the provider asking for an account choice, and keeps the action pending', async ({ page }) => {
     const user = newUser();
+    const returnPath = `${AppRoute.SETTINGS_CONNECTED_ACCOUNTS}?tab=1`;
     await signUp(page, user);
     await linkProviderAccount(user.email, 'github');
     await makeSessionsStale(user.email);
@@ -82,7 +84,7 @@ test.describe('re-authentication with a linked provider', () => {
     // The page leaves for the provider's origin, taking its sessionStorage along, so every write to it is reported out.
     let stored: string | null = null;
     await page.exposeFunction('reportStorageWrite', (key: string, value: string) => {
-      if (key === 'adelie.reauth.pending') stored = value;
+      if (key === PENDING_REAUTH_STORAGE_KEY) stored = value;
     });
     await page.addInitScript(() => {
       const setItem = Storage.prototype.setItem;
@@ -96,7 +98,7 @@ test.describe('re-authentication with a linked provider', () => {
       await route.fulfill({ status: 200, contentType: 'text/html', body: '<title>provider</title>' });
     });
 
-    await page.goto('/settings/connected-accounts?tab=1');
+    await page.goto(returnPath);
     const startRequest = page.waitForRequest((request) => request.url().endsWith('/api/auth/sign-in/social'));
     await page.getByRole('button', { name: 'Unlink' }).click();
     const dialog = page.getByTestId('reauth-dialog');
@@ -108,9 +110,9 @@ test.describe('re-authentication with a linked provider', () => {
     expect((await startRequest).postDataJSON()).toMatchObject({
       provider: 'github',
       loginHint: user.email,
-      callbackURL: '/settings/connected-accounts?tab=1',
-      errorCallbackURL: '/settings/connected-accounts?tab=1',
+      callbackURL: returnPath,
+      errorCallbackURL: returnPath,
     });
-    expect(JSON.parse(stored ?? 'null')).toMatchObject({ action: { key: 'unlink-account' }, userId: expect.any(String) });
+    expect(JSON.parse(stored ?? 'null')).toMatchObject({ action: { key: ReplayActionKey.UNLINK_ACCOUNT }, userId: expect.any(String) });
   });
 });

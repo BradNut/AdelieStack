@@ -1,13 +1,11 @@
+import { PENDING_REAUTH_STORAGE_KEY, ReplayActionKey } from '@adelie/shared';
 import { toast } from 'svelte-sonner';
 import { authClient } from '#lib/auth-client.ts';
 import { notifyUnlinked, providerLabel } from '#lib/client/connected-accounts.ts';
 import * as m from '#lib/paraglide/messages.js';
 
-/** Actions that can run again after the provider round trip. Each carries only non-secret identifiers. */
-export const ReplayActionKey = {
-  UNLINK_ACCOUNT: 'unlink-account',
-} as const;
-export type ReplayActionKey = (typeof ReplayActionKey)[keyof typeof ReplayActionKey];
+// Defined in shared so the e2e specs can name them too.
+export { PENDING_REAUTH_STORAGE_KEY, ReplayActionKey };
 
 /** The arguments each replayable action takes; never credentials or tokens. */
 interface ReplayArgs {
@@ -16,9 +14,6 @@ interface ReplayArgs {
 
 /** What a stale action registers so it can run again after re-authentication. */
 export type ReplayRequest = { [K in ReplayActionKey]: { key: K; args: ReplayArgs[K] } }[ReplayActionKey];
-
-/** The `sessionStorage` key holding the one pending entry. */
-export const PENDING_REAUTH_STORAGE_KEY = 'adelie.reauth.pending';
 
 /** A stored entry older than this is dropped instead of replayed. */
 export const REPLAY_MAX_AGE_MS = 10 * 60 * 1000;
@@ -41,8 +36,8 @@ export function clearPendingReauth(): void {
   sessionStorage.removeItem(PENDING_REAUTH_STORAGE_KEY);
 }
 
-/** Bumped after each replayed action, so a page that already loaded its data can reload it. */
-export const replayProgress = $state({ completed: 0 });
+/** Count of actions replayed after re-authentication; a page that already loaded its data reads it to know when to reload. */
+export const replayProgress = $state({ replayedCount: 0 });
 
 /** Every replayable action: runs it with its stored arguments and shows its normal success or error message. */
 const REPLAYABLE_ACTIONS: { [K in ReplayActionKey]: (args: ReplayArgs[K]) => Promise<void> } = {
@@ -127,5 +122,5 @@ export async function replayPendingReauth({ userId, providerError }: ReplayConte
     return;
   }
   await runAction(pending.action);
-  replayProgress.completed += 1;
+  replayProgress.replayedCount += 1;
 }
