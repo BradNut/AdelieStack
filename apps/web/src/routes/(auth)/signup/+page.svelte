@@ -25,16 +25,17 @@
 		resetForm: false,
 		async onUpdate({ form }) {
 			if (!form.valid) return;
-			const { error } = await authClient.signUp.email(
-				{
-					name: form.data.name,
-					email: form.data.email,
-					password: form.data.password,
-					callbackURL: AuthCallbackPath.EMAIL_VERIFIED,
-				},
-				captcha.fetchOptions(),
+			const { error } = await captcha.attempt((fetchOptions) =>
+				authClient.signUp.email(
+					{
+						name: form.data.name,
+						email: form.data.email,
+						password: form.data.password,
+						callbackURL: AuthCallbackPath.EMAIL_VERIFIED,
+					},
+					fetchOptions,
+				),
 			);
-			captcha.afterAttempt();
 			if (error) {
 				form.data.password = '';
 				form.data.confirm_password = '';

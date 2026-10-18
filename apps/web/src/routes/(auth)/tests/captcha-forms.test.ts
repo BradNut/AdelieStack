@@ -2,6 +2,7 @@
 import { CAPTCHA_RESPONSE_HEADER, CAPTCHA_UNAVAILABLE, CAPTCHA_VERIFICATION_FAILED, CaptchaProvider, type CaptchaPublicConfig } from '@adelie/shared';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { CAPTCHA_BINDING_HEADER, CAPTCHA_BINDING_VALUE } from '#lib/constants/captcha.ts';
 
 const authClient = vi.hoisted(() => ({
   signIn: { email: vi.fn(), passkey: vi.fn() },
@@ -36,6 +37,8 @@ import SignupPage from '../signup/+page.svelte';
 
 const ENABLED = { enabled: true, provider: CaptchaProvider.TURNSTILE, siteKey: 'site' } as const;
 const TOKEN = 'widget-token';
+const BOUND_NO_TOKEN = { headers: { [CAPTCHA_BINDING_HEADER]: CAPTCHA_BINDING_VALUE } };
+const WITH_TOKEN = { headers: { [CAPTCHA_BINDING_HEADER]: CAPTCHA_BINDING_VALUE, [CAPTCHA_RESPONSE_HEADER]: TOKEN } };
 
 beforeEach(() => {
   for (const fn of [
@@ -102,14 +105,14 @@ const forms = [
 ];
 
 describe.each(forms)('$name form', ({ mount, fill, submit, call }) => {
-  it('shows no widget and sends no token when captcha is disabled', async () => {
+  it('shows no widget and sends only the binding marker when captcha is disabled', async () => {
     mount();
     await fill();
     await submit();
 
     await waitFor(() => expect(call()).toHaveBeenCalled());
     expect(screen.queryByTestId('captcha-widget')).toBeNull();
-    expect(call().mock.calls[0]?.[1]).toEqual({});
+    expect(call().mock.calls[0]?.[1]).toEqual(BOUND_NO_TOKEN);
   });
 
   it('renders the widget and sends the token in the captcha header when enabled', async () => {
@@ -121,7 +124,7 @@ describe.each(forms)('$name form', ({ mount, fill, submit, call }) => {
     await submit();
 
     await waitFor(() => expect(call()).toHaveBeenCalled());
-    expect(call().mock.calls[0]?.[1]).toEqual({ headers: { [CAPTCHA_RESPONSE_HEADER]: TOKEN } });
+    expect(call().mock.calls[0]?.[1]).toEqual(WITH_TOKEN);
   });
 
   it('starts a new challenge after the attempt, because the token is single-use', async () => {
@@ -147,6 +150,7 @@ describe.each(forms)('$name form', ({ mount, fill, submit, call }) => {
 
     expect(await screen.findByText(text)).toBeTruthy();
     expect(screen.queryByText('raw server text')).toBeNull();
+    expect(widget.reset).toHaveBeenCalled();
   });
 });
 
@@ -159,17 +163,17 @@ describe('resend verification button', () => {
     await fireEvent.click(screen.getByTestId('resend-verification'));
 
     await waitFor(() => expect(authClient.sendVerificationEmail).toHaveBeenCalled());
-    expect(authClient.sendVerificationEmail.mock.calls[0]?.[1]).toEqual({ headers: { [CAPTCHA_RESPONSE_HEADER]: TOKEN } });
+    expect(authClient.sendVerificationEmail.mock.calls[0]?.[1]).toEqual(WITH_TOKEN);
     expect(widget.reset).toHaveBeenCalled();
   });
 
-  it('shows no widget and sends no token when disabled', async () => {
+  it('shows no widget and sends only the binding marker when disabled', async () => {
     render(ResendVerificationButton, { email: 'a@example.com' });
     await fireEvent.click(screen.getByTestId('resend-verification'));
 
     await waitFor(() => expect(authClient.sendVerificationEmail).toHaveBeenCalled());
     expect(screen.queryByTestId('captcha-widget')).toBeNull();
-    expect(authClient.sendVerificationEmail.mock.calls[0]?.[1]).toEqual({});
+    expect(authClient.sendVerificationEmail.mock.calls[0]?.[1]).toEqual(BOUND_NO_TOKEN);
   });
 
   it('toasts the translated outage message', async () => {
