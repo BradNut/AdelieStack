@@ -43,3 +43,6 @@ src/lib/paraglide
 
 # CodeGraph index (local, regenerable)
 .codegraph/
+
+# Local architecture review reports (never committed)
+.architecture-review/
