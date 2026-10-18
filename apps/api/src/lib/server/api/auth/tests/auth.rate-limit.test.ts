@@ -1,4 +1,11 @@
-import { AUTH_RATE_LIMIT_DEFAULT, AUTH_RATE_LIMIT_RULES, AUTH_RATE_LIMIT_STRICT } from '@adelie/shared';
+import {
+  AUTH_RATE_LIMIT_DEFAULT,
+  AUTH_RATE_LIMIT_DEFAULT_PATHS,
+  AUTH_RATE_LIMIT_RULES,
+  AUTH_RATE_LIMIT_STRICT,
+  type AuthRateLimitRule,
+  RETRY_AFTER_HEADER,
+} from '@adelie/shared';
 import { memoryAdapter } from 'better-auth/adapters/memory';
 import { describe, expect, it } from 'vitest';
 import { type Auth, createAuth } from '#lib/server/api/auth/auth.config';
@@ -8,7 +15,53 @@ import type { RedisService } from '#lib/server/api/databases/redis/redis.service
 import { createRedisServiceMock } from '../../../../../test/mocks/redis.mock';
 
 const ORIGIN = 'http://localhost:5173';
-const SIGN_IN_MAX = AUTH_RATE_LIMIT_STRICT.max;
+const STRICT_MAX = AUTH_RATE_LIMIT_STRICT.max;
+const WILDCARD = '*';
+/** The rules as Better Auth sees them: keys in declaration order, looked up by plain string. */
+const RULES: Readonly<Record<string, AuthRateLimitRule>> = AUTH_RATE_LIMIT_RULES;
+const RULE_KEYS = Object.keys(RULES);
+const isWildcard = (key: string) => key.includes(WILDCARD);
+const EXACT_RULE_KEYS = RULE_KEYS.filter((key) => !isWildcard(key));
+/** The wildcard rules pinned to the default (`/sign-in/*`, `/two-factor/*`), keyed to the prefix they cover. */
+const WILDCARD_PINS = RULE_KEYS.filter((key) => key.endsWith(`/${WILDCARD}`) && RULES[key] === AUTH_RATE_LIMIT_DEFAULT).map((rule) => ({
+  rule,
+  prefix: rule.slice(0, -WILDCARD.length),
+}));
+/** Path starts Better Auth's built-in limit (3 per 10 seconds) covers: `/sign-in` without a trailing slash, so `/sign-in-foo` too. */
+const BUILT_IN_LIMITED_PREFIXES = ['/sign-in', '/two-factor'] as const;
+const DEFAULT_PATHS: readonly string[] = AUTH_RATE_LIMIT_DEFAULT_PATHS;
+
+/**
+ * Exact keys listed after a wildcard that also matches them. Better Auth takes the first matching key,
+ * so such a key would never apply.
+ */
+function shadowedExactKeys(keys: readonly string[]): string[] {
+  return keys.flatMap((key, index) =>
+    isWildcard(key)
+      ? []
+      : keys
+          .slice(0, index)
+          .filter((earlier) => isWildcard(earlier) && key.startsWith(earlier.slice(0, earlier.indexOf(WILDCARD))))
+          .map((earlier) => `${key} after ${earlier}`),
+  );
+}
+
+/** Paths under Better Auth's built-in limit that neither have an exact rule nor are deliberately on the default. */
+function unruledBuiltInLimitedPaths(paths: readonly string[]): string[] {
+  return paths.filter(
+    (path) => BUILT_IN_LIMITED_PREFIXES.some((prefix) => path.startsWith(prefix)) && !EXACT_RULE_KEYS.includes(path) && !DEFAULT_PATHS.includes(path),
+  );
+}
+
+/**
+ * Every endpoint path of the auth instance. Relies on Better Auth exposing `.path` on its endpoints;
+ * the tests assert known paths are present, so a change there fails loudly instead of passing empty.
+ */
+function authApiPaths(auth: Auth): string[] {
+  return Object.values(auth.api)
+    .map((endpoint) => endpoint.path)
+    .filter((path): path is string => typeof path === 'string');
+}
 
 /** The repository over the shared RedisService mock, so the counters land in its in-memory `store`. */
 function createRepository() {
@@ -57,42 +110,99 @@ const signIn = (auth: Auth, ip?: string) => post(auth, '/sign-in/email', { email
 describe('auth rate limiting', () => {
   it('throttles sign-in after the configured number of attempts, with a retry time', async () => {
     const { auth } = build();
-    for (let i = 0; i < SIGN_IN_MAX; i++) expect((await signIn(auth)).status).not.toBe(429);
+    for (let i = 0; i < STRICT_MAX; i++) expect((await signIn(auth)).status).not.toBe(429);
 
     const res = await signIn(auth);
 
     expect(res.status).toBe(429);
-    expect(Number(res.headers.get('x-retry-after'))).toBeGreaterThan(0);
+    expect(Number(res.headers.get(RETRY_AFTER_HEADER))).toBeGreaterThan(0);
   });
 
   it('counts each client separately', async () => {
     const { auth } = build();
-    for (let i = 0; i <= SIGN_IN_MAX; i++) await signIn(auth, '203.0.113.7');
+    for (let i = 0; i <= STRICT_MAX; i++) await signIn(auth, '203.0.113.7');
 
     expect((await signIn(auth, '203.0.113.8')).status).not.toBe(429);
   });
 
-  it.each([
-    ['/sign-in/email', '/sign-in/email'],
-    ['/two-factor/verify-totp', '/two-factor/verify-totp'],
-    ['/two-factor/verify-otp', '/two-factor/verify-otp'],
-    ['/two-factor/verify-backup-code', '/two-factor/verify-backup-code'],
+  // The two-factor management endpoints need a session, so they answer 401 until the limiter, which runs first, refuses them.
+  // Strict rows come from the rule table itself; the explicit rows are the own rules, where the passkey path differs from its key.
+  it.each<readonly [path: string, rule: string]>([
+    ...EXACT_RULE_KEYS.filter((key) => RULES[key] === AUTH_RATE_LIMIT_STRICT).map((key) => [key, key] as const),
     ['/request-password-reset', '/request-password-reset'],
     ['/reset-password', '/reset-password'],
     ['/passkey/generate-authenticate-options', '/passkey/*'],
-  ] as const)('applies the stricter rule to %s', async (path, rule) => {
+  ])('applies the stricter rule to %s, with a retry time', async (path, rule) => {
     const { auth } = build();
-    const { max } = AUTH_RATE_LIMIT_RULES[rule];
-    for (let i = 0; i < max; i++) expect((await post(auth, path, { email: 'a@example.com', code: '000000' })).status).not.toBe(429);
+    // A union of every endpoint's fields, so one payload serves them all.
+    const body = { email: 'a@example.com', code: '000000', password: 'Wrong-password-1' };
+    const { max } = RULES[rule];
+    for (let i = 0; i < max; i++) expect((await post(auth, path, body)).status).not.toBe(429);
 
-    expect((await post(auth, path, { email: 'a@example.com', code: '000000' })).status).toBe(429);
+    const res = await post(auth, path, body);
+
+    expect(res.status).toBe(429);
+    expect(Number(res.headers.get(RETRY_AFTER_HEADER))).toBeGreaterThan(0);
   });
 
-  it.each(['/sign-in/social', '/two-factor/enable', '/two-factor/send-otp'])('does not apply the strict limit to %s', async (path) => {
+  // A union of every endpoint's fields, so one payload serves them all.
+  const defaultPathBody = { provider: 'github', callbackURL: '/', password: 'Wrong-password-1' };
+
+  it.each(AUTH_RATE_LIMIT_DEFAULT_PATHS)('does not apply the strict limit to %s', async (path) => {
     const { auth } = build();
-    for (let i = 0; i <= SIGN_IN_MAX * 2; i++) {
-      expect((await post(auth, path, { provider: 'github', callbackURL: '/', password: 'Wrong-password-1' })).status).not.toBe(429);
+    for (let i = 0; i <= STRICT_MAX * 2; i++) {
+      expect((await post(auth, path, defaultPathBody)).status).not.toBe(429);
     }
+  });
+
+  // The two-factor path needs a session, so it answers 401 until the limiter refuses it.
+  it.each(WILDCARD_PINS.map(({ rule, prefix }) => [rule, DEFAULT_PATHS.find((path) => path.startsWith(prefix))] as const))(
+    "applies the default limit, not Better Auth's built-in one, to %s (via %s)",
+    async (_rule, path) => {
+      // Each pin needs a deliberately-default path below it to probe.
+      expect(path).toBeDefined();
+      if (path === undefined) return;
+      const { auth } = build();
+      const request = () => post(auth, path, defaultPathBody);
+      for (let i = 0; i < AUTH_RATE_LIMIT_DEFAULT.max; i++) expect((await request()).status).not.toBe(429);
+
+      expect((await request()).status).toBe(429);
+    },
+  );
+
+  it('pins exactly the sign-in and two-factor wildcards to the default', () => {
+    expect(WILDCARD_PINS.map(({ rule }) => rule)).toEqual(['/sign-in/*', '/two-factor/*']);
+  });
+
+  it('gives every sign-in and two-factor endpoint an exact rule unless it is deliberately on the default', () => {
+    const paths = authApiPaths(build().auth);
+
+    expect(paths).toEqual(expect.arrayContaining(['/sign-in/email', '/two-factor/verify-totp']));
+    expect(unruledBuiltInLimitedPaths(paths)).toEqual([]);
+  });
+
+  it('flags an endpoint under the built-in limit without a slash after the prefix', () => {
+    expect(unruledBuiltInLimitedPaths(['/sign-in-magic', '/two-factorish', '/sign-in/email', '/sign-out'])).toEqual([
+      '/sign-in-magic',
+      '/two-factorish',
+    ]);
+  });
+
+  it('lists only real endpoints without an exact rule as deliberately on the default', () => {
+    const paths = authApiPaths(build().auth);
+
+    expect(paths).toEqual(expect.arrayContaining(['/sign-in/email']));
+    expect(DEFAULT_PATHS.filter((path) => !paths.includes(path) || EXACT_RULE_KEYS.includes(path))).toEqual([]);
+  });
+
+  it('lists every exact rule before a wildcard that also matches it, since the first matching key wins', () => {
+    expect(shadowedExactKeys(RULE_KEYS)).toEqual([]);
+  });
+
+  it('flags an exact rule listed after a wildcard that matches it', () => {
+    const reordered = ['/sign-in/*', '/sign-in/email', '/two-factor/*', '/passkey/*', '/two-factor/verify-totp', '/reset-password'];
+
+    expect(shadowedExactKeys(reordered)).toEqual(['/sign-in/email after /sign-in/*', '/two-factor/verify-totp after /two-factor/*']);
   });
 
   it('keeps the strict limit below the default', () => {
@@ -126,22 +236,25 @@ describe('auth rate limiting', () => {
 
   it('does not throttle when no rate limit is configured, whatever the environment', async () => {
     const { auth } = build({ withRateLimit: false });
-    for (let i = 0; i < SIGN_IN_MAX * 3; i++) expect((await signIn(auth)).status).not.toBe(429);
+    for (let i = 0; i < STRICT_MAX * 3; i++) expect((await signIn(auth)).status).not.toBe(429);
   });
 });
 
 describe('auth rate limiting without a trusted proxy', () => {
   it('ignores x-forwarded-for, so every client lands in one shared bucket per path', async () => {
     const { auth } = build({ trustProxy: false });
-    for (let i = 0; i < SIGN_IN_MAX; i++) await signIn(auth, `203.0.113.${i + 1}`);
+    for (let i = 0; i < STRICT_MAX; i++) await signIn(auth, `203.0.113.${i + 1}`);
 
     // A different client is throttled by the others' attempts: why production refuses this setup.
-    expect((await signIn(auth, '198.51.100.1')).status).toBe(429);
+    const res = await signIn(auth, '198.51.100.1');
+
+    expect(res.status).toBe(429);
+    expect(Number(res.headers.get(RETRY_AFTER_HEADER))).toBeGreaterThan(0);
   });
 
   it('keeps clients apart when the proxy is trusted', async () => {
     const { auth } = build({ trustProxy: true });
-    for (let i = 0; i < SIGN_IN_MAX; i++) await signIn(auth, `203.0.113.${i + 1}`);
+    for (let i = 0; i < STRICT_MAX; i++) await signIn(auth, `203.0.113.${i + 1}`);
 
     expect((await signIn(auth, '198.51.100.1')).status).not.toBe(429);
   });
