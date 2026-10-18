@@ -2,7 +2,7 @@
 # Docs: https://nixpacks.com/docs/configuration/file
 
 [phases.setup]
-nixPkgs = ["nodejs_22"]
+nixPkgs = ["nodejs_24"]
 # libvips: sharp image processing. build-essential + friends: argon2/native module builds.
 aptPkgs = ["libvips-dev", "libvips-tools", "build-essential", "libpng-dev", "libjpeg-dev", "zlib1g-dev"]
 

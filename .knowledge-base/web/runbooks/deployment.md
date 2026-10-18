@@ -10,7 +10,7 @@ Push to `main` → Coolify auto-builds → replaces container on success.
 
 ## Nixpacks (`apps/web/nixpacks.toml`)
 
-- Node 22.17 or newer (SvelteKit 3 requirement, enforced by `engines` in `apps/web/package.json`; the Docker image uses 24), apt: `libvips-dev libvips-tools build-essential libpng-dev libjpeg-dev zlib1g-dev`
+- Node 24 or newer (enforced by `engines` in `apps/web/package.json`; the Docker image and `nixpacks.toml` use 24), apt: `libvips-dev libvips-tools build-essential libpng-dev libjpeg-dev zlib1g-dev`
   (sharp / `@sveltejs/enhanced-img` build deps)
 - Install: `corepack enable && corepack prepare pnpm@10.26.0 --activate`, then
   `pnpm install --frozen-lockfile --filter @adelie/web...`
