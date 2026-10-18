@@ -3,6 +3,7 @@
 	import { authClient } from '#lib/auth-client.ts';
 	import { createCaptchaForm } from '#lib/client/captcha/captcha-form.svelte.ts';
 	import { freshSession, ReauthOutcome } from '#lib/client/fresh-session.svelte.ts';
+	import { reauthenticateWithProvider } from '#lib/client/social-auth.ts';
 	import CaptchaField from '#lib/components/auth/captcha-field.svelte';
 	import { Button } from '#lib/components/ui/button/index.ts';
 	import * as Dialog from '#lib/components/ui/dialog/index.ts';
@@ -16,6 +17,7 @@
 	/** How the signed-in user can prove who they are again. Null while still checking. */
 	interface Methods {
 		email: string;
+		userId: string;
 		password: boolean;
 		passkey: boolean;
 		/** Linked providers that the public config still enables. */
@@ -42,6 +44,7 @@
 		const enabledProviders: SocialProvider[] = (page.data.socialProviders ?? []).filter(isSocialProvider);
 		return {
 			email: user?.email ?? '',
+			userId: user?.id ?? '',
 			password: Boolean(user) && !user?.twoFactorEnabled && Boolean(accounts.data?.some((account) => account.providerId === CREDENTIAL_PROVIDER_ID)),
 			passkey: (passkeys.data?.length ?? 0) > 0,
 			providers: enabledProviders.filter((provider) => accounts.data?.some((account) => account.providerId === provider)),
@@ -56,7 +59,7 @@
 		methods = null;
 		// A failed lookup leaves no way to re-authenticate here, so it shows the sign-out fallback instead of waiting forever.
 		detectMethods()
-			.catch((): Methods => ({ email: '', password: false, passkey: false, providers: [] }))
+			.catch((): Methods => ({ email: '', userId: '', password: false, passkey: false, providers: [] }))
 			.then((detected) => {
 				if (current) methods = detected;
 			});
@@ -98,6 +101,19 @@
 		freshSession.settle(ReauthOutcome.CONFIRMED);
 	}
 
+	async function confirmWithProvider(provider: SocialProvider) {
+		if (busy || !methods) return;
+		busy = true;
+		error = '';
+		const { email, userId } = methods;
+		const failure = await reauthenticateWithProvider(provider, { email, userId, replay: freshSession.replay });
+		// On success the browser is leaving, so the dialog stays as it is.
+		if (failure) {
+			busy = false;
+			error = failure.message;
+		}
+	}
+
 	function onOpenChange(open: boolean) {
 		if (!open) freshSession.settle(ReauthOutcome.DISMISSED);
 	}
@@ -129,7 +145,7 @@
 				<Button type="button" variant="outline" disabled={busy} onclick={confirmWithPasskey}>{m.reauth_use_passkey()}</Button>
 			{/if}
 			{#each methods.providers as provider (provider)}
-				<Button type="button" variant="outline" disabled={busy}>{m.reauth_use_provider({ provider: SOCIAL_PROVIDER_LABELS[provider] })}</Button>
+				<Button type="button" variant="outline" disabled={busy} onclick={() => confirmWithProvider(provider)}>{m.reauth_use_provider({ provider: SOCIAL_PROVIDER_LABELS[provider] })}</Button>
 			{/each}
 			{#if error}
 				<p id="reauth-error" class="text-sm text-destructive" role="alert" data-testid="reauth-error">{error}</p>

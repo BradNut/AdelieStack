@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import {
+  AuthErrorCode,
   CAPTCHA_MISSING_RESPONSE,
   CAPTCHA_RESPONSE_HEADER,
   CAPTCHA_UNAVAILABLE,
@@ -26,8 +27,12 @@ vi.mock('#lib/client/captcha/widgets.ts', async (importOriginal) => ({
 }));
 vi.mock('mode-watcher', () => ({ mode: { current: 'light' } }));
 vi.mock('svelte-sonner', () => ({ toast: { error: vi.fn() } }));
+// Leaving for the provider is a full-page navigation, which jsdom cannot perform.
+const redirectBrowser = vi.hoisted(() => vi.fn());
+vi.mock('#lib/client/browser-redirect.ts', () => ({ redirectBrowser }));
 
-import { freshSession, ReauthOutcome } from '#lib/client/fresh-session.svelte.ts';
+import { freshSession, ReauthOutcome, withFreshSession } from '#lib/client/fresh-session.svelte.ts';
+import { PENDING_REAUTH_STORAGE_KEY, ReplayActionKey } from '#lib/client/reauth-replay.svelte.ts';
 import { page } from '$app/state';
 import ReauthDialog from '../reauth-dialog.svelte';
 
@@ -88,6 +93,8 @@ beforeEach(() => {
   widget.destroy.mockReset();
   renderWidget.mockReset().mockResolvedValue(widget);
   stubWebAuthn();
+  sessionStorage.clear();
+  redirectBrowser.mockReset();
   page.data = { socialProviders: [] };
   setup();
 });
@@ -250,6 +257,96 @@ describe('ReauthDialog', () => {
 
       await screen.findByRole('button', { name: 'Continue with GitHub' });
       expect(screen.queryByLabelText('Password')).toBeNull();
+    });
+
+    describe('choosing a provider', () => {
+      const SIGN_IN_SOCIAL = authPath('/sign-in/social');
+      const AUTHORIZE_URL = 'https://github.com/login/oauth/authorize?client_id=abc&state=xyz';
+      const NOT_FRESH = { data: null, error: { status: 403, code: AuthErrorCode.SESSION_NOT_FRESH, message: 'Session is not fresh' } };
+      const unlinkGithub = { key: ReplayActionKey.UNLINK_ACCOUNT, args: { accountId: 'acc-gh' } } as const;
+
+      /** Opens the dialog the way a stale action does, then clicks the GitHub button. */
+      async function chooseGithub(replay?: typeof unlinkGithub) {
+        page.data = { socialProviders: [SocialProvider.GITHUB] };
+        setup({ accounts: [GITHUB] });
+        network.reply(SIGN_IN_SOCIAL, { body: { url: AUTHORIZE_URL, redirect: false } });
+        withFreshSession(() => Promise.resolve(NOT_FRESH), replay);
+        render(ReauthDialog);
+        await fireEvent.click(await screen.findByRole('button', { name: 'Continue with GitHub' }));
+      }
+
+      beforeEach(() => {
+        window.history.replaceState({}, '', '/settings/connected-accounts?tab=1&error=access_denied');
+      });
+
+      it('asks the provider to re-authenticate, hinting the email, and returns to the current page', async () => {
+        await chooseGithub(unlinkGithub);
+        await waitFor(() => expect(redirectBrowser).toHaveBeenCalledOnce());
+
+        const [request] = network.sent(SIGN_IN_SOCIAL);
+        expect(request?.body).toEqual(
+          expect.objectContaining({
+            provider: 'github',
+            loginHint: 'a@example.com',
+            callbackURL: '/settings/connected-accounts?tab=1',
+            errorCallbackURL: '/settings/connected-accounts?tab=1',
+          }),
+        );
+        const target = new URL(redirectBrowser.mock.calls[0]?.[0]);
+        expect(target.origin + target.pathname).toBe('https://github.com/login/oauth/authorize');
+        expect(target.searchParams.get('prompt')).toBe('select_account');
+        expect(target.searchParams.get('state')).toBe('xyz');
+      });
+
+      it('persists the action, its arguments, the user id and a timestamp before leaving, and nothing secret', async () => {
+        const before = Date.now();
+        await chooseGithub(unlinkGithub);
+        await waitFor(() => expect(redirectBrowser).toHaveBeenCalled());
+
+        const stored = JSON.parse(sessionStorage.getItem(PENDING_REAUTH_STORAGE_KEY) ?? 'null');
+        expect(stored).toEqual({ action: { key: 'unlink-account', args: { accountId: 'acc-gh' } }, userId: 'u1', at: expect.any(Number) });
+        expect(stored.at).toBeGreaterThanOrEqual(before);
+        expect(sessionStorage.length).toBe(1);
+      });
+
+      it('persists no action when the stale call is not replayable', async () => {
+        await chooseGithub();
+        await waitFor(() => expect(redirectBrowser).toHaveBeenCalled());
+
+        expect(JSON.parse(sessionStorage.getItem(PENDING_REAUTH_STORAGE_KEY) ?? 'null')).toEqual({
+          action: null,
+          userId: 'u1',
+          at: expect.any(Number),
+        });
+      });
+
+      it('shows the error, stores nothing and does not leave when the provider cannot be started', async () => {
+        page.data = { socialProviders: [SocialProvider.GITHUB] };
+        setup({ accounts: [GITHUB] });
+        network.reply(SIGN_IN_SOCIAL, { status: StatusCodes.BAD_REQUEST, body: { message: 'Provider not found' } });
+        withFreshSession(() => Promise.resolve(NOT_FRESH), unlinkGithub);
+        render(ReauthDialog);
+
+        await fireEvent.click(await screen.findByRole('button', { name: 'Continue with GitHub' }));
+
+        expect((await screen.findByTestId('reauth-error')).textContent).toBe('Sign-in with the provider failed. Please try again.');
+        expect(sessionStorage.getItem(PENDING_REAUTH_STORAGE_KEY)).toBeNull();
+        expect(redirectBrowser).not.toHaveBeenCalled();
+        expect(freshSession.open).toBe(true);
+      });
+
+      it('leaves storage untouched when the dialog is dismissed', async () => {
+        page.data = { socialProviders: [SocialProvider.GITHUB] };
+        setup({ accounts: [GITHUB] });
+        const result = withFreshSession(() => Promise.resolve(NOT_FRESH), unlinkGithub);
+        render(ReauthDialog);
+
+        await fireEvent.click(await screen.findByRole('button', { name: 'Cancel' }));
+
+        expect(await result).toBe(NOT_FRESH);
+        expect(sessionStorage.length).toBe(0);
+        expect(network.sent(SIGN_IN_SOCIAL)).toEqual([]);
+      });
     });
 
     it('keeps the sign-out fallback when the only linked provider is disabled', async () => {
