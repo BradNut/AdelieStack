@@ -32,5 +32,12 @@ export const AUTH_RATE_LIMIT_RULES = {
   '/passkey/*': { window: 60, max: 10 },
 } as const satisfies Record<string, AuthRateLimitRule>;
 
+/**
+ * Endpoints below the pinned `/sign-in/*` and `/two-factor/*` wildcards that stay on the default on
+ * purpose: none of them checks a credential or a code. Each must be a real Better Auth path without an
+ * exact rule of its own; a test fails otherwise, and when a new endpoint is neither listed nor ruled.
+ */
+export const AUTH_RATE_LIMIT_DEFAULT_PATHS = ['/sign-in/social', '/two-factor/enable', '/two-factor/send-otp'] as const;
+
 /** Response header Better Auth sets on a throttled (429) request: seconds until the client may retry. */
 export const RETRY_AFTER_HEADER = 'x-retry-after';
