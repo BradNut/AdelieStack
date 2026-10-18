@@ -1,4 +1,4 @@
-import { LAST_LOGIN_METHOD_COOKIE } from '@adelie/shared';
+import { AUTH_BASE_PATH, LAST_LOGIN_METHOD_COOKIE } from '@adelie/shared';
 import { passkeyClient } from '@better-auth/passkey/client';
 import { adminClient, lastLoginMethodClient, twoFactorClient } from 'better-auth/client/plugins';
 import { createAuthClient } from 'better-auth/svelte';
@@ -9,10 +9,11 @@ import { goto } from '$app/navigation';
 export const TWO_FACTOR_PATH = '/login/two-factor';
 
 /**
- * Browser-side Better Auth client. It talks to `/api/auth/*` on the web origin, which the
+ * Browser-side Better Auth client. It talks to `AUTH_BASE_PATH` (`/api/auth/*`) on the web origin, which the
  * `/api/[...slug]` proxy forwards to the API, so the session cookie stays first-party.
  */
 export const authClient = createAuthClient({
+  basePath: AUTH_BASE_PATH,
   fetchOptions: { customFetchImpl: withRetryAfter((input, init) => fetch(input, init)) },
   plugins: [
     twoFactorClient({
