@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { CREDENTIAL_PROVIDER_ID } from '@adelie/shared';
+	import { CREDENTIAL_PROVIDER_ID, isSocialProvider, SOCIAL_PROVIDER_LABELS, type SocialProvider } from '@adelie/shared';
 	import { authClient } from '#lib/auth-client.ts';
 	import { createCaptchaForm } from '#lib/client/captcha/captcha-form.svelte.ts';
 	import { freshSession, ReauthOutcome } from '#lib/client/fresh-session.svelte.ts';
@@ -11,12 +11,15 @@
 	import * as m from '#lib/paraglide/messages.js';
 	import { captchaErrorMessage } from '#lib/utils/captcha-messages.ts';
 	import { throttledMessage } from '#lib/utils/throttle-messages.ts';
+	import { page } from '$app/state';
 
 	/** How the signed-in user can prove who they are again. Null while still checking. */
 	interface Methods {
 		email: string;
 		password: boolean;
 		passkey: boolean;
+		/** Linked providers that the public config still enables. */
+		providers: SocialProvider[];
 	}
 
 	let methods = $state<Methods | null>(null);
@@ -26,7 +29,7 @@
 	// Password sign-in is captcha-protected; passkey sign-in is exempt (ADR 0004), so only the password form binds a token.
 	const captcha = createCaptchaForm();
 
-	const canReauthenticate = $derived(methods !== null && (methods.password || methods.passkey));
+	const canReauthenticate = $derived(methods !== null && (methods.password || methods.passkey || methods.providers.length > 0));
 
 	/** Password sign-in on a two-factor account would answer with a challenge, which is out of scope here. */
 	async function detectMethods(): Promise<Methods> {
@@ -36,10 +39,12 @@
 			authClient.passkey.listUserPasskeys(),
 		]);
 		const user = session.data?.user;
+		const enabledProviders: SocialProvider[] = (page.data.socialProviders ?? []).filter(isSocialProvider);
 		return {
 			email: user?.email ?? '',
 			password: Boolean(user) && !user?.twoFactorEnabled && Boolean(accounts.data?.some((account) => account.providerId === CREDENTIAL_PROVIDER_ID)),
 			passkey: (passkeys.data?.length ?? 0) > 0,
+			providers: enabledProviders.filter((provider) => accounts.data?.some((account) => account.providerId === provider)),
 		};
 	}
 
@@ -51,7 +56,7 @@
 		methods = null;
 		// A failed lookup leaves no way to re-authenticate here, so it shows the sign-out fallback instead of waiting forever.
 		detectMethods()
-			.catch((): Methods => ({ email: '', password: false, passkey: false }))
+			.catch((): Methods => ({ email: '', password: false, passkey: false, providers: [] }))
 			.then((detected) => {
 				if (current) methods = detected;
 			});
@@ -123,6 +128,9 @@
 			{#if methods.passkey}
 				<Button type="button" variant="outline" disabled={busy} onclick={confirmWithPasskey}>{m.reauth_use_passkey()}</Button>
 			{/if}
+			{#each methods.providers as provider (provider)}
+				<Button type="button" variant="outline" disabled={busy}>{m.reauth_use_provider({ provider: SOCIAL_PROVIDER_LABELS[provider] })}</Button>
+			{/each}
 			{#if error}
 				<p id="reauth-error" class="text-sm text-destructive" role="alert" data-testid="reauth-error">{error}</p>
 			{/if}

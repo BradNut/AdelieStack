@@ -7,6 +7,7 @@ import {
   CaptchaProvider,
   CREDENTIAL_PROVIDER_ID,
   RETRY_AFTER_HEADER,
+  SocialProvider,
   StatusCodes,
 } from '@adelie/shared';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/svelte';
@@ -27,6 +28,7 @@ vi.mock('mode-watcher', () => ({ mode: { current: 'light' } }));
 vi.mock('svelte-sonner', () => ({ toast: { error: vi.fn() } }));
 
 import { freshSession, ReauthOutcome } from '#lib/client/fresh-session.svelte.ts';
+import { page } from '$app/state';
 import ReauthDialog from '../reauth-dialog.svelte';
 
 const USER = { id: 'u1', email: 'a@example.com', twoFactorEnabled: false };
@@ -86,6 +88,7 @@ beforeEach(() => {
   widget.destroy.mockReset();
   renderWidget.mockReset().mockResolvedValue(widget);
   stubWebAuthn();
+  page.data = { socialProviders: [] };
   setup();
 });
 
@@ -205,6 +208,56 @@ describe('ReauthDialog', () => {
 
     expect((await screen.findByTestId('reauth-fallback')).textContent).toBe('Sign out and sign in again to continue.');
     expect(screen.queryByLabelText('Password')).toBeNull();
+  });
+
+  describe('with linked social providers', () => {
+    const GITHUB = { providerId: SocialProvider.GITHUB };
+    const GOOGLE = { providerId: SocialProvider.GOOGLE };
+
+    it('offers a button for each linked provider that is still enabled, next to the password form', async () => {
+      page.data = { socialProviders: [SocialProvider.GITHUB, SocialProvider.GOOGLE] };
+      setup({ accounts: [{ providerId: CREDENTIAL_PROVIDER_ID }, GITHUB, GOOGLE] });
+      open();
+
+      expect(await screen.findByRole('button', { name: 'Continue with GitHub' })).toBeTruthy();
+      expect(screen.getByRole('button', { name: 'Continue with Google' })).toBeTruthy();
+      expect(screen.getByLabelText('Password')).toBeTruthy();
+      expect(screen.queryByTestId('reauth-fallback')).toBeNull();
+    });
+
+    it('hides a provider that was disabled since it was linked', async () => {
+      page.data = { socialProviders: [SocialProvider.GITHUB] };
+      setup({ accounts: [GITHUB, GOOGLE] });
+      open();
+
+      await screen.findByRole('button', { name: 'Continue with GitHub' });
+      expect(screen.queryByRole('button', { name: 'Continue with Google' })).toBeNull();
+    });
+
+    it('hides an enabled provider the user never linked', async () => {
+      page.data = { socialProviders: [SocialProvider.GITHUB, SocialProvider.GOOGLE] };
+      setup({ accounts: [GITHUB] });
+      open();
+
+      await screen.findByRole('button', { name: 'Continue with GitHub' });
+      expect(screen.queryByRole('button', { name: 'Continue with Google' })).toBeNull();
+    });
+
+    it('offers the provider to a two-factor user, who has no password option', async () => {
+      page.data = { socialProviders: [SocialProvider.GITHUB] };
+      setup({ user: { ...USER, twoFactorEnabled: true }, accounts: [GITHUB] });
+      open();
+
+      await screen.findByRole('button', { name: 'Continue with GitHub' });
+      expect(screen.queryByLabelText('Password')).toBeNull();
+    });
+
+    it('keeps the sign-out fallback when the only linked provider is disabled', async () => {
+      setup({ accounts: [GITHUB] });
+      open();
+
+      expect((await screen.findByTestId('reauth-fallback')).textContent).toBe('Sign out and sign in again to continue.');
+    });
   });
 
   describe('with captcha on', () => {
