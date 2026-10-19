@@ -317,3 +317,11 @@ API architecture using HTTP methods and URLs.
 
 **JSON**  
 JavaScript Object Notation - data format for APIs.
+
+## Authentication
+
+**Fresh Session**  
+A session created recently enough to allow sensitive account changes. Only signing in again creates one; activity alone does not.
+
+**Re-authentication**  
+Proving who you are again, with a password, a passkey or a linked social provider, to get a fresh session without leaving the page you were on.
