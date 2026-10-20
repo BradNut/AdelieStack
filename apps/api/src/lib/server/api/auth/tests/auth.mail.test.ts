@@ -1,4 +1,3 @@
-import { totpCode } from '@adelie/test-utils/totp';
 import { memoryAdapter } from 'better-auth/adapters/memory';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { type Auth, createAuth } from '#lib/server/api/auth/auth.config';
@@ -10,11 +9,13 @@ import { PasswordChangedEmail } from '#lib/server/api/mail/templates/password-ch
 import { PasswordResetLinkEmail } from '#lib/server/api/mail/templates/password-reset-link.template';
 import { RecoveryCodesRegeneratedEmail } from '#lib/server/api/mail/templates/recovery-codes-regenerated.template';
 import { RecoveryCodesUsedEmail } from '#lib/server/api/mail/templates/recovery-codes-used.template';
+import { cookiesFrom, signUpWithTotp, startTwoFactorSignIn } from '../../../../../test/auth-http';
 
 const ORIGIN = 'http://localhost:5173';
 const PASSWORD = 'Correct-horse-9';
 const NEW_PASSWORD = 'Another-pass-7';
 const EMAIL = 'penguin@example.com';
+const USER = { name: 'Penguin', email: EMAIL, password: PASSWORD };
 
 let auth: Auth;
 const send = vi.fn<(data: SendProps) => Promise<void>>();
@@ -32,20 +33,6 @@ async function call(path: string, { body, cookie }: { body?: unknown; cookie?: s
   );
 }
 
-function cookiesFrom(res: Response, previous = ''): string {
-  const jar = new Map(
-    previous
-      .split('; ')
-      .filter(Boolean)
-      .map((c) => [c.split('=')[0], c] as const),
-  );
-  for (const c of res.headers.getSetCookie()) {
-    const pair = c.split(';')[0];
-    jar.set(pair.split('=')[0], pair);
-  }
-  return [...jar.values()].join('; ');
-}
-
 function sentTemplates() {
   return send.mock.calls.map(([data]) => data.template);
 }
@@ -54,15 +41,6 @@ async function signUp() {
   const res = await call('/sign-up/email', { body: { name: 'Penguin', email: EMAIL, password: PASSWORD } });
   send.mockClear();
   return cookiesFrom(res);
-}
-
-/** Enrols two-factor, confirms it with a first TOTP code and returns the recovery codes. */
-async function enrol(cookie: string) {
-  const res = await call('/two-factor/enable', { cookie, body: { password: PASSWORD } });
-  const { totpURI, backupCodes } = (await res.json()) as { totpURI: string; backupCodes: string[] };
-  const verify = await call('/two-factor/verify-totp', { cookie, body: { code: totpCode(totpURI) } });
-  send.mockClear();
-  return { backupCodes, cookie: cookiesFrom(verify, cookie) };
 }
 
 beforeEach(() => {
@@ -148,7 +126,8 @@ describe('security-event emails', () => {
   });
 
   it('sends one email when recovery codes are regenerated', async () => {
-    const { cookie } = await enrol(await signUp());
+    const { cookie } = await signUpWithTotp(call, USER);
+    send.mockClear();
 
     const res = await call('/two-factor/generate-backup-codes', { cookie, body: { password: PASSWORD } });
 
@@ -158,7 +137,8 @@ describe('security-event emails', () => {
   });
 
   it('sends nothing when regeneration is refused', async () => {
-    const { cookie } = await enrol(await signUp());
+    const { cookie } = await signUpWithTotp(call, USER);
+    send.mockClear();
 
     const res = await call('/two-factor/generate-backup-codes', { cookie, body: { password: 'wrong-password-123' } });
 
@@ -169,9 +149,9 @@ describe('security-event emails', () => {
   it('sends one email when a recovery code is used, and none for an invalid code', async () => {
     const {
       backupCodes: [code],
-    } = await enrol(await signUp());
+    } = await signUpWithTotp(call, USER);
     // Recovery codes are a sign-in step: the password sign-in leaves a two-factor challenge cookie.
-    const cookie = cookiesFrom(await call('/sign-in/email', { body: { email: EMAIL, password: PASSWORD } }));
+    const { challengeCookie: cookie } = await startTwoFactorSignIn(call, USER);
     send.mockClear();
 
     const bad = await call('/two-factor/verify-backup-code', { cookie, body: { code: 'not-a-real-code' } });
