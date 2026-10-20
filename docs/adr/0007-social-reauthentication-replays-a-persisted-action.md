@@ -15,7 +15,7 @@ The trigger: users who sign in only through a provider have no password or passk
 - Every outcome clears the entry. Entries older than 10 minutes are dropped, replay happens at most once, and nothing is replayed after a provider error.
 - The return path is an app-internal relative path, never a free URL (OWASP open-redirect guidance).
 - Re-authentication sends `prompt=select_account` and `loginHint` so a provider session does not complete it silently. This is best effort: the provider's own policy decides whether a password is re-entered.
-- Provider sign-in does not trigger our TOTP challenge, so a user with two-factor enabled can regain a fresh session with the provider login alone. This is deliberate, as with passkeys, and the alternative would strand social-only two-factor users.
+- ~~Provider sign-in does not trigger our TOTP challenge, so a user with two-factor enabled can regain a fresh session with the provider login alone. This is deliberate, as with passkeys, and the alternative would strand social-only two-factor users.~~ Superseded by [ADR 0008](./0008-two-factor-reauthentication-requires-every-factor.md): providers are not offered to two-factor users.
 - Actions that are not registered return the user to the page with a "re-authenticated, try again" notice.
 
 ## Considered options
