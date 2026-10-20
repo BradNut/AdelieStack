@@ -26,13 +26,15 @@ vi.mock('#lib/client/captcha/widgets.ts', async (importOriginal) => ({
   captchaWidgetFor: (provider: string) => ({ provider, render: renderWidget }),
 }));
 vi.mock('mode-watcher', () => ({ mode: { current: 'light' } }));
-vi.mock('svelte-sonner', () => ({ toast: { error: vi.fn() } }));
+vi.mock('svelte-sonner', () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 // Leaving for the provider is a full-page navigation, which jsdom cannot perform.
 const redirectBrowser = vi.hoisted(() => vi.fn());
 vi.mock('#lib/client/browser-redirect.ts', () => ({ redirectBrowser }));
 
+import { toast } from 'svelte-sonner';
 import { freshSession, ReauthOutcome, withFreshSession } from '#lib/client/fresh-session.svelte.ts';
 import { PENDING_REAUTH_STORAGE_KEY, ReplayActionKey } from '#lib/client/reauth-replay.svelte.ts';
+import { goto } from '$app/navigation';
 import { page } from '$app/state';
 import ReauthDialog from '../reauth-dialog.svelte';
 
@@ -95,6 +97,8 @@ beforeEach(() => {
   stubWebAuthn();
   sessionStorage.clear();
   redirectBrowser.mockReset();
+  vi.mocked(goto).mockReset();
+  vi.mocked(toast.error).mockReset();
   page.data = { socialProviders: [] };
   setup();
 });
@@ -149,18 +153,6 @@ describe('ReauthDialog', () => {
     expect((await screen.findByTestId('reauth-error')).textContent).toBe('Too many attempts. Please try again in 42 seconds.');
   });
 
-  it('does not confirm when password sign-in answers with a two-factor challenge', async () => {
-    network.reply(SIGN_IN, { body: { twoFactorRedirect: true } });
-    const outcome = open();
-    const settled = vi.fn();
-    outcome.then(settled);
-
-    await confirmPassword();
-
-    expect((await screen.findByTestId('reauth-error')).textContent).toBe('Sign out and sign in again to continue.');
-    expect(settled).not.toHaveBeenCalled();
-  });
-
   it('falls back to sign out and in when the lookup fails', async () => {
     network.reply(authPath('/list-accounts'), { status: StatusCodes.INTERNAL_SERVER_ERROR, body: { message: 'offline' } });
     open();
@@ -208,7 +200,7 @@ describe('ReauthDialog', () => {
 
   it.each([
     ['a social-only user without passkeys', { accounts: [{ providerId: 'github' }] }],
-    ['a two-factor user without passkeys', { user: { ...USER, twoFactorEnabled: true } }],
+    ['a two-factor user with only a linked provider', { user: { ...USER, twoFactorEnabled: true }, accounts: [{ providerId: 'github' }] }],
   ])('tells %s to sign out and in again', async (_name, overrides) => {
     setup(overrides);
     open();
@@ -248,15 +240,6 @@ describe('ReauthDialog', () => {
 
       await screen.findByRole('button', { name: 'Continue with GitHub' });
       expect(screen.queryByRole('button', { name: 'Continue with Google' })).toBeNull();
-    });
-
-    it('offers the provider to a two-factor user, who has no password option', async () => {
-      page.data = { socialProviders: [SocialProvider.GITHUB] };
-      setup({ user: { ...USER, twoFactorEnabled: true }, accounts: [GITHUB] });
-      open();
-
-      await screen.findByRole('button', { name: 'Continue with GitHub' });
-      expect(screen.queryByLabelText('Password')).toBeNull();
     });
 
     describe('choosing a provider', () => {
@@ -354,6 +337,235 @@ describe('ReauthDialog', () => {
       open();
 
       expect((await screen.findByTestId('reauth-fallback')).textContent).toBe('Sign out and sign in again to continue.');
+    });
+  });
+
+  describe('for a two-factor user', () => {
+    const TWO_FACTOR_USER = { ...USER, twoFactorEnabled: true };
+    const VERIFY_TOTP = authPath('/two-factor/verify-totp');
+    const NOT_FRESH = { data: null, error: { status: 403, code: AuthErrorCode.SESSION_NOT_FRESH, message: 'Session is not fresh' } };
+    const DONE = { data: { ok: true }, error: null };
+
+    /** Opens the dialog the way a stale action does; the action succeeds once retried. */
+    function openFromStaleAction() {
+      const action = vi.fn().mockResolvedValueOnce(NOT_FRESH).mockResolvedValue(DONE);
+      render(ReauthDialog);
+      return { action, result: withFreshSession(action) };
+    }
+
+    beforeEach(() => {
+      setup({ user: TWO_FACTOR_USER });
+      network.reply(SIGN_IN, { body: { twoFactorRedirect: true, twoFactorMethods: ['totp', 'otp'] } });
+    });
+
+    it('asks for an authenticator code after the password, then retries the action', async () => {
+      const { action, result } = openFromStaleAction();
+
+      await confirmPassword();
+      await fireEvent.input(await screen.findByLabelText('Authenticator code'), { target: { value: '123456' } });
+      await fireEvent.click(screen.getByRole('button', { name: 'Verify' }));
+
+      expect(await result).toBe(DONE);
+      expect(action).toHaveBeenCalledTimes(2);
+      expect(network.sent(VERIFY_TOTP).map((request) => request.body)).toEqual([{ code: '123456' }]);
+      expect(goto).not.toHaveBeenCalled();
+    });
+
+    it('emails a code only when asked, then confirms with it', async () => {
+      const SEND_OTP = authPath('/two-factor/send-otp');
+      const VERIFY_OTP = authPath('/two-factor/verify-otp');
+      const { action, result } = openFromStaleAction();
+
+      await confirmPassword();
+      await fireEvent.click(await screen.findByRole('tab', { name: 'Email' }));
+      expect(network.sent(SEND_OTP)).toEqual([]);
+      await fireEvent.click(screen.getByRole('button', { name: 'Email me a code' }));
+      await fireEvent.input(await screen.findByLabelText('Emailed code'), { target: { value: '654321' } });
+      await fireEvent.click(screen.getByRole('button', { name: 'Verify' }));
+
+      expect(await result).toBe(DONE);
+      expect(action).toHaveBeenCalledTimes(2);
+      expect(network.sent(SEND_OTP)).toHaveLength(1);
+      expect(network.sent(VERIFY_OTP).map((request) => request.body)).toEqual([{ code: '654321' }]);
+    });
+
+    it('confirms with a recovery code', async () => {
+      const VERIFY_BACKUP = authPath('/two-factor/verify-backup-code');
+      const { action, result } = openFromStaleAction();
+
+      await confirmPassword();
+      await fireEvent.click(await screen.findByRole('tab', { name: 'Recovery' }));
+      await fireEvent.input(screen.getByLabelText('Recovery code'), { target: { value: 'abcde-fghij' } });
+      await fireEvent.click(screen.getByRole('button', { name: 'Use recovery code' }));
+
+      expect(await result).toBe(DONE);
+      expect(action).toHaveBeenCalledTimes(2);
+      expect(network.sent(VERIFY_BACKUP).map((request) => request.body)).toEqual([{ code: 'abcde-fghij' }]);
+    });
+
+    it('shows an error on a wrong code and stays on the code step', async () => {
+      network.reply(VERIFY_TOTP, { status: StatusCodes.UNAUTHORIZED, body: { code: 'INVALID_CODE', message: 'Invalid code' } });
+      const { action, result } = openFromStaleAction();
+      const settled = vi.fn();
+      result.then(settled);
+
+      await confirmPassword();
+      await fireEvent.input(await screen.findByLabelText('Authenticator code'), { target: { value: '000000' } });
+      await fireEvent.click(screen.getByRole('button', { name: 'Verify' }));
+
+      expect(await screen.findByText('Invalid code')).toBeTruthy();
+      expect(screen.getByLabelText('Authenticator code')).toBeTruthy();
+      expect(freshSession.open).toBe(true);
+      expect(settled).not.toHaveBeenCalled();
+      expect(action).toHaveBeenCalledOnce();
+    });
+
+    it('shows the throttled wait and stays on the code step when verification is rate limited', async () => {
+      network.reply(VERIFY_TOTP, THROTTLED);
+      openFromStaleAction();
+
+      await confirmPassword();
+      await fireEvent.input(await screen.findByLabelText('Authenticator code'), { target: { value: '123456' } });
+      await fireEvent.click(screen.getByRole('button', { name: 'Verify' }));
+
+      expect(await screen.findByText('Too many attempts. Please try again in 42 seconds.')).toBeTruthy();
+      expect(freshSession.open).toBe(true);
+      expect(goto).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      [
+        'an expired challenge',
+        { status: StatusCodes.UNAUTHORIZED, body: { code: AuthErrorCode.TWO_FACTOR_CHALLENGE_INVALID, message: 'Invalid two factor cookie' } },
+        'Your verification expired, so you have been signed out. Sign in again to continue.',
+        undefined,
+      ],
+      [
+        'a challenge out of attempts',
+        {
+          status: StatusCodes.BAD_REQUEST,
+          body: { code: AuthErrorCode.TWO_FACTOR_ATTEMPTS_EXHAUSTED, message: 'Too many attempts. Please request a new code.' },
+        },
+        'Too many wrong codes, so you have been signed out. Sign in again to continue.',
+        undefined,
+      ],
+      [
+        'a two-factor lockout',
+        { ...THROTTLED, body: { code: AuthErrorCode.TWO_FACTOR_LOCKED, message: 'Your account is temporarily locked.' } },
+        'Your account is temporarily locked after too many wrong codes, so you have been signed out.',
+        'Too many attempts. Please try again in 42 seconds.',
+      ],
+    ])('signs the user out and sends them to sign in with a return path after %s', async (_name, reply, message, description) => {
+      window.history.replaceState({}, '', '/settings/connected-accounts?tab=1');
+      network.reply(VERIFY_TOTP, reply);
+      const { action, result } = openFromStaleAction();
+
+      await confirmPassword();
+      await fireEvent.input(await screen.findByLabelText('Authenticator code'), { target: { value: '123456' } });
+      await fireEvent.click(screen.getByRole('button', { name: 'Verify' }));
+
+      expect(await result).toBe(NOT_FRESH);
+      expect(action).toHaveBeenCalledOnce();
+      expect(freshSession.open).toBe(false);
+      expect(goto).toHaveBeenCalledExactlyOnceWith('/login?returnTo=%2Fsettings%2Fconnected-accounts%3Ftab%3D1', { invalidateAll: true });
+      expect(toast.error).toHaveBeenCalledWith(message, { description });
+    });
+
+    it('warns before closing at the code step, and confirming signs the user out without a replay', async () => {
+      window.history.replaceState({}, '', '/settings/security');
+      const { action, result } = openFromStaleAction();
+      const settled = vi.fn();
+      result.then(settled);
+
+      await confirmPassword();
+      await screen.findByLabelText('Authenticator code');
+      await fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+      expect(screen.getByTestId('reauth-leave-warning').textContent).toContain('Closing now will sign you out');
+      expect(freshSession.open).toBe(true);
+      expect(settled).not.toHaveBeenCalled();
+
+      await fireEvent.click(screen.getByRole('button', { name: 'Sign out' }));
+
+      expect(await result).toBe(NOT_FRESH);
+      expect(action).toHaveBeenCalledOnce();
+      expect(goto).toHaveBeenCalledExactlyOnceWith('/login?returnTo=%2Fsettings%2Fsecurity', { invalidateAll: true });
+      expect(sessionStorage.getItem(PENDING_REAUTH_STORAGE_KEY)).toBeNull();
+    });
+
+    it('warns on Escape at the code step too, and staying returns to the code', async () => {
+      openFromStaleAction();
+
+      await confirmPassword();
+      await screen.findByLabelText('Authenticator code');
+      await fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
+
+      await screen.findByTestId('reauth-leave-warning');
+      expect(freshSession.open).toBe(true);
+
+      await fireEvent.click(screen.getByRole('button', { name: 'Stay' }));
+
+      expect(screen.getByLabelText('Authenticator code')).toBeTruthy();
+      expect(goto).not.toHaveBeenCalled();
+    });
+
+    it('is offered a passkey but no social provider', async () => {
+      page.data = { socialProviders: [SocialProvider.GITHUB] };
+      setup({
+        user: TWO_FACTOR_USER,
+        accounts: [{ providerId: CREDENTIAL_PROVIDER_ID }, { providerId: SocialProvider.GITHUB }],
+        passkeys: [{ id: 'pk' }],
+      });
+      open();
+
+      expect(await screen.findByRole('button', { name: 'Use a passkey' })).toBeTruthy();
+      expect(screen.getByLabelText('Password')).toBeTruthy();
+      expect(screen.queryByRole('button', { name: 'Continue with GitHub' })).toBeNull();
+    });
+
+    it('confirms with a passkey alone', async () => {
+      setup({ user: TWO_FACTOR_USER, passkeys: [{ id: 'pk' }] });
+      const outcome = open();
+
+      await fireEvent.click(await screen.findByRole('button', { name: 'Use a passkey' }));
+
+      expect(await outcome).toBe(ReauthOutcome.CONFIRMED);
+      expect(network.sent(SIGN_IN)).toEqual([]);
+    });
+
+    it('is told to sign out and in when a linked provider is all it has', async () => {
+      page.data = { socialProviders: [SocialProvider.GITHUB] };
+      setup({ user: TWO_FACTOR_USER, accounts: [{ providerId: SocialProvider.GITHUB }] });
+      open();
+
+      expect((await screen.findByTestId('reauth-fallback')).textContent).toBe('Sign out and sign in again to continue.');
+    });
+
+    it('never sends "trust this device"', async () => {
+      const { result } = openFromStaleAction();
+
+      await confirmPassword();
+      await fireEvent.input(await screen.findByLabelText('Authenticator code'), { target: { value: '123456' } });
+      await fireEvent.click(screen.getByRole('button', { name: 'Verify' }));
+      await result;
+
+      for (const request of network.sent(VERIFY_TOTP)) expect(request.body).not.toHaveProperty('trustDevice');
+      expect(screen.queryByLabelText(/trust/i)).toBeNull();
+    });
+  });
+
+  describe('for a user without two-factor', () => {
+    it('confirms with the password alone and still offers linked providers', async () => {
+      page.data = { socialProviders: [SocialProvider.GITHUB] };
+      setup({ accounts: [{ providerId: CREDENTIAL_PROVIDER_ID }, { providerId: SocialProvider.GITHUB }] });
+      const outcome = open();
+
+      expect(await screen.findByRole('button', { name: 'Continue with GitHub' })).toBeTruthy();
+      await confirmPassword();
+
+      expect(await outcome).toBe(ReauthOutcome.CONFIRMED);
+      expect(screen.queryByLabelText('Authenticator code')).toBeNull();
+      expect(goto).not.toHaveBeenCalled();
     });
   });
 
