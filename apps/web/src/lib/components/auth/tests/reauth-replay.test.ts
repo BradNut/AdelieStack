@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
-import { AuthErrorCode, SocialProvider } from '@adelie/shared';
+import { SocialProvider } from '@adelie/shared';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { authPath, stubFetch } from '#lib/client/tests/fetch-stub.ts';
+import { NOT_FRESH } from '#lib/client/tests/fresh-session-fixtures.ts';
 
 vi.mock('mode-watcher', () => ({ mode: { current: 'light' } }));
 vi.mock('svelte-sonner', () => ({ toast: { error: vi.fn(), success: vi.fn(), info: vi.fn() } }));
@@ -23,7 +24,6 @@ import { page } from '$app/state';
 import ReauthDialog from '../reauth-dialog.svelte';
 
 const USER = { id: 'u1', email: 'a@example.com', twoFactorEnabled: false };
-const NOT_FRESH = { data: null, error: { status: 403, code: AuthErrorCode.SESSION_NOT_FRESH, message: 'Session is not fresh' } };
 const UNLINK = authPath('/unlink-account');
 const LIST_ACCOUNTS = authPath('/list-accounts');
 const UNLINK_GITHUB: ReplayRequest = { key: ReplayActionKey.UNLINK_ACCOUNT, args: { accountId: 'acc-gh' } };

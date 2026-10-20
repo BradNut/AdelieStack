@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { AuthErrorCode, StatusCodes } from '@adelie/shared';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -112,7 +113,7 @@ describe('two-factor page', () => {
     page.url = new URL('http://localhost/login/two-factor');
     authClient.twoFactor.verifyTotp.mockResolvedValue({
       data: null,
-      error: { status: 401, code: 'INVALID_TWO_FACTOR_COOKIE', message: 'Invalid two factor cookie' },
+      error: { status: StatusCodes.UNAUTHORIZED, code: AuthErrorCode.TWO_FACTOR_CHALLENGE_INVALID, message: 'Invalid two factor cookie' },
     });
 
     await verifyCode();

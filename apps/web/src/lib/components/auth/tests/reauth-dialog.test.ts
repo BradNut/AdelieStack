@@ -14,6 +14,7 @@ import {
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { authPath, stubFetch } from '#lib/client/tests/fetch-stub.ts';
+import { NOT_FRESH } from '#lib/client/tests/fresh-session-fixtures.ts';
 import { CAPTCHA_BINDING_HEADER } from '#lib/constants/captcha.ts';
 
 const credentialsGet = vi.fn();
@@ -245,7 +246,6 @@ describe('ReauthDialog', () => {
     describe('choosing a provider', () => {
       const SIGN_IN_SOCIAL = authPath('/sign-in/social');
       const AUTHORIZE_URL = 'https://github.com/login/oauth/authorize?client_id=abc&state=xyz';
-      const NOT_FRESH = { data: null, error: { status: 403, code: AuthErrorCode.SESSION_NOT_FRESH, message: 'Session is not fresh' } };
       const unlinkGithub = { key: ReplayActionKey.UNLINK_ACCOUNT, args: { accountId: 'acc-gh' } } as const;
 
       /** Opens the dialog the way a stale action does, then clicks the GitHub button. */
@@ -343,7 +343,9 @@ describe('ReauthDialog', () => {
   describe('for a two-factor user', () => {
     const TWO_FACTOR_USER = { ...USER, twoFactorEnabled: true };
     const VERIFY_TOTP = authPath('/two-factor/verify-totp');
-    const NOT_FRESH = { data: null, error: { status: 403, code: AuthErrorCode.SESSION_NOT_FRESH, message: 'Session is not fresh' } };
+    const SEND_OTP = authPath('/two-factor/send-otp');
+    const VERIFY_OTP = authPath('/two-factor/verify-otp');
+    const VERIFY_BACKUP = authPath('/two-factor/verify-backup-code');
     const DONE = { data: { ok: true }, error: null };
 
     /** Opens the dialog the way a stale action does; the action succeeds once retried. */
@@ -372,8 +374,6 @@ describe('ReauthDialog', () => {
     });
 
     it('emails a code only when asked, then confirms with it', async () => {
-      const SEND_OTP = authPath('/two-factor/send-otp');
-      const VERIFY_OTP = authPath('/two-factor/verify-otp');
       const { action, result } = openFromStaleAction();
 
       await confirmPassword();
@@ -390,7 +390,6 @@ describe('ReauthDialog', () => {
     });
 
     it('confirms with a recovery code', async () => {
-      const VERIFY_BACKUP = authPath('/two-factor/verify-backup-code');
       const { action, result } = openFromStaleAction();
 
       await confirmPassword();
@@ -541,15 +540,39 @@ describe('ReauthDialog', () => {
       expect((await screen.findByTestId('reauth-fallback')).textContent).toBe('Sign out and sign in again to continue.');
     });
 
-    it('never sends "trust this device"', async () => {
+    /** Answers the challenge with each factor; the emailed code is requested first. */
+    const answerWith = {
+      async authenticator() {
+        await fireEvent.input(await screen.findByLabelText('Authenticator code'), { target: { value: '123456' } });
+        await fireEvent.click(screen.getByRole('button', { name: 'Verify' }));
+      },
+      async emailed() {
+        await fireEvent.click(await screen.findByRole('tab', { name: 'Email' }));
+        await fireEvent.click(screen.getByRole('button', { name: 'Email me a code' }));
+        await fireEvent.input(await screen.findByLabelText('Emailed code'), { target: { value: '654321' } });
+        await fireEvent.click(screen.getByRole('button', { name: 'Verify' }));
+      },
+      async recovery() {
+        await fireEvent.click(await screen.findByRole('tab', { name: 'Recovery' }));
+        await fireEvent.input(screen.getByLabelText('Recovery code'), { target: { value: 'abcde-fghij' } });
+        await fireEvent.click(screen.getByRole('button', { name: 'Use recovery code' }));
+      },
+    };
+
+    it.each([
+      ['an authenticator code', answerWith.authenticator, VERIFY_TOTP],
+      ['an emailed code', answerWith.emailed, VERIFY_OTP],
+      ['a recovery code', answerWith.recovery, VERIFY_BACKUP],
+    ])('never sends "trust this device" with %s', async (_name, answer, endpoint) => {
       const { result } = openFromStaleAction();
 
       await confirmPassword();
-      await fireEvent.input(await screen.findByLabelText('Authenticator code'), { target: { value: '123456' } });
-      await fireEvent.click(screen.getByRole('button', { name: 'Verify' }));
+      await answer();
       await result;
 
-      for (const request of network.sent(VERIFY_TOTP)) expect(request.body).not.toHaveProperty('trustDevice');
+      const sent = network.sent(endpoint);
+      expect(sent).toHaveLength(1);
+      for (const request of sent) expect(request.body).not.toHaveProperty('trustDevice');
       expect(screen.queryByLabelText(/trust/i)).toBeNull();
     });
   });
