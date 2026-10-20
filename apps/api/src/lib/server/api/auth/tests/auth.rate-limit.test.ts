@@ -186,6 +186,25 @@ describe('auth rate limiting', () => {
     expect(send).toHaveBeenCalledTimes(AUTH_RATE_LIMIT_EMAIL.max);
   });
 
+  it('resends the verification email only up to the email limit, then refuses with a retry time and sends nothing', async () => {
+    const { auth, send } = build();
+    const email = 'unverified@example.com';
+    await post(auth, '/sign-up/email', { name: 'Member', email, password: 'Correct-horse-9' });
+    send.mockClear(); // drop the sign-up verification email
+    const resend = () => post(auth, '/send-verification-email', { email });
+    for (let i = 1; i <= AUTH_RATE_LIMIT_EMAIL.max; i++) {
+      expect((await resend()).status).toBe(200);
+      expect(send).toHaveBeenCalledTimes(i);
+    }
+
+    const res = await resend();
+
+    expect(res.status).toBe(429);
+    // The email window, not Better Auth's built-in one for this path (3 a minute); the Redis mock reports the full window as time left.
+    expect(Number(res.headers.get(RETRY_AFTER_HEADER))).toBe(AUTH_RATE_LIMIT_EMAIL.window);
+    expect(send).toHaveBeenCalledTimes(AUTH_RATE_LIMIT_EMAIL.max);
+  });
+
   // Without a challenge cookie the endpoint answers 401, but the limiter runs first and counts it all the same.
   it('counts each client separately for the email limit', async () => {
     const { auth } = build();
