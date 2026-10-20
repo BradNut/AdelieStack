@@ -1,11 +1,32 @@
 import { totpCode } from '@adelie/test-utils/totp';
 
-/** A test's own call into its auth instance: POSTs `body` as JSON when given, otherwise GETs. */
-export type AuthRequest = (path: string, options?: { body?: unknown; cookie?: string }) => Promise<Response>;
+export interface AuthRequestOptions {
+  body?: unknown;
+  cookie?: string;
+}
 
-export interface AuthCredentials {
+/** A test's own call into its auth instance at `/api/auth${path}`. The helpers always pass a JSON `body`. */
+export type AuthRequest = (path: string, options?: AuthRequestOptions) => Promise<Response>;
+
+interface AuthCredentials {
   email: string;
   password: string;
+}
+
+interface SignUpCredentials extends AuthCredentials {
+  name: string;
+}
+
+export interface TotpSignUp {
+  totpURI: string;
+  backupCodes: string[];
+  /** The session cookie after two-factor is confirmed. */
+  cookie: string;
+}
+
+export interface TwoFactorSignInStart {
+  challengeCookie: string;
+  twoFactorRedirect?: boolean;
 }
 
 /**
@@ -27,7 +48,7 @@ export function cookiesFrom(res: Response, previous = ''): string {
 }
 
 /** Signs up, then enables two-factor and confirms it with a first TOTP code. */
-export async function signUpWithTotp(request: AuthRequest, { name, email, password }: AuthCredentials & { name: string }) {
+export async function signUpWithTotp(request: AuthRequest, { name, email, password }: SignUpCredentials): Promise<TotpSignUp> {
   const signUp = await request('/sign-up/email', { body: { name, email, password } });
   const session = cookiesFrom(signUp);
   const enable = await request('/two-factor/enable', { cookie: session, body: { password } });
@@ -37,7 +58,7 @@ export async function signUpWithTotp(request: AuthRequest, { name, email, passwo
 }
 
 /** Password sign-in for a two-factor user: returns the challenge cookie instead of a session. */
-export async function startTwoFactorSignIn(request: AuthRequest, { email, password }: AuthCredentials) {
+export async function startTwoFactorSignIn(request: AuthRequest, { email, password }: AuthCredentials): Promise<TwoFactorSignInStart> {
   const res = await request('/sign-in/email', { body: { email, password } });
   const { twoFactorRedirect } = (await res.json()) as { twoFactorRedirect?: boolean };
   return { challengeCookie: cookiesFrom(res), twoFactorRedirect };

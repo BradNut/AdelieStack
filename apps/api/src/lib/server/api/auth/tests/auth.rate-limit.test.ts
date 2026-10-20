@@ -160,8 +160,9 @@ describe('auth rate limiting', () => {
 
   it('emails a two-factor code only up to the email limit, then refuses with a retry time and sends nothing', async () => {
     const { auth, send } = build();
-    await signUpWithTotp(requestTo(auth), MEMBER);
-    const { challengeCookie: challenge, twoFactorRedirect } = await startTwoFactorSignIn(requestTo(auth), MEMBER);
+    const request = requestTo(auth);
+    await signUpWithTotp(request, MEMBER);
+    const { challengeCookie: challenge, twoFactorRedirect } = await startTwoFactorSignIn(request, MEMBER);
     expect(twoFactorRedirect).toBe(true);
     send.mockClear(); // drop the sign-up verification email
     const sendOtp = () => post(auth, '/two-factor/send-otp', {}, { cookie: challenge });
