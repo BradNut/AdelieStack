@@ -2,8 +2,8 @@
 
 ## Purpose
 
-Provides user authentication flows: login, signup, password reset, and social login (GitHub, Google). MFA (TOTP) UI/API plumbing exists but the redirect flow that would activate it is
-commented out, so MFA is not a live feature today.
+Provides user authentication flows: login, signup, password reset, social login (GitHub, Google), two-factor
+sign-in, and re-authentication when a session is not fresh.
 
 ## User Flows
 
@@ -68,12 +68,22 @@ tracks a local `resetEmailStep` state (`"email-reset"` -> `"token-verification"`
 
 All three actions redirect already-authenticated users to `/` before processing.
 
-### MFA — scaffolded, not live
+### Two-factor sign-in and re-authentication
 
-There is no `/mfa/verify` (or `/totp`) route in the app. The only MFA-related code is the
-commented-out block in `login/+page.server.ts` that would call `locals.api.mfa.totp.$get()` and
-redirect to a TOTP entry page after a successful password login. Until that block is
-re-enabled and a corresponding route is built, logging in never requires a second factor.
+The auth client's two-factor plugin has no `onTwoFactorRedirect`: each password sign-in caller checks the
+`twoFactorRedirect` result itself (ADR 0008). The login page then navigates to `AppRoute.LOGIN_TWO_FACTOR`; the
+re-authentication dialog (`reauth-dialog.svelte`) moves to its challenge step and stays on the page. Both render the
+shared `two-factor-challenge.svelte` (authenticator code, emailed code sent only on request, recovery code; never
+`trustDevice`).
+
+The sign-in pages finish on `?returnTo=` (`RETURN_TO_PARAM`, read with `returnPathFrom`, app-internal paths only)
+and carry it from `/login` to `/login/two-factor`. In the dialog the session cookie is gone once the password is
+accepted, so closing at the challenge step (after a warning), an expired or exhausted challenge, or a two-factor
+lockout settles the dialog as dismissed and sends the user to `/login?returnTo=<current page>` without replaying the
+action. The codes that end the challenge, and the copy for each, live in one map in `two-factor-challenge.svelte`.
+An emailed code has its own attempt counter and expiry: when only that code is used up (`TOO_MANY_ATTEMPTS_REQUEST_NEW_CODE`
+from `verify-otp`) or expired, the user stays on the code step and can request a new code, subject to the email rate
+limit. Two-factor users are not offered social providers in the dialog; a passkey alone is enough.
 
 ### Social login (GitHub, Google)
 

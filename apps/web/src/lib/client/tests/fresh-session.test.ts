@@ -1,5 +1,5 @@
-import { AuthErrorCode } from '@adelie/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { NOT_FRESH } from './fresh-session-fixtures.ts';
 
 vi.mock('svelte-sonner', () => ({ toast: { error: vi.fn() } }));
 const refreshAll = vi.fn();
@@ -7,7 +7,6 @@ vi.mock('$app/navigation', () => ({ refreshAll: (...args: unknown[]) => refreshA
 
 import { freshSession, withFreshSession } from '../fresh-session.svelte';
 
-const notFresh = { data: null, error: { status: 403, code: AuthErrorCode.SESSION_NOT_FRESH, message: 'Session is not fresh' } };
 const ok = { data: { ok: true }, error: null };
 
 beforeEach(() => {
@@ -32,7 +31,7 @@ describe('withFreshSession', () => {
   });
 
   it('opens the prompt on a stale session, retries once confirmed, then refreshes the session', async () => {
-    const action = vi.fn().mockResolvedValueOnce(notFresh).mockResolvedValueOnce(ok);
+    const action = vi.fn().mockResolvedValueOnce(NOT_FRESH).mockResolvedValueOnce(ok);
 
     const pending = withFreshSession(action);
     await vi.waitFor(() => expect(freshSession.open).toBe(true));
@@ -45,20 +44,20 @@ describe('withFreshSession', () => {
   });
 
   it('resolves with the original not-fresh error when the prompt is dismissed, and does not retry', async () => {
-    const action = vi.fn().mockResolvedValue(notFresh);
+    const action = vi.fn().mockResolvedValue(NOT_FRESH);
 
     const pending = withFreshSession(action);
     await vi.waitFor(() => expect(freshSession.open).toBe(true));
     freshSession.settle('dismissed');
 
-    expect(await pending).toBe(notFresh);
+    expect(await pending).toBe(NOT_FRESH);
     expect(action).toHaveBeenCalledOnce();
     expect(refreshAll).not.toHaveBeenCalled();
   });
 
   it('returns the retry error as is when the retry still fails', async () => {
     const failed = { data: null, error: { status: 500, message: 'Boom' } };
-    const action = vi.fn().mockResolvedValueOnce(notFresh).mockResolvedValueOnce(failed);
+    const action = vi.fn().mockResolvedValueOnce(NOT_FRESH).mockResolvedValueOnce(failed);
 
     const pending = withFreshSession(action);
     await vi.waitFor(() => expect(freshSession.open).toBe(true));
@@ -69,8 +68,8 @@ describe('withFreshSession', () => {
   });
 
   it('shows one prompt for concurrent stale actions and retries each', async () => {
-    const first = vi.fn().mockResolvedValueOnce(notFresh).mockResolvedValueOnce(ok);
-    const second = vi.fn().mockResolvedValueOnce(notFresh).mockResolvedValueOnce(ok);
+    const first = vi.fn().mockResolvedValueOnce(NOT_FRESH).mockResolvedValueOnce(ok);
+    const second = vi.fn().mockResolvedValueOnce(NOT_FRESH).mockResolvedValueOnce(ok);
 
     const a = withFreshSession(first);
     const b = withFreshSession(second);

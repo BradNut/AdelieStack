@@ -1,11 +1,11 @@
 <script lang="ts">
-	import { AppRoute, isSocialProvider, type SocialProvider } from '@adelie/shared';
+	import { AppRoute, isSocialProvider, SOCIAL_ERROR_PARAM, type SocialProvider } from '@adelie/shared';
 	import { authClient } from '#lib/auth-client.ts';
 	import { toastIfError } from '#lib/client/auth-form.ts';
 	import { notifyUnlinked, providerLabel } from '#lib/client/connected-accounts.ts';
 	import { withFreshSession } from '#lib/client/fresh-session.svelte.ts';
 	import { ReplayActionKey, replayProgress } from '#lib/client/reauth-replay.svelte.ts';
-	import { linkProvider, SOCIAL_ERROR_PARAM, socialErrorMessage } from '#lib/client/social-auth.ts';
+	import { linkProvider, socialErrorMessage } from '#lib/client/social-auth.ts';
 	import { Button } from '#lib/components/ui/button/index.ts';
 	import * as Card from '#lib/components/ui/card/index.ts';
 	import * as m from '#lib/paraglide/messages.js';

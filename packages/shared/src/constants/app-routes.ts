@@ -2,6 +2,8 @@
 export const AppRoute = {
   HOME: '/',
   LOGIN: '/login',
+  /** Where password sign-in continues when the account has two-factor enabled. */
+  LOGIN_TWO_FACTOR: '/login/two-factor',
   SIGNUP: '/signup',
   SETTINGS: '/settings',
   SETTINGS_EMAIL: '/settings/email',
@@ -11,3 +13,6 @@ export const AppRoute = {
   SETTINGS_PASSKEYS: '/settings/passkeys',
   SETTINGS_CONNECTED_ACCOUNTS: '/settings/connected-accounts',
 } as const;
+
+/** Query parameter on the sign-in pages naming the app-internal page to return to once signed in. */
+export const RETURN_TO_PARAM = 'returnTo';
