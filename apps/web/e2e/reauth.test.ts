@@ -1,6 +1,8 @@
+import { totpCode } from '@adelie/test-utils/totp';
 import { newUser, signUp } from './support/auth';
 import { makeSessionsStale } from './support/db';
 import { expect, test } from './support/test';
+import { enrolTotp } from './support/two-factor';
 
 test.describe('re-authentication on a stale session', () => {
   test('viewing sessions asks for the password, then loads the list', async ({ page }) => {
@@ -48,5 +50,24 @@ test.describe('re-authentication on a stale session', () => {
 
     await expect(page.getByTestId('session-row')).toHaveCount(2);
     await expect(inline).toBeHidden();
+  });
+
+  test('a two-factor user confirms with the password and an authenticator code, and stays on the page', async ({ page }) => {
+    const user = newUser();
+    await signUp(page, user);
+    const { totpURI } = await enrolTotp(page);
+    await makeSessionsStale(user.email);
+
+    await page.goto('/settings/security');
+    const dialog = page.getByTestId('reauth-dialog');
+    await dialog.getByLabel('Password').fill(user.password);
+    await dialog.getByRole('button', { name: 'Confirm' }).click();
+    await dialog.getByLabel('Authenticator code').fill(totpCode(totpURI));
+    await dialog.getByRole('button', { name: 'Verify' }).click();
+
+    await expect(dialog).toBeHidden();
+    await expect(page).toHaveURL(/\/settings\/security$/);
+    await expect(page.getByTestId('session-row').first()).toBeVisible();
+    await expect(page.getByTestId('footer-user')).toHaveText(user.email);
   });
 });
