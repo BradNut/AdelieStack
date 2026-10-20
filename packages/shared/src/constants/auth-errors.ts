@@ -3,6 +3,12 @@ export const AuthErrorCode = {
   SIGN_UP_DISABLED: 'EMAIL_PASSWORD_SIGN_UP_DISABLED',
   /** A sensitive action (unlink account, list sessions) on a session older than `AUTH_SESSION_FRESH_AGE`. */
   SESSION_NOT_FRESH: 'SESSION_NOT_FRESH',
+  /** The Two-factor Challenge cookie is missing, expired or already used, so the challenge cannot be completed. */
+  TWO_FACTOR_CHALLENGE_INVALID: 'INVALID_TWO_FACTOR_COOKIE',
+  /** Too many wrong codes on one Two-factor Challenge; Better Auth discarded it. */
+  TWO_FACTOR_ATTEMPTS_EXHAUSTED: 'TOO_MANY_ATTEMPTS_REQUEST_NEW_CODE',
+  /** Too many wrong codes across challenges; two-factor verification is locked for a while. */
+  TWO_FACTOR_LOCKED: 'ACCOUNT_TEMPORARILY_LOCKED',
 } as const;
 export type AuthErrorCode = (typeof AuthErrorCode)[keyof typeof AuthErrorCode];
 

@@ -1,11 +1,12 @@
 <script lang="ts">
-	import { isLoginMethod, LoginMethod, signinDto } from '@adelie/shared';
+	import { AppRoute, isLoginMethod, LoginMethod, signinDto } from '@adelie/shared';
 	import { onMount } from 'svelte';
 	import { defaults, setError, superForm } from 'sveltekit-superforms';
 	import { zod4, zod4Client } from 'sveltekit-superforms/adapters';
 	import { authClient } from '#lib/auth-client.ts';
 	import { authErrorMessage, refreshSession, toastIfError } from '#lib/client/auth-form.ts';
 	import { createCaptchaForm } from '#lib/client/captcha/captcha-form.svelte.ts';
+	import { returnPathFrom, withReturnPath } from '#lib/client/return-path.ts';
 	import { SOCIAL_ERROR_PARAM, socialErrorMessage } from '#lib/client/social-auth.ts';
 	import CaptchaField from '#lib/components/auth/captcha-field.svelte';
 	import LastUsedBadge from '#lib/components/auth/last-used-badge.svelte';
@@ -22,6 +23,8 @@
 	let { data } = $props();
 	const captcha = createCaptchaForm();
 	const socialError = $derived(socialErrorMessage(page.url.searchParams.get(SOCIAL_ERROR_PARAM)));
+	/** Where to finish once signed in: the page that sent the user here, else home. */
+	const returnTo = $derived(returnPathFrom(page.url.searchParams));
 
 	// The hint lives in a browser cookie, so it is read after mount; the server render shows none.
 	let lastMethod = $state<LoginMethod | null>(null);
@@ -49,10 +52,13 @@
 				form.data.password = '';
 				return setError(form, 'email', captchaErrorMessage(error) ?? authErrorMessage(error, 'Invalid email or password.'));
 			}
-			// A user with two-factor enabled is redirected by the client plugin instead.
-			if (result && 'twoFactorRedirect' in result && result.twoFactorRedirect) return;
+			// A user with two-factor enabled finishes on the Two-factor Challenge page, which then returns to the same place.
+			if (result && 'twoFactorRedirect' in result && result.twoFactorRedirect) {
+				await goto(withReturnPath(AppRoute.LOGIN_TWO_FACTOR, returnTo));
+				return;
+			}
 			await refreshSession();
-			await goto('/');
+			await goto(returnTo);
 		},
 	});
 
@@ -62,7 +68,7 @@
 		const { error } = await authClient.signIn.passkey();
 		if (toastIfError(error, 'Passkey sign-in failed.')) return;
 		await refreshSession();
-		await goto('/');
+		await goto(returnTo);
 	}
 </script>
 
