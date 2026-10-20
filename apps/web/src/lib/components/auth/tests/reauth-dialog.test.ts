@@ -470,6 +470,64 @@ describe('ReauthDialog', () => {
       expect(toast.error).toHaveBeenCalledWith(message, { description });
     });
 
+    describe('when the emailed code can no longer be used', () => {
+      it.each([
+        [
+          'used up',
+          {
+            status: StatusCodes.BAD_REQUEST,
+            body: { code: AuthErrorCode.TWO_FACTOR_ATTEMPTS_EXHAUSTED, message: 'Too many attempts. Please request a new code.' },
+          },
+          'Too many wrong tries for this code. Request a new code.',
+        ],
+        [
+          'expired',
+          { status: StatusCodes.BAD_REQUEST, body: { code: AuthErrorCode.TWO_FACTOR_EMAILED_CODE_EXPIRED, message: 'OTP has expired' } },
+          'This code has expired. Request a new code.',
+        ],
+      ])('keeps the user on the code step when it is %s, and a new code completes the challenge', async (_name, reply, message) => {
+        network.reply(VERIFY_OTP, reply);
+        const { action, result } = openFromStaleAction();
+        const settled = vi.fn();
+        result.then(settled);
+
+        await confirmPassword();
+        await answerWith.emailed();
+
+        expect(await screen.findByText(message)).toBeTruthy();
+        expect(freshSession.open).toBe(true);
+        expect(settled).not.toHaveBeenCalled();
+        expect(goto).not.toHaveBeenCalled();
+        expect(toast.error).not.toHaveBeenCalled();
+
+        network.reply(VERIFY_OTP, { body: { token: 't' } });
+        await fireEvent.click(screen.getByRole('button', { name: 'Email me a new code' }));
+        await waitFor(() => expect(network.sent(SEND_OTP)).toHaveLength(2));
+        await fireEvent.input(screen.getByLabelText('Emailed code'), { target: { value: '111111' } });
+        await fireEvent.click(screen.getByRole('button', { name: 'Verify' }));
+
+        expect(await result).toBe(DONE);
+        expect(action).toHaveBeenCalledTimes(2);
+        expect(network.sent(VERIFY_OTP).map((request) => request.body)).toEqual([{ code: '654321' }, { code: '111111' }]);
+      });
+
+      it('shows the throttled wait when a new code is asked for too soon, and stays on the code step', async () => {
+        openFromStaleAction();
+
+        await confirmPassword();
+        await fireEvent.click(await screen.findByRole('tab', { name: 'Email' }));
+        await fireEvent.click(screen.getByRole('button', { name: 'Email me a code' }));
+        await screen.findByLabelText('Emailed code');
+        network.reply(SEND_OTP, THROTTLED);
+        await fireEvent.click(screen.getByRole('button', { name: 'Email me a new code' }));
+
+        await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Too many attempts. Please try again in 42 seconds.'));
+        expect(screen.getByLabelText('Emailed code')).toBeTruthy();
+        expect(freshSession.open).toBe(true);
+        expect(goto).not.toHaveBeenCalled();
+      });
+    });
+
     it('warns before closing at the code step, and confirming signs the user out without a replay', async () => {
       window.history.replaceState({}, '', '/settings/security');
       const { action, result } = openFromStaleAction();

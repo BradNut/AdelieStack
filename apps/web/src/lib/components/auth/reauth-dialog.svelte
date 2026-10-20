@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { AppRoute, AuthErrorCode, CREDENTIAL_PROVIDER_ID, isSocialProvider, SOCIAL_PROVIDER_LABELS, type SocialProvider } from '@adelie/shared';
+	import { AppRoute, CREDENTIAL_PROVIDER_ID, isSocialProvider, SOCIAL_PROVIDER_LABELS, type SocialProvider } from '@adelie/shared';
 	import { toast } from 'svelte-sonner';
 	import { authClient } from '#lib/auth-client.ts';
 	import { createCaptchaForm } from '#lib/client/captcha/captcha-form.svelte.ts';
@@ -7,7 +7,7 @@
 	import { currentReturnPath, withReturnPath } from '#lib/client/return-path.ts';
 	import { reauthenticateWithProvider } from '#lib/client/social-auth.ts';
 	import CaptchaField from '#lib/components/auth/captcha-field.svelte';
-	import TwoFactorChallenge, { type ChallengeError } from '#lib/components/auth/two-factor-challenge.svelte';
+	import TwoFactorChallenge, { type ChallengeEnding } from '#lib/components/auth/two-factor-challenge.svelte';
 	import { Button } from '#lib/components/ui/button/index.ts';
 	import * as Dialog from '#lib/components/ui/dialog/index.ts';
 	import { Input } from '#lib/components/ui/input/index.ts';
@@ -41,7 +41,7 @@
 	let busy = $state(false);
 	let step = $state<Step>(Step.METHODS);
 	/** True while the user is warned that closing at the challenge step signs them out. */
-	let leaving = $state(false);
+	let confirmingLeave = $state(false);
 	// Password sign-in is captcha-protected; passkey sign-in is exempt (ADR 0004), so only the password form binds a token.
 	const captcha = createCaptchaForm();
 
@@ -72,7 +72,7 @@
 		error = '';
 		methods = null;
 		step = Step.METHODS;
-		leaving = false;
+		confirmingLeave = false;
 		// A failed lookup leaves no way to re-authenticate here, so it shows the sign-out fallback instead of waiting forever.
 		detectMethods()
 			.catch((): Methods => ({ email: '', userId: '', password: false, passkey: false, providers: [] }))
@@ -115,17 +115,7 @@
 		await goto(withReturnPath(AppRoute.LOGIN, returnTo), { invalidateAll: true });
 	}
 
-	/** Why the challenge ended, for the message shown on the way to sign in. */
-	function challengeEndedMessage(challengeError: ChallengeError): { message: string; description?: string } {
-		if (challengeError.code === AuthErrorCode.TWO_FACTOR_LOCKED) {
-			return { message: m.reauth_challenge_locked(), description: throttledMessage(challengeError) ?? undefined };
-		}
-		if (challengeError.code === AuthErrorCode.TWO_FACTOR_ATTEMPTS_EXHAUSTED) return { message: m.reauth_challenge_attempts_used() };
-		return { message: m.reauth_challenge_expired() };
-	}
-
-	function onChallengeEnded(challengeError: ChallengeError) {
-		const { message, description } = challengeEndedMessage(challengeError);
+	function onChallengeEnded({ message, description }: ChallengeEnding) {
 		toast.error(message, { description });
 		void leaveToSignIn();
 	}
@@ -133,7 +123,7 @@
 	/** Closing at the challenge step signs the user out, so it asks first; otherwise the prompt is dismissed. */
 	function requestClose() {
 		if (step === Step.CHALLENGE) {
-			leaving = true;
+			confirmingLeave = true;
 			return;
 		}
 		freshSession.settle(ReauthOutcome.DISMISSED);
@@ -178,11 +168,11 @@
 			<Dialog.Description>{m.reauth_description()}</Dialog.Description>
 		</Dialog.Header>
 		{#if step === Step.CHALLENGE}
-			{#if leaving}
+			{#if confirmingLeave}
 				<p class="text-sm" role="alert" data-testid="reauth-leave-warning">{m.reauth_leave_warning()}</p>
 				<div class="grid gap-2">
 					<Button type="button" variant="destructive" onclick={leaveToSignIn}>{m.reauth_leave_confirm()}</Button>
-					<Button type="button" variant="outline" onclick={() => (leaving = false)}>{m.reauth_leave_stay()}</Button>
+					<Button type="button" variant="outline" onclick={() => (confirmingLeave = false)}>{m.reauth_leave_stay()}</Button>
 				</div>
 			{:else}
 				<p class="text-sm text-muted-foreground">{m.reauth_two_factor_prompt()}</p>
@@ -215,7 +205,7 @@
 			{/if}
 		{/if}
 		<Dialog.Footer>
-			{#if !leaving}
+			{#if !confirmingLeave}
 				<Button type="button" variant="ghost" onclick={requestClose}>{m.reauth_cancel()}</Button>
 			{/if}
 		</Dialog.Footer>

@@ -80,7 +80,10 @@ The sign-in pages finish on `?returnTo=` (`RETURN_TO_PARAM`, read with `returnPa
 and carry it from `/login` to `/login/two-factor`. In the dialog the session cookie is gone once the password is
 accepted, so closing at the challenge step (after a warning), an expired or exhausted challenge, or a two-factor
 lockout settles the dialog as dismissed and sends the user to `/login?returnTo=<current page>` without replaying the
-action. Two-factor users are not offered social providers in the dialog; a passkey alone is enough.
+action. The codes that end the challenge, and the copy for each, live in one map in `two-factor-challenge.svelte`.
+An emailed code has its own attempt counter and expiry: when only that code is used up (`TOO_MANY_ATTEMPTS_REQUEST_NEW_CODE`
+from `verify-otp`) or expired, the user stays on the code step and can request a new code, subject to the email rate
+limit. Two-factor users are not offered social providers in the dialog; a passkey alone is enough.
 
 ### Social login (GitHub, Google)
 
