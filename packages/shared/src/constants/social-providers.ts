@@ -17,6 +17,9 @@ export const SOCIAL_PROVIDER_LABELS: Readonly<Record<SocialProvider, string>> = 
   [SocialProvider.GOOGLE]: 'Google',
 };
 
+/** Query parameter Better Auth adds to the error callback URL when a provider sign-in or link fails. */
+export const SOCIAL_ERROR_PARAM = 'error';
+
 /**
  * `?error=` codes Better Auth redirects to when a social sign-in or link fails. The copy for each lives in the
  * web's translated messages (`auth_social_error_<code>`); codes not listed here get a generic message.

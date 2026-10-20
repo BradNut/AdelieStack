@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { RoleName } from '@adelie/shared';
+	import { RoleName, SOCIAL_ERROR_PARAM } from '@adelie/shared';
 	import CircleUser from '@lucide/svelte/icons/circle-user';
 	import HouseIcon from '@lucide/svelte/icons/house';
 	import Menu from '@lucide/svelte/icons/menu';
@@ -10,7 +10,7 @@
 	import { authClient } from '#lib/auth-client.ts';
 	import { refreshSession } from '#lib/client/auth-form.ts';
 	import { replayPendingReauth } from '#lib/client/reauth-replay.svelte.ts';
-	import { SOCIAL_ERROR_PARAM, socialErrorMessage } from '#lib/client/social-auth.ts';
+	import { socialErrorMessage } from '#lib/client/social-auth.ts';
 	import ReauthDialog from '#lib/components/auth/reauth-dialog.svelte';
 	import UnverifiedEmailNotice from '#lib/components/auth/unverified-email-notice.svelte';
 	import ThemeDropdown from '#lib/components/theme-dropdown.svelte';

@@ -4,8 +4,8 @@
 	import { authClient } from '#lib/auth-client.ts';
 	import { createCaptchaForm } from '#lib/client/captcha/captcha-form.svelte.ts';
 	import { freshSession, ReauthOutcome } from '#lib/client/fresh-session.svelte.ts';
-	import { withReturnPath } from '#lib/client/return-path.ts';
-	import { currentReturnPath, reauthenticateWithProvider } from '#lib/client/social-auth.ts';
+	import { currentReturnPath, withReturnPath } from '#lib/client/return-path.ts';
+	import { reauthenticateWithProvider } from '#lib/client/social-auth.ts';
 	import CaptchaField from '#lib/components/auth/captcha-field.svelte';
 	import TwoFactorChallenge, { type ChallengeError } from '#lib/components/auth/two-factor-challenge.svelte';
 	import { Button } from '#lib/components/ui/button/index.ts';

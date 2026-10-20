@@ -3,11 +3,9 @@ import { authClient } from '#lib/auth-client.ts';
 import { toastIfError } from '#lib/client/auth-form.ts';
 import { redirectBrowser } from '#lib/client/browser-redirect.ts';
 import { clearPendingReauth, type ReplayRequest, savePendingReauth } from '#lib/client/reauth-replay.svelte.ts';
+import { currentReturnPath } from '#lib/client/return-path.ts';
 import * as m from '#lib/paraglide/messages.js';
 import type { Locale } from '#lib/paraglide/runtime.js';
-
-/** Query parameter Better Auth adds to the error callback URL when a provider sign-in or link fails. */
-export const SOCIAL_ERROR_PARAM = 'error';
 
 /** Asks the provider to show its account chooser, so a leftover provider session cannot confirm for someone else. */
 const PROVIDER_PROMPT_PARAM = 'prompt';
@@ -46,20 +44,6 @@ export async function signInWithProvider(provider: SocialProvider): Promise<void
 export async function linkProvider(provider: SocialProvider, returnTo: string): Promise<void> {
   const { error } = await authClient.linkSocial({ provider, callbackURL: returnTo, errorCallbackURL: returnTo });
   toastIfError(error, m.auth_social_error_fallback());
-}
-
-/** True for a same-origin relative path; protocol-relative (`//host`) and backslash forms are refused. */
-export function isInternalPath(path: string): boolean {
-  return path.startsWith('/') && !path.startsWith('//') && !path.includes('\\');
-}
-
-/** The path and query of the current page without a provider `?error=`, always an app-internal relative path. */
-export function currentReturnPath(location: Pick<Location, 'pathname' | 'search'>): string {
-  const params = new URLSearchParams(location.search);
-  params.delete(SOCIAL_ERROR_PARAM);
-  const query = params.toString();
-  const path = `${location.pathname}${query ? `?${query}` : ''}`;
-  return isInternalPath(path) ? path : AppRoute.HOME;
 }
 
 interface ReauthWithProvider {

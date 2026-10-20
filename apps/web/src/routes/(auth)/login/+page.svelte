@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { AppRoute, isLoginMethod, LoginMethod, signinDto } from '@adelie/shared';
+	import { AppRoute, isLoginMethod, LoginMethod, SOCIAL_ERROR_PARAM, signinDto } from '@adelie/shared';
 	import { onMount } from 'svelte';
 	import { defaults, setError, superForm } from 'sveltekit-superforms';
 	import { zod4, zod4Client } from 'sveltekit-superforms/adapters';
@@ -7,7 +7,7 @@
 	import { authErrorMessage, refreshSession, toastIfError } from '#lib/client/auth-form.ts';
 	import { createCaptchaForm } from '#lib/client/captcha/captcha-form.svelte.ts';
 	import { returnPathFrom, withReturnPath } from '#lib/client/return-path.ts';
-	import { SOCIAL_ERROR_PARAM, socialErrorMessage } from '#lib/client/social-auth.ts';
+	import { socialErrorMessage } from '#lib/client/social-auth.ts';
 	import CaptchaField from '#lib/components/auth/captcha-field.svelte';
 	import LastUsedBadge from '#lib/components/auth/last-used-badge.svelte';
 	import SocialButtons from '#lib/components/auth/social-buttons.svelte';

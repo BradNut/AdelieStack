@@ -1,5 +1,18 @@
-import { AppRoute, RETURN_TO_PARAM } from '@adelie/shared';
-import { isInternalPath } from '#lib/client/social-auth.ts';
+import { AppRoute, RETURN_TO_PARAM, SOCIAL_ERROR_PARAM } from '@adelie/shared';
+
+/** True for a same-origin relative path; protocol-relative (`//host`) and backslash forms are refused. */
+export function isInternalPath(path: string): boolean {
+  return path.startsWith('/') && !path.startsWith('//') && !path.includes('\\');
+}
+
+/** The path and query of the current page without a provider `?error=`, always an app-internal relative path. */
+export function currentReturnPath(location: Pick<Location, 'pathname' | 'search'>): string {
+  const params = new URLSearchParams(location.search);
+  params.delete(SOCIAL_ERROR_PARAM);
+  const query = params.toString();
+  const path = `${location.pathname}${query ? `?${query}` : ''}`;
+  return isInternalPath(path) ? path : AppRoute.HOME;
+}
 
 /** `path` with a `?returnTo=` naming the app-internal page to come back to once signed in. */
 export function withReturnPath(path: string, returnTo: string): string {
