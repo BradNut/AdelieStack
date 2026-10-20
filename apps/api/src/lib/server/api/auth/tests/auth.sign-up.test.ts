@@ -2,6 +2,7 @@ import { RoleName } from '@adelie/shared';
 import { memoryAdapter } from 'better-auth/adapters/memory';
 import { describe, expect, it } from 'vitest';
 import { type Auth, createAuth } from '#lib/server/api/auth/auth.config';
+import { cookiesFrom } from '../../../../../test/auth-http';
 
 const ORIGIN = 'http://localhost:5173';
 const PASSWORD = 'Correct-horse-9';
@@ -94,10 +95,7 @@ describe('sign-up when closed', () => {
     const auth = buildAuth(false);
     await auth.api.createUser({ body: { name: 'Admin', email: 'admin@example.com', password: PASSWORD, role: RoleName.ADMIN } });
     const signIn = await post(auth, '/sign-in/email', { email: 'admin@example.com', password: PASSWORD });
-    const cookie = signIn.headers
-      .getSetCookie()
-      .map((c) => c.split(';')[0])
-      .join('; ');
+    const cookie = cookiesFrom(signIn);
 
     const res = await auth.handler(
       new Request(`${ORIGIN}/api/auth/admin/create-user`, {

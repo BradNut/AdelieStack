@@ -3,6 +3,7 @@ import { getTableConfig } from 'drizzle-orm/pg-core';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { type Auth, createAuth } from '#lib/server/api/auth/auth.config';
 import { accounts, passkeys, sessions, twoFactors } from '#lib/server/api/databases/postgres/drizzle-schema';
+import { cookiesFrom } from '../../../../../test/auth-http';
 
 const ORIGIN = 'http://localhost:5173';
 const PASSWORD = 'Correct-horse-9';
@@ -25,10 +26,7 @@ async function call(path: string, { body, cookie }: { body?: unknown; cookie?: s
 
 async function signUp() {
   const res = await call('/sign-up/email', { body: { name: 'Penguin', email: EMAIL, password: PASSWORD } });
-  return res.headers
-    .getSetCookie()
-    .map((c) => c.split(';')[0])
-    .join('; ');
+  return cookiesFrom(res);
 }
 
 const signInStatus = async (password = PASSWORD) => (await call('/sign-in/email', { body: { email: EMAIL, password } })).status;

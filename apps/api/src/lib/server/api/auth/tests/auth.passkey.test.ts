@@ -2,6 +2,7 @@ import { memoryAdapter } from 'better-auth/adapters/memory';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { type Auth, createAuth } from '#lib/server/api/auth/auth.config';
 import type { SendProps } from '#lib/server/api/mail/interfaces/mailer.interface';
+import { cookiesFrom } from '../../../../../test/auth-http';
 
 const ORIGIN = 'http://localhost:5173';
 const PASSWORD = 'Correct-horse-9';
@@ -22,13 +23,6 @@ async function call(path: string, { body, cookie, method }: { body?: unknown; co
       body: body === undefined ? undefined : JSON.stringify(body),
     }),
   );
-}
-
-function cookiesFrom(res: Response): string {
-  return res.headers
-    .getSetCookie()
-    .map((c) => c.split(';')[0])
-    .join('; ');
 }
 
 async function signUp() {

@@ -2,6 +2,7 @@ import { RoleName } from '@adelie/shared';
 import { memoryAdapter } from 'better-auth/adapters/memory';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { type Auth, createAuth } from '#lib/server/api/auth/auth.config';
+import { cookiesFrom } from '../../../../../test/auth-http';
 
 const ORIGIN = 'http://localhost:5173';
 const PASSWORD = 'correct-horse-battery-staple';
@@ -33,10 +34,7 @@ async function call(path: string, body: unknown, cookie?: string) {
 
 async function signUp(email: string) {
   const res = await call('/sign-up/email', { name: 'Penguin', email, password: PASSWORD });
-  const cookie = res.headers
-    .getSetCookie()
-    .map((c) => c.split(';')[0])
-    .join('; ');
+  const cookie = cookiesFrom(res);
   const { user } = (await res.json()) as { user: { id: string } };
   return { cookie, id: user.id };
 }
