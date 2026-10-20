@@ -3,153 +3,82 @@
 ## Service Boundaries
 
 ### What IAM Owns
-- Password and email-code login (`POST /login`, `POST /login/request`, `POST /login/verify`)
-- Logout (`POST /logout`)
-- Password reset request/verify/complete
-- Session lifecycle (create, validate/extend, invalidate) via `SessionsService`/`SessionsRepository`
+- Everything under `/api/auth/*`, served by Better Auth: sign-up, sign-in (password, passkey,
+  social), second factors, sessions, email verification and change, password reset and change,
+  account deletion, admin user management
+- Session resolution for the rest of the app (`authSession` middleware)
+- Authorization checks for our routes (`requirePermission`, `auth.permissions.ts`, `roles.ts`)
 
 ### What IAM Does NOT Own
-- Current-user profile (`GET /api/users/me`, `PATCH /api/users/me`) — owned by the Users service
-  (`UsersController`)
-- Credential/user persistence — owned by the Users service (`UsersRepository`,
-  `CredentialsRepository`, `UsersService`)
-- MFA (TOTP/recovery codes) — a separate module exists under
-  `apps/api/src/lib/server/api/mfa/` (see the MFA service docs), but it is not wired into any IAM
-  route; IAM does not check or enforce MFA today
-- Roles/permissions — Better Auth admin plugin (`auth/auth.permissions.ts`, `auth/roles.ts`), not IAM
-- There is no Audit service/module anywhere in `apps/api/src`; nothing in this repo logs
-  authentication events to a dedicated audit trail
+- Current-user profile route (`GET /api/users/me`): the Users service (`UsersController`), which
+  reads `c.var.user`
+- Email delivery: the Mailer service; IAM only chooses templates and recipients (`auth/auth.mail.ts`)
+- Audit trail: the `audit/` module; Better Auth endpoints do not write audit entries
 
 ## Service Dependencies
 
 ### Upstream Dependencies (IAM depends on)
 
-#### Users service (`UsersRepository`, `CredentialsRepository`, `UsersService`)
-- **Purpose**: user lookup by identifier/email, password-credential lookup, password updates,
-  new-user creation on first email-code login
-- **Failure Impact**: cannot authenticate or reset passwords
-- **Fallback**: none — critical dependency
+#### PostgreSQL (`DrizzleService`)
+- **Purpose**: users, sessions, accounts, verifications, two-factor and passkey rows
+- **Failure Impact**: no sign-in, and every request that resolves a session fails
+- **Fallback**: none
 
-#### Redis Service
-- **Purpose**: session storage (`SessionsRepository`), rate limiting (`rateLimit` middleware),
-  and short-lived login/reset verification codes (`LoginRequestsRepository`,
-  `ResetPasswordRequestsRepository`)
-- **Failure Impact**: cannot create/validate sessions, cannot rate-limit, cannot complete
-  login/reset code flows
-- **Fallback**: none — critical dependency
+#### Redis (`RedisService`, through `AuthRateLimitRepository`)
+- **Purpose**: auth rate-limit counters only; sessions are not in Redis
+- **Failure Impact**: a request whose limit check cannot reach Redis fails rather than skipping the limit
+- **Fallback**: none; `DISABLE_RATE_LIMIT=true` turns auth rate limiting off
 
-#### Mailer Service (`MailerService` → dev/prod mailer)
-- **Purpose**: deliver login verification codes, password-reset codes, and welcome emails
-- **Usage**: `LoginRequestsService` and `ResetPasswordRequestsService` call `mailer.send(...)`
-  and do not catch mailer errors — a mailer failure surfaces as a request failure
-- **Note**: in `dev`, this posts to a local Mailpit-compatible endpoint; in `prod`, `ProdMailerService`
-  only `console.log`s and does not actually send mail
+#### Mailer (`MailerService`)
+- **Purpose**: verification links, reset links, emailed two-factor codes, Security Events
+- **Usage**: `MAILER_TRANSPORT=mailpit` posts to Mailpit; `unsend` selects `ProdMailerService`,
+  which today only logs (see the [runbook](./runbook.md))
 
-### Downstream Dependencies (services that depend on IAM)
+#### Have I Been Pwned and the Captcha Provider (optional)
+- **Purpose**: breached-password screening; Captcha Token verification
+- **Failure Impact**: HIBP unreachable → password-setting requests fail with
+  `503 PASSWORD_CHECK_UNAVAILABLE`; captcha unreachable → protected requests fail with
+  `503 CAPTCHA_UNAVAILABLE`. Both are reported by `/api/healthz`.
 
-#### `sessionManagement` middleware (used by every request)
-- **Purpose**: resolve `c.var.session` for the whole app
-- **Usage**: reads the session cookie, calls `SessionsService.validateSession`, sets
-  `c.set('session', ...)`
+### Downstream Dependencies (code that depends on IAM)
 
-#### `authState('session')` / `authState('none')` middleware
-- **Purpose**: gate individual routes on the presence/absence of `c.var.session`
-- **Usage**: throws `Unauthorized` when the required state doesn't match
-
-#### Users service
-- **Purpose**: `GET /api/users/me` reads `c.var.session.userId` to look up the current user
-- **Integration**: depends on `sessionManagement` populating the session, not on IAM routes
-  directly
+- `authSession` middleware, on every route after `/api/auth/*`: sets `c.var.user` and `c.var.session`
+- `requirePermission` (`common/middleware/permission.middleware.ts`): 401 signed out, 403 without the permission
+- `GET /api/config/captcha`: public captcha config from `AuthService.captchaPublicConfig`
+- `/api/healthz`: `hibp` and `captcha` Provider Health
+- The web app, through the Better Auth Svelte client and the `/api` proxy
 
 ## Integration Patterns
 
-### Session Validation Middleware (actual code)
+### Mounting (`application.controller.ts`)
 ```typescript
-// apps/api/src/lib/server/api/common/middleware/session-managment.middleware.ts
-export const sessionManagement: MiddlewareHandler = createMiddleware(async (c, next) => {
-  const sessionId = await sessionService.getSessionCookie();
-  if (!sessionId) {
-    c.set('session', null);
-    return next();
-  }
-  const session = await sessionService.validateSession(sessionId);
-  if (!session) sessionService.deleteSessionCookie();
-  if (session?.fresh) sessionService.setSessionCookie(session);
-  c.set('session', session);
-  return next();
-});
+// Better Auth owns /api/auth/* and is registered before the session middleware and every other
+// route, outside the api-contract RPC types.
+api.on(['GET', 'POST'], `${AUTH_ROUTE}/*`, (c) => this.authService.auth.handler(c.req.raw));
+
+const app = api.use(authSession(this.authService)).route('/', this.routes()) /* ... */;
 ```
 
-### Auth State Gate (actual code)
+### Session middleware (`common/middleware/auth-session.middleware.ts`)
 ```typescript
-// apps/api/src/lib/server/api/common/middleware/auth.middleware.ts
-const authed: MiddlewareHandler = createMiddleware(async (c, next) => {
-  if (!c.var.session) throw Unauthorized(m.auth_login_required());
-  return next();
-});
+const result = await authService.auth.api.getSession({ headers: c.req.raw.headers });
+c.set('user', result?.user ?? null);
+c.set('session', result?.session ?? null);
 ```
 
-There is no MFA-check step, no audit-logging call, and no `requiresMfa`/`tempToken` branch
-anywhere in this code path.
-
-## Data Flow
-
-### Password Login
-```
-Client → IamController → UsersRepository (identifier lookup)
-                       → CredentialsRepository (password credential lookup)
-                       → HashingService/argon2 (verify)
-                       → SessionsRepository via Redis (create session)
-                       → Client (signed session cookie)
-```
-
-### Email-Code Login
-```
-Client → IamController → LoginRequestsRepository via Redis (store/verify code)
-                       → MailerService (send code)
-                       → UsersService (create user, if new)
-                       → SessionsRepository via Redis (create session)
-                       → Client (signed session cookie)
-```
-
-### Password Reset
-```
-Client → IamController → UsersRepository (lookup)
-                       → ResetPasswordRequestsRepository via Redis (store/verify code)
-                       → MailerService (send code)
-                       → UsersService.updatePassword (Argon2 hash + credential upsert)
-                       → Client (success message)
-```
-
-## State Management
-
-### Session State (Redis, `SessionsRepository`)
-```typescript
-{
-  id: string;
-  userId: string;
-  createdAt: Date;
-  expiresAt: Date; // 30 days from creation/extension
-}
-```
-
-### Login/Reset Request State (Redis)
-```typescript
-{
-  email: string;
-  hashedCode: string; // Argon2 hash of the emailed verification code
-}
-```
+### Lazy instance (`auth/auth.service.ts`)
+`AuthService.auth` builds the Better Auth instance on first use from env, so importing the module
+opens no connection.
 
 ## Error Propagation
 
-- Domain errors are thrown via `BadRequest`/`Unauthorized`/`NotFound` helpers
-  (`common/utils/exceptions.ts`) and handled by the shared `onError` middleware
-  (`application.controller.ts`) — there is no custom per-route error mapping in IAM.
-- Redis/DB connectivity failures propagate as unhandled exceptions to the same `onError` handler;
-  there is no bespoke circuit breaker or fallback in this module.
+- Better Auth answers its own errors (status plus a `code` such as `INVALID_EMAIL_OR_PASSWORD`,
+  `PASSWORD_COMPROMISED`, `PASSWORD_CHECK_UNAVAILABLE`); a throttled request is `429` with `X-Retry-After`.
+- Our routes throw `Unauthorized` / `Forbidden` from `common/utils/exceptions.ts`, handled by the
+  shared `onError` middleware.
 
 ## Related Documentation
 
 - [Overview](./overview.md)
 - [Business Processes](./business-processes.md)
+- [Data Model](./data-model.md)
