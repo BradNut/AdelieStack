@@ -24,10 +24,10 @@ export const AUTH_RATE_LIMIT_EMAIL: AuthRateLimitRule = {
 
 /**
  * Per-path rules: strict exact entries for the endpoints that check a credential or a code, email
- * entries for the endpoints that send an email (two-factor code, password reset), two wildcards pinned
- * to the default, and own limits for resetting a password and passkey. Keys are Better Auth paths
- * below the auth base path; `*` matches the rest. The first matching key wins, so exact entries
- * come before the wildcards. The pins exist because Better Auth's built-in limit for `/sign-in*` and
+ * entries for the endpoints that send an email (two-factor code, password reset, verification
+ * email), two wildcards pinned to the default, and own limits for resetting a password and passkey.
+ * Keys are Better Auth paths below the auth base path; `*` matches the rest. The first matching key
+ * wins, so exact entries come before the wildcards. The pins exist because Better Auth's built-in limit for `/sign-in*` and
  * `/two-factor/*` (3 per 10 seconds) applies unless a rule matches.
  */
 export const AUTH_RATE_LIMIT_RULES = {
@@ -42,6 +42,7 @@ export const AUTH_RATE_LIMIT_RULES = {
   '/sign-in/*': AUTH_RATE_LIMIT_DEFAULT,
   '/two-factor/*': AUTH_RATE_LIMIT_DEFAULT,
   '/request-password-reset': AUTH_RATE_LIMIT_EMAIL,
+  '/send-verification-email': AUTH_RATE_LIMIT_EMAIL,
   '/reset-password': { window: 300, max: 5 },
   '/passkey/*': { window: 60, max: 10 },
 } as const satisfies Record<string, AuthRateLimitRule>;
