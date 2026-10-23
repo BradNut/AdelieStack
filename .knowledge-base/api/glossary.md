@@ -2,6 +2,10 @@
 
 ## Authentication & Authorization
 
+**Auth Core**
+The part of the system that proves who a person is and what they may do: users, sessions, second factors, passkeys and roles. Better Auth owns it; see [ADR 0009](../../docs/adr/0009-better-auth-owns-the-auth-core.md).
+_Avoid_: IAM, login system
+
 **Authentication**
 The process of verifying a user's identity through credentials (password, passkey, etc.).
 
@@ -13,6 +17,14 @@ A temporary authentication state, stored in the `sessions` table through Better 
 
 **TOTP (Time-based One-Time Password)**
 A temporary password that changes every 30 seconds, used for multi-factor authentication.
+
+**Second Factor**
+An extra proof of identity asked after the password on an account with two-factor enabled: a TOTP code, an emailed one-time code or a Recovery Code. Asking for it is the Two-factor Challenge (web glossary).
+_Avoid_: MFA step, 2FA token
+
+**Recovery Code**
+A single-use code that replaces a Second Factor when the user has lost their authenticator. Better Auth's API calls these backup codes (`/two-factor/verify-backup-code`).
+_Avoid_: Backup code (outside Better Auth paths), reset code
 
 **Passkey**
 A WebAuthn credential that uses public key cryptography for passwordless authentication.
@@ -40,6 +52,10 @@ The rules for which roles a user may hold and how a stored role value becomes th
 
 **Provider Health**
 Whether the most recent call to an external screening provider (the Captcha Provider, Have I Been Pwned) reached it: disabled, unknown (no call since start), available or unavailable. Reported on the health endpoint without calling the provider again.
+
+**Security Event**
+An account change the user is told about by email: password changed, Recovery Code used, Recovery Codes regenerated, and email address changed (sent to the old address). Sent from the after-hook in `auth/auth.mail.ts`.
+_Avoid_: Alert, notification
 
 ## Data & Storage
 

@@ -2,48 +2,32 @@
 
 ## Purpose
 
-Reserves the space for future multi-factor authentication. Today the service is **scaffolded but
-stubbed**: a controller, a placeholder TOTP service, and two database tables exist, but no MFA
-method can actually be enrolled or verified yet.
+Second factors and passkeys. There is no MFA module of our own: Better Auth's `twoFactor` and `passkey` plugins provide both, configured in `apps/api/src/lib/server/api/auth/auth.config.ts` and mounted with the rest of Better Auth at `/api/auth/*` ([ADR 0009](../../../../docs/adr/0009-better-auth-owns-the-auth-core.md)).
 
-## Current State
+## Second Factors (`twoFactor` plugin)
 
-- `apps/api/src/lib/server/api/mfa/mfa.controller.ts` exposes a single route, `GET /totp`, which
-  always returns `501 Not Implemented` (`{ message: 'MFA not implemented' }`). The file's own
-  comment says the full implementation requires services that don't exist yet (`TotpService`
-  beyond the stub, a `RecoveryCodesService`, and auth middleware for MFA).
-- `apps/api/src/lib/server/api/mfa/totp.service.ts` is a stub: every method either returns
-  `null`/`false` or throws (`verify` always returns `false`, `findOneByUserIdOrThrow` always
-  throws `'TOTP not implemented'`). Its own comment notes it requires a missing
-  `EncryptionService` before secrets could be stored safely.
-- Two Drizzle tables exist under `apps/api/src/lib/server/api/mfa/tables/` but nothing reads or
-  writes them yet:
-  - `two-factor.table.ts` (`two_factor`): `user_id`, `secret`, `enabled`.
-  - `recovery-codes.table.ts` (`recovery_codes`): `user_id`, `code`, `used`.
-- No passkey, WebAuthn, or security-key code exists anywhere in the API.
+- **Methods**: TOTP (authenticator app), an emailed one-time code, and Recovery Codes (Better Auth's backup codes).
+- **Enrolment**: confirmed with a first valid TOTP code. TOTP secrets and Recovery Codes are encrypted with the auth secret.
+- **Emailed codes**: sent through the mailer with `TwoFactorOtpEmail`; valid for `TWO_FACTOR_OTP_PERIOD_MINUTES` (`packages/shared/src/constants/mfa-limits.ts`, with the code lengths).
+- **Storage**: the `two_factors` table in `auth/tables/auth.table.ts`.
+- **Security Events**: using a Recovery Code and regenerating them email the user (`auth/auth.mail.ts`).
+- **Rate limits**: verifying a code and the password-checking two-factor endpoints use the strict rule; emailing a code uses the email rule. See the "Auth rate limiting" section of the [environment config runbook](../../runbooks/environment-config.md).
 
-## Dependencies
+## Passkeys (`passkey` plugin)
 
-### Real, currently unused by MFA logic
+- WebAuthn passkeys and hardware security keys. The relying party (`rpID`, `rpName`, `origin`) comes from env.
+- **Storage**: the `passkeys` table in `auth/tables/auth.table.ts`.
+- Passkey sign-in is never captcha-challenged ([ADR 0004](../../../../docs/adr/0004-captcha-via-better-auth-plugin.md)).
 
-`apps/api/package.json` lists `@oslojs/otp`, `@oslojs/webauthn`, and `uqr` (QR code generation),
-which look like the intended building blocks for TOTP and WebAuthn support, but no MFA code
-imports or calls them today.
+## Re-authentication
 
-### Not present
+A two-factor account re-authenticates with the password plus a Second Factor, or with a passkey alone; social providers are not offered ([ADR 0008](../../../../docs/adr/0008-two-factor-reauthentication-requires-every-factor.md)).
 
-`otpauth`, `@simplewebauthn/server`, and `qrcode` are not dependencies of this project and are not
-used anywhere in the codebase.
+## Tests
 
-## Planned (not implemented)
-
-- TOTP enrollment/verification built on `@oslojs/otp`, using the `two_factor` table.
-- Recovery codes generation/consumption built on the `recovery_codes` table.
-- An `EncryptionService` to encrypt TOTP secrets at rest before `totp.service.ts` can be filled in.
-- Auth middleware to gate login on a completed MFA challenge.
-
-None of the above should be assumed to exist when reading other docs or code in this repo.
+`auth/tests/auth.two-factor.test.ts`, `auth/tests/auth.passkey.test.ts` and `auth/tests/auth.rate-limit.test.ts`.
 
 ## Related Documentation
 
 - [API Index](../../index.md)
+- [API Glossary](../../glossary.md)
