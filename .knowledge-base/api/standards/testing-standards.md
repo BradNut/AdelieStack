@@ -316,9 +316,9 @@ expect(result).toBe(true);
 
 Shared helpers live in `apps/api/src/test/`. Reuse them before writing a local stand-in; their doc comments are the API reference.
 
-- **Auth instances**: build every Better Auth instance with `createTestAuth` from [auth-instance.ts](../../../apps/api/src/test/auth-instance.ts), and send requests from `TEST_ORIGIN`. Pass only the options the test changes.
+- **Auth instances**: build every Better Auth instance with `createTestAuth` from [auth-instance.ts](../../../apps/api/src/test/auth-instance.ts), and send requests from `TEST_ORIGIN`. Pass only the options the test changes. Biome (`noRestrictedImports`) bans the memory adapter in API tests; the only exemptions are `auth-instance.ts` itself and `auth.schema.test.ts`, which calls `createAuth` with the CLI placeholder values (`AUTH_PLACEHOLDER`) on purpose so it checks the same plugin tables `pnpm auth:generate` sees.
 - **External providers**: the factory defaults keep providers off (HIBP off, captcha omitted). A test that exercises HIBP or captcha turns it on explicitly in its overrides, with the provider stubbed.
-- **No real network**: the unit-test config loads [network-guard.ts](../../../apps/api/src/test/network-guard.ts), so an unstubbed `fetch` rejects (and TCP connects throw) with a message naming the URL or host. Stub with `vi.stubGlobal('fetch', ...)` and `vi.unstubAllGlobals()`; the real-Redis config skips the guard.
+- **No real network**: the unit-test config loads [network-guard.ts](../../../apps/api/src/test/network-guard.ts), so an unstubbed `fetch` rejects (and TCP connects throw) with a message naming the URL or host. Blocked calls are also recorded, so a test still fails (in the guard's `afterEach`) when the code under test swallows the error. Stub with `vi.stubGlobal('fetch', ...)` and `vi.unstubAllGlobals()` in `afterEach`; mock Redis-backed code (including the rate-limited routes) with the Redis mock below. The real-Redis config skips the guard.
 - **Auth HTTP flows**: use [auth-http.ts](../../../apps/api/src/test/auth-http.ts) for the request type, cookie carry-over (`cookiesFrom`) and two-factor sign-up and sign-in (`signUpWithTotp`, `startTwoFactorSignIn`).
 - **Service mocks**: use the mailer, Redis, logger and config mocks in [mocks/](../../../apps/api/src/test/mocks/) (`create*ServiceMock`, `TEST_ENVS`).
 
