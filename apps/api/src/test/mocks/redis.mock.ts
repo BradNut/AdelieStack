@@ -21,8 +21,11 @@ export function createRedisServiceMock() {
     return { count, ttl: expiry };
   });
   const scan = vi.fn<RedisService['scan']>(async () => []);
+  // Raw client for code that talks to ioredis directly (hono-rate-limiter's RedisStore sends every command
+  // through `call`); commands resolve to null and never open a connection.
+  const redis = { call: vi.fn(async (..._args: (string | number)[]): Promise<unknown> => null) };
 
-  return { get, set, setWithExpiry, delete: del, incrementWithExpiry, scan, store };
+  return { get, set, setWithExpiry, delete: del, incrementWithExpiry, scan, redis, store };
 }
 
 export type RedisServiceMock = ReturnType<typeof createRedisServiceMock>;

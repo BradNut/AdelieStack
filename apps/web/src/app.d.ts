@@ -31,13 +31,6 @@ declare global {
     }
   }
   interface Document {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    // biome-ignore lint/suspicious/noExplicitAny: <explanation>
     startViewTransition: (callback: never) => void; // Add your custom property/method here
   }
 }
-
-// THIS IS IMPORTANT!!!
-// biome-ignore lint/complexity/noUselessEmptyExport: <explanation>
-// biome-ignore lint/style/useExportType: <explanation>
-export {};
