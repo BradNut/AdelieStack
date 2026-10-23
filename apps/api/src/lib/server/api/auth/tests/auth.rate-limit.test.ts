@@ -3,6 +3,7 @@ import {
   AUTH_RATE_LIMIT_DEFAULT_PATHS,
   AUTH_RATE_LIMIT_EMAIL,
   AUTH_RATE_LIMIT_RULES,
+  AUTH_RATE_LIMIT_SIGN_UP,
   AUTH_RATE_LIMIT_STRICT,
   type AuthRateLimitRule,
   RETRY_AFTER_HEADER,
@@ -30,8 +31,11 @@ const WILDCARD_PINS = RULE_KEYS.filter((key) => key.endsWith(`/${WILDCARD}`) && 
   rule,
   prefix: rule.slice(0, -WILDCARD.length),
 }));
-/** Path starts Better Auth's built-in limit (3 per 10 seconds) covers: `/sign-in` without a trailing slash, so `/sign-in-foo` too. */
-const BUILT_IN_LIMITED_PREFIXES = ['/sign-in', '/two-factor'] as const;
+/**
+ * Path starts Better Auth's built-in limit (3 per 10 seconds) covers that this suite guards: no trailing slash, so `/sign-in-foo`
+ * too. `/change-password` and `/change-email` are also built-in limited but not guarded here.
+ */
+const BUILT_IN_LIMITED_PREFIXES = ['/sign-in', '/sign-up', '/two-factor'] as const;
 const DEFAULT_PATHS: readonly string[] = AUTH_RATE_LIMIT_DEFAULT_PATHS;
 
 /**
@@ -197,6 +201,50 @@ describe('auth rate limiting', () => {
     expect(send).toHaveBeenCalledTimes(AUTH_RATE_LIMIT_EMAIL.max);
   });
 
+  const signUp = (auth: Auth, email: string) => post(auth, '/sign-up/email', { name: 'Member', email, password: 'Correct-horse-9' });
+  const signUpEmail = (i: number) => `new-${i}@example.com`;
+
+  it('creates the account and sends the verification email for sign-ups up to the sign-up limit, then refuses with a retry time, creating no user and sending nothing', async () => {
+    const { auth, db, send } = build();
+    for (let i = 1; i <= AUTH_RATE_LIMIT_SIGN_UP.max; i++) {
+      expect((await signUp(auth, signUpEmail(i))).status).toBe(200);
+      expect(db.user).toHaveLength(i);
+      expect(send).toHaveBeenCalledTimes(i);
+    }
+
+    const res = await signUp(auth, 'one-too-many@example.com');
+
+    expect(res.status).toBe(429);
+    // The sign-up window, not Better Auth's built-in one for `/sign-up*` (3 per 10 seconds); the Redis mock reports the full window as time left.
+    expect(Number(res.headers.get(RETRY_AFTER_HEADER))).toBe(AUTH_RATE_LIMIT_SIGN_UP.window);
+    expect(db.user).toHaveLength(AUTH_RATE_LIMIT_SIGN_UP.max);
+    expect(send).toHaveBeenCalledTimes(AUTH_RATE_LIMIT_SIGN_UP.max);
+  });
+
+  it('refuses a sign-up with an existing address without sending an email, and counts it toward the sign-up limit', async () => {
+    const { auth, db, send } = build();
+    const email = 'taken@example.com';
+    expect((await signUp(auth, email)).status).toBe(200);
+    send.mockClear(); // drop the first sign-up's verification email
+    for (let i = 1; i < AUTH_RATE_LIMIT_SIGN_UP.max; i++) expect((await signUp(auth, email)).status).toBe(422);
+    expect(send).not.toHaveBeenCalled();
+
+    const res = await signUp(auth, 'fresh@example.com');
+
+    expect(res.status).toBe(429);
+    expect(db.user).toHaveLength(1);
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it('counts each client separately for the sign-up limit', async () => {
+    const { auth } = build();
+    const signUpFrom = (email: string, ip: string) => post(auth, '/sign-up/email', { name: 'Member', email, password: 'Correct-horse-9' }, { ip });
+    for (let i = 1; i <= AUTH_RATE_LIMIT_SIGN_UP.max; i++) await signUpFrom(signUpEmail(i), '203.0.113.7');
+    expect((await signUpFrom('late@example.com', '203.0.113.7')).status).toBe(429);
+
+    expect((await signUpFrom('other@example.com', '203.0.113.8')).status).toBe(200);
+  });
+
   // Without a challenge cookie the endpoint answers 401, but the limiter runs first and counts it all the same.
   it('counts each client separately for the email limit', async () => {
     const { auth } = build();
@@ -236,18 +284,17 @@ describe('auth rate limiting', () => {
     expect(WILDCARD_PINS.map(({ rule }) => rule)).toEqual(['/sign-in/*', '/two-factor/*']);
   });
 
-  it('gives every sign-in and two-factor endpoint an exact rule unless it is deliberately on the default', () => {
+  it('gives every sign-in, sign-up and two-factor endpoint an exact rule unless it is deliberately on the default', () => {
     const paths = authApiPaths(build().auth);
 
-    expect(paths).toEqual(expect.arrayContaining(['/sign-in/email', '/two-factor/verify-totp']));
+    expect(paths).toEqual(expect.arrayContaining(['/sign-in/email', '/sign-up/email', '/two-factor/verify-totp']));
     expect(unruledBuiltInLimitedPaths(paths)).toEqual([]);
   });
 
   it('flags an endpoint under the built-in limit without a slash after the prefix', () => {
-    expect(unruledBuiltInLimitedPaths(['/sign-in-magic', '/two-factorish', '/sign-in/email', '/sign-out'])).toEqual([
-      '/sign-in-magic',
-      '/two-factorish',
-    ]);
+    expect(
+      unruledBuiltInLimitedPaths(['/sign-in-magic', '/sign-up-magic', '/two-factorish', '/sign-in/email', '/sign-up/email', '/sign-out']),
+    ).toEqual(['/sign-in-magic', '/sign-up-magic', '/two-factorish']);
   });
 
   it('lists only real endpoints without an exact rule as deliberately on the default', () => {
@@ -270,6 +317,7 @@ describe('auth rate limiting', () => {
   it.each([
     ['strict', AUTH_RATE_LIMIT_STRICT],
     ['email', AUTH_RATE_LIMIT_EMAIL],
+    ['sign-up', AUTH_RATE_LIMIT_SIGN_UP],
   ] as const)('keeps the %s limit below the default', (_name, rule) => {
     // Fewer requests per second than the default: max / window, compared without division.
     expect(rule.max * AUTH_RATE_LIMIT_DEFAULT.window).toBeLessThan(AUTH_RATE_LIMIT_DEFAULT.max * rule.window);
