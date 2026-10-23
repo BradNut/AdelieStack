@@ -18,7 +18,7 @@
     "build": "pnpm paraglide:compile",
     "start": "tsx src/server.ts",
     "preview": "tsx src/server.ts",
-    "test:unit": "pnpm paraglide:compile && vitest",
+    "test:unit": "vitest",
     "test": "pnpm test:unit -- --run",
     "test:redis": "vitest run --config vitest.redis.config.ts",
     "check": "pnpm paraglide:compile && tsc --noEmit -p tsconfig.json",

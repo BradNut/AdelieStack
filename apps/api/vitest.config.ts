@@ -6,8 +6,9 @@ export default defineConfig({
     // Real-Redis tests run through vitest.redis.config.ts (`pnpm test:redis`).
     exclude: [...configDefaults.exclude, 'src/**/*.redis.test.ts'],
     environment: 'node',
+    globalSetup: ['./src/test/paraglide.global-setup.ts'],
     // Unit tests must not reach the real network; the real-Redis config deliberately skips this.
-    setupFiles: ['src/test/network-guard.setup.ts'],
+    setupFiles: ['./src/test/network-guard.setup.ts'],
     clearMocks: true,
     restoreMocks: true,
     unstubEnvs: true,
