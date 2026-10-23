@@ -7,7 +7,6 @@ import {
   type AuthRateLimitRule,
   RETRY_AFTER_HEADER,
 } from '@adelie/shared';
-import { totpCode } from '@adelie/test-utils/totp';
 import { memoryAdapter } from 'better-auth/adapters/memory';
 import { describe, expect, it, vi } from 'vitest';
 import { type Auth, createAuth } from '#lib/server/api/auth/auth.config';
@@ -15,6 +14,7 @@ import type { AuthRateLimitStorage } from '#lib/server/api/auth/auth.rate-limit'
 import { AUTH_RATE_LIMIT_REDIS_PREFIX, AuthRateLimitRepository } from '#lib/server/api/auth/auth.rate-limit.repository';
 import type { RedisService } from '#lib/server/api/databases/redis/redis.service';
 import type { SendProps } from '#lib/server/api/mail/interfaces/mailer.interface';
+import { type AuthRequest, signUpWithTotp, startTwoFactorSignIn } from '../../../../../test/auth-http';
 import { createRedisServiceMock } from '../../../../../test/mocks/redis.mock';
 
 const ORIGIN = 'http://localhost:5173';
@@ -109,24 +109,13 @@ const post = (auth: Auth, path: string, body: unknown, { ip = '203.0.113.7', coo
     }),
   );
 
-/** The response's Set-Cookie pairs as a Cookie header. */
-const cookiesFrom = (res: Response) =>
-  res.headers
-    .getSetCookie()
-    .map((c) => c.split(';')[0])
-    .join('; ');
+/** `post` in the shape the shared auth HTTP helpers call. */
+const requestTo =
+  (auth: Auth): AuthRequest =>
+  (path, { body, cookie } = {}) =>
+    post(auth, path, body, { cookie });
 
-/** Signs up, enrols TOTP, then starts a password sign-in: returns the two-factor challenge cookie. */
-async function startTwoFactorSignIn(auth: Auth) {
-  const credentials = { email: 'member@example.com', password: 'Correct-horse-9' };
-  const session = cookiesFrom(await post(auth, '/sign-up/email', { name: 'Member', ...credentials }));
-  const enable = await post(auth, '/two-factor/enable', { password: credentials.password }, { cookie: session });
-  const { totpURI } = (await enable.json()) as { totpURI: string };
-  await post(auth, '/two-factor/verify-totp', { code: totpCode(totpURI) }, { cookie: session });
-  const signIn = await post(auth, '/sign-in/email', credentials);
-  expect(await signIn.json()).toMatchObject({ twoFactorRedirect: true });
-  return cookiesFrom(signIn);
-}
+const MEMBER = { name: 'Member', email: 'member@example.com', password: 'Correct-horse-9' };
 
 const signIn = (auth: Auth, ip?: string) => post(auth, '/sign-in/email', { email: 'nobody@example.com', password: 'Wrong-password-1' }, { ip });
 
@@ -171,7 +160,10 @@ describe('auth rate limiting', () => {
 
   it('emails a two-factor code only up to the email limit, then refuses with a retry time and sends nothing', async () => {
     const { auth, send } = build();
-    const challenge = await startTwoFactorSignIn(auth);
+    const request = requestTo(auth);
+    await signUpWithTotp(request, MEMBER);
+    const { challengeCookie: challenge, twoFactorRedirect } = await startTwoFactorSignIn(request, MEMBER);
+    expect(twoFactorRedirect).toBe(true);
     send.mockClear(); // drop the sign-up verification email
     const sendOtp = () => post(auth, '/two-factor/send-otp', {}, { cookie: challenge });
     for (let i = 1; i <= AUTH_RATE_LIMIT_EMAIL.max; i++) {
