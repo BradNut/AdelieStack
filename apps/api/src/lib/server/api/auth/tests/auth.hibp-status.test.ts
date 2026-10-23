@@ -1,11 +1,9 @@
 import { PASSWORD_CHECK_UNAVAILABLE } from '@adelie/shared';
-import { memoryAdapter } from 'better-auth/adapters/memory';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createAuth } from '#lib/server/api/auth/auth.config';
 import { createHibpHealth, HIBP_CHECK_FAILED_LOG } from '#lib/server/api/auth/auth.hibp-status';
 import { ProviderHealthState } from '#lib/server/api/auth/auth.provider-health';
+import { createTestAuth } from '../../../../../test/auth-instance';
 
-const ORIGIN = 'http://localhost:5173';
 const PASSWORD = 'correct horse battery';
 
 function mockHibp(status: number) {
@@ -17,26 +15,8 @@ function mockHibp(status: number) {
 function build(enabled: boolean) {
   const log = { error: vi.fn() };
   const hibpStatus = createHibpHealth({ enabled, log });
-  const auth = createAuth({
-    database: memoryAdapter({ user: [], session: [], account: [], verification: [], twoFactor: [] }),
-    secret: 'test-secret-that-is-at-least-32-characters',
-    baseURL: ORIGIN,
-    trustedOrigins: [ORIGIN],
-    twoFactorIssuer: 'AdelieStack',
-    passkey: { rpID: 'localhost', rpName: 'AdelieStack', origin: ORIGIN },
-    mailer: { send: async () => {} },
-    signUpEnabled: true,
-    hibpEnabled: enabled,
-    hibpStatus,
-  });
-  const signUp = (email: string) =>
-    auth.handler(
-      new Request(`${ORIGIN}/api/auth/sign-up/email`, {
-        method: 'POST',
-        headers: new Headers({ origin: ORIGIN, 'content-type': 'application/json' }),
-        body: JSON.stringify({ name: 'Test', email, password: PASSWORD }),
-      }),
-    );
+  const { request } = createTestAuth({ hibpEnabled: enabled, hibpStatus });
+  const signUp = (email: string) => request('/sign-up/email', { body: { name: 'Test', email, password: PASSWORD } });
   return { log, hibpStatus, signUp };
 }
 

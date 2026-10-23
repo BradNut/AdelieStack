@@ -1,12 +1,11 @@
 import { createHash } from 'node:crypto';
 import { PASSWORD_COMPROMISED, PASSWORD_POLICY_RULES, PASSWORD_POLICY_VIOLATION } from '@adelie/shared';
-import { memoryAdapter } from 'better-auth/adapters/memory';
 import { hashPassword } from 'better-auth/crypto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { type Auth, createAuth } from '#lib/server/api/auth/auth.config';
-import { cookiesFrom } from '../../../../../test/auth-http';
+import type { Auth } from '#lib/server/api/auth/auth.config';
+import { type AuthRequest, cookiesFrom } from '../../../../../test/auth-http';
+import { createTestAuth, TEST_ORIGIN } from '../../../../../test/auth-instance';
 
-const ORIGIN = 'http://localhost:5173';
 const COMPLIANT_PASSWORD = 'correct horse battery';
 const OTHER_PASSWORD = 'another long passphrase';
 const PWNED_PASSWORD = 'password12345';
@@ -34,19 +33,12 @@ function mockHibp(pwned: string[], failWith?: number) {
 }
 const EMAIL = 'policy@example.com';
 
-type Db = Record<string, Record<string, unknown>[]>;
-
 let auth: Auth;
-let db: Db;
+let db: ReturnType<typeof createTestAuth>['db'];
+let request: AuthRequest;
 
 async function signUp(password: string) {
-  return auth.handler(
-    new Request(`${ORIGIN}/api/auth/sign-up/email`, {
-      method: 'POST',
-      headers: new Headers({ origin: ORIGIN, 'content-type': 'application/json' }),
-      body: JSON.stringify({ name: 'Test User', email: EMAIL, password }),
-    }),
-  );
+  return request('/sign-up/email', { body: { name: 'Test User', email: EMAIL, password } });
 }
 
 afterEach(() => {
@@ -54,18 +46,7 @@ afterEach(() => {
 });
 
 function buildAuth(hibpEnabled = true) {
-  db = { user: [], session: [], account: [], verification: [], twoFactor: [] };
-  auth = createAuth({
-    database: memoryAdapter(db),
-    secret: 'test-secret-that-is-at-least-32-characters',
-    baseURL: ORIGIN,
-    trustedOrigins: [ORIGIN],
-    twoFactorIssuer: 'AdelieStack',
-    passkey: { rpID: 'localhost', rpName: 'AdelieStack', origin: ORIGIN },
-    mailer: { send: async () => {} },
-    signUpEnabled: true,
-    hibpEnabled,
-  });
+  ({ auth, db, request } = createTestAuth({ hibpEnabled }));
 }
 
 beforeEach(() => {
@@ -104,9 +85,7 @@ describe('password policy hook: sign-up', () => {
 });
 
 function post(path: string, body: unknown, cookie?: string) {
-  const headers = new Headers({ origin: ORIGIN, 'content-type': 'application/json' });
-  if (cookie) headers.set('cookie', cookie);
-  return auth.handler(new Request(`${ORIGIN}/api/auth${path}`, { method: 'POST', headers, body: JSON.stringify(body) }));
+  return request(path, { body, cookie });
 }
 
 /** Creates a verified user straight through the adapter, bypassing the policy (a pre-existing account). */
@@ -128,7 +107,7 @@ async function signInCookie(password: string) {
 }
 
 async function resetToken() {
-  await post('/request-password-reset', { email: EMAIL, redirectTo: `${ORIGIN}/reset` });
+  await post('/request-password-reset', { email: EMAIL, redirectTo: `${TEST_ORIGIN}/reset` });
   const row = db.verification.find((v) => String(v.identifier).startsWith('reset-password:'));
   return String(row?.identifier).slice('reset-password:'.length);
 }

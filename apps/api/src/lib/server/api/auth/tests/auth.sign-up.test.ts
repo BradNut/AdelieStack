@@ -1,10 +1,8 @@
-import { RoleName } from '@adelie/shared';
-import { memoryAdapter } from 'better-auth/adapters/memory';
+import { RoleName, SocialProvider } from '@adelie/shared';
 import { describe, expect, it } from 'vitest';
-import { type Auth, createAuth } from '#lib/server/api/auth/auth.config';
-import { cookiesFrom } from '../../../../../test/auth-http';
+import { type AuthRequest, cookiesFrom } from '../../../../../test/auth-http';
+import { createTestAuth } from '../../../../../test/auth-instance';
 
-const ORIGIN = 'http://localhost:5173';
 const PASSWORD = 'Correct-horse-9';
 /** The sign-up endpoints that are gated by `signUpEnabled`. A new one must be gated, then listed here. */
 const GATED_SIGN_UP_PATHS = ['/sign-up/email'];
@@ -22,40 +20,13 @@ const STRANGER_PROVIDER = {
     }) as never,
 };
 
-function buildAuth(signUpEnabled: boolean, socialProviders?: Parameters<typeof createAuth>[0]['socialProviders']): Auth {
-  return createAuth({
-    database: memoryAdapter({ user: [], session: [], account: [], verification: [], twoFactor: [], passkey: [] }),
-    secret: 'test-secret-that-is-at-least-32-characters',
-    baseURL: ORIGIN,
-    trustedOrigins: [ORIGIN],
-    twoFactorIssuer: 'AdelieStack',
-    passkey: { rpID: 'localhost', rpName: 'AdelieStack', origin: ORIGIN },
-    mailer: { send: async () => {} },
-    signUpEnabled,
-    // Not about breached passwords: keep these tests off the network.
-    hibpEnabled: false,
-    socialProviders,
-  });
-}
-
-/** Drives a real Better Auth endpoint through its HTTP handler, as the Hono mount does. */
-function post(auth: Auth, path: string, body: unknown) {
-  return auth.handler(
-    new Request(`${ORIGIN}/api/auth${path}`, {
-      method: 'POST',
-      headers: new Headers({ origin: ORIGIN, 'content-type': 'application/json' }),
-      body: JSON.stringify(body),
-    }),
-  );
-}
-
-const signUp = (auth: Auth, email: string) => post(auth, '/sign-up/email', { name: 'Test User', email, password: PASSWORD });
+const signUp = (request: AuthRequest, email: string) => request('/sign-up/email', { body: { name: 'Test User', email, password: PASSWORD } });
 
 describe('sign-up when closed', () => {
   it('rejects email/password sign-up with Better Auth’s sign-up-disabled code', async () => {
-    const auth = buildAuth(false);
+    const { request } = createTestAuth({ signUpEnabled: false });
 
-    const res = await signUp(auth, 'visitor@example.com');
+    const res = await signUp(request, 'visitor@example.com');
 
     expect(res.ok).toBe(false);
     expect(res.status).toBe(400);
@@ -63,8 +34,8 @@ describe('sign-up when closed', () => {
   });
 
   it('creates no user for the rejected request', async () => {
-    const auth = buildAuth(false);
-    await signUp(auth, 'visitor@example.com');
+    const { auth, request } = createTestAuth({ signUpEnabled: false });
+    await signUp(request, 'visitor@example.com');
 
     const { internalAdapter } = await auth.$context;
 
@@ -72,7 +43,7 @@ describe('sign-up when closed', () => {
   });
 
   it('lets the server create an admin the way the seed does', async () => {
-    const auth = buildAuth(false);
+    const { auth } = createTestAuth({ signUpEnabled: false });
 
     const { user } = await auth.api.createUser({
       body: { name: 'Admin', email: 'admin@example.com', password: PASSWORD, role: RoleName.ADMIN },
@@ -82,28 +53,25 @@ describe('sign-up when closed', () => {
   });
 
   it('lets that seeded admin sign in', async () => {
-    const auth = buildAuth(false);
+    const { auth, request } = createTestAuth({ signUpEnabled: false });
     await auth.api.createUser({ body: { name: 'Admin', email: 'admin@example.com', password: PASSWORD, role: RoleName.ADMIN } });
 
-    const res = await post(auth, '/sign-in/email', { email: 'admin@example.com', password: PASSWORD });
+    const res = await request('/sign-in/email', { body: { email: 'admin@example.com', password: PASSWORD } });
 
     expect(res.status).toBe(200);
     expect(res.headers.getSetCookie().length).toBeGreaterThan(0);
   });
 
   it('lets a signed-in admin create another user over HTTP', async () => {
-    const auth = buildAuth(false);
+    const { auth, request } = createTestAuth({ signUpEnabled: false });
     await auth.api.createUser({ body: { name: 'Admin', email: 'admin@example.com', password: PASSWORD, role: RoleName.ADMIN } });
-    const signIn = await post(auth, '/sign-in/email', { email: 'admin@example.com', password: PASSWORD });
+    const signIn = await request('/sign-in/email', { body: { email: 'admin@example.com', password: PASSWORD } });
     const cookie = cookiesFrom(signIn);
 
-    const res = await auth.handler(
-      new Request(`${ORIGIN}/api/auth/admin/create-user`, {
-        method: 'POST',
-        headers: new Headers({ origin: ORIGIN, 'content-type': 'application/json', cookie }),
-        body: JSON.stringify({ name: 'Invitee', email: 'invitee@example.com', password: PASSWORD, role: RoleName.USER }),
-      }),
-    );
+    const res = await request('/admin/create-user', {
+      cookie,
+      body: { name: 'Invitee', email: 'invitee@example.com', password: PASSWORD, role: RoleName.USER },
+    });
 
     expect(res.status).toBe(200);
   });
@@ -111,9 +79,9 @@ describe('sign-up when closed', () => {
 
 describe('sign-up when open', () => {
   it('accepts email/password sign-up', async () => {
-    const auth = buildAuth(true);
+    const { request } = createTestAuth({ signUpEnabled: true });
 
-    const res = await signUp(auth, 'visitor@example.com');
+    const res = await signUp(request, 'visitor@example.com');
 
     expect(res.status).toBe(200);
     expect(((await res.json()) as { user: { email: string } }).user.email).toBe('visitor@example.com');
@@ -122,7 +90,7 @@ describe('sign-up when open', () => {
 
 describe('sign-up gate coverage', () => {
   it('has no sign-up endpoint beyond the gated ones, so a new plugin path cannot slip past the flag', () => {
-    const auth = buildAuth(false);
+    const { auth } = createTestAuth({ signUpEnabled: false });
 
     const signUpPaths = Object.values(auth.api as Record<string, { path?: string }>)
       .map((endpoint) => endpoint.path)
@@ -132,21 +100,22 @@ describe('sign-up gate coverage', () => {
   });
 
   it.each(GATED_SIGN_UP_PATHS)('rejects %s while closed', async (path) => {
-    const auth = buildAuth(false);
+    const { request } = createTestAuth({ signUpEnabled: false });
 
-    const res = await post(auth, path, { name: 'Test User', email: 'visitor@example.com', password: PASSWORD });
+    const res = await request(path, { body: { name: 'Test User', email: 'visitor@example.com', password: PASSWORD } });
 
     expect(res.ok).toBe(false);
   });
 });
 
 describe('sign-up gate for social sign-in', () => {
-  const socialSignIn = (auth: Auth) => post(auth, '/sign-in/social', { provider: 'google', idToken: { token: 'provider-token' } });
+  const socialSignIn = (request: AuthRequest) =>
+    request('/sign-in/social', { body: { provider: SocialProvider.GOOGLE, idToken: { token: 'provider-token' } } });
 
   it('rejects a social sign-in for an unknown email while closed', async () => {
-    const auth = buildAuth(false, { google: STRANGER_PROVIDER });
+    const { auth, request } = createTestAuth({ signUpEnabled: false, socialProviders: { google: STRANGER_PROVIDER } });
 
-    const res = await socialSignIn(auth);
+    const res = await socialSignIn(request);
 
     expect(res.ok).toBe(false);
     const { internalAdapter } = await auth.$context;
@@ -154,13 +123,15 @@ describe('sign-up gate for social sign-in', () => {
   });
 
   it('accepts a social sign-in for an unknown email while open', async () => {
-    const res = await socialSignIn(buildAuth(true, { google: STRANGER_PROVIDER }));
+    const { request } = createTestAuth({ signUpEnabled: true, socialProviders: { google: STRANGER_PROVIDER } });
+
+    const res = await socialSignIn(request);
 
     expect(res.status).toBe(200);
   });
 
   it('closes every registered provider, so a provider added later is gated too', async () => {
-    const auth = buildAuth(false, { google: STRANGER_PROVIDER, github: STRANGER_PROVIDER });
+    const { auth } = createTestAuth({ signUpEnabled: false, socialProviders: { google: STRANGER_PROVIDER, github: STRANGER_PROVIDER } });
 
     const providers = (await auth.$context).socialProviders;
 

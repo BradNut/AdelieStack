@@ -1,39 +1,23 @@
 import { RoleName } from '@adelie/shared';
-import { memoryAdapter } from 'better-auth/adapters/memory';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { type Auth, createAuth } from '#lib/server/api/auth/auth.config';
-import { cookiesFrom } from '../../../../../test/auth-http';
+import type { Auth } from '#lib/server/api/auth/auth.config';
+import { type AuthRequest, cookiesFrom } from '../../../../../test/auth-http';
+import { createTestAuth } from '../../../../../test/auth-instance';
 
-const ORIGIN = 'http://localhost:5173';
 const PASSWORD = 'correct-horse-battery-staple';
 const MULTI = [RoleName.USER, RoleName.ADMIN];
 
 let auth: Auth;
+let request: AuthRequest;
 let adminCookie: string;
 let targetId: string;
 
 function setup(allowMultipleRoles: boolean) {
-  auth = createAuth({
-    database: memoryAdapter({ user: [], session: [], account: [], verification: [], twoFactor: [] }),
-    secret: 'test-secret-that-is-at-least-32-characters',
-    baseURL: ORIGIN,
-    trustedOrigins: [ORIGIN],
-    twoFactorIssuer: 'AdelieStack',
-    passkey: { rpID: 'localhost', rpName: 'AdelieStack', origin: ORIGIN },
-    mailer: { send: async () => {} },
-    signUpEnabled: true,
-    allowMultipleRoles: () => allowMultipleRoles,
-  });
-}
-
-async function call(path: string, body: unknown, cookie?: string) {
-  const headers = new Headers({ origin: ORIGIN, 'content-type': 'application/json' });
-  if (cookie) headers.set('cookie', cookie);
-  return auth.handler(new Request(`${ORIGIN}/api/auth${path}`, { method: 'POST', headers, body: JSON.stringify(body) }));
+  ({ auth, request } = createTestAuth({ allowMultipleRoles: () => allowMultipleRoles }));
 }
 
 async function signUp(email: string) {
-  const res = await call('/sign-up/email', { name: 'Penguin', email, password: PASSWORD });
+  const res = await request('/sign-up/email', { body: { name: 'Penguin', email, password: PASSWORD } });
   const cookie = cookiesFrom(res);
   const { user } = (await res.json()) as { user: { id: string } };
   return { cookie, id: user.id };
@@ -49,10 +33,13 @@ async function prepare(allowMultipleRoles: boolean) {
 
 let created = 0;
 const paths = {
-  'set-role': (role: unknown) => call('/admin/set-role', { userId: targetId, role }, adminCookie),
+  'set-role': (role: unknown) => request('/admin/set-role', { cookie: adminCookie, body: { userId: targetId, role } }),
   'create-user': (role: unknown) =>
-    call('/admin/create-user', { email: `new${created++}@example.com`, password: PASSWORD, name: 'New', role }, adminCookie),
-  'update-user': (role: unknown) => call('/admin/update-user', { userId: targetId, data: { role } }, adminCookie),
+    request('/admin/create-user', {
+      cookie: adminCookie,
+      body: { email: `new${created++}@example.com`, password: PASSWORD, name: 'New', role },
+    }),
+  'update-user': (role: unknown) => request('/admin/update-user', { cookie: adminCookie, body: { userId: targetId, data: { role } } }),
 };
 
 describe.each(Object.entries(paths))('admin %s', (_name, write) => {

@@ -3,6 +3,10 @@ import { totpCode } from '@adelie/test-utils/totp';
 export interface AuthRequestOptions {
   body?: unknown;
   cookie?: string;
+  /** Extra request headers, set on top of the defaults. */
+  headers?: Record<string, string>;
+  /** Overrides the default: GET without a body, POST with one. */
+  method?: string;
 }
 
 /** A test's own call into its auth instance at `/api/auth${path}`. The helpers always pass a JSON `body`. */

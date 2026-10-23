@@ -8,17 +8,16 @@ import {
   type AuthRateLimitRule,
   RETRY_AFTER_HEADER,
 } from '@adelie/shared';
-import { memoryAdapter } from 'better-auth/adapters/memory';
-import { describe, expect, it, vi } from 'vitest';
-import { type Auth, createAuth } from '#lib/server/api/auth/auth.config';
+import { describe, expect, it } from 'vitest';
+import type { Auth } from '#lib/server/api/auth/auth.config';
 import type { AuthRateLimitStorage } from '#lib/server/api/auth/auth.rate-limit';
 import { AUTH_RATE_LIMIT_REDIS_PREFIX, AuthRateLimitRepository } from '#lib/server/api/auth/auth.rate-limit.repository';
 import type { RedisService } from '#lib/server/api/databases/redis/redis.service';
-import type { SendProps } from '#lib/server/api/mail/interfaces/mailer.interface';
 import { type AuthRequest, signUpWithTotp, startTwoFactorSignIn } from '../../../../../test/auth-http';
+import { createTestAuth } from '../../../../../test/auth-instance';
 import { createRedisServiceMock } from '../../../../../test/mocks/redis.mock';
 
-const ORIGIN = 'http://localhost:5173';
+const CLIENT_IP = '203.0.113.7';
 const STRICT_MAX = AUTH_RATE_LIMIT_STRICT.max;
 const WILDCARD = '*';
 /** The rules as Better Auth sees them: keys in declaration order, looked up by plain string. */
@@ -86,61 +85,39 @@ function build({
   trustProxy?: boolean;
 } = {}) {
   const { redis, repository } = createRepository();
-  const db = { user: [], session: [], account: [], verification: [], twoFactor: [], passkey: [] };
-  const send = vi.fn<(data: SendProps) => Promise<void>>().mockResolvedValue();
-  const auth: Auth = createAuth({
-    database: memoryAdapter(db),
-    secret: 'test-secret-that-is-at-least-32-characters',
-    baseURL: ORIGIN,
-    trustedOrigins: [ORIGIN],
-    twoFactorIssuer: 'AdelieStack',
-    passkey: { rpID: 'localhost', rpName: 'AdelieStack', origin: ORIGIN },
-    mailer: { send },
-    signUpEnabled: true,
-    hibpEnabled: false,
-    trustProxy,
-    ...(withRateLimit ? { rateLimitStorage: override ?? repository } : {}),
-  });
-  return { auth, redis, db, send };
+  const { auth, db, mailer, request } = createTestAuth({ trustProxy, ...(withRateLimit ? { rateLimitStorage: override ?? repository } : {}) });
+  /** Every request comes from one client unless the test says otherwise. */
+  const fromClient: AuthRequest = (path, options = {}) =>
+    request(path, { ...options, headers: { 'x-forwarded-for': CLIENT_IP, ...options.headers } });
+  return { auth, redis, db, send: mailer.send, request: fromClient };
 }
 
-const post = (auth: Auth, path: string, body: unknown, { ip = '203.0.113.7', cookie }: { ip?: string; cookie?: string } = {}) =>
-  auth.handler(
-    new Request(`${ORIGIN}/api/auth${path}`, {
-      method: 'POST',
-      headers: new Headers({ origin: ORIGIN, 'content-type': 'application/json', 'x-forwarded-for': ip, ...(cookie ? { cookie } : {}) }),
-      body: JSON.stringify(body),
-    }),
-  );
-
-/** `post` in the shape the shared auth HTTP helpers call. */
-const requestTo =
-  (auth: Auth): AuthRequest =>
-  (path, { body, cookie } = {}) =>
-    post(auth, path, body, { cookie });
+const post = (request: AuthRequest, path: string, body: unknown, { ip = CLIENT_IP, cookie }: { ip?: string; cookie?: string } = {}) =>
+  request(path, { body, cookie, headers: { 'x-forwarded-for': ip } });
 
 const MEMBER = { name: 'Member', email: 'member@example.com', password: 'Correct-horse-9' };
 
-const signUp = (auth: Auth, email: string, ip?: string) => post(auth, '/sign-up/email', { ...MEMBER, email }, { ip });
+const signUp = (request: AuthRequest, email: string, ip?: string) => post(request, '/sign-up/email', { ...MEMBER, email }, { ip });
 
-const signIn = (auth: Auth, ip?: string) => post(auth, '/sign-in/email', { email: 'nobody@example.com', password: 'Wrong-password-1' }, { ip });
+const signIn = (request: AuthRequest, ip?: string) =>
+  post(request, '/sign-in/email', { email: 'nobody@example.com', password: 'Wrong-password-1' }, { ip });
 
 describe('auth rate limiting', () => {
   it('throttles sign-in after the configured number of attempts, with a retry time', async () => {
-    const { auth } = build();
-    for (let i = 0; i < STRICT_MAX; i++) expect((await signIn(auth)).status).not.toBe(429);
+    const { request } = build();
+    for (let i = 0; i < STRICT_MAX; i++) expect((await signIn(request)).status).not.toBe(429);
 
-    const res = await signIn(auth);
+    const res = await signIn(request);
 
     expect(res.status).toBe(429);
     expect(Number(res.headers.get(RETRY_AFTER_HEADER))).toBeGreaterThan(0);
   });
 
   it('counts each client separately', async () => {
-    const { auth } = build();
-    for (let i = 0; i <= STRICT_MAX; i++) await signIn(auth, '203.0.113.7');
+    const { request } = build();
+    for (let i = 0; i <= STRICT_MAX; i++) await signIn(request, CLIENT_IP);
 
-    expect((await signIn(auth, '203.0.113.8')).status).not.toBe(429);
+    expect((await signIn(request, '203.0.113.8')).status).not.toBe(429);
   });
 
   // The two-factor management endpoints and sending a code need a session or a challenge cookie, so they answer 401 until the limiter, which runs first, refuses them.
@@ -152,26 +129,25 @@ describe('auth rate limiting', () => {
     ['/reset-password', '/reset-password'],
     ['/passkey/generate-authenticate-options', '/passkey/*'],
   ])('applies the stricter rule to %s, with a retry time', async (path, rule) => {
-    const { auth } = build();
+    const { request } = build();
     // A union of every endpoint's fields, so one payload serves them all.
     const body = { email: 'a@example.com', code: '000000', password: 'Wrong-password-1' };
     const { max } = RULES[rule];
-    for (let i = 0; i < max; i++) expect((await post(auth, path, body)).status).not.toBe(429);
+    for (let i = 0; i < max; i++) expect((await post(request, path, body)).status).not.toBe(429);
 
-    const res = await post(auth, path, body);
+    const res = await post(request, path, body);
 
     expect(res.status).toBe(429);
     expect(Number(res.headers.get(RETRY_AFTER_HEADER))).toBeGreaterThan(0);
   });
 
   it('emails a two-factor code only up to the email limit, then refuses with a retry time and sends nothing', async () => {
-    const { auth, send } = build();
-    const request = requestTo(auth);
+    const { request, send } = build();
     await signUpWithTotp(request, MEMBER);
     const { challengeCookie: challenge, twoFactorRedirect } = await startTwoFactorSignIn(request, MEMBER);
     expect(twoFactorRedirect).toBe(true);
     send.mockClear(); // drop the sign-up verification email
-    const sendOtp = () => post(auth, '/two-factor/send-otp', {}, { cookie: challenge });
+    const sendOtp = () => post(request, '/two-factor/send-otp', {}, { cookie: challenge });
     for (let i = 1; i <= AUTH_RATE_LIMIT_EMAIL.max; i++) {
       expect((await sendOtp()).status).toBe(200);
       expect(send).toHaveBeenCalledTimes(i);
@@ -185,11 +161,11 @@ describe('auth rate limiting', () => {
   });
 
   it('resends the verification email only up to the email limit, then refuses with a retry time and sends nothing', async () => {
-    const { auth, send } = build();
+    const { request, send } = build();
     const email = 'unverified@example.com';
-    await signUp(auth, email);
+    await signUp(request, email);
     send.mockClear(); // drop the sign-up verification email
-    const resend = () => post(auth, '/send-verification-email', { email });
+    const resend = () => post(request, '/send-verification-email', { email });
     for (let i = 1; i <= AUTH_RATE_LIMIT_EMAIL.max; i++) {
       expect((await resend()).status).toBe(200);
       expect(send).toHaveBeenCalledTimes(i);
@@ -206,14 +182,14 @@ describe('auth rate limiting', () => {
   const signUpEmail = (i: number) => `new-${i}@example.com`;
 
   it('creates the account and sends the verification email for sign-ups up to the sign-up limit, then refuses with a retry time, creating no user and sending nothing', async () => {
-    const { auth, db, send } = build();
+    const { request, db, send } = build();
     for (let i = 1; i <= AUTH_RATE_LIMIT_SIGN_UP.max; i++) {
-      expect((await signUp(auth, signUpEmail(i))).status).toBe(200);
+      expect((await signUp(request, signUpEmail(i))).status).toBe(200);
       expect(db.user).toHaveLength(i);
       expect(send).toHaveBeenCalledTimes(i);
     }
 
-    const res = await signUp(auth, 'one-too-many@example.com');
+    const res = await signUp(request, 'one-too-many@example.com');
 
     expect(res.status).toBe(429);
     // The sign-up window, not Better Auth's built-in one for `/sign-up*` (3 per 10 seconds); the Redis mock reports the full window as time left.
@@ -223,14 +199,14 @@ describe('auth rate limiting', () => {
   });
 
   it('refuses a sign-up with an existing address without sending an email, and counts it toward the sign-up limit', async () => {
-    const { auth, db, send } = build();
+    const { request, db, send } = build();
     const email = 'taken@example.com';
-    expect((await signUp(auth, email)).status).toBe(200);
+    expect((await signUp(request, email)).status).toBe(200);
     send.mockClear(); // drop the first sign-up's verification email
-    for (let i = 1; i < AUTH_RATE_LIMIT_SIGN_UP.max; i++) expect((await signUp(auth, email)).status).toBe(422);
+    for (let i = 1; i < AUTH_RATE_LIMIT_SIGN_UP.max; i++) expect((await signUp(request, email)).status).toBe(422);
     expect(send).not.toHaveBeenCalled();
 
-    const res = await signUp(auth, 'fresh@example.com');
+    const res = await signUp(request, 'fresh@example.com');
 
     expect(res.status).toBe(429);
     expect(db.user).toHaveLength(1);
@@ -238,19 +214,19 @@ describe('auth rate limiting', () => {
   });
 
   it('counts each client separately for the sign-up limit', async () => {
-    const { auth } = build();
-    for (let i = 1; i <= AUTH_RATE_LIMIT_SIGN_UP.max; i++) await signUp(auth, signUpEmail(i), '203.0.113.7');
-    expect((await signUp(auth, 'late@example.com', '203.0.113.7')).status).toBe(429);
+    const { request } = build();
+    for (let i = 1; i <= AUTH_RATE_LIMIT_SIGN_UP.max; i++) await signUp(request, signUpEmail(i), CLIENT_IP);
+    expect((await signUp(request, 'late@example.com', CLIENT_IP)).status).toBe(429);
 
-    expect((await signUp(auth, 'other@example.com', '203.0.113.8')).status).toBe(200);
+    expect((await signUp(request, 'other@example.com', '203.0.113.8')).status).toBe(200);
   });
 
   // Without a challenge cookie the endpoint answers 401, but the limiter runs first and counts it all the same.
   it('counts each client separately for the email limit', async () => {
-    const { auth } = build();
-    const sendOtp = (ip: string) => post(auth, '/two-factor/send-otp', {}, { ip });
-    for (let i = 0; i < AUTH_RATE_LIMIT_EMAIL.max; i++) await sendOtp('203.0.113.7');
-    expect((await sendOtp('203.0.113.7')).status).toBe(429);
+    const { request } = build();
+    const sendOtp = (ip: string) => post(request, '/two-factor/send-otp', {}, { ip });
+    for (let i = 0; i < AUTH_RATE_LIMIT_EMAIL.max; i++) await sendOtp(CLIENT_IP);
+    expect((await sendOtp(CLIENT_IP)).status).toBe(429);
 
     expect((await sendOtp('203.0.113.8')).status).not.toBe(429);
   });
@@ -259,9 +235,9 @@ describe('auth rate limiting', () => {
   const defaultPathBody = { provider: 'github', callbackURL: '/', password: 'Wrong-password-1' };
 
   it.each(AUTH_RATE_LIMIT_DEFAULT_PATHS)('does not apply the strict limit to %s', async (path) => {
-    const { auth } = build();
+    const { request } = build();
     for (let i = 0; i <= STRICT_MAX * 2; i++) {
-      expect((await post(auth, path, defaultPathBody)).status).not.toBe(429);
+      expect((await post(request, path, defaultPathBody)).status).not.toBe(429);
     }
   });
 
@@ -272,11 +248,11 @@ describe('auth rate limiting', () => {
       // Each pin needs a deliberately-default path below it to probe.
       expect(path).toBeDefined();
       if (path === undefined) return;
-      const { auth } = build();
-      const request = () => post(auth, path, defaultPathBody);
-      for (let i = 0; i < AUTH_RATE_LIMIT_DEFAULT.max; i++) expect((await request()).status).not.toBe(429);
+      const { request } = build();
+      const callPath = () => post(request, path, defaultPathBody);
+      for (let i = 0; i < AUTH_RATE_LIMIT_DEFAULT.max; i++) expect((await callPath()).status).not.toBe(429);
 
-      expect((await request()).status).toBe(429);
+      expect((await callPath()).status).toBe(429);
     },
   );
 
@@ -324,18 +300,18 @@ describe('auth rate limiting', () => {
   });
 
   it('keeps its counters in the injected storage, not in process memory', async () => {
-    const { auth, redis } = build();
+    const { request, redis } = build();
 
-    await signIn(auth);
+    await signIn(request);
 
     expect(redis.incrementWithExpiry).toHaveBeenCalled();
   });
 
   it('keeps sessions in the database and only counters in the rate-limit storage', async () => {
-    const { auth, redis, db } = build();
+    const { auth, request, redis, db } = build();
     await auth.api.createUser({ body: { name: 'Member', email: 'member@example.com', password: 'Correct-horse-9' } });
 
-    const res = await post(auth, '/sign-in/email', { email: 'member@example.com', password: 'Correct-horse-9' });
+    const res = await post(request, '/sign-in/email', { email: 'member@example.com', password: 'Correct-horse-9' });
 
     expect(res.status).toBe(200);
     expect(db.session).toHaveLength(1);
@@ -343,34 +319,34 @@ describe('auth rate limiting', () => {
   });
 
   it('fails the request rather than skipping the limit when the storage is unreachable', async () => {
-    const { auth } = build({ override: { consume: async () => Promise.reject(new Error('redis down')) } });
+    const { request } = build({ override: { consume: async () => Promise.reject(new Error('redis down')) } });
 
-    await expect(signIn(auth)).rejects.toThrow('redis down');
+    await expect(signIn(request)).rejects.toThrow('redis down');
   });
 
   it('does not throttle when no rate limit is configured, whatever the environment', async () => {
-    const { auth } = build({ withRateLimit: false });
-    for (let i = 0; i < STRICT_MAX * 3; i++) expect((await signIn(auth)).status).not.toBe(429);
+    const { request } = build({ withRateLimit: false });
+    for (let i = 0; i < STRICT_MAX * 3; i++) expect((await signIn(request)).status).not.toBe(429);
   });
 });
 
 describe('auth rate limiting without a trusted proxy', () => {
   it('ignores x-forwarded-for, so every client lands in one shared bucket per path', async () => {
-    const { auth } = build({ trustProxy: false });
-    for (let i = 0; i < STRICT_MAX; i++) await signIn(auth, `203.0.113.${i + 1}`);
+    const { request } = build({ trustProxy: false });
+    for (let i = 0; i < STRICT_MAX; i++) await signIn(request, `203.0.113.${i + 1}`);
 
     // A different client is throttled by the others' attempts: why production refuses this setup.
-    const res = await signIn(auth, '198.51.100.1');
+    const res = await signIn(request, '198.51.100.1');
 
     expect(res.status).toBe(429);
     expect(Number(res.headers.get(RETRY_AFTER_HEADER))).toBeGreaterThan(0);
   });
 
   it('keeps clients apart when the proxy is trusted', async () => {
-    const { auth } = build({ trustProxy: true });
-    for (let i = 0; i < STRICT_MAX; i++) await signIn(auth, `203.0.113.${i + 1}`);
+    const { request } = build({ trustProxy: true });
+    for (let i = 0; i < STRICT_MAX; i++) await signIn(request, `203.0.113.${i + 1}`);
 
-    expect((await signIn(auth, '198.51.100.1')).status).not.toBe(429);
+    expect((await signIn(request, '198.51.100.1')).status).not.toBe(429);
   });
 });
 

@@ -7,13 +7,11 @@ import {
   CAPTCHA_VERIFICATION_FAILED,
   CaptchaProvider,
 } from '@adelie/shared';
-import { memoryAdapter } from 'better-auth/adapters/memory';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CAPTCHA_VERIFY_FAILED_LOG, createCaptchaHealth } from '#lib/server/api/auth/auth.captcha';
-import { createAuth } from '#lib/server/api/auth/auth.config';
 import { ProviderHealthState } from '#lib/server/api/auth/auth.provider-health';
+import { createTestAuth, TEST_ORIGIN } from '../../../../../test/auth-instance';
 
-const ORIGIN = 'http://localhost:5173';
 const PASSWORD = 'correct horse battery';
 const PWNED_PASSWORD = 'password12345';
 const TURNSTILE_VERIFY = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
@@ -55,31 +53,16 @@ function build(
 ) {
   const log = { error: vi.fn() };
   const captchaStatus = createCaptchaHealth({ enabled: Boolean(captcha), log });
-  const db = { user: [], session: [], account: [], verification: [], twoFactor: [], passkey: [] };
-  const auth = createAuth({
-    database: memoryAdapter(db),
-    secret: 'test-secret-that-is-at-least-32-characters',
-    baseURL: ORIGIN,
-    trustedOrigins: [ORIGIN],
-    twoFactorIssuer: 'AdelieStack',
-    signUpEnabled: true,
-    passkey: { rpID: 'localhost', rpName: 'AdelieStack', origin: ORIGIN },
-    mailer: { send: async () => {} },
-    captcha: captcha ?? undefined,
-    captchaStatus,
-  });
-  const post = (path: string, body: unknown, token?: string) => {
-    const headers = new Headers({ origin: ORIGIN, 'content-type': 'application/json' });
-    if (token) headers.set(CAPTCHA_RESPONSE_HEADER, token);
-    return auth.handler(new Request(`${ORIGIN}/api/auth${path}`, { method: 'POST', headers, body: JSON.stringify(body) }));
-  };
+  const { auth, request } = createTestAuth({ hibpEnabled: true, captcha: captcha ?? undefined, captchaStatus });
+  const post = (path: string, body: unknown, token?: string) =>
+    request(path, { body, headers: token ? { [CAPTCHA_RESPONSE_HEADER]: token } : undefined });
   return { auth, log, captchaStatus, post };
 }
 
 const BODY_BY_PATH: Record<(typeof CAPTCHA_PROTECTED_PATHS)[number], unknown> = {
   '/sign-up/email': { name: 'T', email: 'c@example.com', password: PASSWORD },
   '/sign-in/email': { email: 'c@example.com', password: PASSWORD },
-  '/request-password-reset': { email: 'c@example.com', redirectTo: `${ORIGIN}/reset` },
+  '/request-password-reset': { email: 'c@example.com', redirectTo: `${TEST_ORIGIN}/reset` },
   '/send-verification-email': { email: 'c@example.com' },
 };
 
