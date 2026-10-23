@@ -1,6 +1,6 @@
 import { AUTH_CLIENT_IP_HEADER, AUTH_SESSION_EXPIRES_IN, AUTH_SESSION_FRESH_AGE, AUTH_SESSION_UPDATE_AGE } from '@adelie/shared';
 import { describe, expect, it } from 'vitest';
-import { cookiesFrom } from '../../../../../test/auth-http';
+import { type AuthRequest, cookiesFrom } from '../../../../../test/auth-http';
 import { createTestAuth } from '../../../../../test/auth-instance';
 
 const PASSWORD = 'Correct-horse-9';
@@ -46,7 +46,7 @@ describe('session settings', () => {
 });
 
 describe('fresh vs stale sessions', () => {
-  const deleteUser = (request: ReturnType<typeof build>['request'], cookie: string) => request('/delete-user', { body: {}, cookie });
+  const deleteUser = (request: AuthRequest, cookie: string) => request('/delete-user', { body: {}, cookie });
 
   it('lets a fresh session run a sensitive action', async () => {
     const { request, signUp } = build();

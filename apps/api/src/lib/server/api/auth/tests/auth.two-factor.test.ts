@@ -12,6 +12,11 @@ const USER = { name: 'Penguin', email: EMAIL, password: PASSWORD };
 let request: AuthRequest;
 let sent: SendProps[];
 
+/** Forgets the mail sent so far, so a test only sees what its action sends. */
+function clearSent() {
+  sent.length = 0;
+}
+
 async function hasSession(cookie: string) {
   const session = await (await request('/get-session', { cookie })).json();
   return session !== null;
@@ -122,7 +127,7 @@ describe('sign-in with an emailed OTP', () => {
   it('emails the code through the mailer and signs in with it', async () => {
     await signUpWithTotp(request, USER);
     const { challengeCookie } = await startTwoFactorSignIn(request, USER);
-    sent.length = 0; // drop the sign-up verification email
+    clearSent(); // drop the sign-up verification email
 
     const otpRes = await request('/two-factor/send-otp', { cookie: challengeCookie, body: {} });
     expect(otpRes.status).toBe(200);

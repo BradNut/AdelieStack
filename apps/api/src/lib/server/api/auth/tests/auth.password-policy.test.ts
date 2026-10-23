@@ -2,7 +2,8 @@ import { createHash } from 'node:crypto';
 import { PASSWORD_COMPROMISED, PASSWORD_POLICY_RULES, PASSWORD_POLICY_VIOLATION } from '@adelie/shared';
 import { hashPassword } from 'better-auth/crypto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cookiesFrom } from '../../../../../test/auth-http';
+import type { Auth } from '#lib/server/api/auth/auth.config';
+import { type AuthRequest, cookiesFrom } from '../../../../../test/auth-http';
 import { createTestAuth, TEST_ORIGIN } from '../../../../../test/auth-instance';
 
 const COMPLIANT_PASSWORD = 'correct horse battery';
@@ -32,9 +33,9 @@ function mockHibp(pwned: string[], failWith?: number) {
 }
 const EMAIL = 'policy@example.com';
 
-let auth: ReturnType<typeof createTestAuth>['auth'];
+let auth: Auth;
 let db: ReturnType<typeof createTestAuth>['db'];
-let request: ReturnType<typeof createTestAuth>['request'];
+let request: AuthRequest;
 
 async function signUp(password: string) {
   return request('/sign-up/email', { body: { name: 'Test User', email: EMAIL, password } });

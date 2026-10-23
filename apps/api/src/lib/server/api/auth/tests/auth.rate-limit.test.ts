@@ -115,7 +115,7 @@ describe('auth rate limiting', () => {
 
   it('counts each client separately', async () => {
     const { request } = build();
-    for (let i = 0; i <= STRICT_MAX; i++) await signIn(request, '203.0.113.7');
+    for (let i = 0; i <= STRICT_MAX; i++) await signIn(request, CLIENT_IP);
 
     expect((await signIn(request, '203.0.113.8')).status).not.toBe(429);
   });
@@ -215,8 +215,8 @@ describe('auth rate limiting', () => {
 
   it('counts each client separately for the sign-up limit', async () => {
     const { request } = build();
-    for (let i = 1; i <= AUTH_RATE_LIMIT_SIGN_UP.max; i++) await signUp(request, signUpEmail(i), '203.0.113.7');
-    expect((await signUp(request, 'late@example.com', '203.0.113.7')).status).toBe(429);
+    for (let i = 1; i <= AUTH_RATE_LIMIT_SIGN_UP.max; i++) await signUp(request, signUpEmail(i), CLIENT_IP);
+    expect((await signUp(request, 'late@example.com', CLIENT_IP)).status).toBe(429);
 
     expect((await signUp(request, 'other@example.com', '203.0.113.8')).status).toBe(200);
   });
@@ -225,8 +225,8 @@ describe('auth rate limiting', () => {
   it('counts each client separately for the email limit', async () => {
     const { request } = build();
     const sendOtp = (ip: string) => post(request, '/two-factor/send-otp', {}, { ip });
-    for (let i = 0; i < AUTH_RATE_LIMIT_EMAIL.max; i++) await sendOtp('203.0.113.7');
-    expect((await sendOtp('203.0.113.7')).status).toBe(429);
+    for (let i = 0; i < AUTH_RATE_LIMIT_EMAIL.max; i++) await sendOtp(CLIENT_IP);
+    expect((await sendOtp(CLIENT_IP)).status).toBe(429);
 
     expect((await sendOtp('203.0.113.8')).status).not.toBe(429);
   });

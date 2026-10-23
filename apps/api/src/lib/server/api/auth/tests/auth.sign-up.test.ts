@@ -1,4 +1,4 @@
-import { RoleName } from '@adelie/shared';
+import { RoleName, SocialProvider } from '@adelie/shared';
 import { describe, expect, it } from 'vitest';
 import { type AuthRequest, cookiesFrom } from '../../../../../test/auth-http';
 import { createTestAuth } from '../../../../../test/auth-instance';
@@ -109,7 +109,8 @@ describe('sign-up gate coverage', () => {
 });
 
 describe('sign-up gate for social sign-in', () => {
-  const socialSignIn = (request: AuthRequest) => request('/sign-in/social', { body: { provider: 'google', idToken: { token: 'provider-token' } } });
+  const socialSignIn = (request: AuthRequest) =>
+    request('/sign-in/social', { body: { provider: SocialProvider.GOOGLE, idToken: { token: 'provider-token' } } });
 
   it('rejects a social sign-in for an unknown email while closed', async () => {
     const { auth, request } = createTestAuth({ signUpEnabled: false, socialProviders: { google: STRANGER_PROVIDER } });

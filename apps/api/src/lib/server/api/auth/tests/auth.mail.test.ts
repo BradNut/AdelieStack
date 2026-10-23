@@ -47,7 +47,7 @@ describe('verification email', () => {
     expect(sent).toHaveLength(1);
     expect(sent[0].to).toBe(EMAIL);
     expect(sent[0].template).toBeInstanceOf(EmailVerificationEmail);
-    expect(sent[0].template.html()).toContain('/api/auth/verify-email?token=');
+    expect(sent[0].template.html()).toContain(`${AUTH_BASE_PATH}/verify-email?token=`);
   });
 });
 
