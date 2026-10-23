@@ -4,6 +4,7 @@ import { memoryAdapter } from 'better-auth/adapters/memory';
 import { hashPassword } from 'better-auth/crypto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { type Auth, createAuth } from '#lib/server/api/auth/auth.config';
+import { cookiesFrom } from '../../../../../test/auth-http';
 
 const ORIGIN = 'http://localhost:5173';
 const COMPLIANT_PASSWORD = 'correct horse battery';
@@ -123,10 +124,7 @@ async function seedUser(password: string) {
 async function signInCookie(password: string) {
   const res = await post('/sign-in/email', { email: EMAIL, password });
   expect(res.status).toBe(200);
-  return res.headers
-    .getSetCookie()
-    .map((c) => c.split(';')[0])
-    .join('; ');
+  return cookiesFrom(res);
 }
 
 async function resetToken() {
@@ -199,10 +197,7 @@ describe('password policy hook: admin paths', () => {
     const adminUser = await internalAdapter.findUserByEmail(EMAIL);
     if (!adminUser) throw new Error('admin fixture was not created');
     await internalAdapter.updateUser(adminUser.user.id, { role: 'admin' });
-    const cookie = signUpRes.headers
-      .getSetCookie()
-      .map((c) => c.split(';')[0])
-      .join('; ');
+    const cookie = cookiesFrom(signUpRes);
     adminHeaders = new Headers({ cookie });
   });
 

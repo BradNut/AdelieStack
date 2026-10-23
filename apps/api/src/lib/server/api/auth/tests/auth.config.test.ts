@@ -2,6 +2,7 @@ import { RoleName } from '@adelie/shared';
 import { memoryAdapter } from 'better-auth/adapters/memory';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { type Auth, createAuth, generateAuthId } from '#lib/server/api/auth/auth.config';
+import { cookiesFrom } from '../../../../../test/auth-http';
 
 const ORIGIN = 'http://localhost:5173';
 const PASSWORD = 'Correct-horse-9';
@@ -25,10 +26,7 @@ async function call(path: string, { body, cookie }: { body?: unknown; cookie?: s
 /** Signs up a user and returns the session cookie for follow-up requests. */
 async function signUp(email: string, extra: Record<string, unknown> = {}) {
   const res = await call('/sign-up/email', { body: { name: 'Test User', email, password: PASSWORD, ...extra } });
-  const cookie = res.headers
-    .getSetCookie()
-    .map((c) => c.split(';')[0])
-    .join('; ');
+  const cookie = cookiesFrom(res);
   const { user } = (await res.json()) as { user: { id: string; role: string } };
   return { res, cookie, user };
 }

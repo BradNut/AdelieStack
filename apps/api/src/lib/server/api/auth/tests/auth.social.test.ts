@@ -5,6 +5,7 @@ import { type Auth, createAuth } from '#lib/server/api/auth/auth.config';
 import { enabledSocialProviders, socialCredentialsFromEnvs } from '#lib/server/api/auth/auth.social';
 import { envsDto } from '#lib/server/api/common/configs/dtos/env.dto';
 import { validEnvs } from '#lib/server/api/common/configs/tests/env-fixtures';
+import { cookiesFrom } from '../../../../../test/auth-http';
 
 const ORIGIN = 'http://localhost:5173';
 const PASSWORD = 'Correct-horse-9';
@@ -62,12 +63,6 @@ function post(auth: Auth, path: string, body: unknown, cookie?: string) {
   );
 }
 
-const cookieOf = (res: Response) =>
-  res.headers
-    .getSetCookie()
-    .map((c) => c.split(';')[0])
-    .join('; ');
-
 const socialSignIn = (auth: Auth, provider: SocialProvider) => post(auth, '/sign-in/social', { provider, idToken: { token: 'provider-token' } });
 
 /** Registers EXISTING_EMAIL with a password and, optionally, a verified address. Returns the user id and a session cookie. */
@@ -76,7 +71,7 @@ async function existingUser(auth: Auth, { verified }: { verified: boolean }) {
   const { internalAdapter } = await auth.$context;
   await internalAdapter.updateUser(user.id, { emailVerified: verified });
   const signIn = await post(auth, '/sign-in/email', { email: EXISTING_EMAIL, password: PASSWORD });
-  return { id: user.id, cookie: cookieOf(signIn) };
+  return { id: user.id, cookie: cookiesFrom(signIn) };
 }
 
 async function providerIdsOf(auth: Auth, userId: string) {
@@ -216,7 +211,7 @@ describe('link and unlink from account settings', () => {
     const { internalAdapter } = await auth.$context;
     const [only] = await internalAdapter.findAccounts(user.id);
 
-    const res = await post(auth, '/unlink-account', { accountId: only?.id }, cookieOf(signIn));
+    const res = await post(auth, '/unlink-account', { accountId: only?.id }, cookiesFrom(signIn));
 
     expect(res.status).toBe(400);
     expect(await providerIdsOf(auth, user.id)).toEqual([SocialProvider.GOOGLE]);

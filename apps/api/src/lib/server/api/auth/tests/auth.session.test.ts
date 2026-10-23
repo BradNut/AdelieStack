@@ -2,6 +2,7 @@ import { AUTH_CLIENT_IP_HEADER, AUTH_SESSION_EXPIRES_IN, AUTH_SESSION_FRESH_AGE,
 import { memoryAdapter } from 'better-auth/adapters/memory';
 import { describe, expect, it } from 'vitest';
 import { type CreateAuthOptions, createAuth } from '#lib/server/api/auth/auth.config';
+import { cookiesFrom } from '../../../../../test/auth-http';
 
 const ORIGIN = 'http://localhost:5173';
 const PASSWORD = 'Correct-horse-9';
@@ -34,16 +35,11 @@ function build(extra: Partial<CreateAuthOptions> = {}) {
       }),
     );
   };
-  const cookieOf = (res: Response) =>
-    res.headers
-      .getSetCookie()
-      .map((c) => c.split(';')[0])
-      .join('; ');
   const signUp = async (email = 'a@example.com') => {
     const res = await call('/sign-up/email', { body: { name: 'A', email, password: PASSWORD } });
-    return { res, cookie: cookieOf(res) };
+    return { res, cookie: cookiesFrom(res) };
   };
-  return { auth, db, call, cookieOf, signUp };
+  return { auth, db, call, signUp };
 }
 
 describe('session settings', () => {
@@ -87,7 +83,7 @@ describe('fresh vs stale sessions', () => {
   });
 
   it('refuses a stale session, then succeeds after re-authentication', async () => {
-    const { call, db, signUp, cookieOf } = build();
+    const { call, db, signUp } = build();
     const { cookie } = await signUp();
     for (const s of db.session) s.createdAt = new Date(Date.now() - (AUTH_SESSION_FRESH_AGE + 60) * 1000);
 
@@ -97,7 +93,7 @@ describe('fresh vs stale sessions', () => {
 
     const signedIn = await call('/sign-in/email', { body: { email: 'a@example.com', password: PASSWORD } });
     expect(signedIn.status).toBe(200);
-    expect((await deleteUser(call, cookieOf(signedIn))).status).toBe(200);
+    expect((await deleteUser(call, cookiesFrom(signedIn))).status).toBe(200);
     expect(db.user).toHaveLength(0);
   });
 });
