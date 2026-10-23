@@ -46,3 +46,7 @@ src/lib/paraglide
 
 # Local architecture review reports (never committed)
 .architecture-review/
+
+# Local caches and agent worktrees
+volume/
+.claude/worktrees/
