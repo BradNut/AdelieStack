@@ -1,171 +1,127 @@
 # IAM Service Runbook
 
+Configuration, rate limiting, captcha, HIBP and social login are covered in the
+[environment config runbook](../../runbooks/environment-config.md). This page covers user and
+session operations.
+
 ## Common Operations
 
-### Investigate a User's Login Failures
+### Investigate a User's Sign-in Failures
 
-**Scenario:** User reports they cannot log in.
+**Scenario:** A user reports they cannot sign in.
 
 **Steps:**
-1. Confirm the user exists and check what credential types they have:
+1. Check the user and how they can sign in:
    ```sql
-   SELECT u.id, u.username, u.email, u.email_verified, u.mfa_enabled
-   FROM users u
-   WHERE u.email = 'user@example.com';
+   SELECT id, email, email_verified, role, banned, ban_reason, ban_expires, two_factor_enabled
+   FROM users WHERE email = 'user@example.com';
 
-   SELECT id, type, created_at, updated_at
-   FROM credentials
-   WHERE user_id = '<user_id>';
+   SELECT provider_id, created_at FROM accounts WHERE user_id = '<user_id>';  -- 'credential' = password
+   SELECT name, device_type, created_at FROM passkeys WHERE user_id = '<user_id>';
    ```
-   There are no lockout columns (`is_locked`, `locked_until`, `failed_login_attempts`) on
-   `users` — do not query for them, they don't exist.
+   - `banned` → they are refused until unbanned (`/admin/unban-user`) or `ban_expires` passes.
+   - No `credential` account → they have no password; they sign in with a social provider or a
+     passkey, or set a password through password reset.
+   - `two_factor_enabled` → after the password they must complete the Two-factor Challenge.
+2. If they get `429`:
+   - With `X-Retry-After`: a rate limit; the header says how long to wait. Counters are in Redis
+     under `auth-rate-limit:`.
+   - With `ACCOUNT_TEMPORARILY_LOCKED` on a two-factor step: 10 wrong codes locked their second
+     factor for 15 minutes.
+     ```sql
+     SELECT failed_verification_count, locked_until FROM two_factors WHERE user_id = '<user_id>';
+     ```
 
-2. Check whether a session already exists for the user (sessions are keyed by session id, not
-   user id, so this requires scanning):
-   ```bash
-   redis-cli KEYS "session:*"
-   redis-cli GET "session:<session_id>"
-   ```
-
-3. Check the login rate limit for their IP (key format set by `rateLimit` middleware,
-   `<clientKey>_<routePath>`):
-   ```bash
-   redis-cli KEYS "*_/login*"
-   ```
-
-**Resolution:** There is no unlock/reset-attempts procedure to run — no lockout mechanism exists
-in this codebase. If the user has no `PASSWORD` credential row, they must use the email-code
-login flow (`POST /login/request` / `POST /login/verify`) or the password-reset flow to set one.
+**Resolution:** A two-factor lock clears itself at `locked_until`; there is no password lockout.
+A ban is lifted through the admin endpoint.
 
 ---
 
 ### Force a Password Reset
 
-**Scenario:** A user needs to set a new password (e.g. suspected credential compromise).
+**Scenario:** A user's password may be compromised.
 
 **Steps:**
-1. Have the user go through the real flow: `POST /api/iam/password/reset/request` with their
-   email, then `POST /api/iam/password/reset/verify` with the emailed code, then
-   `POST /api/iam/password/reset` with the new password and confirmation.
-2. There is no session-revocation step in `resetPassword` — existing sessions for the user are
-   **not** automatically invalidated by a password reset. If sessions must be revoked, do so
-   manually via Redis (see below); there is no bulk "revoke all sessions for user" endpoint or
-   repository method today.
+1. Revoke their sessions: `POST /api/auth/admin/revoke-user-sessions` with `{ userId }` as an admin.
+   A password reset alone does **not** revoke existing sessions.
+2. Either have the user request a reset link (`/request-password-reset`), or set a password as an
+   admin (`/admin/set-user-password`; screened by the password policy and HIBP).
 
 ---
 
-### Clear a Specific Session
+### Revoke Sessions
 
-**Scenario:** A known session id needs to be revoked immediately (e.g. reported stolen cookie).
-
-**Steps:**
-1. Delete the session key directly:
-   ```bash
-   redis-cli DEL "session:<session_id>"
-   ```
-   (This is the same effect as `SessionsService.invalidateSession`, which does not know user
-   identity beyond the session id.)
-2. There is no per-user session index in Redis, so finding "all sessions for user X" requires
-   scanning every `session:*` key and inspecting the stored `userId` field — there is no
-   supported bulk operation for this in the current code.
+- **One session**: the user revokes it from settings (`/revoke-session`), or an admin calls
+  `/admin/revoke-user-session` with the session token.
+- **All of a user's sessions**: `/admin/revoke-user-sessions` with `{ userId }`.
+- **Directly in the database** (when the API is unavailable):
+  ```sql
+  DELETE FROM sessions WHERE user_id = '<user_id>';
+  ```
+  The cookie cache is off, so a deleted row signs the user out on their next request.
 
 ---
 
 ## Troubleshooting
 
-### Users Cannot Log In (Service-Wide)
+### Nobody Can Sign In
 
-**Symptoms:** All users report login failures; 500s from `/api/iam/login`.
+**Symptoms:** sign-in fails for everyone, or every request looks signed out.
 
 **Diagnosis:**
-1. Check database connectivity:
-   ```bash
-   psql "$DATABASE_URL" -c "SELECT 1;"
-   ```
-2. Check Redis connectivity:
-   ```bash
-   redis-cli -u "$REDIS_URL" ping
-   ```
-3. Check the app health/rate-limit probes (the real endpoints — not a fictional `/api/health`):
-   ```bash
-   curl http://localhost:3001/healthz
-   curl http://localhost:3001/rate-limit
-   ```
-4. Check application logs (pino, via `pinoLogger()` middleware) for `argon2`/Redis/Postgres
-   errors.
+1. `curl http://localhost:3001/api/healthz` (the API must be up).
+2. Postgres: `psql "$DATABASE_URL" -c "SELECT 1;"`. Sessions are read from Postgres on every request.
+3. Redis: `redis-cli -u "$REDIS_URL" ping`. With auth rate limiting on, an unreachable Redis fails
+   every auth request.
+4. `BETTER_AUTH_SECRET` changed → existing session cookies no longer verify and everyone is signed
+   out; secrets Better Auth encrypted with it (TOTP secrets, Recovery Codes) become unreadable.
+5. `BETTER_AUTH_URL` or `ORIGIN` wrong → cookies set for the wrong host, or requests refused as
+   untrusted origins.
 
-**Resolution:**
-- Database down → restart Postgres, verify `DATABASE_*` env vars.
-- Redis down → restart Redis, verify `REDIS_URL`.
-- `SIGNING_SECRET` missing/rotated → sessions fail to sign/verify; every request will look
-  unauthenticated. Set `SIGNING_SECRET` per `apps/api/.env.schema`.
+**Resolution:** restore the dependency or the env value, then restart the API. Never rotate
+`BETTER_AUTH_SECRET` casually: it signs every user out and breaks enrolled two-factor.
 
 ---
 
-### Password Reset / Login Emails Not Arriving
-
-**Symptoms:** Users report not receiving login-code or reset-code emails.
+### Verification, Reset or Two-factor Emails Not Arriving
 
 **Diagnosis:**
-1. In dev, check Mailpit is running and reachable, since `DevMailerService` posts there directly:
-   ```bash
-   curl -s -o /dev/null -w '%{http_code}\n' http://localhost:8025/api/v1/send
-   ```
-   Check the Mailpit UI at `http://localhost:8025` for the message.
-2. In prod, be aware that `ProdMailerService` is a stub that only `console.log`s — if this is the
-   active mailer, **no email is actually sent**. Check application logs for the logged
-   `Sending email to ...` line rather than expecting delivery. This is a known gap, not a bug to
-   "fix" by looking for a broken SMTP connection — there's no real transport wired up yet.
-3. Verify `MailerService` resolves to the intended implementation for the current `ENV`.
+1. `MAILER_TRANSPORT=mailpit` (the default): check Mailpit at `http://localhost:8025`.
+2. `MAILER_TRANSPORT=unsend`: `ProdMailerService` currently only logs `Sending email to ...` and
+   sends nothing. Look for that log line; there is no transport to debug yet.
+3. Too many requests from one client → `429` on the email endpoints (3 per 5 minutes per IP).
 
 **Resolution:**
-- Dev: restart Mailpit (`docker compose up -d mailpit` or equivalent), retry.
-- Prod: a real transactional-email integration (e.g. wiring up the existing `usesend-js`
-  dependency) needs to be implemented before this path can be relied on.
+- Dev: restart Mailpit and retry.
+- Prod: a real sending transport has to be implemented before emails can be relied on.
 
 ---
 
-### Sessions Expiring Unexpectedly
-
-**Symptoms:** Users logged out sooner than the expected ~30 days.
+### Sessions Ending Unexpectedly
 
 **Diagnosis:**
-1. Check the session's TTL and stored `expiresAt`:
-   ```bash
-   redis-cli TTL "session:<session_id>"
-   redis-cli GET "session:<session_id>"
+1. A session lasts 7 days after its last refresh and is refreshed at most once a day of activity, so
+   a week without a request signs the user out.
+2. Check whether the row still exists:
+   ```sql
+   SELECT id, expires_at, updated_at FROM sessions WHERE user_id = '<user_id>';
    ```
-2. Confirm `SIGNING_SECRET` hasn't changed — cookie signature mismatches cause
-   `getSignedCookie` to return nothing, which is indistinguishable from "no session" to the
-   client.
-3. Check for Redis eviction under memory pressure:
-   ```bash
-   redis-cli INFO memory
-   ```
-
-**Resolution:**
-- Redis evicting keys → increase memory / adjust eviction policy.
-- `SIGNING_SECRET` rotated → expected: all existing sessions become unreadable and users must
-  log in again.
+   A missing row means sign-out, revocation (user or admin), a ban or account deletion.
+3. A changed `BETTER_AUTH_SECRET` signs everyone out at once.
 
 ---
 
 ## Health Checks
 
-Real endpoints, from `ApplicationController` (`apps/api/src/lib/server/api/application.controller.ts`):
-
 ```bash
-curl http://localhost:3001/healthz
-# { "status": "ok" }
-
-curl http://localhost:3001/rate-limit
-# { "message": "Test!" }  — also exercises the shared rate-limit middleware (3/min)
+curl http://localhost:3001/api/healthz
+# { "status": "ok", "hibp": "available|unavailable|unknown|disabled", "captcha": "..." }
 ```
 
-There is no `/api/health/auth` endpoint, no per-dependency health payload, and no fictional
-`secondchancepuzzles.com` domain in this codebase.
+`hibp` and `captcha` report the last provider call, never a new one; see the environment config runbook.
 
 ## Related Documentation
 
 - [Overview](./overview.md)
 - [Context](./context.md)
+- [Data Model](./data-model.md)
