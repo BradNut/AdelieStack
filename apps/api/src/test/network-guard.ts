@@ -1,0 +1,50 @@
+import { Socket, type SocketConnectOpts } from 'node:net';
+
+/**
+ * Network guard for the API unit-test config (installed by `network-guard.setup.ts`): any real network call fails loudly.
+ *
+ * Unit tests must stub every external provider (HIBP, captcha, mail, ...). `fetch` is replaced with a function
+ * that rejects naming the method and URL; tests that `vi.stubGlobal('fetch', ...)` replace it as before and get it
+ * back on `vi.unstubAllGlobals()`. TCP connects (node:http, database and Redis clients) throw naming host and port.
+ * IPC/unix-socket connections are left alone. The real-Redis config (`vitest.redis.config.ts`) does not load this.
+ */
+export const NETWORK_BLOCKED_MESSAGE = 'Real network call blocked in API unit tests (stub it instead)';
+
+function describeFetchTarget(input: Parameters<typeof fetch>[0], init?: RequestInit): string {
+  if (input instanceof Request) return `${(init?.method ?? input.method).toUpperCase()} ${input.url}`;
+  return `${(init?.method ?? 'GET').toUpperCase()} ${input instanceof URL ? input.href : input}`;
+}
+
+/** Also writes to stderr: callers such as Better Auth's HIBP check swallow the error and only surface a 5xx. */
+function blocked(target: string): Error {
+  const message = `${NETWORK_BLOCKED_MESSAGE}: ${target}`;
+  process.stderr.write(`${message}\n`);
+  return new Error(message);
+}
+
+async function blockedFetch(input: Parameters<typeof fetch>[0], init?: RequestInit): Promise<Response> {
+  throw blocked(describeFetchTarget(input, init));
+}
+
+/** Pulls the connect options out of every `Socket#connect` call shape, including Node's pre-normalized array form. */
+function connectOptions(args: unknown[]): Partial<SocketConnectOpts & { host: string; port: number; path: string }> {
+  const [first, second] = args;
+  if (Array.isArray(first)) return connectOptions(first);
+  if (typeof first === 'object' && first !== null) return first;
+  if (typeof first === 'number' || (typeof first === 'string' && /^\d+$/.test(first))) {
+    return { port: Number(first), host: typeof second === 'string' ? second : 'localhost' };
+  }
+  if (typeof first === 'string') return { path: first };
+  return {};
+}
+
+export function installNetworkGuard() {
+  globalThis.fetch = blockedFetch;
+
+  const realConnect = Socket.prototype.connect;
+  Socket.prototype.connect = function guardedConnect(this: Socket, ...args: unknown[]) {
+    const options = connectOptions(args);
+    if (options.path) return Reflect.apply(realConnect, this, args) as Socket;
+    throw blocked(`${options.host ?? 'localhost'}:${options.port}`);
+  } as typeof Socket.prototype.connect;
+}
