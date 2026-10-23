@@ -121,6 +121,8 @@ const requestTo =
 
 const MEMBER = { name: 'Member', email: 'member@example.com', password: 'Correct-horse-9' };
 
+const signUp = (auth: Auth, email: string, ip?: string) => post(auth, '/sign-up/email', { ...MEMBER, email }, { ip });
+
 const signIn = (auth: Auth, ip?: string) => post(auth, '/sign-in/email', { email: 'nobody@example.com', password: 'Wrong-password-1' }, { ip });
 
 describe('auth rate limiting', () => {
@@ -185,7 +187,7 @@ describe('auth rate limiting', () => {
   it('resends the verification email only up to the email limit, then refuses with a retry time and sends nothing', async () => {
     const { auth, send } = build();
     const email = 'unverified@example.com';
-    await post(auth, '/sign-up/email', { name: 'Member', email, password: 'Correct-horse-9' });
+    await signUp(auth, email);
     send.mockClear(); // drop the sign-up verification email
     const resend = () => post(auth, '/send-verification-email', { email });
     for (let i = 1; i <= AUTH_RATE_LIMIT_EMAIL.max; i++) {
@@ -201,7 +203,6 @@ describe('auth rate limiting', () => {
     expect(send).toHaveBeenCalledTimes(AUTH_RATE_LIMIT_EMAIL.max);
   });
 
-  const signUp = (auth: Auth, email: string) => post(auth, '/sign-up/email', { name: 'Member', email, password: 'Correct-horse-9' });
   const signUpEmail = (i: number) => `new-${i}@example.com`;
 
   it('creates the account and sends the verification email for sign-ups up to the sign-up limit, then refuses with a retry time, creating no user and sending nothing', async () => {
@@ -238,11 +239,10 @@ describe('auth rate limiting', () => {
 
   it('counts each client separately for the sign-up limit', async () => {
     const { auth } = build();
-    const signUpFrom = (email: string, ip: string) => post(auth, '/sign-up/email', { name: 'Member', email, password: 'Correct-horse-9' }, { ip });
-    for (let i = 1; i <= AUTH_RATE_LIMIT_SIGN_UP.max; i++) await signUpFrom(signUpEmail(i), '203.0.113.7');
-    expect((await signUpFrom('late@example.com', '203.0.113.7')).status).toBe(429);
+    for (let i = 1; i <= AUTH_RATE_LIMIT_SIGN_UP.max; i++) await signUp(auth, signUpEmail(i), '203.0.113.7');
+    expect((await signUp(auth, 'late@example.com', '203.0.113.7')).status).toBe(429);
 
-    expect((await signUpFrom('other@example.com', '203.0.113.8')).status).toBe(200);
+    expect((await signUp(auth, 'other@example.com', '203.0.113.8')).status).toBe(200);
   });
 
   // Without a challenge cookie the endpoint answers 401, but the limiter runs first and counts it all the same.

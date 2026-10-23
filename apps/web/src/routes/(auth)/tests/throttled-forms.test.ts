@@ -33,15 +33,14 @@ async function type(label: RegExp | string, value: string) {
   await fireEvent.input(screen.getAllByLabelText(label)[0] as HTMLElement, { target: { value } });
 }
 
-const loginData = { signUpEnabled: true, flash: undefined, authedUser: null, socialProviders: [] };
-const signupData = { signUpEnabled: true, flash: undefined, authedUser: null, socialProviders: [] };
-const resetData = { signUpEnabled: true, flash: undefined, authedUser: null, socialProviders: [], token: null, linkError: null };
+const authPageData = { signUpEnabled: true, flash: undefined, authedUser: null, socialProviders: [] };
+const resetData = { ...authPageData, token: null, linkError: null };
 
 // Each form field-error case: fill, submit, and the mock that the submit calls.
 const fieldForms = [
   {
     name: 'sign-in',
-    mount: () => render(LoginPage, { data: loginData }),
+    mount: () => render(LoginPage, { data: authPageData }),
     submit: async () => {
       await type('Email', 'a@example.com');
       await type('Password', 'correct horse battery');
@@ -51,7 +50,7 @@ const fieldForms = [
   },
   {
     name: 'sign-up',
-    mount: () => render(SignupPage, { data: signupData }),
+    mount: () => render(SignupPage, { data: authPageData }),
     submit: async () => {
       await type('Name', 'Member');
       await type('Email', 'a@example.com');
@@ -171,7 +170,7 @@ describe('passkey sign-in', () => {
 
   it('toasts the translated wait when throttled', async () => {
     authClient.signIn.passkey.mockResolvedValue(THROTTLED);
-    render(LoginPage, { data: loginData });
+    render(LoginPage, { data: authPageData });
     await passkey();
 
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith(WAIT_TEXT));
@@ -179,7 +178,7 @@ describe('passkey sign-in', () => {
 
   it('toasts the server message for another failure', async () => {
     authClient.signIn.passkey.mockResolvedValue(FAILED);
-    render(LoginPage, { data: loginData });
+    render(LoginPage, { data: authPageData });
     await passkey();
 
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Invalid credentials from server'));
