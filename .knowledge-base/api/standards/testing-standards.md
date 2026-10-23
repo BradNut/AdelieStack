@@ -312,6 +312,15 @@ const result = userService.validateUser(userData);
 expect(result).toBe(true);
 ```
 
+## Auth Tests and Shared Test Helpers
+
+Shared helpers live in `apps/api/src/test/`. Reuse them before writing a local stand-in; their doc comments are the API reference.
+
+- **Auth instances**: build every Better Auth instance with `createTestAuth` from [auth-instance.ts](../../../apps/api/src/test/auth-instance.ts), and send requests from `TEST_ORIGIN`. Pass only the options the test changes.
+- **External providers**: the factory defaults keep providers off (HIBP off, captcha omitted). A test that exercises HIBP or captcha turns it on explicitly in its overrides, with the provider stubbed.
+- **Auth HTTP flows**: use [auth-http.ts](../../../apps/api/src/test/auth-http.ts) for the request type, cookie carry-over (`cookiesFrom`) and two-factor sign-up and sign-in (`signUpWithTotp`, `startTwoFactorSignIn`).
+- **Service mocks**: use the mailer, Redis, logger and config mocks in [mocks/](../../../apps/api/src/test/mocks/) (`create*ServiceMock`, `TEST_ENVS`).
+
 ## Test Isolation
 
 ### Setup and Teardown
