@@ -77,5 +77,30 @@
     "parser": {
       "tailwindDirectives": true
     }
-  }
+  },
+  "overrides": [
+    {
+      "includes": [
+        "apps/api/src/**/*.test.ts",
+        "apps/api/src/test/**",
+        "!apps/api/src/test/auth-instance.ts",
+        "!apps/api/src/lib/server/api/auth/tests/auth.schema.test.ts"
+      ],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "better-auth/adapters/memory": "Build auth test instances with createTestAuth from apps/api/src/test/auth-instance.ts instead of the Better Auth memory adapter, so test-only auth settings (such as the disabled HIBP network check) stay in one place.",
+                  "@better-auth/memory-adapter": "Build auth test instances with createTestAuth from apps/api/src/test/auth-instance.ts instead of the Better Auth memory adapter, so test-only auth settings (such as the disabled HIBP network check) stay in one place."
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }
