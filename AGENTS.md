@@ -5,7 +5,7 @@ AdelieStack is a pnpm + Turbo monorepo: a Hono API (`apps/api`) and a SvelteKit 
 ## Commands
 
 - Package manager: `pnpm` (never npm/yarn). Tasks run through Turbo.
-- `pnpm check` type-checks web and enforces shared-code boundaries; `pnpm lint` / `pnpm format` run Biome.
+- `pnpm check` type-checks web and API and enforces shared-code boundaries; `pnpm lint` runs Biome on web and API (API: full `biome check`); `pnpm format` runs Biome format.
 - `pnpm test` runs API and web unit tests; `pnpm test:e2e` runs Playwright.
 - `pnpm initialize` boots local infra (Docker), storage, and runs DB generate/migrate/seed.
 

@@ -23,7 +23,7 @@
     "test:redis": "vitest run --config vitest.redis.config.ts",
     "check": "pnpm paraglide:compile && tsc --noEmit -p tsconfig.json",
     "initialize": "pnpm install",
-    "lint": "biome format ./src",
+    "lint": "biome check .",
     "format": "biome format --write ./src",
     "site:update": "pnpm update -i -L"
   },

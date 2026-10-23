@@ -1,0 +1,85 @@
+name: Run_API_Check_Lint_Unit_on_PRs
+
+on:
+  push:
+    branches:
+      - master
+      - main
+      - development
+  pull_request:
+    branches:
+      - master
+      - main
+      - development
+
+  workflow_dispatch:
+
+jobs:
+  api_check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: pnpm-setup
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Run API type check
+        run: pnpm turbo run check --filter=@adelie/api
+
+  api_lint:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: pnpm-setup
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Run API Biome lint
+        run: pnpm turbo run lint --filter=@adelie/api
+
+      - name: Run Biome check on the repo
+        run: pnpm exec biome check .
+
+  api_unit:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: pnpm-setup
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Execute API unit tests
+        run: pnpm turbo run test --filter=@adelie/api
