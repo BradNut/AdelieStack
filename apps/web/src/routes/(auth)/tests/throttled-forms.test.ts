@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const authClient = vi.hoisted(() => ({
   signIn: { email: vi.fn(), passkey: vi.fn() },
+  signUp: { email: vi.fn() },
   twoFactor: { verifyTotp: vi.fn(), verifyOtp: vi.fn(), verifyBackupCode: vi.fn(), sendOtp: vi.fn() },
   requestPasswordReset: vi.fn(),
   getLastUsedLoginMethod: vi.fn(() => null),
@@ -21,6 +22,7 @@ import { toast } from 'svelte-sonner';
 import LoginPage from '../login/+page.svelte';
 import TwoFactorPage from '../login/two-factor/+page.svelte';
 import ResetPage from '../password/reset/+page.svelte';
+import SignupPage from '../signup/+page.svelte';
 
 const THROTTLED = { data: null, error: { status: 429, message: 'Too many requests. Please try again later.', retryAfter: 42 } };
 const WAIT_TEXT = 'Too many attempts. Please try again in 42 seconds.';
@@ -31,20 +33,33 @@ async function type(label: RegExp | string, value: string) {
   await fireEvent.input(screen.getAllByLabelText(label)[0] as HTMLElement, { target: { value } });
 }
 
-const loginData = { signUpEnabled: true, flash: undefined, authedUser: null, socialProviders: [] };
-const resetData = { signUpEnabled: true, flash: undefined, authedUser: null, socialProviders: [], token: null, linkError: null };
+const authPageData = { signUpEnabled: true, flash: undefined, authedUser: null, socialProviders: [] };
+const resetData = { ...authPageData, token: null, linkError: null };
 
 // Each form field-error case: fill, submit, and the mock that the submit calls.
 const fieldForms = [
   {
     name: 'sign-in',
-    mount: () => render(LoginPage, { data: loginData }),
+    mount: () => render(LoginPage, { data: authPageData }),
     submit: async () => {
       await type('Email', 'a@example.com');
       await type('Password', 'correct horse battery');
       await fireEvent.click(screen.getByRole('button', { name: 'Login' }));
     },
     call: () => authClient.signIn.email,
+  },
+  {
+    name: 'sign-up',
+    mount: () => render(SignupPage, { data: authPageData }),
+    submit: async () => {
+      await type('Name', 'Member');
+      await type('Email', 'a@example.com');
+      // The form clears both passwords after a failure, so each attempt fills them again.
+      await type('Password', 'correct horse battery');
+      await type('Confirm Password', 'correct horse battery');
+      await fireEvent.click(screen.getByRole('button', { name: 'Signup' }));
+    },
+    call: () => authClient.signUp.email,
   },
   {
     name: 'password reset request',
@@ -70,6 +85,7 @@ beforeEach(() => {
   for (const fn of [
     authClient.signIn.email,
     authClient.signIn.passkey,
+    authClient.signUp.email,
     ...Object.values(authClient.twoFactor),
     authClient.requestPasswordReset,
     vi.mocked(toast.error),
@@ -154,7 +170,7 @@ describe('passkey sign-in', () => {
 
   it('toasts the translated wait when throttled', async () => {
     authClient.signIn.passkey.mockResolvedValue(THROTTLED);
-    render(LoginPage, { data: loginData });
+    render(LoginPage, { data: authPageData });
     await passkey();
 
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith(WAIT_TEXT));
@@ -162,7 +178,7 @@ describe('passkey sign-in', () => {
 
   it('toasts the server message for another failure', async () => {
     authClient.signIn.passkey.mockResolvedValue(FAILED);
-    render(LoginPage, { data: loginData });
+    render(LoginPage, { data: authPageData });
     await passkey();
 
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Invalid credentials from server'));

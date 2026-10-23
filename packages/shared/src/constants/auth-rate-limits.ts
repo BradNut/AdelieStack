@@ -23,12 +23,22 @@ export const AUTH_RATE_LIMIT_EMAIL: AuthRateLimitRule = {
 };
 
 /**
+ * For email sign-up, against bulk account creation and using our verification emails to send to many
+ * addresses. Not the email rule on purpose: a sign-up with an address that already has an account is
+ * refused and sends no email, so sign-up cannot flood one inbox, and a limit that tight per client IP
+ * would block people signing up together from a shared IP (an office, a NAT).
+ */
+export const AUTH_RATE_LIMIT_SIGN_UP: AuthRateLimitRule = { window: 3600, max: 10 };
+
+/**
  * Per-path rules: strict exact entries for the endpoints that check a credential or a code, email
  * entries for the endpoints that send an email (two-factor code, password reset, verification
- * email), two wildcards pinned to the default, and own limits for resetting a password and passkey.
- * Keys are Better Auth paths below the auth base path; `*` matches the rest. The first matching key
- * wins, so exact entries come before the wildcards. The pins exist because Better Auth's built-in limit for `/sign-in*` and
- * `/two-factor/*` (3 per 10 seconds) applies unless a rule matches.
+ * email), the sign-up entry, two wildcards pinned to the default, and own limits for resetting a
+ * password and passkey. Keys are Better Auth paths below the auth base path; `*` matches the rest.
+ * The first matching key wins, so exact entries come before the wildcards. Unless a rule matches,
+ * Better Auth applies a built-in limit (3 per 10 seconds) to `/sign-in*`, `/sign-up*`,
+ * `/change-password*` and `/change-email*`, and its two-factor plugin does the same for
+ * `/two-factor/*`: hence the pins, and the exact `/sign-up/email` entry rather than the built-in one.
  */
 export const AUTH_RATE_LIMIT_RULES = {
   '/sign-in/email': AUTH_RATE_LIMIT_STRICT,
@@ -39,6 +49,7 @@ export const AUTH_RATE_LIMIT_RULES = {
   '/two-factor/get-totp-uri': AUTH_RATE_LIMIT_STRICT,
   '/two-factor/generate-backup-codes': AUTH_RATE_LIMIT_STRICT,
   '/two-factor/send-otp': AUTH_RATE_LIMIT_EMAIL,
+  '/sign-up/email': AUTH_RATE_LIMIT_SIGN_UP,
   '/sign-in/*': AUTH_RATE_LIMIT_DEFAULT,
   '/two-factor/*': AUTH_RATE_LIMIT_DEFAULT,
   '/request-password-reset': AUTH_RATE_LIMIT_EMAIL,
