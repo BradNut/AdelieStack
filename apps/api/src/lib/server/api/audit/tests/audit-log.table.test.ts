@@ -1,6 +1,6 @@
 import { getTableColumns } from 'drizzle-orm';
 import { describe, expect, it } from 'vitest';
-import { audit_log_table } from '#lib/server/api/audit/tables/audit_log.table';
+import { audit_log_table } from '#lib/server/api/audit/tables/audit-log.table';
 
 const UUID_V7_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 

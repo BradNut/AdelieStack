@@ -2,52 +2,10 @@ import type { Processor } from 'bullmq';
 import dayjs from 'dayjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AuditRepository } from '#lib/server/api/audit/audit.repository';
-import type { AuditLog } from '#lib/server/api/audit/tables/audit_log.table';
+import { createInMemoryAuditRepository, type InMemoryAuditRepository } from '#lib/server/api/common/testing/in-memory-audit-repository';
 import { createTestContainer, mockProvider } from '#lib/server/api/common/testing/test-container';
-import { uuidv7 } from '#lib/server/api/common/utils/crypto';
 import { AUDIT_CLEANUP_JOB, AUDIT_CLEANUP_QUEUE, AUDIT_RETENTION_DAYS, AuditCleanupJob } from '#lib/server/api/jobs/audit-cleanup.job';
 import { JobsService } from '#lib/server/api/jobs/jobs.service';
-
-/**
- * In-memory stand-in for {@link AuditRepository}. It genuinely stores rows and
- * applies the retention cutoff, so the job's effect (pruning stale rows) is
- * asserted for real rather than through mock calls.
- */
-function createInMemoryAuditRepository() {
-  const rows: AuditLog[] = [];
-
-  function seed(createdAt: Date): string {
-    const id = uuidv7();
-    rows.push({
-      id,
-      actor_user_id: null,
-      action: 'login_succeeded',
-      entity_type: 'session',
-      entity_id: null,
-      request_id: null,
-      ip: null,
-      user_agent: null,
-      metadata: null,
-      createdAt,
-      updatedAt: createdAt,
-    });
-    return id;
-  }
-
-  const repository = {
-    rows,
-    seed,
-    async deleteOlderThan(cutoff: Date): Promise<number> {
-      const before = rows.length;
-      for (let i = rows.length - 1; i >= 0; i--) {
-        if (rows[i].createdAt < cutoff) rows.splice(i, 1);
-      }
-      return before - rows.length;
-    },
-  };
-
-  return repository;
-}
 
 /**
  * Fake BullMQ seam standing in for a live Redis connection. `createQueue`
@@ -89,7 +47,7 @@ function build() {
 
 describe('AuditCleanupJob', () => {
   let job: AuditCleanupJob;
-  let repository: ReturnType<typeof createInMemoryAuditRepository>;
+  let repository: InMemoryAuditRepository;
   let jobsService: ReturnType<typeof createFakeJobsService>;
 
   beforeEach(() => {
