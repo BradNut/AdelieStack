@@ -8,7 +8,9 @@ hand-edit the generated file or its migrations; change the auth config, regenera
 table or column a configured plugin needs. Read the tables and relations from `auth.table.ts`.
 
 - All auth tables use `text` primary keys filled with a uuidv7 from `generateAuthId`
-  (`advanced.database.generateId`), so ids sort by creation time.
+  (`advanced.database.generateId`), so ids sort by creation time. Domain tables follow the same
+  rule; [ADR 0010](../../../../docs/adr/0010-auth-ids-stay-text-uuidv7.md) explains why ids are
+  not native `uuid`.
 - Sessions live in PostgreSQL, not Redis.
 - For email and password sign-in, `accounts.password` holds the hash Better Auth produced.
 

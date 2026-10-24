@@ -1,6 +1,7 @@
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { customType, timestamp } from 'drizzle-orm/pg-core';
 import type * as drizzleSchema from '#lib/server/api/databases/postgres/drizzle-schema';
+import { uuidv7 } from './crypto';
 import { NotFound } from './exceptions';
 
 /* -------------------------------------------------------------------------- */
@@ -30,12 +31,19 @@ export const citext = customType<{ data: string }>({
   },
 });
 
-// custom type for generating an id
+// custom type for id-holding columns (foreign keys, entity ids). Primary keys use `primaryId()`.
 export const id = customType<{ data: string }>({
   dataType() {
     return 'text';
   },
 });
+
+// primary key for domain tables: a `text` column filled by the app with a uuidv7 (ADR 0010).
+// Ids shown in URLs or the UI belong in a separate nanoid column, never the primary key.
+export const primaryId = () =>
+  id()
+    .primaryKey()
+    .$defaultFn(() => uuidv7());
 
 // timestamps for created_at and updated_at
 export const timestamps = {

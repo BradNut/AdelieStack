@@ -100,7 +100,10 @@ export function drizzleAuthDatabase(db: NodePgDatabase<typeof drizzleSchema>): B
   return drizzleAdapter(db, { provider: 'pg', usePlural: true });
 }
 
-/** Auth tables use `text` ids from our uuidv7 so they sort by creation time like domain ids. */
+/**
+ * Auth tables use `text` ids from our uuidv7 so they sort by creation time. Domain tables
+ * get the same ids from `primaryId()`; ADR 0010 explains why they are not native `uuid`.
+ */
 export function generateAuthId(): string {
   return uuidv7();
 }

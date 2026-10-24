@@ -4,7 +4,7 @@ import { AuditService, SecurityAuditAction } from '#lib/server/api/audit/audit.s
 import type { AuditLog, CreateAuditLog } from '#lib/server/api/audit/tables/audit_log.table';
 import { RequestContextService } from '#lib/server/api/common/services/request-context.service';
 import { createTestContainer, mockProvider } from '#lib/server/api/common/testing/test-container';
-import { generateId } from '#lib/server/api/common/utils/crypto';
+import { uuidv7 } from '#lib/server/api/common/utils/crypto';
 
 /**
  * In-memory stand-in for {@link AuditRepository}. It genuinely stores rows and
@@ -19,7 +19,7 @@ function createInMemoryAuditRepository() {
     async create(data: CreateAuditLog): Promise<AuditLog> {
       const now = new Date();
       const row: AuditLog = {
-        id: data.id ?? generateId(),
+        id: data.id ?? uuidv7(),
         actor_user_id: data.actor_user_id ?? null,
         action: data.action,
         entity_type: data.entity_type,
