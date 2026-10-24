@@ -1,5 +1,6 @@
+import type { HasDefault, HasRuntimeDefault, IsPrimaryKey, NotNull } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { customType, timestamp } from 'drizzle-orm/pg-core';
+import { type ConvertCustomConfig, customType, type PgCustomColumnBuilder, timestamp } from 'drizzle-orm/pg-core';
 import type * as drizzleSchema from '#lib/server/api/databases/postgres/drizzle-schema';
 import { uuidv7 } from './crypto';
 import { NotFound } from './exceptions';
@@ -38,9 +39,14 @@ export const id = customType<{ data: string }>({
   },
 });
 
+// builder returned by `id()`: an unnamed text column holding a string
+type IdColumnBuilder = PgCustomColumnBuilder<ConvertCustomConfig<'', { data: string }>>;
+
+// `id()` marked as primary key (so not null) with an app-side default
+type PrimaryIdColumnBuilder = HasRuntimeDefault<HasDefault<IsPrimaryKey<NotNull<IdColumnBuilder>>>>;
+
 // primary key for domain tables: a `text` column filled by the app with a uuidv7 (ADR 0010).
-// Ids shown in URLs or the UI belong in a separate nanoid column, never the primary key.
-export const primaryId = () =>
+export const primaryId = (): PrimaryIdColumnBuilder =>
   id()
     .primaryKey()
     .$defaultFn(() => uuidv7());

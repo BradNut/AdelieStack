@@ -25,7 +25,7 @@ describe('audit_log primary key', () => {
     expect(first).not.toBe(second);
   });
 
-  it('has no database-side default, so ids are app-generated', () => {
+  it('has an app-side default ($defaultFn), not a SQL default', () => {
     expect(id.hasDefault).toBe(true);
     expect(id.default).toBeUndefined();
   });
