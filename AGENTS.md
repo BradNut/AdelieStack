@@ -1,42 +1,35 @@
 # Agent Guide
 
-AdelieStack is a pnpm + Turbo monorepo: a Hono API (`apps/api`) and a SvelteKit web app (`apps/web`) sharing typed contracts (`packages/shared` for client-safe constants/DTOs/validations, `packages/api-contract` for Hono RPC types). Token-light entry; read deeper docs only when needed.
+AdelieStack is a pnpm + Turbo monorepo: a Hono API (`apps/api`) and a SvelteKit web app (`apps/web`) sharing typed contracts (`packages/shared` for client-safe constants/DTOs/validations, `packages/api-contract` for Hono RPC types).
 
 ## Commands
 
-- Package manager: `pnpm` (never npm/yarn). Tasks run through Turbo.
-- `pnpm check` type-checks web and API and enforces shared-code boundaries; `pnpm lint` runs Biome on API and web (API: full `biome check`; web: format check of `src` only); `pnpm format` writes Biome formatting for web `src` only; `pnpm exec biome check .` checks the whole repo (CI runs it).
-- `pnpm test` runs API and web unit tests; `pnpm test:e2e` runs Playwright.
-- `pnpm initialize` boots local infra (Docker), storage, and runs DB generate/migrate/seed.
+- Use `pnpm` only; tasks run through Turbo.
+- `pnpm check`: type-checks web and API and enforces shared-code boundaries.
+- `pnpm lint`: Biome (API: full check; web: format check of `src`). `pnpm exec biome check .` covers the whole repo, as CI does.
+- `pnpm test`: API and web unit tests. `pnpm test:e2e`: Playwright.
+- `pnpm initialize`: Docker infra, storage, DB generate/migrate/seed.
 
 ## Where to Look
 
-Locate code with CodeGraph (`codegraph_explore`) before grep or Read. Then start with the nearest guide (cross-stack work: both), then one overview if unfamiliar, then only the matching service/feature/standard from the index.
+Locate code with CodeGraph (`codegraph_explore`) first. Then read the nearest guide (both for cross-stack work); it routes to the overview, index and runbooks.
 
-- **API** (route/service/repository/schema): [guide](./apps/api/AGENTS.md), [overview](./.knowledge-base/api/overview.md), [index](./.knowledge-base/api/index.md), [runbooks](./.knowledge-base/api/runbooks/index.md), [decisions](./.knowledge-base/api/decisions/index.md)
-- **Web** (route/component/form/state/style): [guide](./apps/web/AGENTS.md), [overview](./.knowledge-base/web/overview.md), [index](./.knowledge-base/web/index.md), [runbooks](./.knowledge-base/web/runbooks/index.md), [decisions](./.knowledge-base/web/decisions/index.md)
+- **API** (route/service/repository/schema): [guide](./apps/api/AGENTS.md), [decisions](./.knowledge-base/api/decisions/index.md)
+- **Web** (route/component/form/state/style): [guide](./apps/web/AGENTS.md), [decisions](./.knowledge-base/web/decisions/index.md)
 
 ## Non-Negotiable Rules
 
 - **Constants first**: reuse shared/domain constants before adding literals.
-- **Boundaries**: keep server-only code and secrets out of client bundles.
-- **Const objects**: prefer `as const` objects over TypeScript enums.
-- **No suppressions**: no `@ts-ignore`, `eslint-disable`, or `svelte-ignore` without approval.
-- **Root causes**: prefer minimal upstream fixes over workarounds.
-- **Tests**: cover happy paths plus negative/edge cases.
-- **Drizzle**: never hand-edit migration SQL or metadata; use Drizzle tooling.
-- **Lazy infra**: no import-time external connections.
+- **Boundaries**: server-only code and secrets stay out of client bundles.
+- **Const objects**: `as const` objects instead of TypeScript enums.
+- **Suppressions**: `@ts-ignore`, `eslint-disable` and `svelte-ignore` need approval.
+- **Root causes**: minimal upstream fixes over workarounds.
+- **Tests**: happy paths plus negative/edge cases.
+- **Drizzle**: migration SQL and metadata come from Drizzle tooling only.
+- **Lazy infra**: external connections open on first use, never at import.
 
-## Agent skills
+## Agent Skills
 
-### Issue tracker
-
-Issues live in GitHub Issues for `BradNut/AdelieStack` (via the `gh` CLI). See `docs/agents/issue-tracker.md`.
-
-### Triage labels
-
-Default vocabulary: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
-
-### Domain docs
-
-Single-context: `.knowledge-base/{api,web}/glossary.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+- **Issue tracker**: GitHub Issues for `BradNut/AdelieStack` via `gh` ([guide](./docs/agents/issue-tracker.md)).
+- **Triage labels**: [vocabulary](./docs/agents/triage-labels.md).
+- **Domain docs**: `.knowledge-base/{api,web}/glossary.md` and `docs/adr/` ([guide](./docs/agents/domain.md)).
