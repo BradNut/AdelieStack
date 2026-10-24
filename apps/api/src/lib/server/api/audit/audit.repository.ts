@@ -2,7 +2,7 @@ import { inject, injectable } from '@needle-di/core';
 import { and, desc, eq, lt } from 'drizzle-orm';
 import { takeFirstOrThrow } from '#lib/server/api/common/utils/drizzle';
 import { DrizzleService } from '#lib/server/api/databases/postgres/drizzle.service';
-import { type AuditLog, audit_log_table, type CreateAuditLog } from './tables/audit_log.table';
+import { type AuditLog, audit_log_table, type CreateAuditLog } from './tables/audit-log.table';
 
 @injectable()
 export class AuditRepository {

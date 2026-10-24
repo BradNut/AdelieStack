@@ -1,52 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { AuditRepository } from '#lib/server/api/audit/audit.repository';
 import { AuditService, SecurityAuditAction } from '#lib/server/api/audit/audit.service';
-import type { AuditLog, CreateAuditLog } from '#lib/server/api/audit/tables/audit_log.table';
 import { RequestContextService } from '#lib/server/api/common/services/request-context.service';
+import { createInMemoryAuditRepository, type InMemoryAuditRepository } from '#lib/server/api/common/testing/in-memory-audit-repository';
 import { createTestContainer, mockProvider } from '#lib/server/api/common/testing/test-container';
-import { uuidv7 } from '#lib/server/api/common/utils/crypto';
-
-/**
- * In-memory stand-in for {@link AuditRepository}. It genuinely stores rows and
- * reads them back, so these tests exercise the real {@link AuditService} logic
- * end-to-end (record -> query) rather than asserting on mock calls.
- */
-function createInMemoryAuditRepository() {
-  const rows: AuditLog[] = [];
-
-  const repository = {
-    rows,
-    async create(data: CreateAuditLog): Promise<AuditLog> {
-      const now = new Date();
-      const row: AuditLog = {
-        id: data.id ?? uuidv7(),
-        actor_user_id: data.actor_user_id ?? null,
-        action: data.action,
-        entity_type: data.entity_type,
-        entity_id: data.entity_id ?? null,
-        request_id: data.request_id ?? null,
-        ip: data.ip ?? null,
-        user_agent: data.user_agent ?? null,
-        metadata: data.metadata ?? null,
-        createdAt: data.createdAt ?? now,
-        updatedAt: data.updatedAt ?? now,
-      };
-      rows.push(row);
-      return row;
-    },
-    async findOneById(id: string) {
-      return rows.find((row) => row.id === id);
-    },
-    async findManyByEntity(entityType: string, entityId: string) {
-      return rows.filter((row) => row.entity_type === entityType && row.entity_id === entityId).reverse();
-    },
-    async findManyByActor(actorUserId: string) {
-      return rows.filter((row) => row.actor_user_id === actorUserId).reverse();
-    },
-  };
-
-  return repository;
-}
 
 function buildService(requestContext: Partial<RequestContextService> = {}) {
   const repository = createInMemoryAuditRepository();
@@ -65,7 +22,7 @@ function buildService(requestContext: Partial<RequestContextService> = {}) {
 
 describe('AuditService', () => {
   let service: AuditService;
-  let repository: ReturnType<typeof createInMemoryAuditRepository>;
+  let repository: InMemoryAuditRepository;
 
   beforeEach(() => {
     ({ service, repository } = buildService());
