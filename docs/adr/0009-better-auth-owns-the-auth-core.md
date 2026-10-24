@@ -9,7 +9,7 @@ Spec #2 first planned to port a hand-rolled auth layer built on Oslo libraries. 
 ## Consequences
 
 - Better Auth is mounted at `/api/auth/*` and uses its own request and response shapes. It is outside the `api-contract` RPC types; the web app uses the Better Auth Svelte client.
-- Better Auth tables use `text` ids from our `uuidv7()` through `advanced.database.generateId` (`generateAuthId` in `auth.config.ts`).
+- Better Auth tables use `text` ids from our `uuidv7()` through `advanced.database.generateId` (`generateAuthId` in `auth.config.ts`); see [ADR 0010](./0010-auth-ids-stay-text-uuidv7.md) for why not native `uuid`.
 - The template was reset, not migrated: there is no data migration from the old auth tables.
 - The `@oslojs/*` packages and the old `credentials`, `two-factor` and `recovery-codes` tables were removed.
 - Later auth decisions build on this one: authorization ([ADR 0002](./0002-authorization-delegates-to-better-auth.md)), captcha ([ADR 0004](./0004-captcha-via-better-auth-plugin.md)) and rate limiting ([ADR 0006](./0006-better-auth-owns-auth-rate-limiting.md)).
