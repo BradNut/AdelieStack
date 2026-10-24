@@ -14,3 +14,4 @@ Repo-wide rules are in the root [AGENTS.md](../../AGENTS.md); coding, error, sec
 
 - **Server-only stays server-only**: keep secrets/configs/credentials in server-only modules and sanitize responses.
 - **Controllers are the contract**: a controller must be registered in `application.controller.ts` to appear in the RPC contract.
+- **Primary keys come from `primaryId()`**: new domain tables use `primaryId()` from `common/utils/drizzle` (a `text` uuidv7; ADR 0010). Ids shown in URLs or the UI are separate nanoid columns, never the primary key.

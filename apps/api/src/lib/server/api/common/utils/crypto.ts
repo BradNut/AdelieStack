@@ -14,7 +14,9 @@ export function generateId(length = 16, alphabet = '0123456789ABCDEFGHIJKLMNOPQR
 }
 
 // uuidv7 returns an RFC 9562 version 7 UUID: a 48-bit unix-ms timestamp followed by random bits.
-// Ids sort by creation time, which keeps btree inserts local. Used for Better Auth table ids.
+// Ids sort by creation time, which keeps btree inserts local. Used for Better Auth and domain table ids.
+// There is no counter within a millisecond, so ids made in the same millisecond are only roughly
+// time-ordered; anything that needs a strict order sorts by `created_at`.
 export function uuidv7(now = Date.now()): string {
   const bytes = crypto.getRandomValues(new Uint8Array(16));
   let timestamp = now;

@@ -1,8 +1,7 @@
 import { getTableColumns, type InferInsertModel, type InferSelectModel, relations } from 'drizzle-orm';
 import { index, jsonb, pgTable, text } from 'drizzle-orm/pg-core';
 import { users } from '#lib/server/api/auth/tables/auth.table';
-import { generateId } from '#lib/server/api/common/utils/crypto';
-import { id, timestamps } from '#lib/server/api/common/utils/drizzle';
+import { id, primaryId, timestamps } from '#lib/server/api/common/utils/drizzle';
 
 /* -------------------------------------------------------------------------- */
 /*                                    Table                                   */
@@ -15,9 +14,7 @@ import { id, timestamps } from '#lib/server/api/common/utils/drizzle';
 export const audit_log_table = pgTable(
   'audit_log',
   {
-    id: id()
-      .primaryKey()
-      .$defaultFn(() => generateId()),
+    id: primaryId(),
     // Nullable: anonymous/unauthenticated events (e.g. a failed login) have no actor.
     actor_user_id: id().references(() => users.id),
     action: text().notNull(),
