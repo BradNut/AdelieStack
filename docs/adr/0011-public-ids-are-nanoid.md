@@ -10,6 +10,7 @@ Any identifier that leaves the system (URLs, UI, cookie values, object-storage k
 
 - Only the API creates Public Ids. The client has no id helper; a local key can use `crypto.randomUUID()`.
 - Better Auth never sees nanoid: its ids come from `generateAuthId` (UUIDv7).
+- A storage key passed in by the caller is used as given and is not a Public Id; only generated keys carry the unguessability guarantee.
 - Public Ids made before the switch from 16 to 21 characters stay valid. Nothing parses their length.
 
 ## Considered options
