@@ -3,7 +3,7 @@ import { inject, injectable } from '@needle-di/core';
 import { HTTPException } from 'hono/http-exception';
 import sharp, { type ResizeOptions } from 'sharp';
 import { ConfigService } from '#lib/server/api/common/configs/config.service';
-import { generateId } from '#lib/server/api/common/utils/crypto';
+import { publicId } from '#lib/server/api/common/utils/crypto';
 import { S3StorageClient } from './s3-storage.client';
 import { BucketVisibility, buildBucketName } from './storage.buckets';
 import { ScanStatus, ScanTag, type StoredObject, type Upload } from './storage.types';
@@ -42,7 +42,7 @@ export class StorageService {
     await this.scanBeforePersist(buffer);
 
     const bucket = this.bucketFor(visibility);
-    const fileKey = key || generateId();
+    const fileKey = key || publicId();
     await this.getClient().putObject(bucket, fileKey, buffer, file.type || undefined);
 
     // Record the clean verdict so later webhook/read checks can trust it without re-scanning.

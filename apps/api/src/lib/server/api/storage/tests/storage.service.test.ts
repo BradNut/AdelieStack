@@ -18,6 +18,9 @@ const envs = {
   STORAGE_SECRET_KEY: 'secret',
 };
 
+/** A Public Id: 21 characters from 0-9A-Za-z. */
+const PUBLIC_ID_PATTERN = /^[0-9A-Za-z]{21}$/;
+
 const PUBLIC_BUCKET = 'adelie-public-development';
 const PRIVATE_BUCKET = 'adelie-private-development';
 
@@ -106,8 +109,7 @@ describe('StorageService', () => {
 
       const result = await createService().upload({ file, visibility: BucketVisibility.PRIVATE });
 
-      expect(result.key).toEqual(expect.any(String));
-      expect(result.key.length).toBeGreaterThan(0);
+      expect(result.key).toMatch(PUBLIC_ID_PATTERN);
       expect(putObject).toHaveBeenCalledWith(PRIVATE_BUCKET, result.key, Buffer.from('secret'), undefined);
     });
 

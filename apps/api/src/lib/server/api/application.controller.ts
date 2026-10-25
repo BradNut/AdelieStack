@@ -12,7 +12,7 @@ import { requestLocale } from './common/middleware/locale.middleware';
 import { otelInstrumentation } from './common/middleware/otel.middleware';
 import { pinoLogger } from './common/middleware/pino-logger.middleware';
 import { rateLimit } from './common/middleware/rate-limit.middleware';
-import { generateId } from './common/utils/crypto';
+import { publicId } from './common/utils/crypto';
 import { ConfigController } from './config/config.controller';
 import configureOpenAPI from './configure-open-api';
 import { StorageWebhookController } from './storage/storage-webhook.controller';
@@ -54,7 +54,7 @@ export class ApplicationController extends RootController {
     const api = this.controller
       .basePath(API_BASE_PATH)
       .use(otelInstrumentation())
-      .use(requestId({ generator: () => generateId() }))
+      .use(requestId({ generator: () => publicId() }))
       .use(contextStorage())
       .use(requestLocale)
       .use(browserSessions)
