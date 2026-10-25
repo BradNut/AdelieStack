@@ -77,6 +77,14 @@ Database table structure definition.
 **Repository**
 Data access layer that encapsulates database queries.
 
+**Row Id**
+A record's primary key. Time-ordered, used inside the system, and not a secret. See [ADR 0010](../../docs/adr/0010-auth-ids-stay-text-uuidv7.md).
+_Avoid_: uuid, pk
+
+**Public Id**
+An identifier that leaves the system: in a URL, the UI, a cookie value, an object-storage key or a request id. Random, carries no creation time, and safe to treat as hard to guess. See [ADR 0011](../../docs/adr/0011-public-ids-are-nanoid.md).
+_Avoid_: slug, token, nanoid
+
 ## API Concepts
 
 **Endpoint**
