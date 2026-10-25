@@ -96,7 +96,7 @@
   "dependencies": {
     "@adelie/api-contract": "workspace:*",
     "@adelie/shared": "workspace:*",
-    "@better-auth/passkey": "1.7.10",
+    "@better-auth/passkey": "1.7.13",
     "@dicebear/styles": "^10.6.0",
     "@opentelemetry/api": "^1.9.1",
     "@opentelemetry/auto-instrumentations-node": "0.81.2",
@@ -113,7 +113,7 @@
     "@tailwindcss/typography": "^0.5.20",
     "@tanstack/table-core": "^9.3.1",
     "@unpic/svelte": "^1.0.1",
-    "better-auth": "1.7.10",
+    "better-auth": "1.7.13",
     "dayjs": "^1.11.23",
     "dotenv": "^18.0.8",
     "hono": "^4.13.13",
