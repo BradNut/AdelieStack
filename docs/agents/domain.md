@@ -26,6 +26,8 @@ Single-context repo:
 
 When your output names a domain concept (in an issue title, a refactor proposal, a hypothesis, a test name), use the term as defined in the relevant glossary. Don't drift to synonyms the glossary explicitly avoids.
 
+When a change adds a term to a glossary's _Avoid_ list, update the docs and agent guides (`AGENTS.md`, `.knowledge-base/`, `docs/`) that still use it. Reviewers check this.
+
 If the concept you need isn't in a glossary yet, that's a signal: either you're inventing language the project doesn't use (reconsider) or there's a real gap (note it for `/domain-modeling`).
 
 ## Flag ADR conflicts

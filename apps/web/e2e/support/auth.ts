@@ -2,7 +2,8 @@ import { expect, type Page } from '@playwright/test';
 
 export const PASSWORD = 'Correct-Horse-9';
 export const NEW_PASSWORD = 'Another-Horse-8';
-export const ADMIN = { email: 'admin@example.com', password: process.env.ADMIN_PASSWORD ?? 'Admin-Passw0rd!' };
+/** The admin `pnpm db:seed` creates; `test:e2e` loads its password from the API env and global setup fails without it. */
+export const ADMIN = { email: 'admin@example.com', password: process.env.ADMIN_PASSWORD ?? '' };
 
 let counter = 0;
 
