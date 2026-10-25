@@ -14,7 +14,6 @@
     "@opentelemetry/sdk-node": "0.223.0",
     "@opentelemetry/semantic-conventions": "1.43.0",
     "dayjs": "^1.11.23",
-    "nanoid": "^6.0.2",
     "zod": "^4.6.7"
   },
   "exports": {

@@ -10,7 +10,7 @@ We picked v7 rather than v8 because RFC 9562 §5.7 recommends v7 for new time-or
 
 ## Consequences
 
-- Domain tables get their primary key from the shared `primaryId()` Drizzle helper (v7). An id that is shown in a URL or the UI is a separate nanoid column, never the primary key.
+- Domain tables get their primary key from the shared `primaryId()` Drizzle helper (v7). An id that leaves the system (URL, UI, cookie, storage key) is a separate Public Id, never the primary key; see [ADR 0011](./0011-public-ids-are-nanoid.md).
 - Foreign keys to `users.id` (such as `audit_log.actor_user_id`) stay `text`.
 - With a function `generateId`, Better Auth writes base64url digests as ids for single-use records (SAML assertions, DPoP, `private_key_jwt`). A `text` column accepts them. A `uuid` column would reject them.
 - Revisit when Better Auth ships a `"uuidv7"` `generateId` mode that creates native `uuid` columns. PR better-auth/better-auth#6555 was meant to add this, but its merged diff contains no id code, and better-auth/better-auth#11394 asks about its status.

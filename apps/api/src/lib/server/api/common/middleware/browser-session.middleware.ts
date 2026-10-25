@@ -4,7 +4,7 @@ import type { MiddlewareHandler } from 'hono';
 import { getSignedCookie, setSignedCookie } from 'hono/cookie';
 import { createMiddleware } from 'hono/factory';
 import { ConfigService } from '#lib/server/api/common/configs/config.service';
-import { generateId } from '#lib/server/api/common/utils/crypto';
+import { publicId } from '#lib/server/api/common/utils/crypto';
 
 export const browserSessions: MiddlewareHandler = createMiddleware(async (c, next) => {
   const BROWSER_SESSION_COOKIE_NAME = '_id';
@@ -14,7 +14,7 @@ export const browserSessions: MiddlewareHandler = createMiddleware(async (c, nex
   let browserSessionId = browserSessionCookie;
 
   if (!browserSessionCookie) {
-    browserSessionId = generateId();
+    browserSessionId = publicId();
     await setSignedCookie(c, BROWSER_SESSION_COOKIE_NAME, browserSessionId, configService.envs.SIGNING_SECRET, {
       ...DEFAULT_COOKIE_ATTRIBUTES,
       secure: isProdEnv(configService.envs.ENV),

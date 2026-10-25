@@ -1,16 +1,16 @@
 import { customAlphabet } from 'nanoid';
 
-// generateId is a function that returns a new unique identifier.
-// ~4 million years or 30 trillion IDs needed, in order to have a 1% probability of at least one collision.
+const PUBLIC_ID_ALPHABET = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+const PUBLIC_ID_LENGTH = 21;
+const nanoPublicId = customAlphabet(PUBLIC_ID_ALPHABET, PUBLIC_ID_LENGTH);
 
-// So, TLDR; by the time a collision happens, you and your next 100 generations will be long gone,
-// the lizard people will have taken over, the robots will have enslaved them, and the roomba uprising will be in full swing.
-// All hail king roomba, the first of his name, the unclean, king of the dust bunnies and the first allergens, lord of the seven corners, and protector of the realm.
-
+// publicId returns a Public Id: any identifier that leaves the system (request id, cookie value,
+// object-storage key, URL). 21 characters from 0-9A-Za-z, about 125 bits of CSPRNG randomness, with
+// no creation time encoded. It takes no parameters so every Public Id has the same strength.
+// Row Ids (primary keys) use uuidv7 instead. See docs/adr/0011-public-ids-are-nanoid.md.
 // https://zelark.github.io/nano-id-cc/
-export function generateId(length = 16, alphabet = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz') {
-  const nanoId = customAlphabet(alphabet, length);
-  return nanoId();
+export function publicId(): string {
+  return nanoPublicId();
 }
 
 // uuidv7 returns an RFC 9562 version 7 UUID: a 48-bit unix-ms timestamp followed by random bits.
