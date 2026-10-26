@@ -5,7 +5,7 @@ import { expect, test } from './support/test';
 import { enrolTotp } from './support/two-factor';
 
 test.describe('re-authentication on a stale session', () => {
-  test('viewing sessions asks for the password, then loads the list', async ({ page }) => {
+  test('viewing sessions asks for the password, then loads the list with only the fresh session', async ({ page }) => {
     const user = newUser();
     await signUp(page, user);
     await makeSessionsStale(user.email);
@@ -17,7 +17,7 @@ test.describe('re-authentication on a stale session', () => {
     await dialog.getByRole('button', { name: 'Confirm' }).click();
 
     await expect(dialog).toBeHidden();
-    await expect(page.getByTestId('session-row')).toHaveCount(2);
+    await expect(page.getByTestId('session-row')).toHaveCount(1);
   });
 
   test('a wrong password keeps the dialog open with an error', async ({ page }) => {
@@ -48,11 +48,11 @@ test.describe('re-authentication on a stale session', () => {
     await page.getByTestId('reauth-dialog').getByLabel('Password').fill(user.password);
     await page.getByTestId('reauth-dialog').getByRole('button', { name: 'Confirm' }).click();
 
-    await expect(page.getByTestId('session-row')).toHaveCount(2);
+    await expect(page.getByTestId('session-row')).toHaveCount(1);
     await expect(inline).toBeHidden();
   });
 
-  test('a two-factor user confirms with the password and an authenticator code, and stays on the page', async ({ page }) => {
+  test('a two-factor user confirms with the password and an authenticator code, stays on the page and has one session', async ({ page }) => {
     const user = newUser();
     await signUp(page, user);
     const { totpURI } = await enrolTotp(page);
@@ -67,7 +67,9 @@ test.describe('re-authentication on a stale session', () => {
 
     await expect(dialog).toBeHidden();
     await expect(page).toHaveURL(/\/settings\/security$/);
-    await expect(page.getByTestId('session-row').first()).toBeVisible();
+    // The session from before the password step ended with it (Replaced Session): this browser lists only its own.
+    await expect(page.getByTestId('session-row')).toHaveCount(1);
+    await expect(page.getByTestId('current-session')).toHaveCount(1);
     await expect(page.getByTestId('footer-user')).toHaveText(user.email);
   });
 });
