@@ -1,8 +1,8 @@
-import { CAPTCHA_RESPONSE_HEADER, CaptchaProvider } from '@adelie/shared';
+import { CAPTCHA_RESPONSE_HEADER, CaptchaProvider, SocialProvider } from '@adelie/shared';
 import { totpCode } from '@adelie/test-utils/totp';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cookiesFrom, signUpWithTotp } from '../../../../../test/auth-http';
-import { createTestAuth } from '../../../../../test/auth-instance';
+import { createTestAuth, TEST_ORIGIN } from '../../../../../test/auth-instance';
 
 const PASSWORD = 'Correct-horse-9';
 const EMAIL = 'penguin@example.com';
@@ -116,6 +116,117 @@ describe('password step of a two-factor account', () => {
     expect(res.status).toBe(200);
     expect(await t.isSignedIn(cookiesFrom(res, challengeCookie))).toBe(true);
     expect(await t.isSignedIn(otherDevice)).toBe(true);
+    expect(t.sessionsOf(EMAIL)).toHaveLength(2);
+  });
+});
+
+describe('social sign-in on a browser holding a session', () => {
+  const GOOGLE_TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token';
+
+  /** Google answered locally: the profile is EMAIL, verified; a code exchange succeeds unless `codeAccepted` is false. */
+  function buildSocial({ codeAccepted = true } = {}) {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string | URL | Request) => {
+        const url = String(input instanceof Request ? input.url : input);
+        if (url !== GOOGLE_TOKEN_ENDPOINT) throw new Error(`unexpected network call: ${url}`);
+        return codeAccepted
+          ? Response.json({ access_token: 'access', token_type: 'Bearer', expires_in: 3600 })
+          : Response.json({ error: 'invalid_grant' }, { status: 400 });
+      }),
+    );
+    return build({
+      signUpEnabled: false,
+      socialProviders: {
+        google: {
+          clientId: 'client-id',
+          clientSecret: 'client-secret',
+          verifyIdToken: async () => true,
+          // Each provider types its user info and raw profile differently; Better Auth only passes them through.
+          getUserInfo: async () =>
+            ({ user: { id: 'google-sub-1', email: EMAIL, emailVerified: true, name: 'Penguin' }, data: { sub: 'google-sub-1' } }) as never,
+        },
+      },
+    });
+  }
+
+  async function verifiedSignedInTwice(t: ReturnType<typeof build>) {
+    const { user } = await t.auth.api.createUser({ body: { name: 'Penguin', email: EMAIL, password: PASSWORD, role: 'user' } });
+    await (await t.auth.$context).internalAdapter.updateUser(user.id, { emailVerified: true });
+    return { cookie: cookiesFrom(await t.signIn()), otherDevice: cookiesFrom(await t.signIn()) };
+  }
+
+  /** Starts the provider redirect (sign-in, or linking from settings with `path: '/link-social'`) and comes back with `code`. */
+  async function roundTrip(t: ReturnType<typeof build>, cookie: string, path = '/sign-in/social') {
+    const start = await t.request(path, { cookie, body: { provider: SocialProvider.GOOGLE, callbackURL: `${TEST_ORIGIN}/account` } });
+    const { url } = (await start.json()) as { url: string };
+    const state = new URL(url).searchParams.get('state') ?? '';
+    const browser = cookiesFrom(start, cookie);
+    const callback = await t.request(`/callback/google?code=provider-code&state=${encodeURIComponent(state)}`, { cookie: browser });
+    return { callback, browser };
+  }
+
+  it('ends the Replaced Session when an id-token sign-in creates a session', async () => {
+    const t = buildSocial();
+    const { cookie, otherDevice } = await verifiedSignedInTwice(t);
+
+    const res = await t.request('/sign-in/social', { cookie, body: { provider: SocialProvider.GOOGLE, idToken: { token: 'provider-token' } } });
+
+    expect(res.status).toBe(200);
+    expect(await t.isSignedIn(cookie)).toBe(false);
+    expect(await t.isSignedIn(cookiesFrom(res, cookie))).toBe(true);
+    expect(await t.isSignedIn(otherDevice)).toBe(true);
+    expect(t.sessionsOf(EMAIL)).toHaveLength(2);
+  });
+
+  it('ends the Replaced Session when the provider callback creates a session', async () => {
+    const t = buildSocial();
+    const { cookie, otherDevice } = await verifiedSignedInTwice(t);
+
+    const { callback, browser } = await roundTrip(t, cookie);
+
+    expect(callback.status).toBe(302);
+    expect(callback.headers.get('location')).toBe(`${TEST_ORIGIN}/account`);
+    expect(await t.isSignedIn(cookie)).toBe(false);
+    expect(await t.isSignedIn(cookiesFrom(callback, browser))).toBe(true);
+    expect(await t.isSignedIn(otherDevice)).toBe(true);
+    expect(t.sessionsOf(EMAIL)).toHaveLength(2);
+  });
+
+  it('keeps the current session when the callback links a provider from settings', async () => {
+    const t = buildSocial();
+    const { cookie, otherDevice } = await verifiedSignedInTwice(t);
+
+    const { callback } = await roundTrip(t, cookie, '/link-social');
+
+    expect(callback.status).toBe(302);
+    expect(t.db.account.map((account) => account.providerId).sort()).toEqual(['credential', SocialProvider.GOOGLE]);
+    expect(await t.isSignedIn(cookie)).toBe(true);
+    expect(await t.isSignedIn(otherDevice)).toBe(true);
+    expect(t.sessionsOf(EMAIL)).toHaveLength(2);
+  });
+
+  it('ends nothing when the provider rejects the code', async () => {
+    const t = buildSocial({ codeAccepted: false });
+    const { cookie } = await verifiedSignedInTwice(t);
+
+    const { callback } = await roundTrip(t, cookie);
+
+    expect(callback.status).toBe(302);
+    expect(callback.headers.get('location')).toContain('error=');
+    expect(await t.isSignedIn(cookie)).toBe(true);
+    expect(t.sessionsOf(EMAIL)).toHaveLength(2);
+  });
+
+  it('ends nothing when an id-token sign-in is refused', async () => {
+    const t = buildSocial();
+    const { cookie } = await verifiedSignedInTwice(t);
+    for (const user of t.db.user) user.emailVerified = false;
+
+    const res = await t.request('/sign-in/social', { cookie, body: { provider: SocialProvider.GOOGLE, idToken: { token: 'provider-token' } } });
+
+    expect(res.ok).toBe(false);
+    expect(await t.isSignedIn(cookie)).toBe(true);
     expect(t.sessionsOf(EMAIL)).toHaveLength(2);
   });
 });
