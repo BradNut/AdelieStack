@@ -28,6 +28,7 @@ import { createPasswordPolicyHook, HIBP_PLUGIN_PATHS } from './auth.password-pol
 import { ac, roles } from './auth.permissions';
 import type { ProviderHealth } from './auth.provider-health';
 import { type AuthRateLimitStorage, authRateLimitOptions } from './auth.rate-limit';
+import { replacedSession } from './auth.replaced-session';
 import { createRoleGuard } from './auth.role-guard';
 import { socialProvidersOption } from './auth.social';
 
@@ -233,6 +234,8 @@ export function createAuth({
         id: 'role-guard',
         hooks: { before: [{ matcher: () => true, handler: createRoleGuard(allowMultipleRoles) }] },
       },
+      // Per-plugin after-hook, since the top-level `hooks.after` slot is taken by the mail hook. Must come after twoFactor.
+      replacedSession(),
     ],
     advanced: {
       ipAddress: { ipAddressHeaders: trustProxy ? [AUTH_CLIENT_IP_HEADER] : [] },

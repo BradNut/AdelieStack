@@ -2,8 +2,8 @@
 
 Better Auth implements these flows; the paths are below `/api/auth`. Every request first passes
 Better Auth's rate limiter, then the captcha check on protected paths when captcha is on, then our
-before-hooks (password policy, role guard). Our after-hook (`auth/auth.mail.ts`) sends Security
-Event emails.
+before-hooks (password policy, role guard). Our after-hooks send Security Event emails
+(`auth/auth.mail.ts`) and end the Replaced Session on sign-in (`auth/auth.replaced-session.ts`).
 
 ## Sign-up (`POST /sign-up/email`)
 
@@ -34,6 +34,10 @@ Event emails.
    │        /verify-otp or /verify-backup-code) to get the session.
    └─ No  → session row inserted, cookie set
 ```
+
+A sign-in or sign-up from a browser that already held a session ends that Replaced Session
+(`auth/auth.replaced-session.ts`), at the password step when a Two-factor Challenge follows. A
+failed sign-in ends nothing, and the user's sessions on other devices are untouched.
 
 Passkey sign-in (`/passkey/*`) and social sign-in (`/sign-in/social`, then the provider callback)
 create a session without the password step. Social sign-in links to an existing account only when
