@@ -9,6 +9,10 @@ export const ReplacedSessionPath = {
   EMAIL_SIGN_IN: '/sign-in/email',
   EMAIL_SIGN_UP: '/sign-up/email',
   PASSKEY_SIGN_IN: '/passkey/verify-authentication',
+  /** Only the id-token sign-in sets a session here; the redirect sign-in sets it on the callback. */
+  SOCIAL_SIGN_IN: '/sign-in/social',
+  /** Shared with linking from settings, which sets no new session and so keeps the current one. */
+  SOCIAL_CALLBACK: '/callback/:id',
 } as const;
 
 const replacedSessionPaths: readonly string[] = Object.values(ReplacedSessionPath);
