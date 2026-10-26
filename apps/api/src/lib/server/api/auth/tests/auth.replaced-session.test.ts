@@ -2,7 +2,8 @@ import { CAPTCHA_RESPONSE_HEADER, CaptchaProvider } from '@adelie/shared';
 import { totpCode } from '@adelie/test-utils/totp';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cookiesFrom, signUpWithTotp } from '../../../../../test/auth-http';
-import { createTestAuth } from '../../../../../test/auth-instance';
+import { createTestAuth, TEST_ORIGIN } from '../../../../../test/auth-instance';
+import { createPasskeyAuthenticator } from '../../../../../test/passkey-authenticator';
 
 const PASSWORD = 'Correct-horse-9';
 const EMAIL = 'penguin@example.com';
@@ -116,6 +117,59 @@ describe('password step of a two-factor account', () => {
     expect(res.status).toBe(200);
     expect(await t.isSignedIn(cookiesFrom(res, challengeCookie))).toBe(true);
     expect(await t.isSignedIn(otherDevice)).toBe(true);
+    expect(t.sessionsOf(EMAIL)).toHaveLength(2);
+  });
+});
+
+describe('passkey sign-in on a browser holding a session', () => {
+  async function withPasskey(t: ReturnType<typeof build>) {
+    const { cookie, otherDevice } = await signedInTwice(t);
+    const authenticator = createPasskeyAuthenticator({ rpID: 'localhost', origin: TEST_ORIGIN });
+    const [user] = t.db.user;
+    t.db.passkey.push({ ...authenticator.passkeyFor(user.id as string) });
+    /** Signs in with the passkey from a browser holding `browserCookie`; a forged signature fails the assertion. */
+    const passkeySignIn = async (browserCookie?: string, { forged = false } = {}) => {
+      const options = await t.request('/passkey/generate-authenticate-options', { cookie: browserCookie });
+      const { challenge } = (await options.json()) as { challenge: string };
+      const response = authenticator.assert(challenge);
+      if (forged) response.response.signature = response.response.authenticatorData;
+      return t.request('/passkey/verify-authentication', { cookie: cookiesFrom(options, browserCookie), body: { response } });
+    };
+    return { cookie, otherDevice, passkeySignIn };
+  }
+
+  it('signs in with a valid assertion on a browser with no session', async () => {
+    const t = build();
+    const { passkeySignIn } = await withPasskey(t);
+
+    const res = await passkeySignIn();
+
+    expect(res.status).toBe(200);
+    expect(await t.isSignedIn(cookiesFrom(res))).toBe(true);
+    expect(t.sessionsOf(EMAIL)).toHaveLength(3);
+  });
+
+  it('ends the Replaced Session and keeps the other device', async () => {
+    const t = build();
+    const { cookie, otherDevice, passkeySignIn } = await withPasskey(t);
+
+    const res = await passkeySignIn(cookie);
+
+    expect(res.status).toBe(200);
+    expect(await t.isSignedIn(cookie)).toBe(false);
+    expect(await t.isSignedIn(cookiesFrom(res, cookie))).toBe(true);
+    expect(await t.isSignedIn(otherDevice)).toBe(true);
+    expect(t.sessionsOf(EMAIL)).toHaveLength(2);
+  });
+
+  it('ends nothing when the assertion fails', async () => {
+    const t = build();
+    const { cookie, passkeySignIn } = await withPasskey(t);
+
+    const res = await passkeySignIn(cookie, { forged: true });
+
+    expect(res.ok).toBe(false);
+    expect(await t.isSignedIn(cookie)).toBe(true);
     expect(t.sessionsOf(EMAIL)).toHaveLength(2);
   });
 });

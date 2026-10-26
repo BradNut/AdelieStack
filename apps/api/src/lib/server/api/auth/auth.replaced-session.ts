@@ -8,6 +8,7 @@ import { createAuthMiddleware } from 'better-auth/api';
 export const ReplacedSessionPath = {
   EMAIL_SIGN_IN: '/sign-in/email',
   EMAIL_SIGN_UP: '/sign-up/email',
+  PASSKEY_SIGN_IN: '/passkey/verify-authentication',
 } as const;
 
 const replacedSessionPaths: readonly string[] = Object.values(ReplacedSessionPath);

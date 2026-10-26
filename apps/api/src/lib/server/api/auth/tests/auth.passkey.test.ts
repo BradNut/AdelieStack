@@ -71,7 +71,7 @@ describe('passkey sign-in', () => {
     const options = await request('/passkey/generate-authenticate-options');
     const cookie = cookiesFrom(options);
 
-    const res = await request('/sign-in/passkey', {
+    const res = await request('/passkey/verify-authentication', {
       cookie,
       body: { response: { id: 'unknown', rawId: 'unknown', type: 'public-key', response: {}, clientExtensionResults: {} } },
     });
