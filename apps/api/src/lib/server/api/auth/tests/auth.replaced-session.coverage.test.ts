@@ -1,9 +1,9 @@
-import { CaptchaProvider, RoleName } from '@adelie/shared';
+import { AUTH_BASE_PATH, CaptchaProvider, RoleName } from '@adelie/shared';
 import { totpCode } from '@adelie/test-utils/totp';
 import { describe, expect, it } from 'vitest';
 import { ReplacedSessionPath } from '#lib/server/api/auth/auth.replaced-session';
 import { cookiesFrom, signUpWithTotp } from '../../../../../test/auth-http';
-import { createTestAuth } from '../../../../../test/auth-instance';
+import { createTestAuth, TEST_ORIGIN } from '../../../../../test/auth-instance';
 
 const PASSWORD = 'Correct-horse-9';
 const EMAIL = 'penguin@example.com';
@@ -75,6 +75,9 @@ const SETS_NO_NEW_SESSION = [
   '/verify-password',
 ];
 
+/** Every path the three groups list, in one array. */
+const classified = [...Object.values(ReplacedSessionPath), ...Object.keys(KEEPS_OWN_SESSION_HANDLING), ...SETS_NO_NEW_SESSION];
+
 /** Every endpoint the auth instance serves, with every optional plugin turned on. */
 function registeredPaths() {
   const { auth } = createTestAuth({
@@ -87,17 +90,13 @@ function registeredPaths() {
 
 describe('Replaced Session coverage', () => {
   it('classifies every auth endpoint, so a new one that creates sessions cannot slip past the rule', () => {
-    const classified = [...Object.values(ReplacedSessionPath), ...Object.keys(KEEPS_OWN_SESSION_HANDLING), ...SETS_NO_NEW_SESSION];
-
     const unclassified = registeredPaths().filter((path) => !classified.includes(path));
 
     expect(unclassified).toEqual([]);
   });
 
   it('lists no endpoint that is not registered, or in more than one group', () => {
-    const classified = [...Object.values(ReplacedSessionPath), ...Object.keys(KEEPS_OWN_SESSION_HANDLING), ...SETS_NO_NEW_SESSION];
-
-    expect(classified.sort()).toEqual(registeredPaths());
+    expect([...classified].sort()).toEqual(registeredPaths());
   });
 });
 
@@ -161,6 +160,21 @@ describe('endpoints that keep their own session handling', () => {
     expect(await t.signedInAs(cookie)).toBeNull();
     expect(await t.signedInAs(cookiesFrom(disable, cookie))).toBe(EMAIL);
     expect(await t.signedInAs(otherDevice)).toBe(EMAIL);
+    expect(t.db.session).toHaveLength(2);
+  });
+
+  it('change-email verification keeps the browser’s session and the other device', async () => {
+    const t = build();
+    const cookie = cookiesFrom(await t.request('/sign-up/email', { body: { name: 'Penguin', email: EMAIL, password: PASSWORD } }));
+    const otherDevice = await t.signIn();
+    await t.request('/change-email', { cookie, body: { newEmail: 'emperor@example.com', callbackURL: '/email-verified' } });
+    const href = /href='([^']+)'/.exec(t.mailer.sent.at(-1)?.template.html() ?? '')?.[1] ?? '';
+
+    const res = await t.request(href.replace(TEST_ORIGIN, '').replace(AUTH_BASE_PATH, ''), { cookie });
+
+    expect(res.ok || res.status === 302).toBe(true);
+    expect(await t.signedInAs(cookie)).toBe('emperor@example.com');
+    expect(await t.signedInAs(otherDevice)).toBe('emperor@example.com');
     expect(t.db.session).toHaveLength(2);
   });
 

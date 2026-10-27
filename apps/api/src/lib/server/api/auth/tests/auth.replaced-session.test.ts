@@ -1,4 +1,4 @@
-import { CAPTCHA_RESPONSE_HEADER, CaptchaProvider, SocialProvider } from '@adelie/shared';
+import { CAPTCHA_RESPONSE_HEADER, CaptchaProvider, CREDENTIAL_PROVIDER_ID, RoleName, SocialProvider } from '@adelie/shared';
 import { totpCode } from '@adelie/test-utils/totp';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cookiesFrom, signUpWithTotp } from '../../../../../test/auth-http';
@@ -242,7 +242,7 @@ describe('social sign-in on a browser holding a session', () => {
   }
 
   async function verifiedSignedInTwice(t: ReturnType<typeof build>) {
-    const { user } = await t.auth.api.createUser({ body: { name: 'Penguin', email: EMAIL, password: PASSWORD, role: 'user' } });
+    const { user } = await t.auth.api.createUser({ body: { name: 'Penguin', email: EMAIL, password: PASSWORD, role: RoleName.USER } });
     await (await t.auth.$context).internalAdapter.updateUser(user.id, { emailVerified: true });
     return { cookie: cookiesFrom(await t.signIn()), otherDevice: cookiesFrom(await t.signIn()) };
   }
@@ -291,7 +291,7 @@ describe('social sign-in on a browser holding a session', () => {
     const { callback } = await roundTrip(t, cookie, '/link-social');
 
     expect(callback.status).toBe(302);
-    expect(t.db.account.map((account) => account.providerId).sort()).toEqual(['credential', SocialProvider.GOOGLE]);
+    expect(t.db.account.map((account) => account.providerId).sort()).toEqual([CREDENTIAL_PROVIDER_ID, SocialProvider.GOOGLE]);
     expect(await t.isSignedIn(cookie)).toBe(true);
     expect(await t.isSignedIn(otherDevice)).toBe(true);
     expect(t.sessionsOf(EMAIL)).toHaveLength(2);
