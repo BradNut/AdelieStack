@@ -23,10 +23,12 @@
 	let needsConfirmation = $state(false);
 
 	async function load() {
-		const [list, current] = await Promise.all([withFreshSession(() => authClient.listSessions()), authClient.getSession()]);
+		const list = await withFreshSession(() => authClient.listSessions());
 		needsConfirmation = list.error?.code === AuthErrorCode.SESSION_NOT_FRESH;
 		if (needsConfirmation) return;
 		if (toastIfError(list.error, 'Could not load your sessions.')) return;
+		// Read after the list: re-authentication on the way swaps this browser's session (the Replaced Session ends).
+		const current = await authClient.getSession();
 		sessions = list.data ?? [];
 		currentToken = current.data?.session.token ?? null;
 	}

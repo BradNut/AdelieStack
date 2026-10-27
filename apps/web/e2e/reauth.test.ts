@@ -18,6 +18,7 @@ test.describe('re-authentication on a stale session', () => {
 
     await expect(dialog).toBeHidden();
     await expect(page.getByTestId('session-row')).toHaveCount(1);
+    await expect(page.getByTestId('current-session')).toHaveCount(1);
   });
 
   test('a wrong password keeps the dialog open with an error', async ({ page }) => {
