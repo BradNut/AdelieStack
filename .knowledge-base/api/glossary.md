@@ -15,6 +15,10 @@ The process of determining what actions an authenticated user is allowed to perf
 **Session**
 A temporary authentication state, stored in the `sessions` table through Better Auth's database adapter (not Redis), that identifies an authenticated user.
 
+**Replaced Session**
+The session a browser was holding when it signed in again, whoever signs in. Signing in ends it, including when the sign-in stops at a Two-factor Challenge; the user's sessions on other devices are untouched.
+_Avoid_: old session, previous session, stale session
+
 **TOTP (Time-based One-Time Password)**
 A temporary password that changes every 30 seconds, used for multi-factor authentication.
 

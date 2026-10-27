@@ -68,6 +68,7 @@ apps/api/src/lib/server/api/auth/
 ├── auth.password-policy.ts       # before-hook: password rules and HIBP screening on admin paths
 ├── auth.permissions.ts, roles.ts # permission table and Role Policy
 ├── auth.role-guard.ts            # before-hook: several roles on admin role writes only with ALLOW_MULTIPLE_ROLES
+├── auth.replaced-session.ts      # after-hook: a sign-in ends the session the browser held before
 ├── auth.social.ts                # GitHub / Google from env
 ├── auth.captcha.ts, auth.hibp-status.ts, auth.provider-health.ts
 ├── auth.rate-limit.ts, auth.rate-limit.repository.ts
