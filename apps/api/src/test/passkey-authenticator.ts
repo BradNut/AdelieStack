@@ -50,6 +50,39 @@ export function createPasskeyAuthenticator({ rpID, origin }: { rpID: string; ori
         createdAt: new Date(),
       };
     },
+    /** The browser's answer to `/passkey/generate-register-options`: a `none` attestation of this credential. */
+    register(challenge: string) {
+      const clientDataJSON = Buffer.from(JSON.stringify({ type: 'webauthn.create', challenge, origin, crossOrigin: false }));
+      const rawId = Buffer.from(credentialID, 'base64url');
+      const idLength = Buffer.alloc(2);
+      idLength.writeUInt16BE(rawId.length);
+      // rpIdHash, flags (user present and verified, attested credential data), counter, AAGUID, credential id, public key.
+      const authenticatorData = Buffer.concat([sha256(rpID), Buffer.from([0x45]), Buffer.alloc(4), Buffer.alloc(16), idLength, rawId, coseKey]);
+      // CBOR map {"fmt": "none", "attStmt": {}, "authData": <bytes>}; authData is under 256 bytes.
+      const attestationObject = Buffer.concat([
+        Buffer.from([0xa3, 0x63]),
+        Buffer.from('fmt'),
+        Buffer.from([0x64]),
+        Buffer.from('none'),
+        Buffer.from([0x67]),
+        Buffer.from('attStmt'),
+        Buffer.from([0xa0, 0x68]),
+        Buffer.from('authData'),
+        Buffer.from([0x58, authenticatorData.length]),
+        authenticatorData,
+      ]);
+      return {
+        id: credentialID,
+        rawId: credentialID,
+        type: 'public-key',
+        response: {
+          clientDataJSON: base64url(clientDataJSON),
+          attestationObject: base64url(attestationObject),
+          transports: ['internal'],
+        },
+        clientExtensionResults: {},
+      };
+    },
     /** The browser's answer to `/passkey/generate-authenticate-options`, signed with this credential. */
     assert(challenge: string) {
       counter += 1;

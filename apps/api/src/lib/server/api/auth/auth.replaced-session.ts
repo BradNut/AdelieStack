@@ -3,12 +3,15 @@ import { createAuthMiddleware } from 'better-auth/api';
 
 /**
  * The sign-in endpoints that end the Replaced Session. Not a generic "a new session was set" rule: admin
- * impersonation sets one too, and keeps the admin's session aside to restore it afterwards.
+ * impersonation sets one too, and keeps the admin's session aside to restore it afterwards. Every other auth endpoint
+ * is classified in auth.replaced-session.coverage.test.ts, which fails when a new one appears.
  */
 export const ReplacedSessionPath = {
   EMAIL_SIGN_IN: '/sign-in/email',
   EMAIL_SIGN_UP: '/sign-up/email',
   PASSKEY_SIGN_IN: '/passkey/verify-authentication',
+  /** Sets a session only when the client asks for one with the new passkey (`createSession`). */
+  PASSKEY_REGISTRATION: '/passkey/verify-registration',
   /** Only the id-token sign-in sets a session here; the redirect sign-in sets it on the callback. */
   SOCIAL_SIGN_IN: '/sign-in/social',
   /** Shared with linking from settings, which sets no new session and so keeps the current one. */

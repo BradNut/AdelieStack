@@ -174,6 +174,43 @@ describe('passkey sign-in on a browser holding a session', () => {
   });
 });
 
+describe('passkey registration on a browser holding a session', () => {
+  /** Registers a new passkey from the signed-in browser, asking for a session with it when `createSession` is set. */
+  async function registerPasskey(t: ReturnType<typeof build>, cookie: string, createSession: boolean) {
+    const authenticator = createPasskeyAuthenticator({ rpID: 'localhost', origin: TEST_ORIGIN });
+    const options = await t.request('/passkey/generate-register-options', { cookie });
+    const { challenge } = (await options.json()) as { challenge: string };
+    const response = authenticator.register(challenge);
+    return t.request('/passkey/verify-registration', { cookie: cookiesFrom(options, cookie), body: { response, createSession } });
+  }
+
+  it('ends the Replaced Session when registration also creates a session', async () => {
+    const t = build();
+    const { cookie, otherDevice } = await signedInTwice(t);
+
+    const res = await registerPasskey(t, cookie, true);
+
+    expect(res.status).toBe(200);
+    expect(t.db.passkey).toHaveLength(1);
+    expect(await t.isSignedIn(cookie)).toBe(false);
+    expect(await t.isSignedIn(cookiesFrom(res, cookie))).toBe(true);
+    expect(await t.isSignedIn(otherDevice)).toBe(true);
+    expect(t.sessionsOf(EMAIL)).toHaveLength(2);
+  });
+
+  it('keeps the current session when registration only adds the passkey', async () => {
+    const t = build();
+    const { cookie } = await signedInTwice(t);
+
+    const res = await registerPasskey(t, cookie, false);
+
+    expect(res.status).toBe(200);
+    expect(t.db.passkey).toHaveLength(1);
+    expect(await t.isSignedIn(cookie)).toBe(true);
+    expect(t.sessionsOf(EMAIL)).toHaveLength(2);
+  });
+});
+
 describe('social sign-in on a browser holding a session', () => {
   const GOOGLE_TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token';
 
