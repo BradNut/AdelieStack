@@ -13,6 +13,7 @@ That bullet feared stranding social-only two-factor users, but enrolling in two-
 - A correct password on a two-factor account clears the session cookie until the challenge is completed (Better Auth deletes the new session and swaps in a challenge cookie). Closing the dialog at that point, an expired challenge or a two-factor lockout leaves the user signed out: the dialog warns before closing and then sends them to sign in again, returning to the page without replaying the action.
 - The dialog never offers "trust this device": a remembered device is a risk signal, not authentication (OWASP Authentication Cheat Sheet, NIST SP 800-63B-4 §5.1).
 - The emailed code is sent only when the user asks for it, so a re-authentication does not spend the email rate limit by default.
+- The Password Account cannot be unlinked while two-factor is enabled (`PASSWORD_REQUIRED_FOR_TWO_FACTOR`); disable two-factor first. Removing it would break the rule above and leave the user unable to disable two-factor, since that requires the password.
 - Password sign-in callers check the `twoFactorRedirect` result themselves; the auth client has no global redirect, so a challenge raised from the dialog does not navigate away.
 
 ## Considered options
