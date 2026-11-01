@@ -1,6 +1,7 @@
 import { AUTH_SESSION_FRESH_AGE, AuthErrorCode, CREDENTIAL_PROVIDER_ID, SocialProvider } from '@adelie/shared';
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { Auth } from '#lib/server/api/auth/auth.config';
+import { UNLINK_ACCOUNT_PATH } from '#lib/server/api/auth/auth.password-account-guard';
 import { type AuthRequest, cookiesFrom, signUpWithTotp } from '../../../../../test/auth-http';
 import { createTestAuth } from '../../../../../test/auth-instance';
 
@@ -57,7 +58,7 @@ async function providerIdsOf(userId: string) {
   return (await accountsOf(userId)).map((account) => account.providerId).sort();
 }
 
-const unlink = (cookie: string, accountId: string | undefined) => request('/unlink-account', { cookie, body: { accountId } });
+const unlink = (cookie: string, accountId: string | undefined) => request(UNLINK_ACCOUNT_PATH, { cookie, body: { accountId } });
 
 describe('unlinking the Password Account', () => {
   it('refuses to unlink the Password Account of a two-factor user', async () => {
@@ -119,6 +120,29 @@ describe('other unlinks for a two-factor user', () => {
 
     expect(res.status).toBe(400);
     expect(((await res.json()) as { code: string }).code).toBe('ACCOUNT_NOT_FOUND');
+    expect(await providerIdsOf(user.id)).toEqual([CREDENTIAL_PROVIDER_ID, SocialProvider.GITHUB]);
+  });
+
+  it("answers a missing account id with Better Auth's own validation error", async () => {
+    const user = await userWithGithub({ twoFactor: true });
+
+    const res = await request(UNLINK_ACCOUNT_PATH, { cookie: user.cookie, body: {} });
+
+    expect(res.status).toBe(400);
+    expect(((await res.json()) as { code: string }).code).toBe('VALIDATION_ERROR');
+    expect(await providerIdsOf(user.id)).toEqual([CREDENTIAL_PROVIDER_ID, SocialProvider.GITHUB]);
+  });
+});
+
+describe('unlinking without a session', () => {
+  it("answers with Better Auth's own unauthenticated error", async () => {
+    const user = await userWithGithub({ twoFactor: true });
+    const accountId = await accountIdOf(user.id, CREDENTIAL_PROVIDER_ID);
+
+    const res = await request(UNLINK_ACCOUNT_PATH, { body: { accountId } });
+
+    expect(res.status).toBe(401);
+    expect(((await res.json()) as { code: string }).code).toBe('UNAUTHORIZED');
     expect(await providerIdsOf(user.id)).toEqual([CREDENTIAL_PROVIDER_ID, SocialProvider.GITHUB]);
   });
 });

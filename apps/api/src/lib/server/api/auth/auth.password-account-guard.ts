@@ -1,6 +1,6 @@
 import { AuthErrorCode, CREDENTIAL_PROVIDER_ID } from '@adelie/shared';
-import { APIError, createAuthMiddleware, getSessionFromCtx } from 'better-auth/api';
-import { m } from '../../../paraglide/messages';
+import { APIError, type AuthMiddleware, createAuthMiddleware, getSessionFromCtx } from 'better-auth/api';
+import { m } from '#lib/server/api/common/i18n/index';
 
 /** The Better Auth endpoint that removes one of the signed-in user's Sign-in Accounts. */
 export const UNLINK_ACCOUNT_PATH = '/unlink-account';
@@ -14,10 +14,10 @@ function unlinkedAccountId(body: unknown): unknown {
  * can always re-authenticate with their password and a Second Factor, and can still disable two-factor
  * (ADR 0008). Every other unlink, including an unknown account id, goes to Better Auth unchanged. Runs
  * before Better Auth's fresh-session check, so a stale session gets this refusal, not `SESSION_NOT_FRESH`.
+ * Register it with a matcher on `UNLINK_ACCOUNT_PATH`; it does not check the path itself.
  */
-export function createPasswordAccountGuard() {
+export function createPasswordAccountGuard(): AuthMiddleware {
   return createAuthMiddleware(async (ctx) => {
-    if (ctx.path !== UNLINK_ACCOUNT_PATH) return;
     const session = await getSessionFromCtx<{ twoFactorEnabled?: boolean | null }>(ctx);
     if (!session?.user.twoFactorEnabled) return;
     const accountId = unlinkedAccountId(ctx.body);

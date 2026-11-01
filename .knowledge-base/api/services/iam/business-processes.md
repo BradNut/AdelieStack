@@ -16,7 +16,7 @@ before-hooks (password policy, role guard). Our after-hooks send Security Event 
    ├─ Breached → 400 PASSWORD_COMPROMISED
    └─ HIBP unreachable → 503 PASSWORD_CHECK_UNAVAILABLE
    ↓
-4. User and credential account rows inserted (role `user`)
+4. User and Password Account rows inserted (role `user`)
    ↓
 5. Verification email sent (sendOnSignUp); session created and cookie set
 ```
