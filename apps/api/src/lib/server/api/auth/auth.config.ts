@@ -24,6 +24,7 @@ import { TwoFactorOtpEmail } from '#lib/server/api/mail/templates/two-factor-otp
 import { type CaptchaConfig, captchaPlugin, createCaptchaHealth } from './auth.captcha';
 import { createHibpHealth, hibpMonitor } from './auth.hibp-status';
 import { createAuthMail } from './auth.mail';
+import { createPasswordAccountGuard } from './auth.password-account-guard';
 import { createPasswordPolicyHook, HIBP_PLUGIN_PATHS } from './auth.password-policy';
 import { ac, roles } from './auth.permissions';
 import type { ProviderHealth } from './auth.provider-health';
@@ -233,6 +234,11 @@ export function createAuth({
       {
         id: 'role-guard',
         hooks: { before: [{ matcher: () => true, handler: createRoleGuard(allowMultipleRoles) }] },
+      },
+      // Per-plugin before-hook for the same reason: keeps a two-factor user's Password Account (ADR 0008).
+      {
+        id: 'password-account-guard',
+        hooks: { before: [{ matcher: () => true, handler: createPasswordAccountGuard() }] },
       },
       // Per-plugin after-hook, since the top-level `hooks.after` slot is taken by the mail hook. Must come after twoFactor.
       replacedSession(),
