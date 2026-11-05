@@ -1,5 +1,5 @@
-import { APIError, createAuthMiddleware } from 'better-auth/api';
-import { m } from '../../../paraglide/messages';
+import { APIError, type AuthMiddleware, createAuthMiddleware } from 'better-auth/api';
+import { m } from '#lib/server/api/common/i18n/index';
 
 /** Admin endpoints that write a user's role. */
 export const RoleWritePath = {
@@ -25,7 +25,7 @@ function writtenRole(path: string, body: unknown): unknown {
  * switch is off. Better Auth already rejects comma-joined strings and unknown names, so arrays are the
  * only multi-role input. The read-side counterpart of this rule is `resolveRoles` in `roles.ts`. The switch is read per request so env stays lazy.
  */
-export function createRoleGuard(allowMultipleRoles: () => boolean) {
+export function createRoleGuard(allowMultipleRoles: () => boolean): AuthMiddleware {
   return createAuthMiddleware(async (ctx) => {
     if (!Object.values<string>(RoleWritePath).includes(ctx.path)) return;
     const role = writtenRole(ctx.path, ctx.body);

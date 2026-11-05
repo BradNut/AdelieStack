@@ -19,6 +19,14 @@ A temporary authentication state, stored in the `sessions` table through Better 
 The session a browser was holding when it signed in again, whoever signs in. Signing in ends it, including when the sign-in stops at a Two-factor Challenge; the user's sessions on other devices are untouched.
 _Avoid_: old session, previous session, stale session
 
+**Sign-in Account**
+One way a user can sign in, linked to that user: their password or a linked social provider. A user can have several and cannot unlink the last one. Passkeys are not Sign-in Accounts.
+_Avoid_: account (alone), linked account, credential
+
+**Password Account**
+The Sign-in Account that holds the user's password. A user with two-factor enabled cannot unlink it. Better Auth calls it the `credential` account.
+_Avoid_: credential account, email account
+
 **TOTP (Time-based One-Time Password)**
 A temporary password that changes every 30 seconds, used for multi-factor authentication.
 
