@@ -89,9 +89,17 @@ A ban is lifted through the admin endpoint.
 1. `MAILER_TRANSPORT=mailpit` (the default): check Mailpit at `http://localhost:8025`.
 2. `MAILER_TRANSPORT=unsend`: search the logs for the recipient. Each attempt writes one entry:
    `useSend email sent`, or `useSend email failed` with `attempt` and `error` (`code: message`).
-   Three failures in a row mean the send was given up on and the error went to the caller. No entry
-   at all means nothing tried to send.
+   Three failures in a row mean the send was given up on. No entry at all means nothing tried to send.
 3. Too many requests from one client → `429` on the email endpoints (3 per 5 minutes per IP).
+
+**What the user sees when a send is given up on:**
+- **Success, and no email**: sign-up, password reset request, email change request, emailing a two-factor
+  code. Better Auth absorbs the failure and logs it through its own logger (`Failed to run background
+  task`, or `Failed to send two-factor OTP`), so the response is no sign of delivery.
+- **`500`**: resending the verification email.
+- **Success, with one `SECURITY_EVENT_EMAIL_FAILED` error entry**: Security Events (password changed,
+  recovery code used or regenerated, the notice to the old address), whose change has already committed.
+  The entry names the email's subject, never the address.
 
 **Resolution:**
 - Dev: restart Mailpit and retry.

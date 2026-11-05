@@ -1,5 +1,6 @@
 import { AUTH_BASE_PATH } from '@adelie/shared';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { SECURITY_EVENT_EMAIL_FAILED_LOG } from '#lib/server/api/auth/auth.mail';
 import type { SendProps } from '#lib/server/api/mail/interfaces/mailer.interface';
 import { EmailChangeNoticeEmail } from '#lib/server/api/mail/templates/email-change-notice.template';
 import { EmailChangeRequestEmail } from '#lib/server/api/mail/templates/email-change-request.template';
@@ -220,5 +221,153 @@ describe('email change', () => {
 
     expect(res.status).toBe(401);
     expect(sent).toHaveLength(0);
+  });
+});
+
+describe('a failed send', () => {
+  const NEW_EMAIL = 'emperor@example.com';
+  const mailLog = { error: vi.fn() };
+  let failSends: () => void;
+
+  beforeEach(() => {
+    mailLog.error.mockReset();
+    const testAuth = createTestAuth({ mailLog });
+    request = testAuth.request;
+    sent = testAuth.mailer.sent;
+    // The message carries the address on purpose: a provider's error text can, and it must not reach this log.
+    failSends = () => testAuth.mailer.send.mockRejectedValue(new Error(`useSend refused ${EMAIL} and ${NEW_EMAIL}`));
+  });
+
+  function expectOneLogEntryWithoutAddresses() {
+    expect(mailLog.error).toHaveBeenCalledTimes(1);
+    expect(mailLog.error.mock.calls[0][1]).toBe(SECURITY_EVENT_EMAIL_FAILED_LOG);
+    const logged = JSON.stringify(mailLog.error.mock.calls[0]);
+    expect(logged).not.toContain(EMAIL);
+    expect(logged).not.toContain(NEW_EMAIL);
+  }
+
+  /** The password that signs in now, which proves the change committed. */
+  const signInStatus = async (password: string) => (await request('/sign-in/email', { body: { email: EMAIL, password } })).status;
+
+  describe('of a Security Event, after the change has committed', () => {
+    it('does not fail a completed password reset', async () => {
+      await signUp();
+      await request('/request-password-reset', { body: { email: EMAIL, redirectTo: `${TEST_ORIGIN}/reset` } });
+      const link = /href='([^']+)'/.exec(sent[0].template.html())?.[1] ?? '';
+      failSends();
+
+      const res = await request('/reset-password', { body: { newPassword: NEW_PASSWORD, token: new URL(link).pathname.split('/').pop() } });
+
+      expect(res.status).toBe(200);
+      expect(await signInStatus(NEW_PASSWORD)).toBe(200);
+      expectOneLogEntryWithoutAddresses();
+    });
+
+    it('does not fail a completed password change', async () => {
+      const cookie = await signUp();
+      failSends();
+
+      const res = await request('/change-password', { cookie, body: { currentPassword: PASSWORD, newPassword: NEW_PASSWORD } });
+
+      expect(res.status).toBe(200);
+      expect(await signInStatus(NEW_PASSWORD)).toBe(200);
+      expectOneLogEntryWithoutAddresses();
+    });
+
+    it('still hands over regenerated recovery codes', async () => {
+      const { cookie } = await signUpWithTotp(request, USER);
+      failSends();
+
+      const res = await request('/two-factor/generate-backup-codes', { cookie, body: { password: PASSWORD } });
+
+      expect(res.status).toBe(200);
+      expect(((await res.json()) as { backupCodes: string[] }).backupCodes.length).toBeGreaterThan(0);
+      expectOneLogEntryWithoutAddresses();
+    });
+
+    it('still signs in with a recovery code', async () => {
+      const {
+        backupCodes: [code],
+      } = await signUpWithTotp(request, USER);
+      const { challengeCookie: cookie } = await startTwoFactorSignIn(request, USER);
+      failSends();
+
+      const res = await request('/two-factor/verify-backup-code', { cookie, body: { code } });
+
+      expect(res.status).toBe(200);
+      expect(cookiesFrom(res)).toContain('session_token');
+      expectOneLogEntryWithoutAddresses();
+    });
+
+    it('still completes an email change when the notice to the old address fails', async () => {
+      const cookie = await signUp();
+      await request('/change-email', { cookie, body: { newEmail: NEW_EMAIL, callbackURL: '/email-verified' } });
+      const href = /href='([^']+)'/.exec(sent.at(-1)?.template.html() ?? '')?.[1] ?? '';
+      failSends();
+
+      const res = await request(href.replace(TEST_ORIGIN, '').replace(AUTH_BASE_PATH, ''), { cookie });
+
+      expect(res.status).toBeLessThan(400);
+      expect(((await (await request('/get-session', { cookie })).json()) as { user: { email: string } }).user.email).toBe(NEW_EMAIL);
+      expectOneLogEntryWithoutAddresses();
+    });
+  });
+
+  /**
+   * Better Auth wraps these sends itself (`runInBackgroundOrAwait`, and a `.catch` for the code), logs through its own
+   * logger and answers success. These fail if a Better Auth upgrade changes that.
+   */
+  describe('that Better Auth absorbs', () => {
+    it('answers a known address exactly as an unknown one on password reset', async () => {
+      await signUp();
+      const unknown = await request('/request-password-reset', { body: { email: 'nobody@example.com', redirectTo: `${TEST_ORIGIN}/reset` } });
+      failSends();
+
+      const known = await request('/request-password-reset', { body: { email: EMAIL, redirectTo: `${TEST_ORIGIN}/reset` } });
+
+      expect(known.status).toBe(unknown.status);
+      expect(await known.json()).toEqual(await unknown.json());
+    });
+
+    it('still answers success on sign-up', async () => {
+      failSends();
+
+      const res = await request('/sign-up/email', { body: { name: 'Penguin', email: EMAIL, password: PASSWORD } });
+
+      expect(res.status).toBe(200);
+      expect(mailLog.error).not.toHaveBeenCalled();
+    });
+
+    it('still answers success on an email change request', async () => {
+      const cookie = await signUp();
+      failSends();
+
+      const res = await request('/change-email', { cookie, body: { newEmail: NEW_EMAIL, callbackURL: '/email-verified' } });
+
+      expect(res.status).toBe(200);
+      expect(mailLog.error).not.toHaveBeenCalled();
+    });
+
+    it('still answers success when emailing a two-factor code', async () => {
+      await signUpWithTotp(request, USER);
+      const { challengeCookie: cookie } = await startTwoFactorSignIn(request, USER);
+      failSends();
+
+      const res = await request('/two-factor/send-otp', { cookie, body: {} });
+
+      expect(res.status).toBe(200);
+      expect(mailLog.error).not.toHaveBeenCalled();
+    });
+  });
+
+  /** Better Auth awaits this send bare, so the failure reaches the caller; left as is, the user needs this mail. */
+  it('fails a verification resend', async () => {
+    await signUp();
+    failSends();
+
+    const res = await request('/send-verification-email', { body: { email: EMAIL } });
+
+    expect(res.status).toBe(500);
+    expect(mailLog.error).not.toHaveBeenCalled();
   });
 });

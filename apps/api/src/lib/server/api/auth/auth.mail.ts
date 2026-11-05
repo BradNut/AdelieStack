@@ -1,4 +1,5 @@
 import { createAuthMiddleware, isAPIError } from 'better-auth/api';
+import type { EmailTemplate } from '#lib/server/api/mail/interfaces/email-template.interface';
 import type { Mailer } from '#lib/server/api/mail/interfaces/mailer.interface';
 import { EmailChangeNoticeEmail } from '#lib/server/api/mail/templates/email-change-notice.template';
 import { EmailChangeRequestEmail } from '#lib/server/api/mail/templates/email-change-request.template';
@@ -25,11 +26,32 @@ interface Recipient {
   email: string;
 }
 
+/** Stable, greppable log message for a Security Event email that could not be sent. */
+export const SECURITY_EVENT_EMAIL_FAILED_LOG = 'SECURITY_EVENT_EMAIL_FAILED';
+
+/** The slice of the logger that failures are written to. */
+export interface AuthMailLogger {
+  error(obj: Record<string, unknown>, message: string): void;
+}
+
 /**
  * Connects Better Auth's email callbacks and lifecycle hooks to the {@link Mailer}, so the
  * single `MAILER_TRANSPORT` switch drives every auth email.
  */
-export function createAuthMail(mailer: Mailer) {
+export function createAuthMail(mailer: Mailer, log?: AuthMailLogger) {
+  /**
+   * Security Events are told after the change has committed, so a failed send must not answer the request with an
+   * error, nor lose what it returns (new recovery codes, a session). The entry leaves out the provider's error text,
+   * which can quote the address; the mailer's own per-attempt entries carry the detail.
+   */
+  async function sendSecurityEvent(to: string, template: EmailTemplate) {
+    try {
+      await mailer.send({ to, template });
+    } catch {
+      log?.error({ subject: template.subject() }, SECURITY_EVENT_EMAIL_FAILED_LOG);
+    }
+  }
+
   /**
    * After a followed email-change link: tells the old address the change happened. The token is
    * only trusted once the old address is gone and the new one exists, so a failed, forged or
@@ -44,7 +66,7 @@ export function createAuthMail(mailer: Mailer) {
       internalAdapter.findUserByEmail(claims.updateTo),
     ]);
     if (oldAccount || !newAccount) return;
-    await mailer.send({ to: claims.email, template: new EmailChangeNoticeEmail(claims.updateTo) });
+    await sendSecurityEvent(claims.email, new EmailChangeNoticeEmail(claims.updateTo));
   }
 
   return {
@@ -61,7 +83,7 @@ export function createAuthMail(mailer: Mailer) {
 
     /** Reset-by-link completion (`emailAndPassword.onPasswordReset`). */
     async notifyPasswordChanged({ user }: { user: Recipient }) {
-      await mailer.send({ to: user.email, template: new PasswordChangedEmail() });
+      await sendSecurityEvent(user.email, new PasswordChangedEmail());
     },
 
     /**
@@ -76,13 +98,13 @@ export function createAuthMail(mailer: Mailer) {
       if (!user) return;
       switch (ctx.path) {
         case SecurityEventPath.CHANGE_PASSWORD:
-          await mailer.send({ to: user.email, template: new PasswordChangedEmail() });
+          await sendSecurityEvent(user.email, new PasswordChangedEmail());
           break;
         case SecurityEventPath.VERIFY_BACKUP_CODE:
-          await mailer.send({ to: user.email, template: new RecoveryCodesUsedEmail() });
+          await sendSecurityEvent(user.email, new RecoveryCodesUsedEmail());
           break;
         case SecurityEventPath.GENERATE_BACKUP_CODES:
-          await mailer.send({ to: user.email, template: new RecoveryCodesRegeneratedEmail() });
+          await sendSecurityEvent(user.email, new RecoveryCodesRegeneratedEmail());
           break;
       }
     }),

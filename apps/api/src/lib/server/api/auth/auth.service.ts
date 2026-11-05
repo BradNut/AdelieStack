@@ -68,6 +68,7 @@ export class AuthService {
         origin: this.configService.envs.ORIGIN,
       },
       mailer: this.mailerService,
+      mailLog: this.loggerService.log,
       signUpEnabled: this.configService.envs.SIGN_UP_ENABLED,
       allowMultipleRoles: () => this.configService.envs.ALLOW_MULTIPLE_ROLES,
       hibpEnabled: this.configService.envs.HIBP_ENABLED,
