@@ -21,6 +21,18 @@ procedures.
 - Local setup: `cp apps/api/.env.schema apps/api/.env`, fill `DATABASE_*`, `REDIS_URL`,
   `SIGNING_SECRET` and `STORAGE_*`, then `pnpm --filter @adelie/api dev`.
 
+## Email
+
+`MAILER_TRANSPORT` is `mailpit` (the default, the local inbox) or `unsend` (real sending through useSend, see [Infrastructure](./infrastructure.md#email--usesend-in-production-mailpit-locally)). With `mailpit`, none of the variables below is read. Restart after changing them.
+
+| Variable | Required with `unsend` | Notes |
+|---|---|---|
+| `USESEND_API_KEY` | yes | Sensitive. The API refuses to start without it (the error names it). |
+| `MAIL_FROM` | yes | Sender address; must be on a domain verified in useSend. The API refuses to start without it (the error names it). |
+| `USESEND_BASE_URL` | no | The server's address only, e.g. `https://app.usesend.com` or a self-hosted useSend. The library appends `/api/v1` itself, so do not include `/api` or a trailing slash. Leave it unset for the library default. |
+
+An empty `USESEND_BASE_URL=` in an env file is fine: varlock drops it. Do not inject an empty one from the platform or a container: it reaches `process.env`, where the library reads it as the address and every send fails. Remove the variable instead.
+
 ## Registration
 
 | Variable | Default | Notes |
