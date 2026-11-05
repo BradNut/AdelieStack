@@ -26,4 +26,14 @@ export class EmailChangeRequestEmail implements EmailTemplate {
 		</html>
 		`;
   }
+
+  text() {
+    return [
+      'Confirm your new email address',
+      '',
+      'Confirm this address to make it the email for your account. If you did not ask for this change, you can ignore this message.',
+      '',
+      `Confirm email change: ${this.url}`,
+    ].join('\n');
+  }
 }

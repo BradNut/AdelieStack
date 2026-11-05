@@ -36,4 +36,15 @@ export class TwoFactorOtpEmail implements EmailTemplate {
 		</html>
 		`;
   }
+
+  text() {
+    return [
+      'Your sign-in code',
+      '',
+      'Enter this code to finish signing in. If you did not try to sign in, you can ignore this message.',
+      '',
+      `Verification code: ${this.otp}`,
+      `(This code is valid for ${this.validForMinutes} minutes)`,
+    ].join('\n');
+  }
 }

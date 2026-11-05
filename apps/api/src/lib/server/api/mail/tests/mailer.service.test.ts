@@ -9,6 +9,7 @@ import type { ProdMailerService } from '#lib/server/api/mail/prod-mailer.service
 const template: EmailTemplate = {
   subject: () => 'Welcome',
   html: () => '<p>Hello penguin</p>',
+  text: () => 'Hello penguin',
 };
 
 function buildMailerService(transport: MailerTransportType) {
@@ -64,6 +65,7 @@ describe('DevMailerService send', () => {
     const body = JSON.parse(options.body);
     expect(body.Subject).toBe('Welcome');
     expect(body.HTML).toBe('<p>Hello penguin</p>');
+    expect(body.Text).toBe('Hello penguin');
     expect(body.To).toEqual([{ Email: 'penguin@example.com', Name: 'penguin@example.com' }]);
   });
 });

@@ -23,4 +23,12 @@ export class RecoveryCodesUsedEmail implements EmailTemplate {
 		</html>
 		`;
   }
+
+  text() {
+    return [
+      'A recovery code was used',
+      '',
+      'A two-factor recovery code was just used to sign in to your account. Each code works once. If this was not you, secure your account straight away.',
+    ].join('\n');
+  }
 }

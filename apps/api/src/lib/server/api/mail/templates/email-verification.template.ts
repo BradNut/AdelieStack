@@ -26,4 +26,14 @@ export class EmailVerificationEmail implements EmailTemplate {
 		</html>
 		`;
   }
+
+  text() {
+    return [
+      'Verify your email',
+      '',
+      'Confirm this address to finish setting up your account. If you did not create an account, you can ignore this message.',
+      '',
+      `Verify email: ${this.url}`,
+    ].join('\n');
+  }
 }

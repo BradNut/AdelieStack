@@ -26,4 +26,14 @@ export class PasswordResetLinkEmail implements EmailTemplate {
 		</html>
 		`;
   }
+
+  text() {
+    return [
+      'Reset your password',
+      '',
+      'You requested a password reset. Use the link below to choose a new password. If you did not ask for this, you can ignore this message.',
+      '',
+      `Reset password: ${this.url}`,
+    ].join('\n');
+  }
 }

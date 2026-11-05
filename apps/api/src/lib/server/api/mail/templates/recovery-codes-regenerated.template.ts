@@ -23,4 +23,12 @@ export class RecoveryCodesRegeneratedEmail implements EmailTemplate {
 		</html>
 		`;
   }
+
+  text() {
+    return [
+      'Your recovery codes were regenerated',
+      '',
+      'New two-factor recovery codes were generated for your account. Your old codes no longer work. If this was not you, secure your account straight away.',
+    ].join('\n');
+  }
 }

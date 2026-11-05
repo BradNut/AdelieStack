@@ -26,4 +26,14 @@ export class EmailChangeNoticeEmail implements EmailTemplate {
 		</html>
 		`;
   }
+
+  text() {
+    return [
+      'Your email address was changed',
+      '',
+      `The email for your account is now ${this.newEmail}. This address no longer receives account email.`,
+      '',
+      'If this was not you, contact support right away and secure your account.',
+    ].join('\n');
+  }
 }
