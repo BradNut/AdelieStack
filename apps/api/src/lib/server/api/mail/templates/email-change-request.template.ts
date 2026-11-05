@@ -27,7 +27,7 @@ export class EmailChangeRequestEmail implements EmailTemplate {
 		`;
   }
 
-  text() {
+  text(): string {
     return [
       'Confirm your new email address',
       '',

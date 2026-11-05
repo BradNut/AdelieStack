@@ -8,6 +8,11 @@ import type { Mailer, SendProps } from './interfaces/mailer.interface';
 const MAX_SEND_ATTEMPTS = 3;
 const BASE_RETRY_DELAY_MS = 250;
 const UNKNOWN_SEND_ERROR = 'unknown useSend error';
+/**
+ * Always passed to the client. Left to itself the library reads `USESEND_BASE_URL` from `process.env` at import and
+ * keeps an empty string as its address, so every send would go to the relative `/api/v1`.
+ */
+const USESEND_DEFAULT_BASE_URL = 'https://app.usesend.com';
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -38,7 +43,7 @@ export class UseSendMailerService implements Mailer {
     private readonly logger = inject(LoggerService),
   ) {}
 
-  async send({ to, template }: SendProps) {
+  async send({ to, template }: SendProps): Promise<void> {
     const recipients = Array.isArray(to) ? to : [to];
     if (recipients.length === 0) {
       this.logger.log.warn('Skipping useSend email: no recipients');
@@ -47,9 +52,16 @@ export class UseSendMailerService implements Mailer {
 
     const from = this.configService.envs.MAIL_FROM as string;
     const content = { from, subject: template.subject(), html: template.html(), text: template.text() };
+    // One recipient's failure must not cost the others their email; each failure is already logged per attempt.
+    const failures: unknown[] = [];
     for (const recipient of recipients) {
-      await this.sendWithRetry({ ...content, to: recipient });
+      try {
+        await this.sendWithRetry({ ...content, to: recipient });
+      } catch (err) {
+        failures.push(err);
+      }
     }
+    if (failures.length > 0) throw failures[0];
   }
 
   /** Every failure is retried: the library hides the HTTP status. The key stops a retry from sending a second copy. */
@@ -72,7 +84,7 @@ export class UseSendMailerService implements Mailer {
 
   private getClient() {
     const { USESEND_API_KEY, USESEND_BASE_URL } = this.configService.envs;
-    this.client ??= new UseSend(USESEND_API_KEY, USESEND_BASE_URL);
+    this.client ??= new UseSend(USESEND_API_KEY, USESEND_BASE_URL ?? USESEND_DEFAULT_BASE_URL);
     return this.client;
   }
 }

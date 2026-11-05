@@ -76,6 +76,38 @@ describe('UseSendMailerService sending', () => {
     expect(fake.send.mock.calls[0][0].to).toBe('a@example.com');
   });
 
+  it('still tries the later recipients after one exhausts its attempts, then re-throws', async () => {
+    const failure = new Error('fetch failed');
+    fake.send.mockImplementation(async ({ to }) => {
+      if (to === 'a@example.com') throw failure;
+      return SENT;
+    });
+    const { service } = buildService();
+
+    const { rejected } = await settle(service.send({ to: ['a@example.com', 'b@example.com', 'c@example.com'], template }));
+
+    expect(fake.send.mock.calls.map(([payload]) => payload.to)).toEqual([
+      'a@example.com',
+      'a@example.com',
+      'a@example.com',
+      'b@example.com',
+      'c@example.com',
+    ]);
+    expect(rejected).toBe(failure);
+  });
+
+  it('re-throws the first failure when several recipients fail', async () => {
+    fake.send.mockImplementation(async ({ to }) => {
+      throw new Error(`failed for ${to}`);
+    });
+    const { service } = buildService();
+
+    const { rejected } = await settle(service.send({ to: ['a@example.com', 'b@example.com'], template }));
+
+    expect(fake.send).toHaveBeenCalledTimes(6);
+    expect((rejected as Error).message).toBe('failed for a@example.com');
+  });
+
   it('makes no call and warns for an empty recipient list', async () => {
     const { service, logger } = buildService();
 
@@ -99,12 +131,12 @@ describe('UseSendMailerService client', () => {
     expect(fake.construct).toHaveBeenCalledWith(API_KEY, 'https://mail.example.com');
   });
 
-  it('leaves the base url to the library when unset', async () => {
+  it('hands the client the hosted useSend address when the base url is unset', async () => {
     const { service } = buildService();
 
     await service.send({ to: 'a@example.com', template });
 
-    expect(fake.construct).toHaveBeenCalledWith(API_KEY, undefined);
+    expect(fake.construct).toHaveBeenCalledWith(API_KEY, 'https://app.usesend.com');
   });
 });
 

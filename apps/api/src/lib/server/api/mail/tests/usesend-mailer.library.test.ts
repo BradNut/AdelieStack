@@ -6,6 +6,11 @@ import { UseSendMailerService } from '#lib/server/api/mail/usesend-mailer.servic
 import { createConfigServiceMock } from '../../../../../test/mocks/config.mock';
 import { createLoggerServiceMock } from '../../../../../test/mocks/logger.mock';
 
+// The library reads this once, at import, and keeps an empty string as its address, so it is set ahead of the imports.
+vi.hoisted(() => {
+  process.env.USESEND_BASE_URL = '';
+});
+
 /**
  * Runs the real `usesend-js` over a stubbed `fetch`: what the service assumes about the library (the nested returned
  * error, the appended `/api/v1`, the idempotency header) fails here if an upgrade changes it.
@@ -64,9 +69,10 @@ describe('UseSendMailerService over the real usesend-js', () => {
     });
   });
 
-  it('uses the library default address when the base url is unset', async () => {
+  it('posts to the hosted useSend address when the variable is empty in process.env', async () => {
     fetchMock.mockResolvedValueOnce(json(200, { emailId: 'email-1' }));
-    const { service } = buildService();
+    // What the env DTO turns an empty value into.
+    const { service } = buildService({ USESEND_BASE_URL: undefined });
 
     await service.send({ to: 'a@example.com', template });
 

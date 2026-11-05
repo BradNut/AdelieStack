@@ -37,7 +37,7 @@ export class TwoFactorOtpEmail implements EmailTemplate {
 		`;
   }
 
-  text() {
+  text(): string {
     return [
       'Your sign-in code',
       '',

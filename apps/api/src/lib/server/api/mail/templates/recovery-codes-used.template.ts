@@ -24,7 +24,7 @@ export class RecoveryCodesUsedEmail implements EmailTemplate {
 		`;
   }
 
-  text() {
+  text(): string {
     return [
       'A recovery code was used',
       '',

@@ -27,7 +27,7 @@ export class EmailVerificationEmail implements EmailTemplate {
 		`;
   }
 
-  text() {
+  text(): string {
     return [
       'Verify your email',
       '',

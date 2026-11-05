@@ -27,7 +27,7 @@ export class EmailChangeNoticeEmail implements EmailTemplate {
 		`;
   }
 
-  text() {
+  text(): string {
     return [
       'Your email address was changed',
       '',

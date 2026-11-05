@@ -27,7 +27,7 @@ export class PasswordResetLinkEmail implements EmailTemplate {
 		`;
   }
 
-  text() {
+  text(): string {
     return [
       'Reset your password',
       '',

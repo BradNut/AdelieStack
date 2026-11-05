@@ -22,7 +22,7 @@ const baseEnvsDto = z.object({
   // useSend, read only with MAILER_TRANSPORT=unsend, which requires the key and the sender.
   USESEND_API_KEY: z.preprocess(emptyAsUndefined, z.string().optional()),
   MAIL_FROM: z.preprocess(emptyAsUndefined, z.string().optional()),
-  // The server's address only: the library appends /api/v1 itself. Unset uses the library default.
+  // The server's address only: the library appends /api/v1 itself. Unset uses https://app.usesend.com.
   USESEND_BASE_URL: z.preprocess(emptyAsUndefined, z.string().optional()),
   REDIS_URL: z.string(),
   // Background jobs: register BullMQ queues/workers on startup. Disable in tests/CI
@@ -126,7 +126,8 @@ export const envsDto = baseEnvsDto.superRefine((envs, ctx) => {
   }
   if (envs.MAILER_TRANSPORT === MailerTransport.UNSEND) {
     for (const name of USESEND_REQUIRED_WHEN_SELECTED) {
-      if (envs[name] === undefined) ctx.addIssue({ code: 'custom', path: [name], message: `${name} is required when MAILER_TRANSPORT is unsend` });
+      if (envs[name] === undefined)
+        ctx.addIssue({ code: 'custom', path: [name], message: `${name} is required when MAILER_TRANSPORT is ${MailerTransport.UNSEND}` });
     }
   }
   if (!envs.CAPTCHA_ENABLED) return;

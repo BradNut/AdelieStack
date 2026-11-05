@@ -24,7 +24,7 @@ export class PasswordChangedEmail implements EmailTemplate {
 		`;
   }
 
-  text() {
+  text(): string {
     return [
       'Your password was changed',
       '',

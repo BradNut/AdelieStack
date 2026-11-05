@@ -81,7 +81,9 @@ local stack. `unsend` sends through useSend (formerly Unsend) with `usesend-js`,
 - **One email per recipient**, with a plain-text part alongside the HTML. Both transports send it.
 - **Failures**: `emails.send()` resolves with an `error` when the API refuses a send and throws when
   the request itself fails; both count as failures. Every failure is retried, up to 3 attempts, after
-  250 ms and then 500 ms, and the last failure is re-thrown to the caller.
+  250 ms and then 500 ms. A recipient that exhausts its attempts does not stop the others; once all
+  have been tried, the first failure is re-thrown to the caller. What the caller does with it is in the
+  [IAM runbook](../services/iam/runbook.md).
 - **No duplicates on retry**: every attempt for one message and recipient carries the same
   `Idempotency-Key`.
 - **Logs**: one entry per attempt, `useSend email sent` (info) or `useSend email failed` (warn), with

@@ -24,7 +24,7 @@ export class RecoveryCodesRegeneratedEmail implements EmailTemplate {
 		`;
   }
 
-  text() {
+  text(): string {
     return [
       'Your recovery codes were regenerated',
       '',
