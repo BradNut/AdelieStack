@@ -19,6 +19,11 @@ const baseEnvsDto = z.object({
   HOST: z.string().optional(),
   // Email transport: 'mailpit' for local dev, 'unsend' for real sending.
   MAILER_TRANSPORT: z.enum([MailerTransport.MAILPIT, MailerTransport.UNSEND]).default(MailerTransport.MAILPIT),
+  // useSend, read only with MAILER_TRANSPORT=unsend, which requires the key and the sender.
+  USESEND_API_KEY: z.preprocess(emptyAsUndefined, z.string().optional()),
+  MAIL_FROM: z.preprocess(emptyAsUndefined, z.string().optional()),
+  // The server's address only: the library appends /api/v1 itself. Unset uses the library default.
+  USESEND_BASE_URL: z.preprocess(emptyAsUndefined, z.string().optional()),
   REDIS_URL: z.string(),
   // Background jobs: register BullMQ queues/workers on startup. Disable in tests/CI
   // or one-off processes that must not open a Redis worker connection.
@@ -85,6 +90,7 @@ const baseEnvsDto = z.object({
 });
 
 const CAPTCHA_REQUIRED_WHEN_ENABLED = ['CAPTCHA_PROVIDER', 'CAPTCHA_SECRET_KEY', 'CAPTCHA_SITE_KEY'] as const;
+const USESEND_REQUIRED_WHEN_SELECTED = ['USESEND_API_KEY', 'MAIL_FROM'] as const;
 
 /** Each social provider's credential pair of env names; one half set without the other is a misconfiguration. */
 export const SOCIAL_PROVIDER_ENV_NAMES = {
@@ -116,6 +122,11 @@ export const envsDto = baseEnvsDto.superRefine((envs, ctx) => {
     if ((envs[idName] === undefined) !== (envs[secretName] === undefined)) {
       const missing = envs[idName] === undefined ? idName : secretName;
       ctx.addIssue({ code: 'custom', path: [missing], message: `${idName} and ${secretName} must be set together` });
+    }
+  }
+  if (envs.MAILER_TRANSPORT === MailerTransport.UNSEND) {
+    for (const name of USESEND_REQUIRED_WHEN_SELECTED) {
+      if (envs[name] === undefined) ctx.addIssue({ code: 'custom', path: [name], message: `${name} is required when MAILER_TRANSPORT is unsend` });
     }
   }
   if (!envs.CAPTCHA_ENABLED) return;
