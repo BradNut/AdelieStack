@@ -8,16 +8,8 @@ import { PasswordChangedEmail } from '#lib/server/api/mail/templates/password-ch
 import { PasswordResetLinkEmail } from '#lib/server/api/mail/templates/password-reset-link.template';
 import { RecoveryCodesRegeneratedEmail } from '#lib/server/api/mail/templates/recovery-codes-regenerated.template';
 import { RecoveryCodesUsedEmail } from '#lib/server/api/mail/templates/recovery-codes-used.template';
+import { AuthEndpoint } from './auth.endpoints';
 import { CHANGE_EMAIL_REQUEST_TYPE, readVerificationToken } from './auth.verification-token';
-
-/** Auth endpoints whose successful completion triggers a security-event email. */
-export const SecurityEventPath = {
-  CHANGE_PASSWORD: '/change-password',
-  VERIFY_BACKUP_CODE: '/two-factor/verify-backup-code',
-  GENERATE_BACKUP_CODES: '/two-factor/generate-backup-codes',
-  /** Consumes an emailed verification token; an email-change link also ends up here. */
-  VERIFY_EMAIL: '/verify-email',
-} as const;
 
 /** What an `hooks.after` handler receives. */
 type AfterHookContext = Parameters<Parameters<typeof createAuthMiddleware>[0]>[0];
@@ -92,18 +84,19 @@ export function createAuthMail(mailer: Mailer, log?: AuthMailLogger) {
      * skipped, so one successful call sends exactly one email.
      */
     afterHook: createAuthMiddleware(async (ctx) => {
-      if (ctx.path === SecurityEventPath.VERIFY_EMAIL) return notifyOldAddress(ctx);
+      // Consumes an emailed verification token; an email-change link also ends up here.
+      if (ctx.path === AuthEndpoint.VERIFY_EMAIL) return notifyOldAddress(ctx);
       if (isAPIError(ctx.context.returned)) return;
       const user = ctx.context.newSession?.user ?? ctx.context.session?.user;
       if (!user) return;
       switch (ctx.path) {
-        case SecurityEventPath.CHANGE_PASSWORD:
+        case AuthEndpoint.CHANGE_PASSWORD:
           await sendSecurityEvent(user.email, new PasswordChangedEmail());
           break;
-        case SecurityEventPath.VERIFY_BACKUP_CODE:
+        case AuthEndpoint.VERIFY_BACKUP_CODE:
           await sendSecurityEvent(user.email, new RecoveryCodesUsedEmail());
           break;
-        case SecurityEventPath.GENERATE_BACKUP_CODES:
+        case AuthEndpoint.GENERATE_BACKUP_CODES:
           await sendSecurityEvent(user.email, new RecoveryCodesRegeneratedEmail());
           break;
       }

@@ -1,34 +1,12 @@
-import type { EmailTemplate } from '#lib/server/api/mail/interfaces/email-template.interface';
+import { StandardEmail } from '#lib/server/api/mail/email-layout';
 
-export class RecoveryCodesUsedEmail implements EmailTemplate {
-  subject(): string {
-    return 'A recovery code was used';
-  }
-
-  html() {
-    return /*html*/ `
-		<html lang='en'>
-			<head>
-				<meta http-equiv='X-UA-Compatible' content='IE=edge' />
-				<meta name='viewport' content='width=device-width, initial-scale=1.0' />
-				<title>Message</title>
-			</head>
-			<body>
-				<p class='title'>A recovery code was used</p>
-				<p>A two-factor recovery code was just used to sign in to your account. Each code works once. If this was not you, secure your account straight away.</p>
-			</body>
-			<style>
-				.title { font-size: 24px; font-weight: 700; }
-			</style>
-		</html>
-		`;
-  }
-
-  text(): string {
-    return [
-      'A recovery code was used',
-      '',
-      'A two-factor recovery code was just used to sign in to your account. Each code works once. If this was not you, secure your account straight away.',
-    ].join('\n');
+export class RecoveryCodesUsedEmail extends StandardEmail {
+  constructor() {
+    super({
+      title: 'A recovery code was used',
+      paragraphs: [
+        'A two-factor recovery code was just used to sign in to your account. Each code works once. If this was not you, secure your account straight away.',
+      ],
+    });
   }
 }

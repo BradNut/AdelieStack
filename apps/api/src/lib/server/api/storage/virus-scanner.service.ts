@@ -18,8 +18,6 @@ export type ScanResponse = {
   error?: string;
 };
 
-// ClamAV's clamd daemon listens on this TCP port by default.
-const DEFAULT_CLAMAV_PORT = 3310;
 const SCAN_TIMEOUT_MS = 60_000;
 
 /**
@@ -59,7 +57,7 @@ export class VirusScannerService {
       const clamScan = await new NodeClam().init({
         clamdscan: {
           host: this.configService.envs.CLAMAV_HOST,
-          port: this.configService.envs.CLAMAV_PORT || DEFAULT_CLAMAV_PORT,
+          port: this.configService.envs.CLAMAV_PORT,
           timeout: SCAN_TIMEOUT_MS,
           multiscan: false,
         },
@@ -80,24 +78,19 @@ export class VirusScannerService {
     }
   }
 
-  /** Scans an in-memory buffer by streaming it through clamd. */
-  async scanBuffer(buffer: Buffer): Promise<ScanResponse> {
-    return this.scanStream(Readable.from(buffer));
-  }
-
   /**
-   * Scans a readable stream for viruses. When scanning is disabled this resolves to
+   * Scans a buffer by streaming it through clamd. When scanning is disabled this resolves to
    * CLEAN without contacting the daemon. Transport/daemon failures resolve to ERROR
    * rather than throwing so callers can decide how to fail closed.
    */
-  async scanStream(stream: Readable): Promise<ScanResponse> {
+  async scanBuffer(buffer: Buffer): Promise<ScanResponse> {
     if (!this.isEnabled) {
       return { result: ScanResult.CLEAN };
     }
 
     try {
       const clamScan = await this.getClient();
-      const { isInfected, viruses } = await clamScan.scanStream(stream);
+      const { isInfected, viruses } = await clamScan.scanStream(Readable.from(buffer));
 
       if (isInfected) {
         this.loggerService.log.warn({ viruses }, 'Virus detected during scan');
@@ -108,23 +101,6 @@ export class VirusScannerService {
     } catch (error) {
       this.loggerService.log.error({ error }, 'Error scanning stream');
       return { result: ScanResult.ERROR, error: error instanceof Error ? error.message : 'Unknown error' };
-    }
-  }
-
-  /** Verifies the daemon is reachable and responsive. */
-  async healthCheck(): Promise<boolean> {
-    if (!this.isEnabled) {
-      return true;
-    }
-
-    try {
-      const clamScan = await this.getClient();
-      const version = await clamScan.getVersion();
-      this.loggerService.log.debug({ version }, 'ClamAV health check passed');
-      return true;
-    } catch (error) {
-      this.loggerService.log.error({ error }, 'ClamAV health check failed');
-      return false;
     }
   }
 }

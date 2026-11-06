@@ -15,7 +15,7 @@ function mockHibp(status: number) {
 function build(enabled: boolean) {
   const log = { error: vi.fn() };
   const hibpStatus = createHibpHealth({ enabled, log });
-  const { request } = createTestAuth({ hibpEnabled: enabled, hibpStatus });
+  const { request } = createTestAuth({ hibpStatus });
   const signUp = (email: string) => request('/sign-up/email', { body: { name: 'Test', email, password: PASSWORD } });
   return { log, hibpStatus, signUp };
 }

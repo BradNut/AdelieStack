@@ -30,7 +30,7 @@ handler is mounted at `/api/auth/*`, ahead of the session middleware and every o
 - Permissions checked on every protected endpoint; principle of least privilege
 
 ```typescript
-// apps/api/src/lib/server/api/common/middleware/permission.middleware.ts
+// apps/api/src/lib/server/api/auth/permission.middleware.ts
 // Routes declare permissions, not role names; role-to-permission mapping lives in auth.permissions.ts
 
 // Usage: 401 when signed out, 403 when none of the user's roles grants the permission

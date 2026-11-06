@@ -1,10 +1,7 @@
 import 'varlock/auto-load';
-import { isProdEnv } from '@adelie/shared';
-import { drizzle } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
-import Pool from 'pg-pool';
 import config from '../../../../../../drizzle.config';
-import * as drizzleSchema from './drizzle-schema';
+import { createScriptDb } from './drizzle.client';
 
 if (!config.out) {
   console.error('No migrations folder specified in drizzle.config.ts');
@@ -14,22 +11,7 @@ if (!process.env.DB_MIGRATING) {
   throw new Error('You must set DB_MIGRATING to "true" when running migrations.');
 }
 
-const db = drizzle(
-  new Pool({
-    user: process.env.DATABASE_USER,
-    password: process.env.DATABASE_PASSWORD,
-    host: process.env.DATABASE_HOST,
-    port: Number(process.env.DATABASE_PORT).valueOf(),
-    database: process.env.DATABASE_DB,
-    ssl: false,
-    max: 1,
-  }),
-  {
-    casing: 'snake_case',
-    schema: drizzleSchema,
-    logger: !isProdEnv(process.env.ENV),
-  },
-);
+const db = createScriptDb();
 
 await migrate(db, { migrationsFolder: config.out });
 console.log('Migrations complete');

@@ -15,13 +15,17 @@ export class ConfigController extends Controller {
   }
 
   routes() {
-    return this.controller.get('/', (c) => {
-      const { envs } = this.configService;
-      const body: PublicConfigDto = {
-        signUpEnabled: envs.SIGN_UP_ENABLED === true,
-        socialProviders: this.authService.enabledSocialProviders,
-      };
-      return c.json(body, StatusCodes.OK);
-    });
+    return (
+      this.controller
+        .get('/', (c) => {
+          const body: PublicConfigDto = {
+            signUpEnabled: this.configService.envs.SIGN_UP_ENABLED === true,
+            socialProviders: this.authService.enabledSocialProviders,
+          };
+          return c.json(body, StatusCodes.OK);
+        })
+        // Lets the web learn whether to render a captcha widget, and which, without its own env.
+        .get('/captcha', (c) => c.json(this.authService.captchaPublicConfig))
+    );
   }
 }

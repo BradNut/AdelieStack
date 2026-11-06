@@ -1,3 +1,4 @@
+import { APP_NAME } from '@adelie/shared';
 import { Scalar } from '@scalar/hono-api-reference';
 import { createOpenApiDocument } from 'hono-zod-openapi';
 import packageJSON from '../../../../package.json';
@@ -6,8 +7,8 @@ import type { AppOpenAPI } from './common/utils/hono';
 export default function configureOpenAPI(app: AppOpenAPI) {
   createOpenApiDocument(app, {
     info: {
-      title: 'Bored Game API',
-      description: 'Bored Game API',
+      title: `${APP_NAME} API`,
+      description: `${APP_NAME} API`,
       version: packageJSON.version,
     },
     components: {

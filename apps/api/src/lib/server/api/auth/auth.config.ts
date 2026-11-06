@@ -24,17 +24,17 @@ import { TwoFactorOtpEmail } from '#lib/server/api/mail/templates/two-factor-otp
 import { type CaptchaConfig, captchaPlugin, createCaptchaHealth } from './auth.captcha';
 import { createHibpHealth, hibpMonitor } from './auth.hibp-status';
 import { type AuthMailLogger, createAuthMail } from './auth.mail';
-import { createPasswordAccountGuard, UNLINK_ACCOUNT_PATH } from './auth.password-account-guard';
+import { passwordAccountGuard } from './auth.password-account-guard';
 import { createPasswordPolicyHook, HIBP_PLUGIN_PATHS } from './auth.password-policy';
 import { ac, roles } from './auth.permissions';
 import type { ProviderHealth } from './auth.provider-health';
 import { type AuthRateLimitStorage, authRateLimitOptions } from './auth.rate-limit';
 import { replacedSession } from './auth.replaced-session';
-import { createRoleGuard } from './auth.role-guard';
+import { roleGuard } from './auth.role-guard';
 import { socialProvidersOption } from './auth.social';
 
-/** Stand-ins for values the schema generator and the seed never use for real (no connection, no env). */
-export const AUTH_PLACEHOLDER = {
+/** Stand-ins for values {@link createOfflineAuth} callers never use for real (no connection, no env). */
+const AUTH_PLACEHOLDER = {
   secret: 'better-auth-cli-placeholder-secret-0000',
   baseURL: 'http://localhost',
   passkey: { rpID: 'localhost', rpName: APP_NAME, origin: 'http://localhost' },
@@ -64,11 +64,12 @@ export interface CreateAuthOptions {
    * Server-side user creation (the seed, the admin plugin) is not sign-up and is never blocked.
    */
   signUpEnabled: boolean;
-  /** Read per request so the env stays lazy. Defaults to off: one role per user. */
-  allowMultipleRoles?: () => boolean;
-  /** Screens new passwords against Have I Been Pwned. Defaults to on; an outage rejects the request while on. */
-  hibpEnabled?: boolean;
-  /** Records each HIBP check's outcome for the health surface and carries the on/off switch; overrides `hibpEnabled`. */
+  /** Defaults to off: one role per user. */
+  allowMultipleRoles?: boolean;
+  /**
+   * Screening new passwords against Have I Been Pwned: carries the on/off switch and records each check's outcome for
+   * the health surface. Defaults to on; an outage rejects the request while on.
+   */
   hibpStatus?: ProviderHealth;
   /** Requires a Captcha Token on anonymous auth endpoints. Omit to leave captcha off. */
   captcha?: CaptchaConfig;
@@ -132,9 +133,8 @@ export function createAuth({
   mailer,
   mailLog,
   signUpEnabled,
-  allowMultipleRoles = () => false,
-  hibpEnabled = true,
-  hibpStatus = createHibpHealth({ enabled: hibpEnabled }),
+  allowMultipleRoles = false,
+  hibpStatus = createHibpHealth({ enabled: true }),
   captcha: captchaConfig,
   captchaStatus = createCaptchaHealth({ enabled: Boolean(captchaConfig) }),
   rateLimitStorage,
@@ -233,16 +233,8 @@ export function createAuth({
       // Only registered when captcha is on, so off means no behaviour change. Its `onRequest` runs before every hook.
       ...(captchaConfig ? [captchaPlugin(captchaConfig, captchaStatus)] : []),
       ...(openApiReference ? [openAPI()] : []),
-      // Per-plugin before-hook, since the top-level `hooks.before` slot is taken by the password policy.
-      {
-        id: 'role-guard',
-        hooks: { before: [{ matcher: () => true, handler: createRoleGuard(allowMultipleRoles) }] },
-      },
-      // Per-plugin before-hook for the same reason: keeps a two-factor user's Password Account (ADR 0008).
-      {
-        id: 'password-account-guard',
-        hooks: { before: [{ matcher: (ctx) => ctx.path === UNLINK_ACCOUNT_PATH, handler: createPasswordAccountGuard() }] },
-      },
+      roleGuard(allowMultipleRoles),
+      passwordAccountGuard(),
       // Per-plugin after-hook, since the top-level `hooks.after` slot is taken by the mail hook. Must come after twoFactor.
       replacedSession(),
     ],
@@ -254,6 +246,24 @@ export function createAuth({
         generateId: generateAuthId,
       },
     },
+  });
+}
+
+/**
+ * A Better Auth instance for tooling that reads the configuration or writes rows directly (the schema generator, the
+ * seed, schema tests): it sends no mail and serves no browser. Server-side user creation is not sign-up, so the closed
+ * sign-up gate never blocks the seed.
+ */
+export function createOfflineAuth(options: Pick<CreateAuthOptions, 'database'> & Partial<CreateAuthOptions>) {
+  return createAuth({
+    secret: AUTH_PLACEHOLDER.secret,
+    baseURL: AUTH_PLACEHOLDER.baseURL,
+    trustedOrigins: [],
+    twoFactorIssuer: APP_NAME,
+    passkey: AUTH_PLACEHOLDER.passkey,
+    mailer: { send: async () => {} },
+    signUpEnabled: false,
+    ...options,
   });
 }
 

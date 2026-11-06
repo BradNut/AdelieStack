@@ -1,18 +1,11 @@
 import type { HasDefault, HasRuntimeDefault, IsPrimaryKey, NotNull } from 'drizzle-orm';
-import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { type ConvertCustomConfig, customType, type PgCustomColumnBuilder, timestamp } from 'drizzle-orm/pg-core';
-import type * as drizzleSchema from '#lib/server/api/databases/postgres/drizzle-schema';
 import { uuidv7 } from './crypto';
 import { NotFound } from './exceptions';
 
 /* -------------------------------------------------------------------------- */
 /*                                 Repository                                 */
 /* -------------------------------------------------------------------------- */
-
-// get the first element of an array or return null
-export const takeFirst = <T>(values: T[]): T | null => {
-  return values.shift() || null;
-};
 
 // get the first element of an array or throw a 404 error
 export const takeFirstOrThrow = <T>(values: T[]): T => {
@@ -67,5 +60,3 @@ export const timestamps = {
     .defaultNow()
     .$onUpdateFn(() => new Date()),
 };
-
-export type Transaction = Parameters<Parameters<NodePgDatabase<typeof drizzleSchema>['transaction']>[0]>[0];
