@@ -1,5 +1,4 @@
 import { inject, injectable } from '@needle-di/core';
-import { ConfigService } from '#lib/server/api/common/configs/config.service';
 import { LoggerService } from '#lib/server/api/common/services/logger.service';
 import { S3StorageClientProvider } from './s3-storage.client';
 import { ScanStatus, scanTags } from './storage.types';
@@ -22,7 +21,6 @@ export type StorageScanJob = {
 @injectable()
 export class FileScannerWorker {
   constructor(
-    private readonly configService = inject(ConfigService),
     private readonly loggerService = inject(LoggerService),
     private readonly virusScanner = inject(VirusScannerService),
     private readonly storage = inject(S3StorageClientProvider),
@@ -30,7 +28,7 @@ export class FileScannerWorker {
 
   /** Scans every object referenced by a webhook notification. */
   async handleScanJobs(jobs: StorageScanJob[]): Promise<void> {
-    if (!this.configService.envs.ANTIVIRUS_ENABLED) {
+    if (!this.virusScanner.isEnabled) {
       this.loggerService.log.debug('Antivirus scanning disabled; ignoring storage webhook');
       return;
     }

@@ -15,17 +15,17 @@ import {
 import { passkey } from '@better-auth/passkey';
 import { type BetterAuthOptions, betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
-import { admin, haveIBeenPwned, lastLoginMethod, openAPI, twoFactor } from 'better-auth/plugins';
+import { admin, lastLoginMethod, openAPI, twoFactor } from 'better-auth/plugins';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { uuidv7 } from '#lib/server/api/common/utils/crypto';
 import type * as drizzleSchema from '#lib/server/api/databases/postgres/drizzle-schema';
 import type { Mailer } from '#lib/server/api/mail/interfaces/mailer.interface';
 import { TwoFactorOtpEmail } from '#lib/server/api/mail/templates/two-factor-otp.template';
 import { type CaptchaConfig, captchaPlugin, createCaptchaHealth } from './auth.captcha';
-import { createHibpHealth, hibpMonitor } from './auth.hibp-status';
+import { createHibpHealth } from './auth.hibp-status';
 import { type AuthMailLogger, createAuthMail } from './auth.mail';
 import { passwordAccountGuard } from './auth.password-account-guard';
-import { createPasswordPolicyHook, HIBP_PLUGIN_PATHS } from './auth.password-policy';
+import { createPasswordPolicyHook, hibpScreening } from './auth.password-policy';
 import { ac, roles } from './auth.permissions';
 import type { ProviderHealth } from './auth.provider-health';
 import { type AuthRateLimitStorage, authRateLimitOptions } from './auth.rate-limit';
@@ -221,12 +221,7 @@ export function createAuth({
         rpName: passkeyConfig.rpName,
         origin: passkeyConfig.origin,
       }),
-      // Rejects breached passwords (`PASSWORD_COMPROMISED`) while hashing, and fails closed when HIBP is
-      // unreachable. With `enabled: false` it makes no HIBP request on any path. Admin create-user and
-      // reset-password are screened earlier, in the before-hook (see auth.password-policy.ts).
-      haveIBeenPwned({ enabled: hibpStatus.enabled, paths: [...HIBP_PLUGIN_PATHS] }),
-      // Must come after haveIBeenPwned: it wraps that plugin's hashing to record each check's outcome.
-      hibpMonitor(hibpStatus),
+      ...hibpScreening(hibpStatus),
       // Remembers how the user last signed in, in a browser-readable cookie only (no `storeInDatabase`,
       // so no schema change) for the login page's hint. Not a secret and not used for access decisions.
       lastLoginMethod({ cookieName: LAST_LOGIN_METHOD_COOKIE }),

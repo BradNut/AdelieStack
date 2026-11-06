@@ -1,8 +1,9 @@
 import { PASSWORD_COMPROMISED, PASSWORD_POLICY_VIOLATION, validatePasswordPolicy } from '@adelie/shared';
+import type { BetterAuthPlugin } from 'better-auth';
 import { APIError, createAuthMiddleware } from 'better-auth/api';
-import { isPasswordCompromised } from 'better-auth/plugins';
+import { haveIBeenPwned, isPasswordCompromised } from 'better-auth/plugins';
 import { AuthEndpoint } from './auth.endpoints';
-import { passwordCheckUnavailable } from './auth.hibp-status';
+import { hibpMonitor, passwordCheckUnavailable } from './auth.hibp-status';
 import type { ProviderHealth } from './auth.provider-health';
 
 /** Where a path's new password is screened against Have I Been Pwned. */
@@ -33,7 +34,18 @@ const PASSWORD_PATHS: Record<string, { field: string; hibpScreen: (typeof HibpSc
 };
 
 /** Paths the `haveIBeenPwned` plugin screens itself. */
-export const HIBP_PLUGIN_PATHS = Object.keys(PASSWORD_PATHS).filter((path) => PASSWORD_PATHS[path].hibpScreen === HibpScreen.PLUGIN);
+const HIBP_PLUGIN_PATHS = Object.keys(PASSWORD_PATHS).filter((path) => PASSWORD_PATHS[path].hibpScreen === HibpScreen.PLUGIN);
+
+/**
+ * Screening while hashing. `haveIBeenPwned` rejects breached passwords (`PASSWORD_COMPROMISED`) and fails closed when
+ * HIBP is unreachable; with `enabled: false` it makes no HIBP request on any path. `hibpMonitor` must come after it,
+ * because it wraps that plugin's hashing to record each check's outcome. The {@link HibpScreen.BEFORE_HOOK} paths are
+ * screened earlier, by {@link createPasswordPolicyHook}.
+ */
+export const hibpScreening = (status: ProviderHealth): BetterAuthPlugin[] => [
+  haveIBeenPwned({ enabled: status.enabled, paths: HIBP_PLUGIN_PATHS }),
+  hibpMonitor(status),
+];
 
 /** Runs the plugin's own check, recording the outcome; an outage becomes a 503 with the stable unavailable code. */
 async function checkPasswordCompromised(password: string, hibpStatus: ProviderHealth): Promise<boolean> {

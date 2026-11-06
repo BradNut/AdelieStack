@@ -53,14 +53,10 @@ export class StorageService {
   }
 
   /**
-   * Runs the configured virus scan over the upload bytes. No-op when scanning is
-   * disabled; rejects infected files and fails closed when the scanner errors.
+   * Runs the configured virus scan over the upload bytes; rejects infected files
+   * and fails closed when the scanner errors.
    */
   private async scanBeforePersist(buffer: Buffer): Promise<void> {
-    if (!this.virusScanner.isEnabled) {
-      return;
-    }
-
     const { result, viruses } = await this.virusScanner.scanBuffer(buffer);
 
     if (result === ScanResult.INFECTED) {
