@@ -23,7 +23,7 @@ import type { Mailer } from '#lib/server/api/mail/interfaces/mailer.interface';
 import { TwoFactorOtpEmail } from '#lib/server/api/mail/templates/two-factor-otp.template';
 import { type CaptchaConfig, captchaPlugin, createCaptchaHealth } from './auth.captcha';
 import { createHibpHealth, hibpMonitor } from './auth.hibp-status';
-import { createAuthMail } from './auth.mail';
+import { type AuthMailLogger, createAuthMail } from './auth.mail';
 import { createPasswordAccountGuard, UNLINK_ACCOUNT_PATH } from './auth.password-account-guard';
 import { createPasswordPolicyHook, HIBP_PLUGIN_PATHS } from './auth.password-policy';
 import { ac, roles } from './auth.permissions';
@@ -56,6 +56,8 @@ export interface CreateAuthOptions {
   twoFactorIssuer: string;
   passkey: PasskeyConfig;
   mailer: Mailer;
+  /** Where a Security Event email that could not be sent is recorded. */
+  mailLog?: AuthMailLogger;
   /**
    * Whether anyone may register an account. This is the single gate for sign-up: every sign-up
    * method must honor it (auth.sign-up.test.ts fails when an ungated sign-up endpoint appears).
@@ -128,6 +130,7 @@ export function createAuth({
   twoFactorIssuer,
   passkey: passkeyConfig,
   mailer,
+  mailLog,
   signUpEnabled,
   allowMultipleRoles = () => false,
   hibpEnabled = true,
@@ -139,7 +142,7 @@ export function createAuth({
   trustProxy = false,
   socialProviders = {},
 }: CreateAuthOptions) {
-  const authMail = createAuthMail(mailer);
+  const authMail = createAuthMail(mailer, mailLog);
   return betterAuth({
     appName: APP_NAME,
     secret,

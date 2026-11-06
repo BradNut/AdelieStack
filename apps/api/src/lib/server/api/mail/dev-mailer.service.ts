@@ -14,7 +14,7 @@ export class DevMailerService implements Mailer {
         From: { Email: 'noreply@adelie.local', Name: 'AdelieStack' },
         HTML: template.html(),
         Subject: template.subject(),
-        Text: template.html(),
+        Text: template.text(),
         To: Array.isArray(to) ? to.map((to) => ({ Email: to, Name: to })) : [{ Email: to, Name: to }],
       }),
     };

@@ -71,27 +71,23 @@ convention, every var the API reads must be declared there) before writing the i
 
 ---
 
-## Email — dependency present, not wired up
+## Email — useSend in production, Mailpit locally
 
-`usesend-js` is listed as a dependency in `apps/api/package.json`, but the real production mailer
-(`apps/api/src/lib/server/api/mail/prod-mailer.service.ts`) is a stub:
+`MAILER_TRANSPORT` picks the transport. `mailpit` (the default) posts to the Mailpit inbox in the
+local stack. `unsend` sends through useSend (formerly Unsend) with `usesend-js`, in
+`apps/api/src/lib/server/api/mail/usesend-mailer.service.ts`. Its variables are in
+[Environment Configuration](./environment-config.md#email).
 
-```ts
-async send({ to, template }: SendProps) {
-  console.log(`Sending email to ${to}`);
-  console.log(`Email: ${template}`);
-  return await Promise.resolve();
-}
-```
-
-No outbound email is actually sent in this codebase today — it only logs to the console. There is
-no `API_KEY`/`API_BASE_URL` (or any Unsend-specific) var in `apps/api/.env.schema`. Locally,
-Mailpit is available in the stack for a real SMTP-compatible inbox, but the prod mailer service
-does not currently send to it either.
-
-If you wire up real sending, add the required vars to `apps/api/.env.schema` and replace the
-`console.log` body of `ProdMailerService.send` with an actual `usesend-js` (or other provider)
-call.
+- **One email per recipient**, with a plain-text part alongside the HTML. Both transports send it.
+- **Failures**: `emails.send()` resolves with an `error` when the API refuses a send and throws when
+  the request itself fails; both count as failures. Every failure is retried, up to 3 attempts, after
+  250 ms and then 500 ms. A recipient that exhausts its attempts does not stop the others; once all
+  have been tried, the first failure is re-thrown to the caller. What the caller does with it is in the
+  [IAM runbook](../services/iam/runbook.md).
+- **No duplicates on retry**: every attempt for one message and recipient carries the same
+  `Idempotency-Key`.
+- **Logs**: one entry per attempt, `useSend email sent` (info) or `useSend email failed` (warn), with
+  `to`, `attempt` and, on failure, `error` (`code: message`). Never the email body or the API key.
 
 ## Related
 

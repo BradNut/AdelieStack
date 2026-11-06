@@ -31,8 +31,11 @@
 
 #### Mailer (`MailerService`)
 - **Purpose**: verification links, reset links, emailed two-factor codes, Security Events
-- **Usage**: `MAILER_TRANSPORT=mailpit` posts to Mailpit; `unsend` selects `ProdMailerService`,
-  which today only logs (see the [runbook](./runbook.md))
+- **Usage**: `MAILER_TRANSPORT=mailpit` posts to Mailpit; `unsend` selects `UseSendMailerService`,
+  which sends through useSend
+- **Failure Impact**: a send is tried 3 times. Most flows then still answer success without the email; resending
+  verification answers `500` (see the [runbook](./runbook.md))
+- **Fallback**: none
 
 #### Have I Been Pwned and the Captcha Provider (optional)
 - **Purpose**: breached-password screening; Captcha Token verification

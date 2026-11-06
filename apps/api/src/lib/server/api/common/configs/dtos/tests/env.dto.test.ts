@@ -194,3 +194,55 @@ describe('envsDto sign-up flag', () => {
     expect(() => envsDto.parse({ ...validEnv, SIGN_UP_ENABLED: 'maybe' })).toThrow();
   });
 });
+
+describe('envsDto useSend variables', () => {
+  const unsend = { ...validEnv, MAILER_TRANSPORT: 'unsend', USESEND_API_KEY: 'us_test_key', MAIL_FROM: 'noreply@example.com' };
+
+  it('accepts unsend with every variable present, keeping the values', () => {
+    const env = envsDto.parse({ ...unsend, USESEND_BASE_URL: 'https://mail.example.com' });
+    expect(env.USESEND_API_KEY).toBe('us_test_key');
+    expect(env.MAIL_FROM).toBe('noreply@example.com');
+    expect(env.USESEND_BASE_URL).toBe('https://mail.example.com');
+  });
+
+  it('accepts unsend without USESEND_BASE_URL, also when it is declared empty', () => {
+    expect(envsDto.parse(unsend).USESEND_BASE_URL).toBeUndefined();
+    expect(envsDto.parse({ ...unsend, USESEND_BASE_URL: '' }).USESEND_BASE_URL).toBeUndefined();
+  });
+
+  it.each(['USESEND_API_KEY', 'MAIL_FROM'] as const)('refuses unsend without %s and names it', (name) => {
+    const { [name]: _omitted, ...rest } = unsend;
+    const result = envsDto.safeParse(rest);
+    expect(result.success).toBe(false);
+    expect(result.error?.issues).toEqual([expect.objectContaining({ path: [name], message: `${name} is required when MAILER_TRANSPORT is unsend` })]);
+  });
+
+  it.each(['USESEND_API_KEY', 'MAIL_FROM'] as const)('treats an empty %s as missing', (name) => {
+    const result = envsDto.safeParse({ ...unsend, [name]: '' });
+    expect(result.error?.issues.map((issue) => issue.path[0])).toEqual([name]);
+  });
+
+  it('names both variables when both are missing', () => {
+    const result = envsDto.safeParse({ ...validEnv, MAILER_TRANSPORT: 'unsend' });
+    expect(result.error?.issues.map((issue) => issue.path[0])).toEqual(['USESEND_API_KEY', 'MAIL_FROM']);
+  });
+
+  it('requires none of them with mailpit, the default transport', () => {
+    const env = envsDto.parse({ ...validEnv });
+    expect(env.MAILER_TRANSPORT).toBe('mailpit');
+    expect(env.USESEND_API_KEY).toBeUndefined();
+    expect(env.MAIL_FROM).toBeUndefined();
+    expect(env.USESEND_BASE_URL).toBeUndefined();
+  });
+
+  it('checks the captcha variables alongside the useSend ones', () => {
+    const result = envsDto.safeParse({ ...validEnv, MAILER_TRANSPORT: 'unsend', CAPTCHA_ENABLED: 'true' });
+    expect(result.error?.issues.map((issue) => issue.path[0])).toEqual([
+      'USESEND_API_KEY',
+      'MAIL_FROM',
+      'CAPTCHA_PROVIDER',
+      'CAPTCHA_SECRET_KEY',
+      'CAPTCHA_SITE_KEY',
+    ]);
+  });
+});
