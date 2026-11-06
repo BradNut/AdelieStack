@@ -2,14 +2,16 @@ import {
   CreateBucketCommand,
   DeleteObjectCommand,
   GetObjectCommand,
-  GetObjectTaggingCommand,
   HeadBucketCommand,
   PutObjectCommand,
   PutObjectTaggingCommand,
   S3Client,
   type Tag,
 } from '@aws-sdk/client-s3';
-import type { StorageClientConfig, StorageClientEnv, StoredObject } from './storage.types';
+import { inject, injectable } from '@needle-di/core';
+import { ConfigService } from '#lib/server/api/common/configs/config.service';
+import type { EnvsDto } from '#lib/server/api/common/configs/dtos/env.dto';
+import type { StorageClientConfig, StoredObject } from './storage.types';
 
 // SeaweedFS ignores the region, but the AWS SDK requires one to sign requests.
 const DEFAULT_REGION = 'us-east-1';
@@ -28,7 +30,7 @@ export const buildEndpoint = ({ host, port, useSSL }: Pick<StorageClientConfig, 
 export class S3StorageClient {
   private readonly s3Client: S3Client;
 
-  static fromEnv(env: StorageClientEnv): S3StorageClient {
+  static fromEnv(env: Pick<EnvsDto, 'STORAGE_HOST' | 'STORAGE_PORT' | 'STORAGE_SSL' | 'STORAGE_ACCESS_KEY' | 'STORAGE_SECRET_KEY'>): S3StorageClient {
     return new S3StorageClient({
       host: env.STORAGE_HOST,
       port: env.STORAGE_PORT,
@@ -101,13 +103,17 @@ export class S3StorageClient {
       }),
     );
   }
+}
 
-  async getObjectTagging(bucket: string, key: string): Promise<Record<string, string>> {
-    const result = await this.s3Client.send(new GetObjectTaggingCommand({ Bucket: bucket, Key: key }));
-    const tags: Record<string, string> = {};
-    for (const tag of result.TagSet ?? []) {
-      if (tag.Key) tags[tag.Key] = tag.Value ?? '';
-    }
-    return tags;
+/** The one client over the configured storage, created on first use so resolving a service never touches storage. */
+@injectable()
+export class S3StorageClientProvider {
+  private instance: S3StorageClient | undefined;
+
+  constructor(private readonly configService = inject(ConfigService)) {}
+
+  get client(): S3StorageClient {
+    this.instance ??= S3StorageClient.fromEnv(this.configService.envs);
+    return this.instance;
   }
 }

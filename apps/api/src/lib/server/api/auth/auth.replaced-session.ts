@@ -1,5 +1,7 @@
 import type { BetterAuthPlugin } from 'better-auth';
 import { createAuthMiddleware } from 'better-auth/api';
+import { isRecord } from '#lib/server/api/common/utils/is-record';
+import { AuthEndpoint } from './auth.endpoints';
 
 /**
  * The sign-in endpoints that end the Replaced Session. Not a generic "a new session was set" rule: admin
@@ -7,22 +9,22 @@ import { createAuthMiddleware } from 'better-auth/api';
  * is classified in auth.replaced-session.coverage.test.ts, which fails when a new one appears.
  */
 export const ReplacedSessionPath = {
-  EMAIL_SIGN_IN: '/sign-in/email',
-  EMAIL_SIGN_UP: '/sign-up/email',
-  PASSKEY_SIGN_IN: '/passkey/verify-authentication',
+  EMAIL_SIGN_IN: AuthEndpoint.SIGN_IN_EMAIL,
+  EMAIL_SIGN_UP: AuthEndpoint.SIGN_UP_EMAIL,
+  PASSKEY_SIGN_IN: AuthEndpoint.PASSKEY_VERIFY_AUTHENTICATION,
   /** Sets a session only when the client asks for one with the new passkey (`createSession`). */
-  PASSKEY_REGISTRATION: '/passkey/verify-registration',
+  PASSKEY_REGISTRATION: AuthEndpoint.PASSKEY_VERIFY_REGISTRATION,
   /** Only the id-token sign-in sets a session here; the redirect sign-in sets it on the callback. */
-  SOCIAL_SIGN_IN: '/sign-in/social',
+  SOCIAL_SIGN_IN: AuthEndpoint.SIGN_IN_SOCIAL,
   /** Shared with linking from settings, which sets no new session and so keeps the current one. */
-  SOCIAL_CALLBACK: '/callback/:id',
+  SOCIAL_CALLBACK: AuthEndpoint.SOCIAL_CALLBACK,
 } as const;
 
 const replacedSessionPaths: readonly string[] = Object.values(ReplacedSessionPath);
 
 /** The two-factor plugin's answer to a correct password: the new session is already gone, and the challenge starts. */
 function isTwoFactorRedirect(returned: unknown): boolean {
-  return typeof returned === 'object' && returned !== null && 'twoFactorRedirect' in returned && returned.twoFactorRedirect === true;
+  return isRecord(returned) && returned.twoFactorRedirect === true;
 }
 
 /**

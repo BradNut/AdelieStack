@@ -13,7 +13,7 @@ let adminCookie: string;
 let targetId: string;
 
 function setup(allowMultipleRoles: boolean) {
-  ({ auth, request } = createTestAuth({ allowMultipleRoles: () => allowMultipleRoles }));
+  ({ auth, request } = createTestAuth({ allowMultipleRoles }));
 }
 
 async function signUp(email: string) {

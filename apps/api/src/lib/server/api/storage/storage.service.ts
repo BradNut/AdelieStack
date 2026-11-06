@@ -1,27 +1,26 @@
 import { StatusCodes } from '@adelie/shared';
 import { inject, injectable } from '@needle-di/core';
 import { HTTPException } from 'hono/http-exception';
-import sharp, { type ResizeOptions } from 'sharp';
+import sharp from 'sharp';
 import { ConfigService } from '#lib/server/api/common/configs/config.service';
 import { publicId } from '#lib/server/api/common/utils/crypto';
-import { S3StorageClient } from './s3-storage.client';
+import { S3StorageClientProvider } from './s3-storage.client';
 import { BucketVisibility, buildBucketName } from './storage.buckets';
-import { ScanStatus, ScanTag, type StoredObject, type Upload } from './storage.types';
+import { ScanStatus, type StoredObject, scanTags, type Upload } from './storage.types';
 import { ScanResult, VirusScannerService } from './virus-scanner.service';
 
 @injectable()
 export class StorageService {
-  private client: S3StorageClient | undefined;
-
   constructor(
     private readonly configService = inject(ConfigService),
     private readonly virusScanner = inject(VirusScannerService),
+    private readonly storage = inject(S3StorageClientProvider),
   ) {}
 
   /** Idempotently ensures the public and private buckets exist. */
   async configure() {
     console.info('configuring storage...');
-    const client = this.getClient();
+    const { client } = this.storage;
 
     for (const visibility of Object.values(BucketVisibility)) {
       const bucket = this.bucketFor(visibility);
@@ -33,9 +32,9 @@ export class StorageService {
   }
 
   async upload({ file, resizeOptions, key, visibility = BucketVisibility.PUBLIC }: Upload) {
-    let buffer: Buffer = await this.convertToBuffer(file);
+    let buffer: Buffer = Buffer.from(await file.arrayBuffer());
     if (resizeOptions) {
-      buffer = await this.resizeImage(buffer, resizeOptions);
+      buffer = await sharp(buffer).resize(resizeOptions).toBuffer();
     }
 
     // Scan the final bytes before they ever reach storage; infected uploads are rejected.
@@ -43,28 +42,21 @@ export class StorageService {
 
     const bucket = this.bucketFor(visibility);
     const fileKey = key || publicId();
-    await this.getClient().putObject(bucket, fileKey, buffer, file.type || undefined);
+    await this.storage.client.putObject(bucket, fileKey, buffer, file.type || undefined);
 
     // Record the clean verdict so later webhook/read checks can trust it without re-scanning.
     if (this.virusScanner.isEnabled) {
-      await this.getClient().setObjectTagging(bucket, fileKey, {
-        [ScanTag.STATUS]: ScanStatus.CLEAN,
-        [ScanTag.TIMESTAMP]: new Date().toISOString(),
-      });
+      await this.storage.client.setObjectTagging(bucket, fileKey, scanTags(ScanStatus.CLEAN));
     }
 
     return { key: fileKey };
   }
 
   /**
-   * Runs the configured virus scan over the upload bytes. No-op when scanning is
-   * disabled; rejects infected files and fails closed when the scanner errors.
+   * Runs the configured virus scan over the upload bytes; rejects infected files
+   * and fails closed when the scanner errors.
    */
   private async scanBeforePersist(buffer: Buffer): Promise<void> {
-    if (!this.virusScanner.isEnabled) {
-      return;
-    }
-
     const { result, viruses } = await this.virusScanner.scanBuffer(buffer);
 
     if (result === ScanResult.INFECTED) {
@@ -80,30 +72,15 @@ export class StorageService {
   }
 
   async get(key: string, visibility: BucketVisibility = BucketVisibility.PUBLIC): Promise<StoredObject> {
-    return this.getClient().getObject(this.bucketFor(visibility), key);
+    return this.storage.client.getObject(this.bucketFor(visibility), key);
   }
 
   async remove(key: string, visibility: BucketVisibility = BucketVisibility.PUBLIC) {
-    return this.getClient().removeObject(this.bucketFor(visibility), key);
+    return this.storage.client.removeObject(this.bucketFor(visibility), key);
   }
 
   bucketFor(visibility: BucketVisibility): string {
     const { PROJECT_NAME, ENVIRONMENT } = this.configService.envs;
     return buildBucketName(PROJECT_NAME, ENVIRONMENT, visibility);
-  }
-
-  // Created on first use so constructing the service never touches storage.
-  private getClient(): S3StorageClient {
-    this.client ??= S3StorageClient.fromEnv(this.configService.envs);
-    return this.client;
-  }
-
-  private async resizeImage(fileBuffer: Buffer, resizeOptions: ResizeOptions) {
-    return sharp(fileBuffer).resize(resizeOptions).toBuffer();
-  }
-
-  private async convertToBuffer(file: File) {
-    const arrayBuffer = await file.arrayBuffer();
-    return Buffer.from(arrayBuffer);
   }
 }

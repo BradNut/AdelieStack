@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import pino from 'pino';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AdminExampleController } from '#lib/server/api/admin/admin-example.controller';
 import { ApplicationController } from '#lib/server/api/application.controller';
@@ -51,6 +52,8 @@ function buildApp() {
     } as unknown as StorageWebhookController,
     new ConfigController({ envs: { SIGN_UP_ENABLED: true } } as unknown as ConfigService, authService),
     new AdminExampleController(authService, rolesService),
+    { envs: { SIGNING_SECRET: 'test-signing-secret', ENV: 'test' } } as unknown as ConfigService,
+    { log: pino({ enabled: false }) } as unknown as LoggerService,
   ).registerControllers();
 }
 

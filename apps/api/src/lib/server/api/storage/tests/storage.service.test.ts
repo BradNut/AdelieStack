@@ -1,4 +1,5 @@
 import { Container } from '@needle-di/core';
+import NodeClam from 'clamscan';
 import type { HTTPException } from 'hono/http-exception';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConfigService } from '#lib/server/api/common/configs/config.service';
@@ -9,6 +10,7 @@ import { ScanStatus, ScanTag } from '#lib/server/api/storage/storage.types';
 import { type ScanResponse, ScanResult, VirusScannerService } from '#lib/server/api/storage/virus-scanner.service';
 
 const envs = {
+  ANTIVIRUS_ENABLED: false,
   PROJECT_NAME: 'adelie',
   ENVIRONMENT: 'development',
   STORAGE_HOST: 'localhost',
@@ -38,10 +40,8 @@ const createServiceWithScanner = (scanner: Partial<VirusScannerService>) => {
   return container.get(StorageService);
 };
 
-const scanStub = (enabled: boolean, scanBuffer: () => Promise<ScanResponse>): Partial<VirusScannerService> => ({
-  get isEnabled() {
-    return enabled;
-  },
+const scanStub = (scanBuffer: () => Promise<ScanResponse>): Partial<VirusScannerService> => ({
+  isEnabled: true,
   scanBuffer: vi.fn(scanBuffer),
 });
 
@@ -125,7 +125,7 @@ describe('StorageService', () => {
     it('stores a clean file and tags it as scanned clean when antivirus is enabled', async () => {
       const putObject = vi.spyOn(S3StorageClient.prototype, 'putObject').mockResolvedValue();
       const setObjectTagging = vi.spyOn(S3StorageClient.prototype, 'setObjectTagging').mockResolvedValue();
-      const scanner = scanStub(true, async () => ({ result: ScanResult.CLEAN }));
+      const scanner = scanStub(async () => ({ result: ScanResult.CLEAN }));
       const file = new File(['hello'], 'hello.png', { type: 'image/png' });
 
       const result = await createServiceWithScanner(scanner).upload({ file, key: 'clean-key' });
@@ -138,7 +138,7 @@ describe('StorageService', () => {
 
     it('rejects an infected file and never persists it', async () => {
       const putObject = vi.spyOn(S3StorageClient.prototype, 'putObject').mockResolvedValue();
-      const scanner = scanStub(true, async () => ({ result: ScanResult.INFECTED, viruses: ['Eicar-Test-Signature'] }));
+      const scanner = scanStub(async () => ({ result: ScanResult.INFECTED, viruses: ['Eicar-Test-Signature'] }));
       const file = new File(['virus'], 'bad.png', { type: 'image/png' });
 
       const error = (await createServiceWithScanner(scanner)
@@ -152,7 +152,7 @@ describe('StorageService', () => {
 
     it('fails closed and does not persist when the scanner errors', async () => {
       const putObject = vi.spyOn(S3StorageClient.prototype, 'putObject').mockResolvedValue();
-      const scanner = scanStub(true, async () => ({ result: ScanResult.ERROR, error: 'daemon unreachable' }));
+      const scanner = scanStub(async () => ({ result: ScanResult.ERROR, error: 'daemon unreachable' }));
       const file = new File(['x'], 'x.png', { type: 'image/png' });
 
       const error = (await createServiceWithScanner(scanner)
@@ -166,13 +166,13 @@ describe('StorageService', () => {
     it('skips scanning entirely when antivirus is disabled', async () => {
       const putObject = vi.spyOn(S3StorageClient.prototype, 'putObject').mockResolvedValue();
       const setObjectTagging = vi.spyOn(S3StorageClient.prototype, 'setObjectTagging').mockResolvedValue();
-      const scanner = scanStub(false, async () => ({ result: ScanResult.INFECTED }));
+      const initClamAv = vi.spyOn(NodeClam.prototype, 'init');
       const file = new File(['hello'], 'hello.png', { type: 'image/png' });
 
-      const result = await createServiceWithScanner(scanner).upload({ file, key: 'skip-key' });
+      const result = await createService().upload({ file, key: 'skip-key' });
 
       expect(result).toEqual({ key: 'skip-key' });
-      expect(scanner.scanBuffer).not.toHaveBeenCalled();
+      expect(initClamAv).not.toHaveBeenCalled();
       expect(putObject).toHaveBeenCalledWith(PUBLIC_BUCKET, 'skip-key', Buffer.from('hello'), 'image/png');
       expect(setObjectTagging).not.toHaveBeenCalled();
     });

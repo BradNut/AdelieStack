@@ -3,6 +3,7 @@ import { PASSWORD_COMPROMISED, PASSWORD_POLICY_RULES, PASSWORD_POLICY_VIOLATION 
 import { hashPassword } from 'better-auth/crypto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Auth } from '#lib/server/api/auth/auth.config';
+import { createHibpHealth } from '#lib/server/api/auth/auth.hibp-status';
 import { type AuthRequest, cookiesFrom } from '../../../../../test/auth-http';
 import { createTestAuth, TEST_ORIGIN } from '../../../../../test/auth-instance';
 
@@ -45,8 +46,8 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function buildAuth(hibpEnabled = true) {
-  ({ auth, db, request } = createTestAuth({ hibpEnabled }));
+function buildAuth(enabled = true) {
+  ({ auth, db, request } = createTestAuth({ hibpStatus: createHibpHealth({ enabled }) }));
 }
 
 beforeEach(() => {
