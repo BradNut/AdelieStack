@@ -70,9 +70,6 @@ env:
   ANTIVIRUS_ENABLED: ${{ secrets.ANTIVIRUS_ENABLED }}
   CLAMAV_HOST: ${{ secrets.CLAMAV_HOST }}
   CLAMAV_PORT: ${{ secrets.CLAMAV_PORT }}
-  # Email (Unsend)
-  API_KEY: ${{ secrets.API_KEY }}
-  API_BASE_URL: ${{ secrets.API_BASE_URL }}
 
 jobs:
   test:
