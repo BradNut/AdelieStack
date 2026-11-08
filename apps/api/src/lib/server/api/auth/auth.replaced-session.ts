@@ -1,7 +1,7 @@
 import type { BetterAuthPlugin } from 'better-auth';
 import { createAuthMiddleware } from 'better-auth/api';
-import { isRecord } from '#lib/server/api/common/utils/is-record';
 import { AuthEndpoint } from './auth.endpoints';
+import { isTwoFactorRedirect } from './auth.two-factor-redirect';
 
 /**
  * The sign-in endpoints that end the Replaced Session. Not a generic "a new session was set" rule: admin
@@ -21,11 +21,6 @@ export const ReplacedSessionPath = {
 } as const;
 
 const replacedSessionPaths: readonly string[] = Object.values(ReplacedSessionPath);
-
-/** The two-factor plugin's answer once a sign-in needs a challenge: the new session is already gone. */
-export function isTwoFactorRedirect(returned: unknown): boolean {
-  return isRecord(returned) && returned.twoFactorRedirect === true;
-}
 
 /**
  * After-hook that ends the session the browser held before signing in again, whoever signs in. Better Auth's sign-in

@@ -32,7 +32,7 @@ import { type AuthRateLimitStorage, authRateLimitOptions } from './auth.rate-lim
 import { replacedSession } from './auth.replaced-session';
 import { roleGuard } from './auth.role-guard';
 import { socialProvidersOption } from './auth.social';
-import { challengeSocialSignIn, socialTwoFactorRedirect } from './auth.social-two-factor';
+import { socialTwoFactorRedirect, withSocialSignInChallenge } from './auth.social-two-factor';
 
 /** Stand-ins for values {@link createOfflineAuth} callers never use for real (no connection, no env). */
 const AUTH_PLACEHOLDER = {
@@ -208,7 +208,7 @@ export function createAuth({
       // TOTP, emailed OTP and recovery (backup) codes. TOTP secrets and backup codes are
       // encrypted with the auth secret. Enrolment is confirmed with a first valid code. The challenge also follows a
       // social sign-in (ADR 0012).
-      challengeSocialSignIn(
+      withSocialSignInChallenge(
         twoFactor({
           issuer: twoFactorIssuer,
           otpOptions: {
