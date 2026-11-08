@@ -2,11 +2,10 @@ import { AUTH_BASE_PATH, CaptchaProvider, RoleName } from '@adelie/shared';
 import { totpCode } from '@adelie/test-utils/totp';
 import { describe, expect, it } from 'vitest';
 import { ReplacedSessionPath } from '#lib/server/api/auth/auth.replaced-session';
-import { cookiesFrom, signUpWithTotp } from '../../../../../test/auth-http';
+import { cookiesFrom, signUpWithEmail, signUpWithTotp, TEST_USER } from '../../../../../test/auth-http';
 import { createTestAuth, TEST_ORIGIN } from '../../../../../test/auth-instance';
 
-const PASSWORD = 'Correct-horse-9';
-const EMAIL = 'penguin@example.com';
+const { email: EMAIL, password: PASSWORD } = TEST_USER;
 
 /**
  * Endpoints that can set a session cookie but keep their own session handling, so the Replaced Session rule must not
@@ -131,11 +130,11 @@ describe('endpoints that keep their own session handling', () => {
 
   it('confirming two-factor enrolment swaps the current session and keeps the other device', async () => {
     const t = build();
-    const signUp = cookiesFrom(await t.request('/sign-up/email', { body: { name: 'Penguin', email: EMAIL, password: PASSWORD } }));
+    const { cookie: signUpCookie } = await signUpWithEmail(t.request, TEST_USER);
     const otherDevice = await t.signIn();
-    const enable = await t.request('/two-factor/enable', { cookie: signUp, body: { password: PASSWORD } });
+    const enable = await t.request('/two-factor/enable', { cookie: signUpCookie, body: { password: PASSWORD } });
     const { totpURI } = (await enable.json()) as { totpURI: string };
-    const enrolled = cookiesFrom(enable, signUp);
+    const enrolled = cookiesFrom(enable, signUpCookie);
 
     const verify = await t.request('/two-factor/verify-totp', { cookie: enrolled, body: { code: totpCode(totpURI) } });
 
@@ -148,7 +147,7 @@ describe('endpoints that keep their own session handling', () => {
 
   it('turning two-factor off swaps the current session and keeps the other device', async () => {
     const t = build();
-    const { cookie, totpURI } = await signUpWithTotp(t.request, { name: 'Penguin', email: EMAIL, password: PASSWORD });
+    const { cookie, totpURI } = await signUpWithTotp(t.request, TEST_USER);
     const challenge = await t.request('/sign-in/email', { body: { email: EMAIL, password: PASSWORD } });
     const otherDevice = cookiesFrom(
       await t.request('/two-factor/verify-totp', { cookie: cookiesFrom(challenge), body: { code: totpCode(totpURI) } }),
@@ -165,7 +164,7 @@ describe('endpoints that keep their own session handling', () => {
 
   it('change-email verification keeps the browser’s session and the other device', async () => {
     const t = build();
-    const cookie = cookiesFrom(await t.request('/sign-up/email', { body: { name: 'Penguin', email: EMAIL, password: PASSWORD } }));
+    const { cookie } = await signUpWithEmail(t.request, TEST_USER);
     const otherDevice = await t.signIn();
     await t.request('/change-email', { cookie, body: { newEmail: 'emperor@example.com', callbackURL: '/email-verified' } });
     const href = /href='([^']+)'/.exec(t.mailer.sent.at(-1)?.template.html() ?? '')?.[1] ?? '';
@@ -180,7 +179,7 @@ describe('endpoints that keep their own session handling', () => {
 
   it('changing the password with “sign out other sessions” leaves only the new session', async () => {
     const t = build();
-    const cookie = cookiesFrom(await t.request('/sign-up/email', { body: { name: 'Penguin', email: EMAIL, password: PASSWORD } }));
+    const { cookie } = await signUpWithEmail(t.request, TEST_USER);
     const otherDevice = await t.signIn();
 
     const res = await t.request('/change-password', {

@@ -9,13 +9,11 @@ import { PasswordChangedEmail } from '#lib/server/api/mail/templates/password-ch
 import { PasswordResetLinkEmail } from '#lib/server/api/mail/templates/password-reset-link.template';
 import { RecoveryCodesRegeneratedEmail } from '#lib/server/api/mail/templates/recovery-codes-regenerated.template';
 import { RecoveryCodesUsedEmail } from '#lib/server/api/mail/templates/recovery-codes-used.template';
-import { type AuthRequest, cookiesFrom, signUpWithTotp, startTwoFactorSignIn } from '../../../../../test/auth-http';
+import { type AuthRequest, cookiesFrom, signUpWithEmail, signUpWithTotp, startTwoFactorSignIn, TEST_USER } from '../../../../../test/auth-http';
 import { createTestAuth, TEST_ORIGIN } from '../../../../../test/auth-instance';
 
-const PASSWORD = 'Correct-horse-9';
+const { email: EMAIL, password: PASSWORD } = TEST_USER;
 const NEW_PASSWORD = 'Another-pass-7';
-const EMAIL = 'penguin@example.com';
-const USER = { name: 'Penguin', email: EMAIL, password: PASSWORD };
 
 let request: AuthRequest;
 let sent: SendProps[];
@@ -30,9 +28,9 @@ function sentTemplates() {
 }
 
 async function signUp() {
-  const res = await request('/sign-up/email', { body: { name: 'Penguin', email: EMAIL, password: PASSWORD } });
+  const { cookie } = await signUpWithEmail(request, TEST_USER);
   clearSent();
-  return cookiesFrom(res);
+  return cookie;
 }
 
 beforeEach(() => {
@@ -43,7 +41,7 @@ beforeEach(() => {
 
 describe('verification email', () => {
   it('is sent to the new user on sign-up', async () => {
-    await request('/sign-up/email', { body: { name: 'Penguin', email: EMAIL, password: PASSWORD } });
+    await signUpWithEmail(request, TEST_USER);
 
     expect(sent).toHaveLength(1);
     expect(sent[0].to).toBe(EMAIL);
@@ -107,7 +105,7 @@ describe('security-event emails', () => {
   });
 
   it('sends one email when recovery codes are regenerated', async () => {
-    const { cookie } = await signUpWithTotp(request, USER);
+    const { cookie } = await signUpWithTotp(request, TEST_USER);
     clearSent();
 
     const res = await request('/two-factor/generate-backup-codes', { cookie, body: { password: PASSWORD } });
@@ -118,7 +116,7 @@ describe('security-event emails', () => {
   });
 
   it('sends nothing when regeneration is refused', async () => {
-    const { cookie } = await signUpWithTotp(request, USER);
+    const { cookie } = await signUpWithTotp(request, TEST_USER);
     clearSent();
 
     const res = await request('/two-factor/generate-backup-codes', { cookie, body: { password: 'wrong-password-123' } });
@@ -130,9 +128,9 @@ describe('security-event emails', () => {
   it('sends one email when a recovery code is used, and none for an invalid code', async () => {
     const {
       backupCodes: [code],
-    } = await signUpWithTotp(request, USER);
+    } = await signUpWithTotp(request, TEST_USER);
     // Recovery codes are a sign-in step: the password sign-in leaves a two-factor challenge cookie.
-    const { challengeCookie: cookie } = await startTwoFactorSignIn(request, USER);
+    const { challengeCookie: cookie } = await startTwoFactorSignIn(request, TEST_USER);
     clearSent();
 
     const bad = await request('/two-factor/verify-backup-code', { cookie, body: { code: 'not-a-real-code' } });
@@ -207,7 +205,7 @@ describe('email change', () => {
 
   it('sends nothing when the address belongs to another account', async () => {
     const cookie = await signUp();
-    await request('/sign-up/email', { body: { name: 'Emperor', email: NEW_EMAIL, password: PASSWORD } });
+    await signUpWithEmail(request, { ...TEST_USER, name: 'Emperor', email: NEW_EMAIL });
     clearSent();
 
     await request('/change-email', { cookie, body: { newEmail: NEW_EMAIL } });
@@ -275,7 +273,7 @@ describe('a failed send', () => {
     });
 
     it('still hands over regenerated recovery codes', async () => {
-      const { cookie } = await signUpWithTotp(request, USER);
+      const { cookie } = await signUpWithTotp(request, TEST_USER);
       failSends();
 
       const res = await request('/two-factor/generate-backup-codes', { cookie, body: { password: PASSWORD } });
@@ -288,8 +286,8 @@ describe('a failed send', () => {
     it('still signs in with a recovery code', async () => {
       const {
         backupCodes: [code],
-      } = await signUpWithTotp(request, USER);
-      const { challengeCookie: cookie } = await startTwoFactorSignIn(request, USER);
+      } = await signUpWithTotp(request, TEST_USER);
+      const { challengeCookie: cookie } = await startTwoFactorSignIn(request, TEST_USER);
       failSends();
 
       const res = await request('/two-factor/verify-backup-code', { cookie, body: { code } });
@@ -332,7 +330,7 @@ describe('a failed send', () => {
     it('still answers success on sign-up', async () => {
       failSends();
 
-      const res = await request('/sign-up/email', { body: { name: 'Penguin', email: EMAIL, password: PASSWORD } });
+      const { res } = await signUpWithEmail(request, TEST_USER);
 
       expect(res.status).toBe(200);
       expect(mailLog.error).not.toHaveBeenCalled();
@@ -349,8 +347,8 @@ describe('a failed send', () => {
     });
 
     it('still answers success when emailing a two-factor code', async () => {
-      await signUpWithTotp(request, USER);
-      const { challengeCookie: cookie } = await startTwoFactorSignIn(request, USER);
+      await signUpWithTotp(request, TEST_USER);
+      const { challengeCookie: cookie } = await startTwoFactorSignIn(request, TEST_USER);
       failSends();
 
       const res = await request('/two-factor/send-otp', { cookie, body: {} });
