@@ -37,6 +37,7 @@ beforeEach(() => {
   widget.destroy.mockReset();
   renderWidget.mockReset().mockResolvedValue(widget);
   vi.mocked(toast.error).mockReset();
+  vi.mocked(toast.success).mockReset();
 });
 
 afterEach(() => {
@@ -162,6 +163,15 @@ describe('resend verification button', () => {
     await waitFor(() => expect(sentTo(ENDPOINT)).toHaveLength(1));
     expect(screen.queryByTestId('captcha-widget')).toBeNull();
     expect(sentTo(ENDPOINT)[0]?.headers.has(CAPTCHA_RESPONSE_HEADER)).toBe(false);
+  });
+
+  it('says the email is on its way, not that it was sent', async () => {
+    render(ResendVerificationButton, { email: 'a@example.com' });
+    await fireEvent.click(screen.getByTestId('resend-verification'));
+
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith("We're sending a verification email to a@example.com. It can take a few minutes."),
+    );
   });
 
   it('toasts the translated outage message', async () => {
