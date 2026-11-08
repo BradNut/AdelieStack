@@ -17,6 +17,7 @@ import { type BetterAuthOptions, betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { admin, lastLoginMethod, openAPI, twoFactor } from 'better-auth/plugins';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
+import { getRequestLocale } from '#lib/server/api/common/i18n/index';
 import { uuidv7 } from '#lib/server/api/common/utils/crypto';
 import type * as drizzleSchema from '#lib/server/api/databases/postgres/drizzle-schema';
 import type { Mailer } from '#lib/server/api/mail/interfaces/mailer.interface';
@@ -214,7 +215,7 @@ export function createAuth({
           otpOptions: {
             period: TWO_FACTOR_OTP_PERIOD_MINUTES,
             async sendOTP({ user, otp }) {
-              await mailer.send({ to: user.email, template: new TwoFactorOtpEmail(otp, TWO_FACTOR_OTP_PERIOD_MINUTES) });
+              await mailer.send({ to: user.email, template: new TwoFactorOtpEmail(otp, TWO_FACTOR_OTP_PERIOD_MINUTES, getRequestLocale()) });
             },
           },
         }),

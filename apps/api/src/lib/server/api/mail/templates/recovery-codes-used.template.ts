@@ -1,12 +1,12 @@
+import { type Locale, m } from '#lib/server/api/common/i18n/index';
 import { StandardEmail } from '#lib/server/api/mail/email-layout';
 
 export class RecoveryCodesUsedEmail extends StandardEmail {
-  constructor() {
+  constructor(locale: Locale) {
     super({
-      title: 'A recovery code was used',
-      paragraphs: [
-        'A two-factor recovery code was just used to sign in to your account. Each code works once. If this was not you, secure your account straight away.',
-      ],
+      locale,
+      title: m.mail_recovery_codes_used_title({}, { locale }),
+      paragraphs: [m.mail_recovery_codes_used_body({}, { locale })],
     });
   }
 }

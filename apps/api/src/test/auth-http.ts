@@ -68,6 +68,14 @@ export function emailedOtp(mail: SendProps | undefined): string | undefined {
   return mail?.template.html().match(/token-text'>(\d+)</)?.[1];
 }
 
+/**
+ * The link in an email, or an empty string when `mail` is missing or holds none. Read from the text part, where a
+ * URL is raw; in the HTML its `&` is escaped.
+ */
+export function emailedLink(mail: SendProps | undefined): string {
+  return mail?.template.text().match(/https?:\/\/\S+/)?.[0] ?? '';
+}
+
 /** Signs up with email and password. A rejected sign-up does not throw: check `res`. */
 export async function signUpWithEmail(request: AuthRequest, { name, email, password }: SignUpCredentials): Promise<EmailSignUp> {
   const res = await request('/sign-up/email', { body: { name, email, password } });

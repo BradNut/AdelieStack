@@ -1,12 +1,12 @@
+import { type Locale, m } from '#lib/server/api/common/i18n/index';
 import { StandardEmail } from '#lib/server/api/mail/email-layout';
 
 export class RecoveryCodesRegeneratedEmail extends StandardEmail {
-  constructor() {
+  constructor(locale: Locale) {
     super({
-      title: 'Your recovery codes were regenerated',
-      paragraphs: [
-        'New two-factor recovery codes were generated for your account. Your old codes no longer work. If this was not you, secure your account straight away.',
-      ],
+      locale,
+      title: m.mail_recovery_codes_regenerated_title({}, { locale }),
+      paragraphs: [m.mail_recovery_codes_regenerated_body({}, { locale })],
     });
   }
 }

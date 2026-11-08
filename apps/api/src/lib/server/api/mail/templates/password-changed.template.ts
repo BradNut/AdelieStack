@@ -1,12 +1,12 @@
+import { type Locale, m } from '#lib/server/api/common/i18n/index';
 import { StandardEmail } from '#lib/server/api/mail/email-layout';
 
 export class PasswordChangedEmail extends StandardEmail {
-  constructor() {
+  constructor(locale: Locale) {
     super({
-      title: 'Your password was changed',
-      paragraphs: [
-        'The password for your account was just changed. If this was not you, reset your password and review your account security straight away.',
-      ],
+      locale,
+      title: m.mail_password_changed_title({}, { locale }),
+      paragraphs: [m.mail_password_changed_body({}, { locale })],
     });
   }
 }

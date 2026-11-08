@@ -2,7 +2,7 @@ import { AUTH_BASE_PATH, CaptchaProvider, RoleName } from '@adelie/shared';
 import { totpCode } from '@adelie/test-utils/totp';
 import { describe, expect, it } from 'vitest';
 import { ReplacedSessionPath } from '#lib/server/api/auth/auth.replaced-session';
-import { cookiesFrom, signUpWithEmail, signUpWithTotp, TEST_USER } from '../../../../../test/auth-http';
+import { cookiesFrom, emailedLink, signUpWithEmail, signUpWithTotp, TEST_USER } from '../../../../../test/auth-http';
 import { createTestAuth, TEST_ORIGIN } from '../../../../../test/auth-instance';
 
 const { email: EMAIL, password: PASSWORD } = TEST_USER;
@@ -167,7 +167,7 @@ describe('endpoints that keep their own session handling', () => {
     const { cookie } = await signUpWithEmail(t.request, TEST_USER);
     const otherDevice = await t.signIn();
     await t.request('/change-email', { cookie, body: { newEmail: 'emperor@example.com', callbackURL: '/email-verified' } });
-    const href = /href='([^']+)'/.exec(t.mailer.sent.at(-1)?.template.html() ?? '')?.[1] ?? '';
+    const href = emailedLink(t.mailer.sent.at(-1));
 
     const res = await t.request(href.replace(TEST_ORIGIN, '').replace(AUTH_BASE_PATH, ''), { cookie });
 

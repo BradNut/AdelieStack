@@ -1,4 +1,5 @@
 import { createAuthMiddleware, isAPIError } from 'better-auth/api';
+import { getRequestLocale } from '#lib/server/api/common/i18n/index';
 import type { EmailTemplate } from '#lib/server/api/mail/interfaces/email-template.interface';
 import type { Mailer } from '#lib/server/api/mail/interfaces/mailer.interface';
 import { EmailChangeNoticeEmail } from '#lib/server/api/mail/templates/email-change-notice.template';
@@ -40,7 +41,7 @@ export function createAuthMail(mailer: Mailer, log?: AuthMailLogger) {
     try {
       await mailer.send({ to, template });
     } catch {
-      log?.error({ subject: template.subject() }, SECURITY_EVENT_EMAIL_FAILED_LOG);
+      log?.error({ template: template.constructor.name }, SECURITY_EVENT_EMAIL_FAILED_LOG);
     }
   }
 
@@ -58,24 +59,25 @@ export function createAuthMail(mailer: Mailer, log?: AuthMailLogger) {
       internalAdapter.findUserByEmail(claims.updateTo),
     ]);
     if (oldAccount || !newAccount) return;
-    await sendSecurityEvent(claims.email, new EmailChangeNoticeEmail(claims.updateTo));
+    await sendSecurityEvent(claims.email, new EmailChangeNoticeEmail(claims.updateTo, getRequestLocale()));
   }
 
   return {
     /** Sign-up and resend verification, and (to the new address) the confirmation of an email change. */
     async sendVerificationEmail({ user, url, token }: { user: Recipient; url: string; token?: string }) {
       const isEmailChange = readVerificationToken(token)?.requestType === CHANGE_EMAIL_REQUEST_TYPE;
-      const template = isEmailChange ? new EmailChangeRequestEmail(url) : new EmailVerificationEmail(url);
+      const locale = getRequestLocale();
+      const template = isEmailChange ? new EmailChangeRequestEmail(url, locale) : new EmailVerificationEmail(url, locale);
       await mailer.send({ to: user.email, template });
     },
 
     async sendResetPassword({ user, url }: { user: Recipient; url: string }) {
-      await mailer.send({ to: user.email, template: new PasswordResetLinkEmail(url) });
+      await mailer.send({ to: user.email, template: new PasswordResetLinkEmail(url, getRequestLocale()) });
     },
 
     /** Reset-by-link completion (`emailAndPassword.onPasswordReset`). */
     async notifyPasswordChanged({ user }: { user: Recipient }) {
-      await sendSecurityEvent(user.email, new PasswordChangedEmail());
+      await sendSecurityEvent(user.email, new PasswordChangedEmail(getRequestLocale()));
     },
 
     /**
@@ -91,13 +93,13 @@ export function createAuthMail(mailer: Mailer, log?: AuthMailLogger) {
       if (!user) return;
       switch (ctx.path) {
         case AuthEndpoint.CHANGE_PASSWORD:
-          await sendSecurityEvent(user.email, new PasswordChangedEmail());
+          await sendSecurityEvent(user.email, new PasswordChangedEmail(getRequestLocale()));
           break;
         case AuthEndpoint.VERIFY_BACKUP_CODE:
-          await sendSecurityEvent(user.email, new RecoveryCodesUsedEmail());
+          await sendSecurityEvent(user.email, new RecoveryCodesUsedEmail(getRequestLocale()));
           break;
         case AuthEndpoint.GENERATE_BACKUP_CODES:
-          await sendSecurityEvent(user.email, new RecoveryCodesRegeneratedEmail());
+          await sendSecurityEvent(user.email, new RecoveryCodesRegeneratedEmail(getRequestLocale()));
           break;
       }
     }),

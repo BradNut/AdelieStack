@@ -1,6 +1,7 @@
 import { AUTH_BASE_PATH } from '@adelie/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { SECURITY_EVENT_EMAIL_FAILED_LOG } from '#lib/server/api/auth/auth.mail';
+import type { EmailTemplate } from '#lib/server/api/mail/interfaces/email-template.interface';
 import type { SendProps } from '#lib/server/api/mail/interfaces/mailer.interface';
 import { EmailChangeNoticeEmail } from '#lib/server/api/mail/templates/email-change-notice.template';
 import { EmailChangeRequestEmail } from '#lib/server/api/mail/templates/email-change-request.template';
@@ -9,7 +10,15 @@ import { PasswordChangedEmail } from '#lib/server/api/mail/templates/password-ch
 import { PasswordResetLinkEmail } from '#lib/server/api/mail/templates/password-reset-link.template';
 import { RecoveryCodesRegeneratedEmail } from '#lib/server/api/mail/templates/recovery-codes-regenerated.template';
 import { RecoveryCodesUsedEmail } from '#lib/server/api/mail/templates/recovery-codes-used.template';
-import { type AuthRequest, cookiesFrom, signUpWithEmail, signUpWithTotp, startTwoFactorSignIn, TEST_USER } from '../../../../../test/auth-http';
+import {
+  type AuthRequest,
+  cookiesFrom,
+  emailedLink,
+  signUpWithEmail,
+  signUpWithTotp,
+  startTwoFactorSignIn,
+  TEST_USER,
+} from '../../../../../test/auth-http';
 import { createTestAuth, TEST_ORIGIN } from '../../../../../test/auth-instance';
 
 const { email: EMAIL, password: PASSWORD } = TEST_USER;
@@ -70,7 +79,7 @@ describe('password reset', () => {
   it('sends one password-changed email once the reset completes', async () => {
     await signUp();
     await request('/request-password-reset', { body: { email: EMAIL, redirectTo: `${TEST_ORIGIN}/reset` } });
-    const link = (sent[0].template.html().match(/href='([^']+)'/) ?? [])[1];
+    const link = emailedLink(sent[0]);
     const token = new URL(link).pathname.split('/').pop();
     clearSent();
 
@@ -144,13 +153,109 @@ describe('security-event emails', () => {
   });
 });
 
+describe('the language of an email', () => {
+  const ENGLISH_SUBJECT = 'Your password was changed';
+
+  async function changePasswordWith(headers: Record<string, string>) {
+    const cookie = await signUp();
+    await request('/change-password', { cookie, headers, body: { currentPassword: PASSWORD, newPassword: NEW_PASSWORD } });
+    return sent[0].template;
+  }
+
+  it('follows Accept-Language', async () => {
+    const email = await changePasswordWith({ 'accept-language': 'de' });
+
+    expect(email.html()).toContain("<html lang='de'>");
+    expect(email.subject()).not.toBe(ENGLISH_SUBJECT);
+  });
+
+  it('uses the base language of a regional variant', async () => {
+    const email = await changePasswordWith({ 'accept-language': 'de-AT' });
+
+    expect(email.html()).toContain("<html lang='de'>");
+    expect(email.subject()).not.toBe(ENGLISH_SUBJECT);
+  });
+
+  it.each([
+    ['no language', {}],
+    ['only unsupported languages', { 'accept-language': 'fr, ja;q=0.8' }],
+  ])('is English when the request names %s', async (_name, headers: Record<string, string>) => {
+    const email = await changePasswordWith(headers);
+
+    expect(email.html()).toContain("<html lang='en'>");
+    expect(email.subject()).toBe(ENGLISH_SUBJECT);
+  });
+});
+
+describe('every email follows the language of the request that caused it', () => {
+  const GERMAN = { 'accept-language': 'de' };
+
+  function expectGerman(templateClass: new (...args: never[]) => EmailTemplate) {
+    const email = sentTemplates().find((template) => template instanceof templateClass);
+    expect(email?.html()).toContain("<html lang='de'>");
+  }
+
+  it('the verification email', async () => {
+    await signUp();
+
+    await request('/send-verification-email', { headers: GERMAN, body: { email: EMAIL } });
+
+    expectGerman(EmailVerificationEmail);
+  });
+
+  it('the password reset link', async () => {
+    await signUp();
+
+    await request('/request-password-reset', { headers: GERMAN, body: { email: EMAIL, redirectTo: `${TEST_ORIGIN}/reset` } });
+
+    expectGerman(PasswordResetLinkEmail);
+  });
+
+  it('the email change request and notice', async () => {
+    const cookie = await signUp();
+
+    await request('/change-email', { cookie, headers: GERMAN, body: { newEmail: 'emperor@example.com', callbackURL: '/email-verified' } });
+    expectGerman(EmailChangeRequestEmail);
+
+    await request(emailedLink(sent.at(-1)).replace(TEST_ORIGIN, '').replace(AUTH_BASE_PATH, ''), { cookie, headers: GERMAN });
+    expectGerman(EmailChangeNoticeEmail);
+  });
+
+  it('the recovery code emails', async () => {
+    const {
+      cookie,
+      backupCodes: [code],
+    } = await signUpWithTotp(request, TEST_USER);
+    clearSent();
+
+    const { challengeCookie } = await startTwoFactorSignIn(request, TEST_USER);
+    await request('/two-factor/verify-backup-code', { cookie: challengeCookie, headers: GERMAN, body: { code } });
+    expectGerman(RecoveryCodesUsedEmail);
+
+    await request('/two-factor/generate-backup-codes', { cookie, headers: GERMAN, body: { password: PASSWORD } });
+    expectGerman(RecoveryCodesRegeneratedEmail);
+  });
+});
+
+describe('the two-factor code email', () => {
+  it('follows the language of the request that asked for the code', async () => {
+    await signUpWithTotp(request, TEST_USER);
+    const { challengeCookie: cookie } = await startTwoFactorSignIn(request, TEST_USER);
+    clearSent();
+
+    await request('/two-factor/send-otp', { cookie, headers: { 'accept-language': 'es' }, body: {} });
+
+    expect(sent[0].template.html()).toContain("<html lang='es'>");
+    expect(sent[0].template.subject()).not.toBe('Your sign-in code');
+  });
+});
+
 describe('email change', () => {
   const NEW_EMAIL = 'emperor@example.com';
 
   /** Follows the first link of the last email sent, the way a click in the mail client would. */
   async function followLastLink(cookie: string) {
-    const html = sent.at(-1)?.template.html() ?? '';
-    const href = /href='([^']+)'/.exec(html)?.[1] ?? '';
+    const href = emailedLink(sent.at(-1));
     return request(href.replace(TEST_ORIGIN, '').replace(AUTH_BASE_PATH, ''), { cookie });
   }
 
@@ -236,8 +341,9 @@ describe('a failed send', () => {
     failSends = () => testAuth.mailer.send.mockRejectedValue(new Error(`useSend refused ${EMAIL} and ${NEW_EMAIL}`));
   });
 
-  function expectOneLogEntryWithoutAddresses() {
+  function expectOneLogEntryWithoutAddresses(template: string) {
     expect(mailLog.error).toHaveBeenCalledTimes(1);
+    expect(mailLog.error.mock.calls[0][0]).toEqual({ template });
     expect(mailLog.error.mock.calls[0][1]).toBe(SECURITY_EVENT_EMAIL_FAILED_LOG);
     const logged = JSON.stringify(mailLog.error.mock.calls[0]);
     expect(logged).not.toContain(EMAIL);
@@ -251,14 +357,14 @@ describe('a failed send', () => {
     it('does not fail a completed password reset', async () => {
       await signUp();
       await request('/request-password-reset', { body: { email: EMAIL, redirectTo: `${TEST_ORIGIN}/reset` } });
-      const link = /href='([^']+)'/.exec(sent[0].template.html())?.[1] ?? '';
+      const link = emailedLink(sent[0]);
       failSends();
 
       const res = await request('/reset-password', { body: { newPassword: NEW_PASSWORD, token: new URL(link).pathname.split('/').pop() } });
 
       expect(res.status).toBe(200);
       expect(await signInStatus(NEW_PASSWORD)).toBe(200);
-      expectOneLogEntryWithoutAddresses();
+      expectOneLogEntryWithoutAddresses('PasswordChangedEmail');
     });
 
     it('does not fail a completed password change', async () => {
@@ -269,7 +375,7 @@ describe('a failed send', () => {
 
       expect(res.status).toBe(200);
       expect(await signInStatus(NEW_PASSWORD)).toBe(200);
-      expectOneLogEntryWithoutAddresses();
+      expectOneLogEntryWithoutAddresses('PasswordChangedEmail');
     });
 
     it('still hands over regenerated recovery codes', async () => {
@@ -280,7 +386,7 @@ describe('a failed send', () => {
 
       expect(res.status).toBe(200);
       expect(((await res.json()) as { backupCodes: string[] }).backupCodes.length).toBeGreaterThan(0);
-      expectOneLogEntryWithoutAddresses();
+      expectOneLogEntryWithoutAddresses('RecoveryCodesRegeneratedEmail');
     });
 
     it('still signs in with a recovery code', async () => {
@@ -294,20 +400,20 @@ describe('a failed send', () => {
 
       expect(res.status).toBe(200);
       expect(cookiesFrom(res)).toContain('session_token');
-      expectOneLogEntryWithoutAddresses();
+      expectOneLogEntryWithoutAddresses('RecoveryCodesUsedEmail');
     });
 
     it('still completes an email change when the notice to the old address fails', async () => {
       const cookie = await signUp();
       await request('/change-email', { cookie, body: { newEmail: NEW_EMAIL, callbackURL: '/email-verified' } });
-      const href = /href='([^']+)'/.exec(sent.at(-1)?.template.html() ?? '')?.[1] ?? '';
+      const href = emailedLink(sent.at(-1));
       failSends();
 
       const res = await request(href.replace(TEST_ORIGIN, '').replace(AUTH_BASE_PATH, ''), { cookie });
 
       expect(res.status).toBeLessThan(400);
       expect(((await (await request('/get-session', { cookie })).json()) as { user: { email: string } }).user.email).toBe(NEW_EMAIL);
-      expectOneLogEntryWithoutAddresses();
+      expectOneLogEntryWithoutAddresses('EmailChangeNoticeEmail');
     });
   });
 
