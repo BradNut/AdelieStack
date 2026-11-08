@@ -1,17 +1,24 @@
 import { AppRoute, AuthErrorCode, CREDENTIAL_PROVIDER_ID, SocialProvider } from '@adelie/shared';
 import { totpCode } from '@adelie/test-utils/totp';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cookiesFrom, signUpWithEmail, signUpWithTotp, TEST_USER } from '../../../../../test/auth-http';
-import { createTestAuth, TEST_ORIGIN } from '../../../../../test/auth-instance';
+import { cookiesFrom, emailedOtp, signUpWithEmail, signUpWithTotp, startTwoFactorSignIn, TEST_USER } from '../../../../../test/auth-http';
+import { createTestAuth, stubGoogleUserInfo, TEST_ORIGIN } from '../../../../../test/auth-instance';
 import { createPasskeyAuthenticator } from '../../../../../test/passkey-authenticator';
+import { AuthEndpoint } from '../auth.endpoints';
 
 const { email: EMAIL } = TEST_USER;
 const GOOGLE_TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token';
 const CHALLENGE_COOKIE = 'two_factor=';
 const CHALLENGE_LIFETIME_MS = 600_000;
+/** Better Auth's limit of wrong codes per challenge; it does not export the number. */
+const CHALLENGE_ATTEMPT_LIMIT = 5;
+const GOOGLE_CALLBACK_PATH = AuthEndpoint.SOCIAL_CALLBACK.replace(':id', SocialProvider.GOOGLE);
 
-/** Better Auth with Google answered locally: the profile is EMAIL, verified; a code exchange succeeds unless `codeAccepted` is false. */
-function build({ codeAccepted = true } = {}) {
+/**
+ * A test auth harness with Google answered locally: the profile is EMAIL, verified; a code exchange succeeds unless
+ * `codeAccepted` is false, and an id token is accepted unless `idTokenAccepted` is false.
+ */
+function createGoogleStubbedAuth({ codeAccepted = true, idTokenAccepted = true } = {}) {
   vi.stubGlobal(
     'fetch',
     vi.fn(async (input: string | URL | Request) => {
@@ -27,10 +34,8 @@ function build({ codeAccepted = true } = {}) {
       google: {
         clientId: 'client-id',
         clientSecret: 'client-secret',
-        verifyIdToken: async () => true,
-        // Each provider types its user info and raw profile differently; Better Auth only passes them through.
-        getUserInfo: async () =>
-          ({ user: { id: 'google-sub-1', email: EMAIL, emailVerified: true, name: 'Penguin' }, data: { sub: 'google-sub-1' } }) as never,
+        verifyIdToken: async () => idTokenAccepted,
+        getUserInfo: stubGoogleUserInfo(EMAIL),
       },
     },
   });
@@ -38,7 +43,7 @@ function build({ codeAccepted = true } = {}) {
   return { ...testAuth, isSignedIn };
 }
 
-type TestAuth = ReturnType<typeof build>;
+type TestAuth = ReturnType<typeof createGoogleStubbedAuth>;
 
 /** A two-factor user whose email is verified, so a provider with the same verified email links to the account. */
 async function twoFactorUser(t: TestAuth) {
@@ -52,12 +57,15 @@ function markEmailsVerified(t: TestAuth) {
 }
 
 /** Sends the browser to the provider and back with a code, as a sign-in from the app (or `/link-social` from settings). */
-async function providerRoundTrip(t: TestAuth, { cookie = '', path = '/sign-in/social', callbackURL = AppRoute.HOME as string } = {}) {
+async function providerRoundTrip(
+  t: TestAuth,
+  { cookie = '', path = AuthEndpoint.SIGN_IN_SOCIAL as string, callbackURL = AppRoute.HOME as string } = {},
+) {
   const start = await t.request(path, { cookie, body: { provider: SocialProvider.GOOGLE, callbackURL, errorCallbackURL: AppRoute.LOGIN } });
   const { url } = (await start.json()) as { url: string };
   const state = new URL(url).searchParams.get('state') ?? '';
   const browser = cookiesFrom(start, cookie);
-  const callback = await t.request(`/callback/google?code=provider-code&state=${encodeURIComponent(state)}`, { cookie: browser });
+  const callback = await t.request(`${GOOGLE_CALLBACK_PATH}?code=provider-code&state=${encodeURIComponent(state)}`, { cookie: browser });
   return { start, callback, browser };
 }
 
@@ -68,7 +76,7 @@ async function socialChallenge(t: TestAuth, cookie = '') {
 }
 
 const idTokenSignIn = (t: TestAuth, cookie?: string) =>
-  t.request('/sign-in/social', { cookie, body: { provider: SocialProvider.GOOGLE, idToken: { token: 'provider-token' } } });
+  t.request(AuthEndpoint.SIGN_IN_SOCIAL, { cookie, body: { provider: SocialProvider.GOOGLE, idToken: { token: 'provider-token' } } });
 
 const verifyTotp = (t: TestAuth, cookie: string, code: string) => t.request('/two-factor/verify-totp', { cookie, body: { code } });
 
@@ -79,6 +87,8 @@ function wrongCode(totpURI: string) {
 
 const errorCode = async (res: Response) => ((await res.json()) as { code?: string }).code;
 
+const twoFactorRedirect = async (res: Response) => ((await res.json()) as { twoFactorRedirect?: boolean }).twoFactorRedirect;
+
 afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
@@ -86,7 +96,7 @@ afterEach(() => {
 
 describe('provider callback for a two-factor user', () => {
   it('redirects to the Two-factor Challenge with a challenge cookie, and leaves no session', async () => {
-    const t = build();
+    const t = createGoogleStubbedAuth();
     await twoFactorUser(t);
     const sessionsBefore = t.db.session.length;
 
@@ -102,7 +112,7 @@ describe('provider callback for a two-factor user', () => {
   });
 
   it('tells the browser to drop the session cookie the callback had set', async () => {
-    const t = build();
+    const t = createGoogleStubbedAuth();
     await twoFactorUser(t);
     const { sessionToken } = (await t.auth.$context).authCookies;
 
@@ -114,7 +124,7 @@ describe('provider callback for a two-factor user', () => {
   });
 
   it('carries no return path, whatever callback the sign-in asked for', async () => {
-    const t = build();
+    const t = createGoogleStubbedAuth();
     await twoFactorUser(t);
 
     const { callback } = await providerRoundTrip(t, { callbackURL: `${TEST_ORIGIN}${AppRoute.SETTINGS_SECURITY}` });
@@ -123,7 +133,7 @@ describe('provider callback for a two-factor user', () => {
   });
 
   it('starts no challenge when the sign-in only asks for the provider URL', async () => {
-    const t = build();
+    const t = createGoogleStubbedAuth();
     await twoFactorUser(t);
 
     const { start } = await providerRoundTrip(t);
@@ -133,7 +143,7 @@ describe('provider callback for a two-factor user', () => {
   });
 
   it('sends a refused sign-in to the error page and raises no challenge', async () => {
-    const t = build({ codeAccepted: false });
+    const t = createGoogleStubbedAuth({ codeAccepted: false });
     await twoFactorUser(t);
 
     const { callback } = await providerRoundTrip(t);
@@ -144,7 +154,7 @@ describe('provider callback for a two-factor user', () => {
   });
 
   it('requires the challenge on a hand-crafted re-authentication from a signed-in browser', async () => {
-    const t = build();
+    const t = createGoogleStubbedAuth();
     const { cookie } = await twoFactorUser(t);
 
     const { callback, browser } = await providerRoundTrip(t, { cookie, callbackURL: AppRoute.SETTINGS_SECURITY });
@@ -156,7 +166,7 @@ describe('provider callback for a two-factor user', () => {
 
 describe('completing the challenge after a provider callback', () => {
   it('creates a session with an authenticator code', async () => {
-    const t = build();
+    const t = createGoogleStubbedAuth();
     const { totpURI } = await twoFactorUser(t);
     const challenge = await socialChallenge(t);
 
@@ -167,14 +177,11 @@ describe('completing the challenge after a provider callback', () => {
   });
 
   it('creates a session with an emailed code', async () => {
-    const t = build();
+    const t = createGoogleStubbedAuth();
     await twoFactorUser(t);
     const challenge = await socialChallenge(t);
     await t.request('/two-factor/send-otp', { cookie: challenge, body: {} });
-    const otp = t.mailer.sent
-      .at(-1)
-      ?.template.html()
-      .match(/token-text'>(\d+)</)?.[1];
+    const otp = emailedOtp(t.mailer.sent.at(-1));
 
     const res = await t.request('/two-factor/verify-otp', { cookie: challenge, body: { code: otp } });
 
@@ -183,18 +190,18 @@ describe('completing the challenge after a provider callback', () => {
   });
 
   it('creates a session with a Recovery Code', async () => {
-    const t = build();
+    const t = createGoogleStubbedAuth();
     const { backupCodes } = await twoFactorUser(t);
     const challenge = await socialChallenge(t);
 
-    const res = await t.request('/two-factor/verify-backup-code', { cookie: challenge, body: { code: backupCodes[0] } });
+    const res = await t.request(AuthEndpoint.VERIFY_BACKUP_CODE, { cookie: challenge, body: { code: backupCodes[0] } });
 
     expect(res.status).toBe(200);
     expect(await t.isSignedIn(cookiesFrom(res, challenge))).toBe(true);
   });
 
   it('rejects a wrong code and creates no session', async () => {
-    const t = build();
+    const t = createGoogleStubbedAuth();
     const { totpURI } = await twoFactorUser(t);
     const sessionsBefore = t.db.session.length;
     const challenge = await socialChallenge(t);
@@ -207,7 +214,7 @@ describe('completing the challenge after a provider callback', () => {
   });
 
   it('ends once the challenge expires, as after a password', async () => {
-    const t = build();
+    const t = createGoogleStubbedAuth();
     const { totpURI } = await twoFactorUser(t);
     const challenge = await socialChallenge(t);
     vi.useFakeTimers({ toFake: ['Date'], now: Date.now() + CHALLENGE_LIFETIME_MS + 1 });
@@ -219,10 +226,10 @@ describe('completing the challenge after a provider callback', () => {
   });
 
   it('ends after too many wrong codes, as after a password', async () => {
-    const t = build();
+    const t = createGoogleStubbedAuth();
     const { totpURI } = await twoFactorUser(t);
     const challenge = await socialChallenge(t);
-    for (let attempt = 0; attempt < 5; attempt++) await verifyTotp(t, challenge, wrongCode(totpURI));
+    for (let attempt = 0; attempt < CHALLENGE_ATTEMPT_LIMIT; attempt++) await verifyTotp(t, challenge, wrongCode(totpURI));
 
     const res = await verifyTotp(t, challenge, totpCode(totpURI));
 
@@ -231,11 +238,11 @@ describe('completing the challenge after a provider callback', () => {
   });
 
   it('locks the account after repeated wrong codes, as after a password', async () => {
-    const t = build();
+    const t = createGoogleStubbedAuth();
     const { totpURI } = await twoFactorUser(t);
     for (let round = 0; round < 3; round++) {
       const challenge = await socialChallenge(t);
-      for (let attempt = 0; attempt < 5; attempt++) await verifyTotp(t, challenge, wrongCode(totpURI));
+      for (let attempt = 0; attempt < CHALLENGE_ATTEMPT_LIMIT; attempt++) await verifyTotp(t, challenge, wrongCode(totpURI));
     }
     const challenge = await socialChallenge(t);
 
@@ -248,7 +255,7 @@ describe('completing the challenge after a provider callback', () => {
 
 describe('id-token sign-in', () => {
   it('answers a two-factor user with twoFactorRedirect and creates no session', async () => {
-    const t = build();
+    const t = createGoogleStubbedAuth();
     await twoFactorUser(t);
     const sessionsBefore = t.db.session.length;
 
@@ -256,14 +263,30 @@ describe('id-token sign-in', () => {
 
     expect(res.status).toBe(200);
     expect(res.headers.get('location')).toBeNull();
-    expect(((await res.json()) as { twoFactorRedirect?: boolean }).twoFactorRedirect).toBe(true);
+    expect(await twoFactorRedirect(res)).toBe(true);
     expect(cookiesFrom(res)).toContain(CHALLENGE_COOKIE);
     expect(await t.isSignedIn(cookiesFrom(res))).toBe(false);
     expect(t.db.session).toHaveLength(sessionsBefore);
   });
 
+  it('refuses a rejected id token for a two-factor user, with no session and no challenge', async () => {
+    const t = createGoogleStubbedAuth({ idTokenAccepted: false });
+    await twoFactorUser(t);
+    const sessionsBefore = t.db.session.length;
+    const verificationsBefore = t.db.verification.length;
+
+    const res = await idTokenSignIn(t);
+
+    expect(res.ok).toBe(false);
+    expect(await twoFactorRedirect(res)).toBeUndefined();
+    expect(cookiesFrom(res)).not.toContain(CHALLENGE_COOKIE);
+    expect(await t.isSignedIn(cookiesFrom(res))).toBe(false);
+    expect(t.db.session).toHaveLength(sessionsBefore);
+    expect(t.db.verification).toHaveLength(verificationsBefore);
+  });
+
   it('lets the challenge complete with an authenticator code', async () => {
-    const t = build();
+    const t = createGoogleStubbedAuth();
     const { totpURI } = await twoFactorUser(t);
     const challenge = cookiesFrom(await idTokenSignIn(t));
 
@@ -281,7 +304,7 @@ describe('a user without two-factor', () => {
   }
 
   it('is signed in directly on the provider callback', async () => {
-    const t = build();
+    const t = createGoogleStubbedAuth();
     await member(t);
 
     const { callback, browser } = await providerRoundTrip(t);
@@ -293,19 +316,19 @@ describe('a user without two-factor', () => {
   });
 
   it('is signed in directly on the id-token sign-in', async () => {
-    const t = build();
+    const t = createGoogleStubbedAuth();
     await member(t);
 
     const res = await idTokenSignIn(t);
 
     expect(res.status).toBe(200);
-    expect(((await res.json()) as { twoFactorRedirect?: boolean }).twoFactorRedirect).toBeUndefined();
+    expect(await twoFactorRedirect(res)).toBeUndefined();
     expect(cookiesFrom(res)).not.toContain(CHALLENGE_COOKIE);
     expect(await t.isSignedIn(cookiesFrom(res))).toBe(true);
   });
 
   it('is signed in directly when signing up through the provider', async () => {
-    const t = build();
+    const t = createGoogleStubbedAuth();
 
     const { callback, browser } = await providerRoundTrip(t);
 
@@ -317,7 +340,7 @@ describe('a user without two-factor', () => {
 
 describe('linking a provider from settings', () => {
   it('keeps the two-factor user’s session and raises no challenge', async () => {
-    const t = build();
+    const t = createGoogleStubbedAuth();
     const { cookie } = await twoFactorUser(t);
     const sessionsBefore = t.db.session.length;
 
@@ -334,9 +357,9 @@ describe('linking a provider from settings', () => {
 
 describe('Replaced Session at a challenge', () => {
   it('ends the session this browser held and keeps the other device, on the provider callback', async () => {
-    const t = build();
+    const t = createGoogleStubbedAuth();
     const { cookie: otherDevice, totpURI } = await twoFactorUser(t);
-    const challenge = cookiesFrom(await t.request('/sign-in/email', { body: { email: EMAIL, password: TEST_USER.password } }));
+    const { challengeCookie: challenge } = await startTwoFactorSignIn(t.request, TEST_USER);
     const thisBrowser = cookiesFrom(await verifyTotp(t, challenge, totpCode(totpURI)));
     const sessionsBefore = t.db.session.length;
 
@@ -349,19 +372,19 @@ describe('Replaced Session at a challenge', () => {
   });
 
   it('ends the session this browser held on the id-token sign-in', async () => {
-    const t = build();
+    const t = createGoogleStubbedAuth();
     const { cookie } = await twoFactorUser(t);
 
     const res = await idTokenSignIn(t, cookie);
 
-    expect(((await res.json()) as { twoFactorRedirect?: boolean }).twoFactorRedirect).toBe(true);
+    expect(await twoFactorRedirect(res)).toBe(true);
     expect(await t.isSignedIn(cookie)).toBe(false);
   });
 });
 
 describe('an abandoned first sign-in through a provider', () => {
   it('leaves the provider linked and gives nobody a session', async () => {
-    const t = build();
+    const t = createGoogleStubbedAuth();
     await twoFactorUser(t);
     const sessionsBefore = t.db.session.length;
 
@@ -373,7 +396,7 @@ describe('an abandoned first sign-in through a provider', () => {
   });
 
   it('challenges the next sign-in through the stray link too', async () => {
-    const t = build();
+    const t = createGoogleStubbedAuth();
     await twoFactorUser(t);
     await socialChallenge(t);
 
@@ -384,14 +407,14 @@ describe('an abandoned first sign-in through a provider', () => {
   });
 
   it('can be seen and unlinked from settings', async () => {
-    const t = build();
+    const t = createGoogleStubbedAuth();
     const { cookie } = await twoFactorUser(t);
     await socialChallenge(t);
     const listed = (await (await t.request('/list-accounts', { cookie })).json()) as { id: string; providerId: string }[];
     const stray = listed.find((account) => account.providerId === SocialProvider.GOOGLE);
     expect(stray).toBeDefined();
 
-    const unlink = await t.request('/unlink-account', { cookie, body: { accountId: stray?.id } });
+    const unlink = await t.request(AuthEndpoint.UNLINK_ACCOUNT, { cookie, body: { accountId: stray?.id } });
 
     expect(unlink.status).toBe(200);
     expect(t.db.account.map((account) => account.providerId)).toEqual([CREDENTIAL_PROVIDER_ID]);
@@ -400,14 +423,14 @@ describe('an abandoned first sign-in through a provider', () => {
 
 describe('passkey sign-in for a two-factor user', () => {
   it('stays a complete sign-in with no challenge', async () => {
-    const t = build();
+    const t = createGoogleStubbedAuth();
     await twoFactorUser(t);
     const authenticator = createPasskeyAuthenticator({ rpID: 'localhost', origin: TEST_ORIGIN });
     t.db.passkey.push({ ...authenticator.passkeyFor(t.db.user[0].id as string) });
     const options = await t.request('/passkey/generate-authenticate-options');
     const { challenge } = (await options.json()) as { challenge: string };
 
-    const res = await t.request('/passkey/verify-authentication', {
+    const res = await t.request(AuthEndpoint.PASSKEY_VERIFY_AUTHENTICATION, {
       cookie: cookiesFrom(options),
       body: { response: authenticator.assert(challenge) },
     });

@@ -10,6 +10,12 @@ export const TEST_ORIGIN = 'http://localhost:5173';
 
 type Row = Record<string, unknown>;
 
+/** A Google `getUserInfo` answered locally: the profile is `email`, verified. */
+export function stubGoogleUserInfo(email: string) {
+  // Each provider types its user info and raw profile differently; Better Auth only passes them through.
+  return async () => ({ user: { id: 'google-sub-1', email, emailVerified: true, name: 'Penguin' }, data: { sub: 'google-sub-1' } }) as never;
+}
+
 /**
  * Builds a Better Auth instance over a fresh in-memory database with test defaults: sign-up open, HIBP off
  * (no network), a fresh mailer spy. Pass only the options a test changes; they are spread over the defaults.

@@ -2,7 +2,7 @@ import { CAPTCHA_RESPONSE_HEADER, CaptchaProvider, CREDENTIAL_PROVIDER_ID, RoleN
 import { totpCode } from '@adelie/test-utils/totp';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cookiesFrom, signUpWithTotp } from '../../../../../test/auth-http';
-import { createTestAuth, TEST_ORIGIN } from '../../../../../test/auth-instance';
+import { createTestAuth, stubGoogleUserInfo, TEST_ORIGIN } from '../../../../../test/auth-instance';
 import { createPasskeyAuthenticator } from '../../../../../test/passkey-authenticator';
 
 const PASSWORD = 'Correct-horse-9';
@@ -233,9 +233,7 @@ describe('social sign-in on a browser holding a session', () => {
           clientId: 'client-id',
           clientSecret: 'client-secret',
           verifyIdToken: async () => true,
-          // Each provider types its user info and raw profile differently; Better Auth only passes them through.
-          getUserInfo: async () =>
-            ({ user: { id: 'google-sub-1', email: EMAIL, emailVerified: true, name: 'Penguin' }, data: { sub: 'google-sub-1' } }) as never,
+          getUserInfo: stubGoogleUserInfo(EMAIL),
         },
       },
     });
