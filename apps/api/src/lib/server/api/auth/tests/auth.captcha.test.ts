@@ -9,6 +9,7 @@ import {
 } from '@adelie/shared';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CAPTCHA_VERIFY_FAILED_LOG, createCaptchaHealth } from '#lib/server/api/auth/auth.captcha';
+import { createHibpHealth } from '#lib/server/api/auth/auth.hibp-status';
 import { ProviderHealthState } from '#lib/server/api/auth/auth.provider-health';
 import { createTestAuth, TEST_ORIGIN } from '../../../../../test/auth-instance';
 
@@ -53,7 +54,7 @@ function build(
 ) {
   const log = { error: vi.fn() };
   const captchaStatus = createCaptchaHealth({ enabled: Boolean(captcha), log });
-  const { auth, request } = createTestAuth({ hibpEnabled: true, captcha: captcha ?? undefined, captchaStatus });
+  const { auth, request } = createTestAuth({ hibpStatus: createHibpHealth({ enabled: true }), captcha: captcha ?? undefined, captchaStatus });
   const post = (path: string, body: unknown, token?: string) =>
     request(path, { body, headers: token ? { [CAPTCHA_RESPONSE_HEADER]: token } : undefined });
   return { auth, log, captchaStatus, post };

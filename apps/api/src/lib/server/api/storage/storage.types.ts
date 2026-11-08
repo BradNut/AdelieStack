@@ -9,14 +9,6 @@ export type StorageClientConfig = {
   secretKey: string;
 };
 
-export type StorageClientEnv = {
-  STORAGE_HOST: string;
-  STORAGE_PORT: number;
-  STORAGE_SSL: boolean;
-  STORAGE_ACCESS_KEY: string;
-  STORAGE_SECRET_KEY: string;
-};
-
 export type StoredObject = {
   body: Buffer;
   contentType: string | undefined;
@@ -42,6 +34,13 @@ export const ScanTag = {
   TIMESTAMP: 'scan-timestamp',
   VIRUSES: 'scan-viruses',
 } as const;
+
+/** The object tags that record a scan outcome as of now. */
+export const scanTags = (status: ScanStatus, viruses?: string[]): Record<string, string> => ({
+  [ScanTag.STATUS]: status,
+  [ScanTag.TIMESTAMP]: new Date().toISOString(),
+  ...(viruses?.length ? { [ScanTag.VIRUSES]: viruses.join(',') } : {}),
+});
 
 export type Upload = {
   file: File;

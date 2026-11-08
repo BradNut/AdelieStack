@@ -3,6 +3,7 @@ import { UseSend } from 'usesend-js';
 import { ConfigService } from '#lib/server/api/common/configs/config.service';
 import { LoggerService } from '#lib/server/api/common/services/logger.service';
 import { publicId } from '#lib/server/api/common/utils/crypto';
+import { isRecord } from '#lib/server/api/common/utils/is-record';
 import type { Mailer, SendProps } from './interfaces/mailer.interface';
 
 const MAX_SEND_ATTEMPTS = 3;
@@ -15,8 +16,6 @@ const UNKNOWN_SEND_ERROR = 'unknown useSend error';
 const USESEND_DEFAULT_BASE_URL = 'https://app.usesend.com';
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
-const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null;
 
 /**
  * `code: message` from the `error` that `emails.send()` resolves with. Its type says `{ code, message }`, but the

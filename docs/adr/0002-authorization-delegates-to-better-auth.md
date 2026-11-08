@@ -4,7 +4,7 @@ status: accepted
 
 # Authorization delegates to Better Auth's permission check
 
-Routes that need authorization call Better Auth's `userHasPermission` through the permission middleware (`common/middleware/permission.middleware.ts`), passing the user's resolved roles and the required permissions. Permissions are defined once in `auth/auth.permissions.ts`. We do not build further role-name middleware of our own.
+Routes that need authorization call Better Auth's `userHasPermission` through the permission middleware (`auth/permission.middleware.ts`), passing the user's resolved roles and the required permissions. Permissions are defined once in `auth/auth.permissions.ts`. We do not build further role-name middleware of our own.
 
 The trigger: checking role names in routes duplicates what the admin plugin already answers, and lets route code drift from the permission table. Delegating keeps one source of truth for what each role may do, and multi-role handling (`ALLOW_MULTIPLE_ROLES`) stays in `auth/roles.ts`.
 

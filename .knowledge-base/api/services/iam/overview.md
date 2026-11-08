@@ -30,7 +30,7 @@ Our own routes only read the session: `GET /api/users/me` (Users service) and an
    `AuthService.auth.handler`, before any other route.
 2. For every other route, the `authSession` middleware calls `auth.api.getSession` and sets
    `c.var.user` and `c.var.session` (`null` when signed out).
-3. Protected routes use `requirePermission` (`common/middleware/permission.middleware.ts`), which
+3. Protected routes use `requirePermission` (`auth/permission.middleware.ts`), which
    asks Better Auth's `userHasPermission` for the user's roles. Routes name permissions, never roles
    ([ADR 0002](../../../../docs/adr/0002-authorization-delegates-to-better-auth.md)).
 

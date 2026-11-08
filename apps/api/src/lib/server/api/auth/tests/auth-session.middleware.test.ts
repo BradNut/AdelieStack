@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AuthService } from '#lib/server/api/auth/auth.service';
-import { authSession } from '#lib/server/api/common/middleware/auth-session.middleware';
+import { authSession } from '#lib/server/api/auth/auth-session.middleware';
 import { buildAuthSession, buildAuthUser } from '#lib/server/api/common/testing/factories';
 import { createHono } from '#lib/server/api/common/utils/hono';
 

@@ -46,7 +46,7 @@
 ### Downstream Dependencies (code that depends on IAM)
 
 - `authSession` middleware, on every route after `/api/auth/*`: sets `c.var.user` and `c.var.session`
-- `requirePermission` (`common/middleware/permission.middleware.ts`): 401 signed out, 403 without the permission
+- `requirePermission` (`auth/permission.middleware.ts`): 401 signed out, 403 without the permission
 - `GET /api/config/captcha`: public captcha config from `AuthService.captchaPublicConfig`
 - `/api/healthz`: `hibp` and `captcha` Provider Health
 - The web app, through the Better Auth Svelte client and the `/api` proxy
@@ -62,7 +62,7 @@ api.on(['GET', 'POST'], `${AUTH_ROUTE}/*`, (c) => this.authService.auth.handler(
 const app = api.use(authSession(this.authService)).route('/', this.routes()) /* ... */;
 ```
 
-### Session middleware (`common/middleware/auth-session.middleware.ts`)
+### Session middleware (`auth/auth-session.middleware.ts`)
 ```typescript
 const result = await authService.auth.api.getSession({ headers: c.req.raw.headers });
 c.set('user', result?.user ?? null);

@@ -1,8 +1,7 @@
 import { inject, injectable } from '@needle-di/core';
-import { ConfigService } from '#lib/server/api/common/configs/config.service';
 import { LoggerService } from '#lib/server/api/common/services/logger.service';
-import { S3StorageClient } from './s3-storage.client';
-import { ScanStatus, ScanTag } from './storage.types';
+import { S3StorageClientProvider } from './s3-storage.client';
+import { ScanStatus, scanTags } from './storage.types';
 import { ScanResult, VirusScannerService } from './virus-scanner.service';
 
 /**
@@ -21,17 +20,15 @@ export type StorageScanJob = {
  */
 @injectable()
 export class FileScannerWorker {
-  private client: S3StorageClient | undefined;
-
   constructor(
-    private readonly configService = inject(ConfigService),
     private readonly loggerService = inject(LoggerService),
     private readonly virusScanner = inject(VirusScannerService),
+    private readonly storage = inject(S3StorageClientProvider),
   ) {}
 
   /** Scans every object referenced by a webhook notification. */
   async handleScanJobs(jobs: StorageScanJob[]): Promise<void> {
-    if (!this.configService.envs.ANTIVIRUS_ENABLED) {
+    if (!this.virusScanner.isEnabled) {
       this.loggerService.log.debug('Antivirus scanning disabled; ignoring storage webhook');
       return;
     }
@@ -43,39 +40,24 @@ export class FileScannerWorker {
 
   private async scanObject({ bucket, key }: StorageScanJob): Promise<void> {
     try {
-      await this.getClient().setObjectTagging(bucket, key, {
-        [ScanTag.STATUS]: ScanStatus.SCANNING,
-        [ScanTag.TIMESTAMP]: new Date().toISOString(),
-      });
+      const { client } = this.storage;
+      await client.setObjectTagging(bucket, key, scanTags(ScanStatus.SCANNING));
 
-      const { body } = await this.getClient().getObject(bucket, key);
+      const { body } = await client.getObject(bucket, key);
       const { result, viruses } = await this.virusScanner.scanBuffer(body);
 
       if (result === ScanResult.INFECTED) {
         this.loggerService.log.warn({ bucket, key, viruses }, 'Webhook scan found an infected object; deleting');
-        await this.getClient().setObjectTagging(bucket, key, {
-          [ScanTag.STATUS]: ScanStatus.INFECTED,
-          [ScanTag.TIMESTAMP]: new Date().toISOString(),
-          ...(viruses?.length ? { [ScanTag.VIRUSES]: viruses.join(',') } : {}),
-        });
-        await this.getClient().removeObject(bucket, key);
+        await client.setObjectTagging(bucket, key, scanTags(ScanStatus.INFECTED, viruses));
+        await client.removeObject(bucket, key);
         return;
       }
 
       const status = result === ScanResult.CLEAN ? ScanStatus.CLEAN : ScanStatus.ERROR;
-      await this.getClient().setObjectTagging(bucket, key, {
-        [ScanTag.STATUS]: status,
-        [ScanTag.TIMESTAMP]: new Date().toISOString(),
-      });
+      await client.setObjectTagging(bucket, key, scanTags(status));
       this.loggerService.log.info({ bucket, key, status }, 'Webhook scan completed');
     } catch (error) {
       this.loggerService.log.error({ error, bucket, key }, 'Failed to scan object from storage webhook');
     }
-  }
-
-  // Created on first use so constructing the worker never touches storage.
-  private getClient(): S3StorageClient {
-    this.client ??= S3StorageClient.fromEnv(this.configService.envs);
-    return this.client;
   }
 }

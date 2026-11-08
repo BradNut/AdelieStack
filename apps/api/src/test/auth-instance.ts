@@ -1,6 +1,7 @@
 import { APP_NAME, AUTH_BASE_PATH } from '@adelie/shared';
 import { memoryAdapter } from 'better-auth/adapters/memory';
 import { type CreateAuthOptions, createAuth } from '#lib/server/api/auth/auth.config';
+import { createHibpHealth } from '#lib/server/api/auth/auth.hibp-status';
 import type { AuthRequest } from './auth-http';
 import { createMailerServiceMock } from './mocks/mailer.mock';
 
@@ -25,7 +26,7 @@ export function createTestAuth(overrides: Partial<Omit<CreateAuthOptions, 'datab
     passkey: { rpID: 'localhost', rpName: APP_NAME, origin: TEST_ORIGIN },
     mailer,
     signUpEnabled: true,
-    hibpEnabled: false,
+    hibpStatus: createHibpHealth({ enabled: false }),
     ...overrides,
     database: memoryAdapter(db),
   });

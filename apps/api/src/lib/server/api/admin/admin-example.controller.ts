@@ -1,8 +1,8 @@
 import { inject, injectable } from '@needle-di/core';
 import { AuthService } from '#lib/server/api/auth/auth.service';
+import { requirePermission } from '#lib/server/api/auth/permission.middleware';
 import { RolesService } from '#lib/server/api/auth/roles';
 import { Controller } from '#lib/server/api/common/factories/controllers.factory';
-import { requirePermission } from '#lib/server/api/common/middleware/permission.middleware';
 
 /**
  * Pattern for forks: guard a route with the permission it needs, not a role name. Which roles
