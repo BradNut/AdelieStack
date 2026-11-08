@@ -32,6 +32,7 @@ import { type AuthRateLimitStorage, authRateLimitOptions } from './auth.rate-lim
 import { replacedSession } from './auth.replaced-session';
 import { roleGuard } from './auth.role-guard';
 import { socialProvidersOption } from './auth.social';
+import { challengeSocialSignIn, socialTwoFactorRedirect } from './auth.social-two-factor';
 
 /** Stand-ins for values {@link createOfflineAuth} callers never use for real (no connection, no env). */
 const AUTH_PLACEHOLDER = {
@@ -205,16 +206,19 @@ export function createAuth({
         adminRoles: [RoleName.ADMIN],
       }),
       // TOTP, emailed OTP and recovery (backup) codes. TOTP secrets and backup codes are
-      // encrypted with the auth secret. Enrolment is confirmed with a first valid code.
-      twoFactor({
-        issuer: twoFactorIssuer,
-        otpOptions: {
-          period: TWO_FACTOR_OTP_PERIOD_MINUTES,
-          async sendOTP({ user, otp }) {
-            await mailer.send({ to: user.email, template: new TwoFactorOtpEmail(otp, TWO_FACTOR_OTP_PERIOD_MINUTES) });
+      // encrypted with the auth secret. Enrolment is confirmed with a first valid code. The challenge also follows a
+      // social sign-in (ADR 0012).
+      challengeSocialSignIn(
+        twoFactor({
+          issuer: twoFactorIssuer,
+          otpOptions: {
+            period: TWO_FACTOR_OTP_PERIOD_MINUTES,
+            async sendOTP({ user, otp }) {
+              await mailer.send({ to: user.email, template: new TwoFactorOtpEmail(otp, TWO_FACTOR_OTP_PERIOD_MINUTES) });
+            },
           },
-        },
-      }),
+        }),
+      ),
       // Passkeys and hardware security keys (WebAuthn). The relying party comes from env.
       passkey({
         rpID: passkeyConfig.rpID,
@@ -232,6 +236,8 @@ export function createAuth({
       passwordAccountGuard(),
       // Per-plugin after-hook, since the top-level `hooks.after` slot is taken by the mail hook. Must come after twoFactor.
       replacedSession(),
+      // Must come after replacedSession, which reads the two-factor plugin's JSON answer that this replaces with a redirect.
+      socialTwoFactorRedirect(),
     ],
     advanced: {
       ipAddress: { ipAddressHeaders: trustProxy ? [AUTH_CLIENT_IP_HEADER] : [] },

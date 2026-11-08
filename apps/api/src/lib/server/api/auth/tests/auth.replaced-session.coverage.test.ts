@@ -16,9 +16,9 @@ const KEEPS_OWN_SESSION_HANDLING: Record<string, string> = {
   '/admin/stop-impersonating': 'ends the impersonation session and restores the admin’s',
   '/two-factor/enable': 'swaps the current session for a new one and deletes the old',
   '/two-factor/disable': 'swaps the current session for a new one and deletes the old',
-  '/two-factor/verify-totp': 'signed in, swaps the current session; at a challenge, the Replaced Session already ended at the password step',
-  '/two-factor/verify-otp': 'signed in, swaps the current session; at a challenge, the Replaced Session already ended at the password step',
-  '/two-factor/verify-backup-code': 'completes a challenge, after the Replaced Session already ended at the password step',
+  '/two-factor/verify-totp': 'signed in, swaps the current session; at a challenge, the Replaced Session already ended when it was raised',
+  '/two-factor/verify-otp': 'signed in, swaps the current session; at a challenge, the Replaced Session already ended when it was raised',
+  '/two-factor/verify-backup-code': 'completes a challenge, after the Replaced Session already ended when it was raised',
   '/change-password': 'with revokeOtherSessions, deletes every session of the user and sets a new one',
   '/verify-email': 'change-email verification reuses the browser’s session, creating one only when it has none',
 };
