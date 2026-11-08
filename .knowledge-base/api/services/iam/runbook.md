@@ -90,16 +90,27 @@ A ban is lifted through the admin endpoint.
 2. `MAILER_TRANSPORT=unsend`: search the logs for the recipient. Each attempt writes one entry:
    `useSend email sent`, or `useSend email failed` with `attempt` and `error` (`code: message`).
    Three failures in a row mean the send was given up on. No entry at all means nothing tried to send.
-3. Too many requests from one client → `429` on the email endpoints (3 per 5 minutes per IP).
+3. Link Emails (verify an address, confirm an email change, reset a password): search for
+   `AUTH_LINK_EMAIL_FAILED`. The entry is written at error level and names the template, so it shows which flow
+   is losing mail. It holds no address, link or provider error; the per-attempt entries above have those.
+4. Too many requests from one client → `429` on the email endpoints (3 per 5 minutes per IP).
 
 **What the user sees when a send is given up on:**
-- **Success, and no email**: sign-up, password reset request, email change request, emailing a two-factor
-  code. Better Auth absorbs the failure and logs it through its own logger (`Failed to run background
-  task`, or `Failed to send two-factor OTP`), so the response is no sign of delivery.
-- **`500`**: resending the verification email.
+- **Success, and no email, with one `AUTH_LINK_EMAIL_FAILED` entry**: Link Emails, which leave the request so that
+  neither the response nor its timing shows which addresses have accounts.
+  - Sign-up and verification resend (signed out or signed in): `EmailVerificationEmail`.
+  - Email change request: `EmailChangeRequestEmail`.
+  - Password reset request: `PasswordResetLinkEmail`.
+
+  The user can request the email again. The response is no sign of delivery.
+- **Success, and no email**: emailing a two-factor code. Better Auth absorbs the failure and logs it through its
+  own logger (`Failed to send two-factor OTP`).
 - **Success, with one `SECURITY_EVENT_EMAIL_FAILED` error entry**: Security Events (password changed,
   recovery code used or regenerated, the notice to the old address), whose change has already committed.
   The entry names the email's subject, never the address.
+
+A restart can lose an in-flight Link Email with nothing logged: the send is held only in memory, so the absence of
+an `AUTH_LINK_EMAIL_FAILED` entry does not prove it was delivered. The user can request it again.
 
 **Resolution:**
 - Dev: restart Mailpit and retry.

@@ -22,6 +22,9 @@ interface Recipient {
 /** Stable, greppable log message for a Security Event email that could not be sent. */
 export const SECURITY_EVENT_EMAIL_FAILED_LOG = 'SECURITY_EVENT_EMAIL_FAILED';
 
+/** Stable, greppable log message for a Link Email that was given up on. */
+export const AUTH_LINK_EMAIL_FAILED_LOG = 'AUTH_LINK_EMAIL_FAILED';
+
 /** The slice of the logger that failures are written to. */
 export interface AuthMailLogger {
   error(obj: Record<string, unknown>, message: string): void;
@@ -42,6 +45,19 @@ export function createAuthMail(mailer: Mailer, log?: AuthMailLogger) {
       await mailer.send({ to, template });
     } catch {
       log?.error({ template: template.constructor.name }, SECURITY_EVENT_EMAIL_FAILED_LOG);
+    }
+  }
+
+  /**
+   * Link Emails leave the request: a response that waited on the send, or reflected how it went, would show an
+   * anonymous caller which addresses have accounts during a mail outage. Nothing awaits this, so every failure ends
+   * here, and as with a Security Event the entry leaves out the provider's error text.
+   */
+  async function detachLinkEmail(to: string, template: EmailTemplate) {
+    try {
+      await mailer.send({ to, template });
+    } catch {
+      log?.error({ template: template.constructor.name }, AUTH_LINK_EMAIL_FAILED_LOG);
     }
   }
 
@@ -68,11 +84,11 @@ export function createAuthMail(mailer: Mailer, log?: AuthMailLogger) {
       const isEmailChange = readVerificationToken(token)?.requestType === CHANGE_EMAIL_REQUEST_TYPE;
       const locale = getRequestLocale();
       const template = isEmailChange ? new EmailChangeRequestEmail(url, locale) : new EmailVerificationEmail(url, locale);
-      await mailer.send({ to: user.email, template });
+      void detachLinkEmail(user.email, template);
     },
 
     async sendResetPassword({ user, url }: { user: Recipient; url: string }) {
-      await mailer.send({ to: user.email, template: new PasswordResetLinkEmail(url, getRequestLocale()) });
+      void detachLinkEmail(user.email, new PasswordResetLinkEmail(url, getRequestLocale()));
     },
 
     /** Reset-by-link completion (`emailAndPassword.onPasswordReset`). */

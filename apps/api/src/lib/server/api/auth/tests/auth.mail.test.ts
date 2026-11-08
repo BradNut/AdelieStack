@@ -1,6 +1,6 @@
 import { AUTH_BASE_PATH } from '@adelie/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { SECURITY_EVENT_EMAIL_FAILED_LOG } from '#lib/server/api/auth/auth.mail';
+import { AUTH_LINK_EMAIL_FAILED_LOG, SECURITY_EVENT_EMAIL_FAILED_LOG } from '#lib/server/api/auth/auth.mail';
 import type { EmailTemplate } from '#lib/server/api/mail/interfaces/email-template.interface';
 import type { SendProps } from '#lib/server/api/mail/interfaces/mailer.interface';
 import { EmailChangeNoticeEmail } from '#lib/server/api/mail/templates/email-change-notice.template';
@@ -20,6 +20,7 @@ import {
   TEST_USER,
 } from '../../../../../test/auth-http';
 import { createTestAuth, TEST_ORIGIN } from '../../../../../test/auth-instance';
+import type { MailerServiceMock } from '../../../../../test/mocks/mailer.mock';
 
 const { email: EMAIL, password: PASSWORD } = TEST_USER;
 const NEW_PASSWORD = 'Another-pass-7';
@@ -329,8 +330,11 @@ describe('email change', () => {
 
 describe('a failed send', () => {
   const NEW_EMAIL = 'emperor@example.com';
+  const VERIFIED_EMAIL = 'verified@example.com';
   const mailLog = { error: vi.fn() };
   let failSends: () => void;
+  let hangSends: () => void;
+  let mailerSend: MailerServiceMock['send'];
 
   beforeEach(() => {
     mailLog.error.mockReset();
@@ -339,6 +343,8 @@ describe('a failed send', () => {
     sent = testAuth.mailer.sent;
     // The message carries the address on purpose: a provider's error text can, and it must not reach this log.
     failSends = () => testAuth.mailer.send.mockRejectedValue(new Error(`useSend refused ${EMAIL} and ${NEW_EMAIL}`));
+    hangSends = () => testAuth.mailer.send.mockReturnValue(new Promise(() => {}));
+    mailerSend = testAuth.mailer.send;
   });
 
   function expectOneLogEntryWithoutAddresses(template: string) {
@@ -348,6 +354,18 @@ describe('a failed send', () => {
     const logged = JSON.stringify(mailLog.error.mock.calls[0]);
     expect(logged).not.toContain(EMAIL);
     expect(logged).not.toContain(NEW_EMAIL);
+  }
+
+  /**
+   * A Link Email is given up on after the response has gone, so its entry is only there once the send has settled.
+   * Waiting a macrotask lets every rejected send settle, and a second entry would show up too.
+   */
+  async function expectOneLinkEmailEntry(template: string) {
+    await new Promise(setImmediate);
+    expect(mailLog.error).toHaveBeenCalledTimes(1);
+    expect(mailLog.error.mock.calls[0]).toEqual([{ template }, AUTH_LINK_EMAIL_FAILED_LOG]);
+    const logged = JSON.stringify(mailLog.error.mock.calls[0]);
+    for (const secret of [EMAIL, NEW_EMAIL, 'http', 'useSend refused']) expect(logged).not.toContain(secret);
   }
 
   /** The password that signs in now, which proves the change committed. */
@@ -417,20 +435,73 @@ describe('a failed send', () => {
     });
   });
 
-  /**
-   * Better Auth wraps these sends itself (`runInBackgroundOrAwait`, and a `.catch` for the code), logs through its own
-   * logger and answers success. These fail if a Better Auth upgrade changes that.
-   */
-  describe('that Better Auth absorbs', () => {
-    it('answers a known address exactly as an unknown one on password reset', async () => {
+  /** Better Auth absorbs this one with a `.catch`, logs through its own logger and answers success. */
+  it('still answers success when emailing a two-factor code', async () => {
+    await signUpWithTotp(request, TEST_USER);
+    const { challengeCookie: cookie } = await startTwoFactorSignIn(request, TEST_USER);
+    failSends();
+
+    const res = await request('/two-factor/send-otp', { cookie, body: {} });
+
+    expect(res.status).toBe(200);
+    expect(mailLog.error).not.toHaveBeenCalled();
+  });
+
+  describe('of a Link Email', () => {
+    it('answers a verification resend the same for an unverified, a verified and an unknown address', async () => {
+      await signUpWithEmail(request, TEST_USER);
+      const { res: signedUp } = await signUpWithEmail(request, { ...TEST_USER, email: VERIFIED_EMAIL });
+      expect(signedUp.status).toBe(200);
+      await request(emailedLink(sent.at(-1)).replace(TEST_ORIGIN, '').replace(AUTH_BASE_PATH, ''));
+      failSends();
+      mailerSend.mockClear();
+
+      const [unverified, verified, unknown] = await Promise.all(
+        [EMAIL, VERIFIED_EMAIL, 'nobody@example.com'].map((email) => request('/send-verification-email', { body: { email } })),
+      );
+
+      expect(unverified.status).toBe(200);
+      expect(verified.status).toBe(200);
+      expect(unknown.status).toBe(200);
+      const body = await unknown.json();
+      expect(await unverified.json()).toEqual(body);
+      expect(await verified.json()).toEqual(body);
+      // Only the unverified address is sent to, so the verified one really took the no-send path.
+      expect(mailerSend).toHaveBeenCalledTimes(1);
+      expect(mailerSend.mock.calls[0][0].to).toBe(EMAIL);
+    });
+
+    it('writes one entry naming the template when a verification resend is given up on', async () => {
       await signUp();
-      const unknown = await request('/request-password-reset', { body: { email: 'nobody@example.com', redirectTo: `${TEST_ORIGIN}/reset` } });
       failSends();
 
-      const known = await request('/request-password-reset', { body: { email: EMAIL, redirectTo: `${TEST_ORIGIN}/reset` } });
+      await request('/send-verification-email', { body: { email: EMAIL } });
 
-      expect(known.status).toBe(unknown.status);
+      await expectOneLinkEmailEntry('EmailVerificationEmail');
+    });
+
+    it('answers a signed-in verification resend with success', async () => {
+      const cookie = await signUp();
+      failSends();
+
+      const res = await request('/send-verification-email', { cookie, body: { email: EMAIL } });
+
+      expect(res.status).toBe(200);
+      await expectOneLinkEmailEntry('EmailVerificationEmail');
+    });
+
+    it('answers a known address exactly as an unknown one on password reset', async () => {
+      await signUp();
+      failSends();
+
+      const [known, unknown] = await Promise.all(
+        [EMAIL, 'nobody@example.com'].map((email) => request('/request-password-reset', { body: { email, redirectTo: `${TEST_ORIGIN}/reset` } })),
+      );
+
+      expect(known.status).toBe(200);
+      expect(unknown.status).toBe(200);
       expect(await known.json()).toEqual(await unknown.json());
+      await expectOneLinkEmailEntry('PasswordResetLinkEmail');
     });
 
     it('still answers success on sign-up', async () => {
@@ -439,7 +510,7 @@ describe('a failed send', () => {
       const { res } = await signUpWithEmail(request, TEST_USER);
 
       expect(res.status).toBe(200);
-      expect(mailLog.error).not.toHaveBeenCalled();
+      await expectOneLinkEmailEntry('EmailVerificationEmail');
     });
 
     it('still answers success on an email change request', async () => {
@@ -449,29 +520,64 @@ describe('a failed send', () => {
       const res = await request('/change-email', { cookie, body: { newEmail: NEW_EMAIL, callbackURL: '/email-verified' } });
 
       expect(res.status).toBe(200);
-      expect(mailLog.error).not.toHaveBeenCalled();
-    });
-
-    it('still answers success when emailing a two-factor code', async () => {
-      await signUpWithTotp(request, TEST_USER);
-      const { challengeCookie: cookie } = await startTwoFactorSignIn(request, TEST_USER);
-      failSends();
-
-      const res = await request('/two-factor/send-otp', { cookie, body: {} });
-
-      expect(res.status).toBe(200);
-      expect(mailLog.error).not.toHaveBeenCalled();
+      await expectOneLinkEmailEntry('EmailChangeRequestEmail');
     });
   });
 
-  /** Better Auth awaits this send bare, so the failure reaches the caller; left as is, the user needs this mail. */
-  it('fails a verification resend', async () => {
+  /** The proof that a response does not wait on the send: if it did, these would never finish. */
+  describe('that never resolves', () => {
+    it('still answers a verification resend', async () => {
+      await signUp();
+      hangSends();
+
+      const res = await request('/send-verification-email', { body: { email: EMAIL } });
+
+      expect(res.status).toBe(200);
+    });
+
+    it('still answers a password reset request', async () => {
+      await signUp();
+      hangSends();
+
+      const res = await request('/request-password-reset', { body: { email: EMAIL, redirectTo: `${TEST_ORIGIN}/reset` } });
+
+      expect(res.status).toBe(200);
+    });
+  });
+});
+
+describe('a Link Email that goes through', () => {
+  const mailLog = { error: vi.fn() };
+
+  beforeEach(() => {
+    mailLog.error.mockReset();
+    const testAuth = createTestAuth({ mailLog });
+    request = testAuth.request;
+    sent = testAuth.mailer.sent;
+  });
+
+  it('answers a verification resend and sends the link', async () => {
     await signUp();
-    failSends();
 
     const res = await request('/send-verification-email', { body: { email: EMAIL } });
 
-    expect(res.status).toBe(500);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ status: true });
+    expect(sentTemplates()).toHaveLength(1);
+    expect(sentTemplates()[0]).toBeInstanceOf(EmailVerificationEmail);
+    await new Promise(setImmediate);
+    expect(mailLog.error).not.toHaveBeenCalled();
+  });
+
+  it('answers a password reset request and sends the link', async () => {
+    await signUp();
+
+    const res = await request('/request-password-reset', { body: { email: EMAIL, redirectTo: `${TEST_ORIGIN}/reset` } });
+
+    expect(res.status).toBe(200);
+    expect(sentTemplates()).toHaveLength(1);
+    expect(sentTemplates()[0]).toBeInstanceOf(PasswordResetLinkEmail);
+    await new Promise(setImmediate);
     expect(mailLog.error).not.toHaveBeenCalled();
   });
 });
