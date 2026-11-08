@@ -16,13 +16,29 @@ const LINK = 'https://adelie.example.com/action?token=abc&next=%2Fhome';
 
 /** Each template with the phrases its plain-text part must carry: what the reader has to see or act on. */
 const TEMPLATES: [string, EmailTemplate, string[]][] = [
-  ['EmailChangeNoticeEmail', new EmailChangeNoticeEmail('new@example.com'), ['new@example.com', 'contact support']],
-  ['EmailChangeRequestEmail', new EmailChangeRequestEmail(LINK), [LINK, 'did not ask for this change']],
-  ['EmailVerificationEmail', new EmailVerificationEmail(LINK), [LINK, 'did not create an account']],
-  ['PasswordChangedEmail', new PasswordChangedEmail('en'), ['password for your account was just changed', 'reset your password']],
-  ['PasswordResetLinkEmail', new PasswordResetLinkEmail(LINK), [LINK, 'did not ask for this']],
-  ['RecoveryCodesRegeneratedEmail', new RecoveryCodesRegeneratedEmail(), ['old codes no longer work']],
-  ['RecoveryCodesUsedEmail', new RecoveryCodesUsedEmail(), ['recovery code was just used', 'Each code works once']],
+  [
+    'EmailChangeNoticeEmail',
+    new EmailChangeNoticeEmail('new@example.com', 'en'),
+    [
+      'Your email address was changed',
+      'The email for your account is now new@example.com. This address no longer receives account email.',
+      'contact support',
+    ],
+  ],
+  [
+    'EmailChangeRequestEmail',
+    new EmailChangeRequestEmail(LINK, 'en'),
+    ['Confirm your new email address', 'Confirm email change', LINK, 'did not ask for this change'],
+  ],
+  ['EmailVerificationEmail', new EmailVerificationEmail(LINK, 'en'), ['Verify your email', 'Verify email', LINK, 'did not create an account']],
+  [
+    'PasswordChangedEmail',
+    new PasswordChangedEmail('en'),
+    ['Your password was changed', 'password for your account was just changed', 'reset your password'],
+  ],
+  ['PasswordResetLinkEmail', new PasswordResetLinkEmail(LINK, 'en'), ['Reset your password', 'Reset password', LINK, 'did not ask for this']],
+  ['RecoveryCodesRegeneratedEmail', new RecoveryCodesRegeneratedEmail('en'), ['Your recovery codes were regenerated', 'old codes no longer work']],
+  ['RecoveryCodesUsedEmail', new RecoveryCodesUsedEmail('en'), ['A recovery code was used', 'recovery code was just used', 'Each code works once']],
   ['TwoFactorOtpEmail', new TwoFactorOtpEmail('123456', 5), ['123456', 'valid for 5 minutes', 'did not try to sign in']],
 ];
 
@@ -47,10 +63,10 @@ const MARKUP_URL = `https://adelie.example.com/action?next=${MARKUP}`;
 
 /** Every template that inserts a dynamic value, given that value with characters HTML treats as markup. */
 const TEMPLATES_WITH_MARKUP: [string, EmailTemplate][] = [
-  ['EmailChangeNoticeEmail', new EmailChangeNoticeEmail(MARKUP)],
-  ['EmailChangeRequestEmail', new EmailChangeRequestEmail(MARKUP_URL)],
-  ['EmailVerificationEmail', new EmailVerificationEmail(MARKUP_URL)],
-  ['PasswordResetLinkEmail', new PasswordResetLinkEmail(MARKUP_URL)],
+  ['EmailChangeNoticeEmail', new EmailChangeNoticeEmail(MARKUP, 'en')],
+  ['EmailChangeRequestEmail', new EmailChangeRequestEmail(MARKUP_URL, 'en')],
+  ['EmailVerificationEmail', new EmailVerificationEmail(MARKUP_URL, 'en')],
+  ['PasswordResetLinkEmail', new PasswordResetLinkEmail(MARKUP_URL, 'en')],
   ['TwoFactorOtpEmail', new TwoFactorOtpEmail(MARKUP, 5)],
 ];
 
@@ -66,7 +82,7 @@ describe('dynamic values', () => {
   });
 
   it('keeps a link with an ampersand valid in HTML and usable in text', () => {
-    const template = new EmailVerificationEmail(LINK);
+    const template = new EmailVerificationEmail(LINK, 'en');
 
     expect(template.html()).toContain("href='https://adelie.example.com/action?token=abc&amp;next=%2Fhome'");
     expect(template.text()).toContain(LINK);
@@ -140,7 +156,13 @@ describe('TwoFactorOtpEmail', () => {
 
 /** Each localised template, with the dynamic values it is built with. */
 const LOCALISED_TEMPLATES: [string, (locale: Locale) => EmailTemplate, string[]][] = [
+  ['EmailChangeNoticeEmail', (locale) => new EmailChangeNoticeEmail('new@example.com', locale), ['new@example.com']],
+  ['EmailChangeRequestEmail', (locale) => new EmailChangeRequestEmail(LINK, locale), [LINK]],
+  ['EmailVerificationEmail', (locale) => new EmailVerificationEmail(LINK, locale), [LINK]],
   ['PasswordChangedEmail', (locale) => new PasswordChangedEmail(locale), []],
+  ['PasswordResetLinkEmail', (locale) => new PasswordResetLinkEmail(LINK, locale), [LINK]],
+  ['RecoveryCodesRegeneratedEmail', (locale) => new RecoveryCodesRegeneratedEmail(locale), []],
+  ['RecoveryCodesUsedEmail', (locale) => new RecoveryCodesUsedEmail(locale), []],
 ];
 
 const TRANSLATED_LOCALES = locales.filter((locale) => locale !== 'en');

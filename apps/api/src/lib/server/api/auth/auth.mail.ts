@@ -59,19 +59,20 @@ export function createAuthMail(mailer: Mailer, log?: AuthMailLogger) {
       internalAdapter.findUserByEmail(claims.updateTo),
     ]);
     if (oldAccount || !newAccount) return;
-    await sendSecurityEvent(claims.email, new EmailChangeNoticeEmail(claims.updateTo));
+    await sendSecurityEvent(claims.email, new EmailChangeNoticeEmail(claims.updateTo, getRequestLocale()));
   }
 
   return {
     /** Sign-up and resend verification, and (to the new address) the confirmation of an email change. */
     async sendVerificationEmail({ user, url, token }: { user: Recipient; url: string; token?: string }) {
       const isEmailChange = readVerificationToken(token)?.requestType === CHANGE_EMAIL_REQUEST_TYPE;
-      const template = isEmailChange ? new EmailChangeRequestEmail(url) : new EmailVerificationEmail(url);
+      const locale = getRequestLocale();
+      const template = isEmailChange ? new EmailChangeRequestEmail(url, locale) : new EmailVerificationEmail(url, locale);
       await mailer.send({ to: user.email, template });
     },
 
     async sendResetPassword({ user, url }: { user: Recipient; url: string }) {
-      await mailer.send({ to: user.email, template: new PasswordResetLinkEmail(url) });
+      await mailer.send({ to: user.email, template: new PasswordResetLinkEmail(url, getRequestLocale()) });
     },
 
     /** Reset-by-link completion (`emailAndPassword.onPasswordReset`). */
@@ -95,10 +96,10 @@ export function createAuthMail(mailer: Mailer, log?: AuthMailLogger) {
           await sendSecurityEvent(user.email, new PasswordChangedEmail(getRequestLocale()));
           break;
         case AuthEndpoint.VERIFY_BACKUP_CODE:
-          await sendSecurityEvent(user.email, new RecoveryCodesUsedEmail());
+          await sendSecurityEvent(user.email, new RecoveryCodesUsedEmail(getRequestLocale()));
           break;
         case AuthEndpoint.GENERATE_BACKUP_CODES:
-          await sendSecurityEvent(user.email, new RecoveryCodesRegeneratedEmail());
+          await sendSecurityEvent(user.email, new RecoveryCodesRegeneratedEmail(getRequestLocale()));
           break;
       }
     }),

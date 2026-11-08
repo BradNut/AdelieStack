@@ -6,5 +6,21 @@
   "auth_multiple_roles_disabled": "La asignación de más de un rol está desactivada (ALLOW_MULTIPLE_ROLES está desactivado)",
   "auth_password_required_for_two_factor": "No se puede desvincular la contraseña mientras la autenticación de dos factores esté activada; desactívala primero",
   "mail_password_changed_title": "Tu contraseña se ha cambiado",
-  "mail_password_changed_body": "La contraseña de tu cuenta se acaba de cambiar. Si no has sido tú, restablece tu contraseña y revisa la seguridad de tu cuenta de inmediato."
+  "mail_password_changed_body": "La contraseña de tu cuenta se acaba de cambiar. Si no has sido tú, restablece tu contraseña y revisa la seguridad de tu cuenta de inmediato.",
+  "mail_email_change_notice_title": "Tu dirección de correo electrónico se ha cambiado",
+  "mail_email_change_notice_body": "El correo electrónico de tu cuenta ahora es {newEmail}. Esta dirección ya no recibe correos de la cuenta.",
+  "mail_email_change_notice_warning": "Si no has sido tú, ponte en contacto con el soporte de inmediato y protege tu cuenta.",
+  "mail_email_change_request_title": "Confirma tu nueva dirección de correo electrónico",
+  "mail_email_change_request_body": "Confirma esta dirección para convertirla en el correo electrónico de tu cuenta. Si no has solicitado este cambio, puedes ignorar este mensaje.",
+  "mail_email_change_request_action": "Confirmar el cambio de correo electrónico",
+  "mail_email_verification_title": "Verifica tu correo electrónico",
+  "mail_email_verification_body": "Confirma esta dirección para terminar de configurar tu cuenta. Si no has creado una cuenta, puedes ignorar este mensaje.",
+  "mail_email_verification_action": "Verificar correo electrónico",
+  "mail_password_reset_title": "Restablece tu contraseña",
+  "mail_password_reset_body": "Has solicitado restablecer tu contraseña. Usa el enlace de abajo para elegir una contraseña nueva. Si no lo has solicitado, puedes ignorar este mensaje.",
+  "mail_password_reset_action": "Restablecer contraseña",
+  "mail_recovery_codes_regenerated_title": "Tus códigos de recuperación se han regenerado",
+  "mail_recovery_codes_regenerated_body": "Se han generado nuevos códigos de recuperación de dos factores para tu cuenta. Tus códigos anteriores ya no funcionan. Si no has sido tú, protege tu cuenta de inmediato.",
+  "mail_recovery_codes_used_title": "Se ha usado un código de recuperación",
+  "mail_recovery_codes_used_body": "Se acaba de usar un código de recuperación de dos factores para iniciar sesión en tu cuenta. Cada código funciona una sola vez. Si no has sido tú, protege tu cuenta de inmediato."
 }

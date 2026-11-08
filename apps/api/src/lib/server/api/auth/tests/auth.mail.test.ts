@@ -1,6 +1,7 @@
 import { AUTH_BASE_PATH } from '@adelie/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { SECURITY_EVENT_EMAIL_FAILED_LOG } from '#lib/server/api/auth/auth.mail';
+import type { EmailTemplate } from '#lib/server/api/mail/interfaces/email-template.interface';
 import type { SendProps } from '#lib/server/api/mail/interfaces/mailer.interface';
 import { EmailChangeNoticeEmail } from '#lib/server/api/mail/templates/email-change-notice.template';
 import { EmailChangeRequestEmail } from '#lib/server/api/mail/templates/email-change-request.template';
@@ -183,6 +184,56 @@ describe('the language of an email', () => {
 
     expect(email.html()).toContain("<html lang='en'>");
     expect(email.subject()).toBe(ENGLISH_SUBJECT);
+  });
+});
+
+describe('every email follows the language of the request that caused it', () => {
+  const GERMAN = { 'accept-language': 'de' };
+
+  function expectGerman(templateClass: new (...args: never[]) => EmailTemplate) {
+    const email = sentTemplates().find((template) => template instanceof templateClass);
+    expect(email?.html()).toContain("<html lang='de'>");
+  }
+
+  it('the verification email', async () => {
+    await signUp();
+
+    await request('/send-verification-email', { headers: GERMAN, body: { email: EMAIL } });
+
+    expectGerman(EmailVerificationEmail);
+  });
+
+  it('the password reset link', async () => {
+    await signUp();
+
+    await request('/request-password-reset', { headers: GERMAN, body: { email: EMAIL, redirectTo: `${TEST_ORIGIN}/reset` } });
+
+    expectGerman(PasswordResetLinkEmail);
+  });
+
+  it('the email change request and notice', async () => {
+    const cookie = await signUp();
+
+    await request('/change-email', { cookie, headers: GERMAN, body: { newEmail: 'emperor@example.com', callbackURL: '/email-verified' } });
+    expectGerman(EmailChangeRequestEmail);
+
+    await request(emailedLink(sent.at(-1)).replace(TEST_ORIGIN, '').replace(AUTH_BASE_PATH, ''), { cookie, headers: GERMAN });
+    expectGerman(EmailChangeNoticeEmail);
+  });
+
+  it('the recovery code emails', async () => {
+    const {
+      cookie,
+      backupCodes: [code],
+    } = await signUpWithTotp(request, TEST_USER);
+    clearSent();
+
+    const { challengeCookie } = await startTwoFactorSignIn(request, TEST_USER);
+    await request('/two-factor/verify-backup-code', { cookie: challengeCookie, headers: GERMAN, body: { code } });
+    expectGerman(RecoveryCodesUsedEmail);
+
+    await request('/two-factor/generate-backup-codes', { cookie, headers: GERMAN, body: { password: PASSWORD } });
+    expectGerman(RecoveryCodesRegeneratedEmail);
   });
 });
 

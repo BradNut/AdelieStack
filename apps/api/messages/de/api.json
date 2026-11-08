@@ -6,5 +6,21 @@
   "auth_multiple_roles_disabled": "Das Zuweisen mehrerer Rollen ist deaktiviert (ALLOW_MULTIPLE_ROLES ist aus)",
   "auth_password_required_for_two_factor": "Die Verknüpfung des Passworts kann nicht aufgehoben werden, solange die Zwei-Faktor-Authentifizierung aktiviert ist; deaktivieren Sie diese zuerst",
   "mail_password_changed_title": "Ihr Passwort wurde geändert",
-  "mail_password_changed_body": "Das Passwort Ihres Kontos wurde soeben geändert. Falls Sie das nicht waren, setzen Sie Ihr Passwort zurück und überprüfen Sie umgehend die Sicherheit Ihres Kontos."
+  "mail_password_changed_body": "Das Passwort Ihres Kontos wurde soeben geändert. Falls Sie das nicht waren, setzen Sie Ihr Passwort zurück und überprüfen Sie umgehend die Sicherheit Ihres Kontos.",
+  "mail_email_change_notice_title": "Ihre E-Mail-Adresse wurde geändert",
+  "mail_email_change_notice_body": "Die E-Mail-Adresse Ihres Kontos lautet jetzt {newEmail}. Diese Adresse erhält keine Konto-E-Mails mehr.",
+  "mail_email_change_notice_warning": "Falls Sie das nicht waren, wenden Sie sich umgehend an den Support und sichern Sie Ihr Konto.",
+  "mail_email_change_request_title": "Bestätigen Sie Ihre neue E-Mail-Adresse",
+  "mail_email_change_request_body": "Bestätigen Sie diese Adresse, um sie als E-Mail-Adresse für Ihr Konto zu verwenden. Falls Sie diese Änderung nicht angefordert haben, können Sie diese Nachricht ignorieren.",
+  "mail_email_change_request_action": "E-Mail-Änderung bestätigen",
+  "mail_email_verification_title": "Bestätigen Sie Ihre E-Mail-Adresse",
+  "mail_email_verification_body": "Bestätigen Sie diese Adresse, um die Einrichtung Ihres Kontos abzuschließen. Falls Sie kein Konto erstellt haben, können Sie diese Nachricht ignorieren.",
+  "mail_email_verification_action": "E-Mail-Adresse bestätigen",
+  "mail_password_reset_title": "Setzen Sie Ihr Passwort zurück",
+  "mail_password_reset_body": "Sie haben das Zurücksetzen Ihres Passworts angefordert. Verwenden Sie den Link unten, um ein neues Passwort festzulegen. Falls Sie dies nicht angefordert haben, können Sie diese Nachricht ignorieren.",
+  "mail_password_reset_action": "Passwort zurücksetzen",
+  "mail_recovery_codes_regenerated_title": "Ihre Wiederherstellungscodes wurden neu erstellt",
+  "mail_recovery_codes_regenerated_body": "Für Ihr Konto wurden neue Zwei-Faktor-Wiederherstellungscodes erstellt. Ihre alten Codes funktionieren nicht mehr. Falls Sie das nicht waren, sichern Sie umgehend Ihr Konto.",
+  "mail_recovery_codes_used_title": "Ein Wiederherstellungscode wurde verwendet",
+  "mail_recovery_codes_used_body": "Soeben wurde ein Zwei-Faktor-Wiederherstellungscode verwendet, um sich bei Ihrem Konto anzumelden. Jeder Code funktioniert nur einmal. Falls Sie das nicht waren, sichern Sie umgehend Ihr Konto."
 }
