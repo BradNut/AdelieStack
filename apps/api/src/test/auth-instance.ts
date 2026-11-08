@@ -1,7 +1,10 @@
 import { APP_NAME, AUTH_BASE_PATH } from '@adelie/shared';
 import { memoryAdapter } from 'better-auth/adapters/memory';
+import { Hono } from 'hono';
+import { contextStorage } from 'hono/context-storage';
 import { type CreateAuthOptions, createAuth } from '#lib/server/api/auth/auth.config';
 import { createHibpHealth } from '#lib/server/api/auth/auth.hibp-status';
+import { requestLocale } from '#lib/server/api/common/middleware/locale.middleware';
 import type { AuthRequest } from './auth-http';
 import { createMailerServiceMock } from './mocks/mailer.mock';
 
@@ -37,13 +40,23 @@ export function createTestAuth(overrides: Partial<Omit<CreateAuthOptions, 'datab
     database: memoryAdapter(db),
   });
 
-  /** Calls the instance's handler at `/api/auth${path}`, as the Hono mount does. */
-  const request: AuthRequest = (path, { body, cookie, headers, method } = {}) => {
+  // The request context the real mount runs in, so a test sees the locale an email is written in.
+  const app = new Hono()
+    .use(contextStorage())
+    .use(requestLocale)
+    .on(['GET', 'POST'], `${AUTH_BASE_PATH}/*`, (c) => auth.handler(c.req.raw))
+    // A handler's error reaches the test instead of becoming a generic 500.
+    .onError((error) => {
+      throw error;
+    });
+
+  /** Calls the instance's handler at `/api/auth${path}` through the Hono mount. */
+  const request: AuthRequest = async (path, { body, cookie, headers, method } = {}) => {
     const h = new Headers({ origin: TEST_ORIGIN });
     if (body !== undefined) h.set('content-type', 'application/json');
     if (cookie) h.set('cookie', cookie);
     for (const [name, value] of Object.entries(headers ?? {})) h.set(name, value);
-    return auth.handler(
+    return app.fetch(
       new Request(`${TEST_ORIGIN}${AUTH_BASE_PATH}${path}`, {
         method: method ?? (body === undefined ? 'GET' : 'POST'),
         headers: h,

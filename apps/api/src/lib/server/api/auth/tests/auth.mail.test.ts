@@ -152,6 +152,40 @@ describe('security-event emails', () => {
   });
 });
 
+describe('the language of an email', () => {
+  const ENGLISH_SUBJECT = 'Your password was changed';
+
+  async function changePasswordWith(headers: Record<string, string>) {
+    const cookie = await signUp();
+    await request('/change-password', { cookie, headers, body: { currentPassword: PASSWORD, newPassword: NEW_PASSWORD } });
+    return sent[0].template;
+  }
+
+  it('follows Accept-Language', async () => {
+    const email = await changePasswordWith({ 'accept-language': 'de' });
+
+    expect(email.html()).toContain("<html lang='de'>");
+    expect(email.subject()).not.toBe(ENGLISH_SUBJECT);
+  });
+
+  it('uses the base language of a regional variant', async () => {
+    const email = await changePasswordWith({ 'accept-language': 'de-AT' });
+
+    expect(email.html()).toContain("<html lang='de'>");
+    expect(email.subject()).not.toBe(ENGLISH_SUBJECT);
+  });
+
+  it.each([
+    ['no language', {}],
+    ['only unsupported languages', { 'accept-language': 'fr, ja;q=0.8' }],
+  ])('is English when the request names %s', async (_name, headers: Record<string, string>) => {
+    const email = await changePasswordWith(headers);
+
+    expect(email.html()).toContain("<html lang='en'>");
+    expect(email.subject()).toBe(ENGLISH_SUBJECT);
+  });
+});
+
 describe('email change', () => {
   const NEW_EMAIL = 'emperor@example.com';
 
@@ -243,8 +277,9 @@ describe('a failed send', () => {
     failSends = () => testAuth.mailer.send.mockRejectedValue(new Error(`useSend refused ${EMAIL} and ${NEW_EMAIL}`));
   });
 
-  function expectOneLogEntryWithoutAddresses() {
+  function expectOneLogEntryWithoutAddresses(template: string) {
     expect(mailLog.error).toHaveBeenCalledTimes(1);
+    expect(mailLog.error.mock.calls[0][0]).toEqual({ template });
     expect(mailLog.error.mock.calls[0][1]).toBe(SECURITY_EVENT_EMAIL_FAILED_LOG);
     const logged = JSON.stringify(mailLog.error.mock.calls[0]);
     expect(logged).not.toContain(EMAIL);
@@ -265,7 +300,7 @@ describe('a failed send', () => {
 
       expect(res.status).toBe(200);
       expect(await signInStatus(NEW_PASSWORD)).toBe(200);
-      expectOneLogEntryWithoutAddresses();
+      expectOneLogEntryWithoutAddresses('PasswordChangedEmail');
     });
 
     it('does not fail a completed password change', async () => {
@@ -276,7 +311,7 @@ describe('a failed send', () => {
 
       expect(res.status).toBe(200);
       expect(await signInStatus(NEW_PASSWORD)).toBe(200);
-      expectOneLogEntryWithoutAddresses();
+      expectOneLogEntryWithoutAddresses('PasswordChangedEmail');
     });
 
     it('still hands over regenerated recovery codes', async () => {
@@ -287,7 +322,7 @@ describe('a failed send', () => {
 
       expect(res.status).toBe(200);
       expect(((await res.json()) as { backupCodes: string[] }).backupCodes.length).toBeGreaterThan(0);
-      expectOneLogEntryWithoutAddresses();
+      expectOneLogEntryWithoutAddresses('RecoveryCodesRegeneratedEmail');
     });
 
     it('still signs in with a recovery code', async () => {
@@ -301,7 +336,7 @@ describe('a failed send', () => {
 
       expect(res.status).toBe(200);
       expect(cookiesFrom(res)).toContain('session_token');
-      expectOneLogEntryWithoutAddresses();
+      expectOneLogEntryWithoutAddresses('RecoveryCodesUsedEmail');
     });
 
     it('still completes an email change when the notice to the old address fails', async () => {
@@ -314,7 +349,7 @@ describe('a failed send', () => {
 
       expect(res.status).toBeLessThan(400);
       expect(((await (await request('/get-session', { cookie })).json()) as { user: { email: string } }).user.email).toBe(NEW_EMAIL);
-      expectOneLogEntryWithoutAddresses();
+      expectOneLogEntryWithoutAddresses('EmailChangeNoticeEmail');
     });
   });
 

@@ -1,3 +1,4 @@
+import { baseLocale, type Locale } from '#lib/server/api/common/i18n/index';
 import type { EmailTemplate } from '#lib/server/api/mail/interfaces/email-template.interface';
 
 const HTML_ESCAPES: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
@@ -7,6 +8,8 @@ function escapeHtml(value: string): string {
 }
 
 interface EmailDocument {
+  /** The language the document is marked with. */
+  lang: Locale;
   /** Plain text; escaped here. */
   title: string;
   /** Inserted as they are, so the caller escapes what they carry. */
@@ -16,9 +19,9 @@ interface EmailDocument {
 }
 
 /** The HTML document around every email's body. */
-export function renderEmailDocument({ title, bodyLines, style }: EmailDocument): string {
+export function renderEmailDocument({ lang, title, bodyLines, style }: EmailDocument): string {
   return /*html*/ `
-		<html lang='en'>
+		<html lang='${lang}'>
 			<head>
 				<meta http-equiv='X-UA-Compatible' content='IE=edge' />
 				<meta name='viewport' content='width=device-width, initial-scale=1.0' />
@@ -35,6 +38,8 @@ export function renderEmailDocument({ title, bodyLines, style }: EmailDocument):
 }
 
 interface EmailContent {
+  /** The language the copy is in; marks the HTML. */
+  locale?: Locale;
   /** Both the subject and the heading. */
   title: string;
   paragraphs: string[];
@@ -59,8 +64,9 @@ export abstract class StandardEmail implements EmailTemplate {
   }
 
   html(): string {
-    const { title, paragraphs, code, action } = this.content;
+    const { locale = baseLocale, title, paragraphs, code, action } = this.content;
     return renderEmailDocument({
+      lang: locale,
       title,
       bodyLines: [
         `<p class='title'>${escapeHtml(title)}</p>`,

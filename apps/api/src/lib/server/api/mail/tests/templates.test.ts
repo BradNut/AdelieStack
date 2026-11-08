@@ -1,5 +1,6 @@
 import { readdirSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { type Locale, locales } from '#lib/server/api/common/i18n/index';
 import { StandardEmail } from '#lib/server/api/mail/email-layout';
 import type { EmailTemplate } from '#lib/server/api/mail/interfaces/email-template.interface';
 import { EmailChangeNoticeEmail } from '#lib/server/api/mail/templates/email-change-notice.template';
@@ -18,7 +19,7 @@ const TEMPLATES: [string, EmailTemplate, string[]][] = [
   ['EmailChangeNoticeEmail', new EmailChangeNoticeEmail('new@example.com'), ['new@example.com', 'contact support']],
   ['EmailChangeRequestEmail', new EmailChangeRequestEmail(LINK), [LINK, 'did not ask for this change']],
   ['EmailVerificationEmail', new EmailVerificationEmail(LINK), [LINK, 'did not create an account']],
-  ['PasswordChangedEmail', new PasswordChangedEmail(), ['password for your account was just changed', 'reset your password']],
+  ['PasswordChangedEmail', new PasswordChangedEmail('en'), ['password for your account was just changed', 'reset your password']],
   ['PasswordResetLinkEmail', new PasswordResetLinkEmail(LINK), [LINK, 'did not ask for this']],
   ['RecoveryCodesRegeneratedEmail', new RecoveryCodesRegeneratedEmail(), ['old codes no longer work']],
   ['RecoveryCodesUsedEmail', new RecoveryCodesUsedEmail(), ['recovery code was just used', 'Each code works once']],
@@ -104,7 +105,7 @@ describe('the standard email layout', () => {
   });
 
   it('renders no code block or action when the email has none', () => {
-    const html = new PasswordChangedEmail().html();
+    const html = new PasswordChangedEmail('en').html();
 
     expect(html).not.toContain('token-');
     expect(html).not.toContain('<a ');
@@ -134,5 +135,56 @@ describe('TwoFactorOtpEmail', () => {
 
   it('pairs the label with the code in the text part', () => {
     expect(email.text()).toContain('Verification code: 123456');
+  });
+});
+
+/** Each localised template, with the dynamic values it is built with. */
+const LOCALISED_TEMPLATES: [string, (locale: Locale) => EmailTemplate, string[]][] = [
+  ['PasswordChangedEmail', (locale) => new PasswordChangedEmail(locale), []],
+];
+
+const TRANSLATED_LOCALES = locales.filter((locale) => locale !== 'en');
+
+describe.each(LOCALISED_TEMPLATES)('%s in every locale', (_name, build, dynamicValues) => {
+  it.each(locales)('marks the HTML as %s', (locale) => {
+    expect(build(locale).html()).toContain(`<html lang='${locale}'>`);
+  });
+
+  it.each(locales)('states the title in the subject, HTML and text in %s', (locale) => {
+    const email = build(locale);
+
+    expect(email.html()).toContain(`<title>${email.subject()}</title>`);
+    expect(email.html()).toContain(`<p class='title'>${email.subject()}</p>`);
+    expect(email.text().startsWith(email.subject())).toBe(true);
+  });
+
+  it.each(locales)('carries its dynamic values in both parts in %s', (locale) => {
+    const email = build(locale);
+
+    for (const value of dynamicValues) {
+      expect(email.text()).toContain(value);
+      expect(email.html()).toContain(value.replaceAll('&', '&amp;'));
+    }
+  });
+
+  it.each(TRANSLATED_LOCALES)('is translated in %s', (locale) => {
+    const english = build('en');
+    const translated = build(locale);
+
+    expect(translated.subject()).not.toBe(english.subject());
+    // Differs apart from the values that are the same in every language.
+    const prose = (text: string) => dynamicValues.reduce((rest, value) => rest.replaceAll(value, ''), text);
+    for (const line of prose(english.text()).split('\n').filter(Boolean)) expect(prose(translated.text())).not.toContain(line);
+  });
+});
+
+describe('PasswordChangedEmail English copy', () => {
+  it('keeps its wording', () => {
+    const email = new PasswordChangedEmail('en');
+
+    expect(email.subject()).toBe('Your password was changed');
+    expect(email.text()).toContain(
+      'The password for your account was just changed. If this was not you, reset your password and review your account security straight away.',
+    );
   });
 });

@@ -1,4 +1,5 @@
 import { createAuthMiddleware, isAPIError } from 'better-auth/api';
+import { getRequestLocale } from '#lib/server/api/common/i18n/index';
 import type { EmailTemplate } from '#lib/server/api/mail/interfaces/email-template.interface';
 import type { Mailer } from '#lib/server/api/mail/interfaces/mailer.interface';
 import { EmailChangeNoticeEmail } from '#lib/server/api/mail/templates/email-change-notice.template';
@@ -40,7 +41,7 @@ export function createAuthMail(mailer: Mailer, log?: AuthMailLogger) {
     try {
       await mailer.send({ to, template });
     } catch {
-      log?.error({ subject: template.subject() }, SECURITY_EVENT_EMAIL_FAILED_LOG);
+      log?.error({ template: template.constructor.name }, SECURITY_EVENT_EMAIL_FAILED_LOG);
     }
   }
 
@@ -75,7 +76,7 @@ export function createAuthMail(mailer: Mailer, log?: AuthMailLogger) {
 
     /** Reset-by-link completion (`emailAndPassword.onPasswordReset`). */
     async notifyPasswordChanged({ user }: { user: Recipient }) {
-      await sendSecurityEvent(user.email, new PasswordChangedEmail());
+      await sendSecurityEvent(user.email, new PasswordChangedEmail(getRequestLocale()));
     },
 
     /**
@@ -91,7 +92,7 @@ export function createAuthMail(mailer: Mailer, log?: AuthMailLogger) {
       if (!user) return;
       switch (ctx.path) {
         case AuthEndpoint.CHANGE_PASSWORD:
-          await sendSecurityEvent(user.email, new PasswordChangedEmail());
+          await sendSecurityEvent(user.email, new PasswordChangedEmail(getRequestLocale()));
           break;
         case AuthEndpoint.VERIFY_BACKUP_CODE:
           await sendSecurityEvent(user.email, new RecoveryCodesUsedEmail());
