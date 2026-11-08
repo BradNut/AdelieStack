@@ -19,6 +19,7 @@ export type StoredObject = {
  * decisions can be made without re-scanning.
  */
 export const ScanStatus = {
+  PENDING: 'pending',
   SCANNING: 'scanning',
   CLEAN: 'clean',
   INFECTED: 'infected',

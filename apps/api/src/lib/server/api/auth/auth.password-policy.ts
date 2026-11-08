@@ -48,7 +48,7 @@ export const hibpScreening = (status: ProviderHealth): BetterAuthPlugin[] => [
 ];
 
 /** Runs the plugin's own check, recording the outcome; an outage becomes a 503 with the stable unavailable code. */
-async function checkPasswordCompromised(password: string, hibpStatus: ProviderHealth): Promise<boolean> {
+export async function checkPasswordCompromised(password: string, hibpStatus: ProviderHealth): Promise<boolean> {
   try {
     const compromised = await isPasswordCompromised(password);
     hibpStatus.recordSuccess();

@@ -47,7 +47,7 @@
 - **Purpose**: S3-compatible object storage for user-uploaded files
 - **Integration**: AWS SDK v3
 - **Features**: S3 API on `:8333`; public-read granted via `docker/seaweedfs/s3-config.json`;
-  server-side image resizing via `sharp` (`storage/storage.service.ts`)
+  server-side image resizing via `sharp` (`storage/images.service.ts`)
 - **Security**: no antivirus scanning is wired up — see ClamAV note below
 
 #### Mailpit

@@ -2,6 +2,7 @@ import {
   CreateBucketCommand,
   DeleteObjectCommand,
   GetObjectCommand,
+  GetObjectTaggingCommand,
   HeadBucketCommand,
   PutObjectCommand,
   PutObjectTaggingCommand,
@@ -102,6 +103,15 @@ export class S3StorageClient {
         Tagging: { TagSet: tagSet },
       }),
     );
+  }
+
+  async getObjectTagging(bucket: string, key: string): Promise<Record<string, string>> {
+    const result = await this.s3Client.send(new GetObjectTaggingCommand({ Bucket: bucket, Key: key }));
+    const tags: Record<string, string> = {};
+    for (const tag of result.TagSet ?? []) {
+      if (tag.Key) tags[tag.Key] = tag.Value ?? '';
+    }
+    return tags;
   }
 }
 
