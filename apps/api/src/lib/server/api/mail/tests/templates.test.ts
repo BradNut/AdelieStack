@@ -39,7 +39,11 @@ const TEMPLATES: [string, EmailTemplate, string[]][] = [
   ['PasswordResetLinkEmail', new PasswordResetLinkEmail(LINK, 'en'), ['Reset your password', 'Reset password', LINK, 'did not ask for this']],
   ['RecoveryCodesRegeneratedEmail', new RecoveryCodesRegeneratedEmail('en'), ['Your recovery codes were regenerated', 'old codes no longer work']],
   ['RecoveryCodesUsedEmail', new RecoveryCodesUsedEmail('en'), ['A recovery code was used', 'recovery code was just used', 'Each code works once']],
-  ['TwoFactorOtpEmail', new TwoFactorOtpEmail('123456', 5), ['123456', 'valid for 5 minutes', 'did not try to sign in']],
+  [
+    'TwoFactorOtpEmail',
+    new TwoFactorOtpEmail('123456', 5, 'en'),
+    ['Your sign-in code', 'Verification code', '123456', 'valid for 5 minutes', 'did not try to sign in'],
+  ],
 ];
 
 describe('email template plain-text parts', () => {
@@ -67,7 +71,7 @@ const TEMPLATES_WITH_MARKUP: [string, EmailTemplate][] = [
   ['EmailChangeRequestEmail', new EmailChangeRequestEmail(MARKUP_URL, 'en')],
   ['EmailVerificationEmail', new EmailVerificationEmail(MARKUP_URL, 'en')],
   ['PasswordResetLinkEmail', new PasswordResetLinkEmail(MARKUP_URL, 'en')],
-  ['TwoFactorOtpEmail', new TwoFactorOtpEmail(MARKUP, 5)],
+  ['TwoFactorOtpEmail', new TwoFactorOtpEmail(MARKUP, 5, 'en')],
 ];
 
 describe('dynamic values', () => {
@@ -93,6 +97,7 @@ describe('the standard email layout', () => {
   class MarkupEmail extends StandardEmail {
     constructor() {
       super({
+        locale: 'en',
         title: `title ${MARKUP}`,
         paragraphs: [`paragraph ${MARKUP}`],
         code: { label: `label ${MARKUP}`, value: `value ${MARKUP}`, note: `note ${MARKUP}` },
@@ -129,7 +134,7 @@ describe('the standard email layout', () => {
 });
 
 describe('TwoFactorOtpEmail', () => {
-  const email = new TwoFactorOtpEmail('123456', 5);
+  const email = new TwoFactorOtpEmail('123456', 5, 'en');
 
   it('keeps its subject and states the title as the document title', () => {
     expect(email.subject()).toBe('Your sign-in code');
@@ -152,6 +157,20 @@ describe('TwoFactorOtpEmail', () => {
   it('pairs the label with the code in the text part', () => {
     expect(email.text()).toContain('Verification code: 123456');
   });
+
+  it('states the validity period it is given', () => {
+    expect(new TwoFactorOtpEmail('123456', 37, 'en').text()).toContain('(This code is valid for 37 minutes)');
+  });
+
+  it.each(locales)('interpolates the validity period in both parts in %s', (locale) => {
+    for (const minutes of [5, 37]) {
+      const localised = new TwoFactorOtpEmail('123456', minutes, locale);
+      const period = new RegExp(`\\b${minutes}\\b`);
+
+      expect(localised.text()).toMatch(period);
+      expect(localised.html().match(/token-subtext'>([^<]*)</)?.[1]).toMatch(period);
+    }
+  });
 });
 
 /** Each localised template, with the dynamic values it is built with. */
@@ -163,6 +182,7 @@ const LOCALISED_TEMPLATES: [string, (locale: Locale) => EmailTemplate, string[]]
   ['PasswordResetLinkEmail', (locale) => new PasswordResetLinkEmail(LINK, locale), [LINK]],
   ['RecoveryCodesRegeneratedEmail', (locale) => new RecoveryCodesRegeneratedEmail(locale), []],
   ['RecoveryCodesUsedEmail', (locale) => new RecoveryCodesUsedEmail(locale), []],
+  ['TwoFactorOtpEmail', (locale) => new TwoFactorOtpEmail('123456', 5, locale), ['123456']],
 ];
 
 const TRANSLATED_LOCALES = locales.filter((locale) => locale !== 'en');

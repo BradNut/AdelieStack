@@ -22,5 +22,9 @@
   "mail_recovery_codes_regenerated_title": "Tus códigos de recuperación se han regenerado",
   "mail_recovery_codes_regenerated_body": "Se han generado nuevos códigos de recuperación de dos factores para tu cuenta. Tus códigos anteriores ya no funcionan. Si no has sido tú, protege tu cuenta de inmediato.",
   "mail_recovery_codes_used_title": "Se ha usado un código de recuperación",
-  "mail_recovery_codes_used_body": "Se acaba de usar un código de recuperación de dos factores para iniciar sesión en tu cuenta. Cada código funciona una sola vez. Si no has sido tú, protege tu cuenta de inmediato."
+  "mail_recovery_codes_used_body": "Se acaba de usar un código de recuperación de dos factores para iniciar sesión en tu cuenta. Cada código funciona una sola vez. Si no has sido tú, protege tu cuenta de inmediato.",
+  "mail_two_factor_otp_title": "Tu código de inicio de sesión",
+  "mail_two_factor_otp_body": "Introduce este código para terminar de iniciar sesión. Si no has intentado iniciar sesión, puedes ignorar este mensaje.",
+  "mail_two_factor_otp_code_label": "Código de verificación",
+  "mail_two_factor_otp_code_note": "(Este código es válido durante {minutes} minutos)"
 }

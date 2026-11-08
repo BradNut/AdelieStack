@@ -22,5 +22,9 @@
   "mail_recovery_codes_regenerated_title": "Your recovery codes were regenerated",
   "mail_recovery_codes_regenerated_body": "New two-factor recovery codes were generated for your account. Your old codes no longer work. If this was not you, secure your account straight away.",
   "mail_recovery_codes_used_title": "A recovery code was used",
-  "mail_recovery_codes_used_body": "A two-factor recovery code was just used to sign in to your account. Each code works once. If this was not you, secure your account straight away."
+  "mail_recovery_codes_used_body": "A two-factor recovery code was just used to sign in to your account. Each code works once. If this was not you, secure your account straight away.",
+  "mail_two_factor_otp_title": "Your sign-in code",
+  "mail_two_factor_otp_body": "Enter this code to finish signing in. If you did not try to sign in, you can ignore this message.",
+  "mail_two_factor_otp_code_label": "Verification code",
+  "mail_two_factor_otp_code_note": "(This code is valid for {minutes} minutes)"
 }

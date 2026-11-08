@@ -1,4 +1,4 @@
-import { baseLocale, type Locale } from '#lib/server/api/common/i18n/index';
+import type { Locale } from '#lib/server/api/common/i18n/index';
 import type { EmailTemplate } from '#lib/server/api/mail/interfaces/email-template.interface';
 
 const HTML_ESCAPES: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
@@ -39,7 +39,7 @@ export function renderEmailDocument({ lang, title, bodyLines, style }: EmailDocu
 
 interface EmailContent {
   /** The language the copy is in; marks the HTML. */
-  locale?: Locale;
+  locale: Locale;
   /** Both the subject and the heading. */
   title: string;
   paragraphs: string[];
@@ -64,7 +64,7 @@ export abstract class StandardEmail implements EmailTemplate {
   }
 
   html(): string {
-    const { locale = baseLocale, title, paragraphs, code, action } = this.content;
+    const { locale, title, paragraphs, code, action } = this.content;
     return renderEmailDocument({
       lang: locale,
       title,

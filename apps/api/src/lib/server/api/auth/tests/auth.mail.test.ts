@@ -237,6 +237,19 @@ describe('every email follows the language of the request that caused it', () =>
   });
 });
 
+describe('the two-factor code email', () => {
+  it('follows the language of the request that asked for the code', async () => {
+    await signUpWithTotp(request, TEST_USER);
+    const { challengeCookie: cookie } = await startTwoFactorSignIn(request, TEST_USER);
+    clearSent();
+
+    await request('/two-factor/send-otp', { cookie, headers: { 'accept-language': 'es' }, body: {} });
+
+    expect(sent[0].template.html()).toContain("<html lang='es'>");
+    expect(sent[0].template.subject()).not.toBe('Your sign-in code');
+  });
+});
+
 describe('email change', () => {
   const NEW_EMAIL = 'emperor@example.com';
 
