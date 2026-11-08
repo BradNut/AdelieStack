@@ -40,7 +40,6 @@ env:
   # Emails
   SITE_NAME: ${{ secrets.SITE_NAME }}
   SITE_URL: ${{ secrets.SITE_URL }}
-  SUPPORT_EMAIL: ${{ secrets.SUPPORT_EMAIL }}
   # Redis
   REDIS_URL: ${{ secrets.REDIS_URL }}
   # Security
@@ -66,7 +65,6 @@ env:
   PUBLIC_SITE_NAME: ${{ vars.PUBLIC_SITE_NAME }}
   PUBLIC_SITE_URL: ${{ vars.PUBLIC_SITE_URL }}
   PUBLIC_SITE_VERSION: ${{ vars.PUBLIC_SITE_VERSION }}
-  PUBLIC_SUPPORT_EMAIL: ${{ vars.PUBLIC_SUPPORT_EMAIL }}
   PUBLIC_SENTRY_URL: ${{ vars.PUBLIC_SENTRY_URL }}
   PUBLIC_UMAMI_URL: ${{ vars.PUBLIC_UMAMI_URL }}
   PUBLIC_UMAMI_ID: ${{ vars.PUBLIC_UMAMI_ID }}
