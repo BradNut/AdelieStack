@@ -1,6 +1,6 @@
 import { readdirSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { type Locale, locales } from '#lib/server/api/common/i18n/index';
+import { baseLocale, type Locale, locales } from '#lib/server/api/common/i18n/index';
 import { StandardEmail } from '#lib/server/api/mail/email-layout';
 import type { EmailTemplate } from '#lib/server/api/mail/interfaces/email-template.interface';
 import { EmailChangeNoticeEmail } from '#lib/server/api/mail/templates/email-change-notice.template';
@@ -185,7 +185,7 @@ const LOCALISED_TEMPLATES: [string, (locale: Locale) => EmailTemplate, string[]]
   ['TwoFactorOtpEmail', (locale) => new TwoFactorOtpEmail('123456', 5, locale), ['123456']],
 ];
 
-const TRANSLATED_LOCALES = locales.filter((locale) => locale !== 'en');
+const TRANSLATED_LOCALES = locales.filter((locale) => locale !== baseLocale);
 
 describe.each(LOCALISED_TEMPLATES)('%s in every locale', (_name, build, dynamicValues) => {
   it.each(locales)('marks the HTML as %s', (locale) => {
@@ -210,7 +210,7 @@ describe.each(LOCALISED_TEMPLATES)('%s in every locale', (_name, build, dynamicV
   });
 
   it.each(TRANSLATED_LOCALES)('is translated in %s', (locale) => {
-    const english = build('en');
+    const english = build(baseLocale);
     const translated = build(locale);
 
     expect(translated.subject()).not.toBe(english.subject());
