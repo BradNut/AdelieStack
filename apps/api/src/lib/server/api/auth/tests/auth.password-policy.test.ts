@@ -4,7 +4,7 @@ import { hashPassword } from 'better-auth/crypto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Auth } from '#lib/server/api/auth/auth.config';
 import { createHibpHealth } from '#lib/server/api/auth/auth.hibp-status';
-import { type AuthRequest, cookiesFrom } from '../../../../../test/auth-http';
+import { type AuthRequest, cookiesFrom, signUpWithEmail, TEST_USER } from '../../../../../test/auth-http';
 import { createTestAuth, TEST_ORIGIN } from '../../../../../test/auth-instance';
 
 const COMPLIANT_PASSWORD = 'correct horse battery';
@@ -32,15 +32,11 @@ function mockHibp(pwned: string[], failWith?: number) {
   vi.stubGlobal('fetch', fetchMock);
   return fetchMock;
 }
-const EMAIL = 'policy@example.com';
+const { email: EMAIL } = TEST_USER;
 
 let auth: Auth;
 let db: ReturnType<typeof createTestAuth>['db'];
 let request: AuthRequest;
-
-async function signUp(password: string) {
-  return request('/sign-up/email', { body: { name: 'Test User', email: EMAIL, password } });
-}
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -57,7 +53,7 @@ beforeEach(() => {
 
 describe('password policy hook: sign-up', () => {
   it('rejects a weak password with the stable code and the violated rules', async () => {
-    const res = await signUp(WEAK);
+    const { res } = await signUpWithEmail(request, { ...TEST_USER, password: WEAK });
 
     expect(res.status).toBe(400);
     const body = (await res.json()) as { code: string; rules: string[] };
@@ -66,20 +62,20 @@ describe('password policy hook: sign-up', () => {
   });
 
   it('does not create the user when the password is rejected', async () => {
-    await signUp(WEAK);
+    await signUpWithEmail(request, { ...TEST_USER, password: WEAK });
 
     const found = await (await auth.$context).internalAdapter.findUserByEmail(EMAIL);
     expect(found).toBeNull();
   });
 
   it('accepts a compliant password', async () => {
-    const res = await signUp(COMPLIANT_PASSWORD);
+    const { res } = await signUpWithEmail(request, { ...TEST_USER, password: COMPLIANT_PASSWORD });
 
     expect(res.status).toBe(200);
   });
 
   it('rejects an over-long password', async () => {
-    const res = await signUp(`${COMPLIANT_PASSWORD}${'a'.repeat(200)}`);
+    const { res } = await signUpWithEmail(request, { ...TEST_USER, password: `${COMPLIANT_PASSWORD}${'a'.repeat(200)}` });
 
     expect(res.status).toBe(400);
   });
@@ -172,12 +168,11 @@ describe('password policy hook: admin paths', () => {
   let adminHeaders: Headers;
 
   beforeEach(async () => {
-    const signUpRes = await signUp(COMPLIANT_PASSWORD);
+    const { cookie } = await signUpWithEmail(request, { ...TEST_USER, password: COMPLIANT_PASSWORD });
     const { internalAdapter } = await auth.$context;
     const adminUser = await internalAdapter.findUserByEmail(EMAIL);
     if (!adminUser) throw new Error('admin fixture was not created');
     await internalAdapter.updateUser(adminUser.user.id, { role: 'admin' });
-    const cookie = cookiesFrom(signUpRes);
     adminHeaders = new Headers({ cookie });
   });
 
@@ -255,7 +250,7 @@ describe('password policy hook: admin paths', () => {
   it('does not call HIBP on create-user when the switch is off', async () => {
     const fetchMock = mockHibp([PWNED_PASSWORD]);
     buildAuth(false);
-    await signUp(COMPLIANT_PASSWORD);
+    await signUpWithEmail(request, { ...TEST_USER, password: COMPLIANT_PASSWORD });
     const { internalAdapter } = await auth.$context;
     const found = await internalAdapter.findUserByEmail(EMAIL);
     if (!found) throw new Error('admin fixture was not created');
@@ -290,14 +285,14 @@ describe('password policy hook: admin paths', () => {
 
 describe('password policy: no composition rules, no input mutation', () => {
   it.each(['alllowercase', '12345678', 'pässwörd-密码-🐧', 'internal spaces are fine'])('accepts %s on sign-up', async (password) => {
-    const res = await signUp(password);
+    const { res } = await signUpWithEmail(request, { ...TEST_USER, password });
 
     expect(res.status).toBe(200);
     await signInCookie(password);
   });
 
   it.each([' leading-space-pass', 'trailing-space-pass '])('rejects %j with LEADING_OR_TRAILING_SPACE and does not trim it', async (password) => {
-    const res = await signUp(password);
+    const { res } = await signUpWithEmail(request, { ...TEST_USER, password });
 
     expect(res.status).toBe(400);
     const body = (await res.json()) as { code: string; rules: string[] };
@@ -310,7 +305,7 @@ describe('breached password screening (haveIBeenPwned, mocked)', () => {
   it('rejects a breached password on sign-up with PASSWORD_COMPROMISED and creates no user', async () => {
     mockHibp([PWNED_PASSWORD]);
 
-    const res = await signUp(PWNED_PASSWORD);
+    const { res } = await signUpWithEmail(request, { ...TEST_USER, password: PWNED_PASSWORD });
 
     expect(res.status).toBe(400);
     expect(((await res.json()) as { code: string }).code).toBe(PASSWORD_COMPROMISED);
@@ -320,7 +315,7 @@ describe('breached password screening (haveIBeenPwned, mocked)', () => {
   it('sends only the five-character hash prefix (k-anonymity)', async () => {
     const fetchMock = mockHibp([]);
 
-    await signUp(COMPLIANT_PASSWORD);
+    await signUpWithEmail(request, { ...TEST_USER, password: COMPLIANT_PASSWORD });
 
     const urls = fetchMock.mock.calls.map(([input]) => String(input instanceof Request ? input.url : input));
     expect(urls).toHaveLength(1);
@@ -390,7 +385,7 @@ describe('breached password screening (haveIBeenPwned, mocked)', () => {
   it('reports policy violations first and does not call HIBP for them', async () => {
     const fetchMock = mockHibp([WEAK]);
 
-    const res = await signUp(WEAK);
+    const { res } = await signUpWithEmail(request, { ...TEST_USER, password: WEAK });
 
     expect(((await res.json()) as { code: string }).code).toBe(PASSWORD_POLICY_VIOLATION);
     expect(fetchMock).not.toHaveBeenCalled();
@@ -407,7 +402,7 @@ describe('breached password screening (haveIBeenPwned, mocked)', () => {
   it('fails closed on sign-up when HIBP is unavailable and creates no user', async () => {
     mockHibp([], 503);
 
-    const res = await signUp(COMPLIANT_PASSWORD);
+    const { res } = await signUpWithEmail(request, { ...TEST_USER, password: COMPLIANT_PASSWORD });
 
     expect(res.status).toBe(503);
     expect(await (await auth.$context).internalAdapter.findUserByEmail(EMAIL)).toBeNull();
@@ -447,7 +442,7 @@ describe('breached password screening switched off', () => {
   it('accepts a breached password on sign-up without calling HIBP', async () => {
     const fetchMock = mockHibp([PWNED_PASSWORD]);
 
-    const res = await signUp(PWNED_PASSWORD);
+    const { res } = await signUpWithEmail(request, { ...TEST_USER, password: PWNED_PASSWORD });
 
     expect(res.status).toBe(200);
     expect(fetchMock).not.toHaveBeenCalled();

@@ -1,22 +1,11 @@
 import { AUTH_CLIENT_IP_HEADER, AUTH_SESSION_EXPIRES_IN, AUTH_SESSION_FRESH_AGE, AUTH_SESSION_UPDATE_AGE } from '@adelie/shared';
 import { describe, expect, it } from 'vitest';
-import { type AuthRequest, cookiesFrom } from '../../../../../test/auth-http';
+import { type AuthRequest, cookiesFrom, signUpWithEmail, TEST_USER } from '../../../../../test/auth-http';
 import { createTestAuth } from '../../../../../test/auth-instance';
-
-const PASSWORD = 'Correct-horse-9';
-
-function build(overrides: Parameters<typeof createTestAuth>[0] = {}) {
-  const { auth, db, request } = createTestAuth(overrides);
-  const signUp = async (email = 'a@example.com') => {
-    const res = await request('/sign-up/email', { body: { name: 'A', email, password: PASSWORD } });
-    return { res, cookie: cookiesFrom(res) };
-  };
-  return { auth, db, request, signUp };
-}
 
 describe('session settings', () => {
   it('pins expiry, update age and fresh age to the shared constants', async () => {
-    const { auth } = build();
+    const { auth } = createTestAuth();
     const { options, sessionConfig } = await auth.$context;
     expect(AUTH_SESSION_EXPIRES_IN).toBe(7 * 24 * 60 * 60);
     expect(AUTH_SESSION_UPDATE_AGE).toBe(24 * 60 * 60);
@@ -28,16 +17,16 @@ describe('session settings', () => {
   });
 
   it('does not set a session-data cookie', async () => {
-    const { signUp } = build();
-    const { res } = await signUp();
+    const { request } = createTestAuth();
+    const { res } = await signUpWithEmail(request, TEST_USER);
     const names = res.headers.getSetCookie().map((c) => c.split('=')[0]);
     expect(names.some((n) => n.endsWith('session_token'))).toBe(true);
     expect(names.some((n) => n.endsWith('session_data'))).toBe(false);
   });
 
   it('marks the session cookie HttpOnly and SameSite=Lax', async () => {
-    const { signUp } = build();
-    const { res } = await signUp();
+    const { request } = createTestAuth();
+    const { res } = await signUpWithEmail(request, TEST_USER);
     const token = res.headers.getSetCookie().find((c) => c.includes('session_token')) ?? '';
     expect(token).toContain('HttpOnly');
     expect(token).toMatch(/SameSite=Lax/i);
@@ -49,21 +38,21 @@ describe('fresh vs stale sessions', () => {
   const deleteUser = (request: AuthRequest, cookie: string) => request('/delete-user', { body: {}, cookie });
 
   it('lets a fresh session run a sensitive action', async () => {
-    const { request, signUp } = build();
-    const { cookie } = await signUp();
+    const { request } = createTestAuth();
+    const { cookie } = await signUpWithEmail(request, TEST_USER);
     expect((await deleteUser(request, cookie)).status).toBe(200);
   });
 
   it('refuses a stale session, then succeeds after re-authentication', async () => {
-    const { request, db, signUp } = build();
-    const { cookie } = await signUp();
+    const { request, db } = createTestAuth();
+    const { cookie } = await signUpWithEmail(request, TEST_USER);
     for (const s of db.session) s.createdAt = new Date(Date.now() - (AUTH_SESSION_FRESH_AGE + 60) * 1000);
 
     const refused = await deleteUser(request, cookie);
     expect(refused.status).toBe(400);
     expect(db.user).toHaveLength(1);
 
-    const signedIn = await request('/sign-in/email', { body: { email: 'a@example.com', password: PASSWORD } });
+    const signedIn = await request('/sign-in/email', { body: { email: TEST_USER.email, password: TEST_USER.password } });
     expect(signedIn.status).toBe(200);
     expect((await deleteUser(request, cookiesFrom(signedIn))).status).toBe(200);
     expect(db.user).toHaveLength(0);
@@ -72,8 +61,8 @@ describe('fresh vs stale sessions', () => {
 
 describe('revocation', () => {
   it('stops a revoked session on the next request', async () => {
-    const { request, db, signUp } = build();
-    const { cookie } = await signUp();
+    const { request, db } = createTestAuth();
+    const { cookie } = await signUpWithEmail(request, TEST_USER);
     expect(((await (await request('/get-session', { cookie })).json()) as { user?: unknown } | null)?.user).toBeTruthy();
 
     db.session.length = 0;
@@ -82,8 +71,8 @@ describe('revocation', () => {
   });
 
   it('applies a role change on the next request', async () => {
-    const { auth, request, db, signUp } = build();
-    const { cookie } = await signUp();
+    const { auth, request, db } = createTestAuth();
+    const { cookie } = await signUpWithEmail(request, TEST_USER);
     const adapter = (await auth.$context).internalAdapter;
     await adapter.updateUser(db.user[0].id as string, { role: 'admin' });
     const session = (await (await request('/get-session', { cookie })).json()) as { user: { role: string } };
@@ -93,10 +82,10 @@ describe('revocation', () => {
 
 describe('client IP', () => {
   async function seenIp(trustProxy: boolean, headers: Record<string, string>) {
-    const { request, db, signUp } = build({ trustProxy });
-    await signUp();
+    const { request, db } = createTestAuth({ trustProxy });
+    await signUpWithEmail(request, TEST_USER);
     for (const s of db.session) s.ipAddress = undefined;
-    await request('/sign-in/email', { body: { email: 'a@example.com', password: PASSWORD }, headers });
+    await request('/sign-in/email', { body: { email: TEST_USER.email, password: TEST_USER.password }, headers });
     return db.session.at(-1)?.ipAddress;
   }
 

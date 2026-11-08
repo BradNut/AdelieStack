@@ -1,7 +1,7 @@
 import { RoleName } from '@adelie/shared';
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { Auth } from '#lib/server/api/auth/auth.config';
-import { type AuthRequest, cookiesFrom } from '../../../../../test/auth-http';
+import { type AuthRequest, signUpWithEmail, TEST_USER } from '../../../../../test/auth-http';
 import { createTestAuth } from '../../../../../test/auth-instance';
 
 const PASSWORD = 'correct-horse-battery-staple';
@@ -17,8 +17,7 @@ function setup(allowMultipleRoles: boolean) {
 }
 
 async function signUp(email: string) {
-  const res = await request('/sign-up/email', { body: { name: 'Penguin', email, password: PASSWORD } });
-  const cookie = cookiesFrom(res);
+  const { res, cookie } = await signUpWithEmail(request, { ...TEST_USER, email, password: PASSWORD });
   const { user } = (await res.json()) as { user: { id: string } };
   return { cookie, id: user.id };
 }

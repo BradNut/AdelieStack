@@ -2,12 +2,10 @@ import { AUTH_SESSION_FRESH_AGE, AuthErrorCode, CREDENTIAL_PROVIDER_ID, SocialPr
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { Auth } from '#lib/server/api/auth/auth.config';
 import { AuthEndpoint } from '#lib/server/api/auth/auth.endpoints';
-import { type AuthRequest, cookiesFrom, signUpWithTotp } from '../../../../../test/auth-http';
+import { type AuthRequest, cookiesFrom, signUpWithEmail, signUpWithTotp, TEST_USER } from '../../../../../test/auth-http';
 import { createTestAuth } from '../../../../../test/auth-instance';
 
-const PASSWORD = 'Correct-horse-9';
-const EMAIL = 'penguin@example.com';
-const USER = { name: 'Penguin', email: EMAIL, password: PASSWORD };
+const { email: EMAIL, password: PASSWORD } = TEST_USER;
 
 let auth: Auth;
 let db: Record<string, Record<string, unknown>[]>;
@@ -42,7 +40,7 @@ async function linkGithub(cookie: string) {
 
 /** A user with a Password Account and GitHub, with or without a Second Factor enrolled. */
 async function userWithGithub({ twoFactor }: { twoFactor: boolean }) {
-  const cookie = twoFactor ? (await signUpWithTotp(request, USER)).cookie : cookiesFrom(await request('/sign-up/email', { body: USER }));
+  const { cookie } = await (twoFactor ? signUpWithTotp(request, TEST_USER) : signUpWithEmail(request, TEST_USER));
   return { cookie, id: await linkGithub(cookie) };
 }
 

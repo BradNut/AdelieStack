@@ -1,9 +1,9 @@
 import { RoleName, SocialProvider } from '@adelie/shared';
 import { describe, expect, it } from 'vitest';
-import { type AuthRequest, cookiesFrom } from '../../../../../test/auth-http';
+import { type AuthRequest, cookiesFrom, signUpWithEmail, TEST_USER } from '../../../../../test/auth-http';
 import { createTestAuth } from '../../../../../test/auth-instance';
 
-const PASSWORD = 'Correct-horse-9';
+const { password: PASSWORD } = TEST_USER;
 /** The sign-up endpoints that are gated by `signUpEnabled`. A new one must be gated, then listed here. */
 const GATED_SIGN_UP_PATHS = ['/sign-up/email'];
 
@@ -20,13 +20,11 @@ const STRANGER_PROVIDER = {
     }) as never,
 };
 
-const signUp = (request: AuthRequest, email: string) => request('/sign-up/email', { body: { name: 'Test User', email, password: PASSWORD } });
-
 describe('sign-up when closed', () => {
   it('rejects email/password sign-up with Better Auth’s sign-up-disabled code', async () => {
     const { request } = createTestAuth({ signUpEnabled: false });
 
-    const res = await signUp(request, 'visitor@example.com');
+    const { res } = await signUpWithEmail(request, { ...TEST_USER, email: 'visitor@example.com' });
 
     expect(res.ok).toBe(false);
     expect(res.status).toBe(400);
@@ -35,7 +33,7 @@ describe('sign-up when closed', () => {
 
   it('creates no user for the rejected request', async () => {
     const { auth, request } = createTestAuth({ signUpEnabled: false });
-    await signUp(request, 'visitor@example.com');
+    await signUpWithEmail(request, { ...TEST_USER, email: 'visitor@example.com' });
 
     const { internalAdapter } = await auth.$context;
 
@@ -81,7 +79,7 @@ describe('sign-up when open', () => {
   it('accepts email/password sign-up', async () => {
     const { request } = createTestAuth({ signUpEnabled: true });
 
-    const res = await signUp(request, 'visitor@example.com');
+    const { res } = await signUpWithEmail(request, { ...TEST_USER, email: 'visitor@example.com' });
 
     expect(res.status).toBe(200);
     expect(((await res.json()) as { user: { email: string } }).user.email).toBe('visitor@example.com');

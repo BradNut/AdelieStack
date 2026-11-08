@@ -1,17 +1,11 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { type AuthRequest, cookiesFrom } from '../../../../../test/auth-http';
+import { type AuthRequest, cookiesFrom, signUpWithEmail, TEST_USER } from '../../../../../test/auth-http';
 import { createTestAuth, TEST_ORIGIN } from '../../../../../test/auth-instance';
 
-const PASSWORD = 'Correct-horse-9';
 const RP_ID = 'example.com';
 const RP_NAME = 'Acme Penguins';
 
 let request: AuthRequest;
-
-async function signUp() {
-  const res = await request('/sign-up/email', { body: { name: 'Penguin', email: 'penguin@example.com', password: PASSWORD } });
-  return cookiesFrom(res);
-}
 
 beforeEach(() => {
   ({ request } = createTestAuth({ passkey: { rpID: RP_ID, rpName: RP_NAME, origin: TEST_ORIGIN } }));
@@ -19,7 +13,7 @@ beforeEach(() => {
 
 describe('passkey registration', () => {
   it('issues registration options for the configured relying party to a signed-in user', async () => {
-    const cookie = await signUp();
+    const { cookie } = await signUpWithEmail(request, TEST_USER);
 
     const res = await request('/passkey/generate-register-options', { cookie });
     const options = (await res.json()) as { challenge: string; rp: { id: string; name: string } };
@@ -30,7 +24,7 @@ describe('passkey registration', () => {
   });
 
   it('supports a roaming security key via the authenticator attachment', async () => {
-    const cookie = await signUp();
+    const { cookie } = await signUpWithEmail(request, TEST_USER);
 
     const res = await request('/passkey/generate-register-options?authenticatorAttachment=cross-platform', { cookie });
     const options = (await res.json()) as { authenticatorSelection?: { authenticatorAttachment?: string } };
@@ -46,7 +40,7 @@ describe('passkey registration', () => {
   });
 
   it('rejects a registration response that matches no issued challenge', async () => {
-    const cookie = await signUp();
+    const { cookie } = await signUpWithEmail(request, TEST_USER);
 
     const res = await request('/passkey/verify-registration', {
       cookie,
@@ -83,7 +77,7 @@ describe('passkey sign-in', () => {
 
 describe('passkey management', () => {
   it('lists no passkeys for a new user', async () => {
-    const cookie = await signUp();
+    const { cookie } = await signUpWithEmail(request, TEST_USER);
 
     const res = await request('/passkey/list-user-passkeys', { cookie });
 
@@ -98,7 +92,7 @@ describe('passkey management', () => {
   });
 
   it('rejects deleting a passkey that does not exist', async () => {
-    const cookie = await signUp();
+    const { cookie } = await signUpWithEmail(request, TEST_USER);
 
     const res = await request('/passkey/delete-passkey', { cookie, body: { id: 'missing' } });
 

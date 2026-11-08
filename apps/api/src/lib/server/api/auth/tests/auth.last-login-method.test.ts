@@ -1,11 +1,10 @@
 import { LAST_LOGIN_METHOD_COOKIE, LoginMethod } from '@adelie/shared';
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { Auth } from '#lib/server/api/auth/auth.config';
-import type { AuthRequest } from '../../../../../test/auth-http';
+import { type AuthRequest, signUpWithEmail, TEST_USER } from '../../../../../test/auth-http';
 import { createTestAuth } from '../../../../../test/auth-instance';
 
-const PASSWORD = 'Correct-horse-9';
-const EMAIL = 'penguin@example.com';
+const { email: EMAIL, password: PASSWORD } = TEST_USER;
 
 let auth: Auth;
 let request: AuthRequest;
@@ -22,7 +21,7 @@ beforeEach(() => {
 
 describe('last login method cookie', () => {
   it('records password sign-in', async () => {
-    await request('/sign-up/email', { body: { name: 'Penguin', email: EMAIL, password: PASSWORD } });
+    await signUpWithEmail(request, TEST_USER);
 
     const res = await request('/sign-in/email', { body: { email: EMAIL, password: PASSWORD } });
 
@@ -31,7 +30,7 @@ describe('last login method cookie', () => {
   });
 
   it('is readable by the browser and lives beyond the session', async () => {
-    const res = await request('/sign-up/email', { body: { name: 'Penguin', email: EMAIL, password: PASSWORD } });
+    const { res } = await signUpWithEmail(request, TEST_USER);
 
     const cookie = res.headers.getSetCookie().find((c) => c.startsWith(`${LAST_LOGIN_METHOD_COOKIE}=`));
 
@@ -41,7 +40,7 @@ describe('last login method cookie', () => {
   });
 
   it('sets nothing when the sign-in fails', async () => {
-    await request('/sign-up/email', { body: { name: 'Penguin', email: EMAIL, password: PASSWORD } });
+    await signUpWithEmail(request, TEST_USER);
 
     const res = await request('/sign-in/email', { body: { email: EMAIL, password: 'Wrong-horse-9!' } });
 

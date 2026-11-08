@@ -21,6 +21,16 @@ interface SignUpCredentials extends AuthCredentials {
   name: string;
 }
 
+/** The default user for tests that don't care about its details. Override one with a spread at the call site. */
+export const TEST_USER = { name: 'Penguin', email: 'penguin@example.com', password: 'Correct-horse-9' };
+
+export interface EmailSignUp {
+  /** The sign-up response, with its body still unread. */
+  res: Response;
+  /** The session cookie, or an empty string when the response sets none. */
+  cookie: string;
+}
+
 export interface TotpSignUp {
   totpURI: string;
   backupCodes: string[];
@@ -51,10 +61,15 @@ export function cookiesFrom(res: Response, previous = ''): string {
   return [...jar.values()].join('; ');
 }
 
+/** Signs up with email and password. A rejected sign-up does not throw: check `res`. */
+export async function signUpWithEmail(request: AuthRequest, { name, email, password }: SignUpCredentials): Promise<EmailSignUp> {
+  const res = await request('/sign-up/email', { body: { name, email, password } });
+  return { res, cookie: cookiesFrom(res) };
+}
+
 /** Signs up, then enables two-factor and confirms it with a first TOTP code. */
 export async function signUpWithTotp(request: AuthRequest, { name, email, password }: SignUpCredentials): Promise<TotpSignUp> {
-  const signUp = await request('/sign-up/email', { body: { name, email, password } });
-  const session = cookiesFrom(signUp);
+  const { cookie: session } = await signUpWithEmail(request, { name, email, password });
   const enable = await request('/two-factor/enable', { cookie: session, body: { password } });
   const { totpURI, backupCodes } = (await enable.json()) as { totpURI: string; backupCodes: string[] };
   const verify = await request('/two-factor/verify-totp', { cookie: session, body: { code: totpCode(totpURI) } });
