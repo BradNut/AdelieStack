@@ -2,7 +2,7 @@
 export const AppRoute = {
   HOME: '/',
   LOGIN: '/login',
-  /** Where password sign-in continues when the account has two-factor enabled. */
+  /** Where a password or social provider sign-in continues when the account has two-factor enabled. */
   LOGIN_TWO_FACTOR: '/login/two-factor',
   SIGNUP: '/signup',
   SETTINGS: '/settings',

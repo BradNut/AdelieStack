@@ -92,8 +92,8 @@
 		codeError?: (error: TwoFactorError) => string | null;
 	}
 
-	// The challenge cookie set by the password step authorises these calls; a bad or missing one errors. `trustDevice`
-	// is never sent: a remembered device is a risk signal, not authentication (ADR 0008).
+	// The challenge cookie set after the password or social provider sign-in authorises these calls; a bad or missing
+	// one errors. `trustDevice` is never sent: a remembered device is a risk signal, not authentication (ADR 0008).
 	function codeForm({ id, schema, verify, invalidMessage, codeError }: CodeForm) {
 		return superForm(defaults(zod4(schema)), {
 			id,
