@@ -9,7 +9,15 @@ import { PasswordChangedEmail } from '#lib/server/api/mail/templates/password-ch
 import { PasswordResetLinkEmail } from '#lib/server/api/mail/templates/password-reset-link.template';
 import { RecoveryCodesRegeneratedEmail } from '#lib/server/api/mail/templates/recovery-codes-regenerated.template';
 import { RecoveryCodesUsedEmail } from '#lib/server/api/mail/templates/recovery-codes-used.template';
-import { type AuthRequest, cookiesFrom, signUpWithEmail, signUpWithTotp, startTwoFactorSignIn, TEST_USER } from '../../../../../test/auth-http';
+import {
+  type AuthRequest,
+  cookiesFrom,
+  emailedLink,
+  signUpWithEmail,
+  signUpWithTotp,
+  startTwoFactorSignIn,
+  TEST_USER,
+} from '../../../../../test/auth-http';
 import { createTestAuth, TEST_ORIGIN } from '../../../../../test/auth-instance';
 
 const { email: EMAIL, password: PASSWORD } = TEST_USER;
@@ -70,7 +78,7 @@ describe('password reset', () => {
   it('sends one password-changed email once the reset completes', async () => {
     await signUp();
     await request('/request-password-reset', { body: { email: EMAIL, redirectTo: `${TEST_ORIGIN}/reset` } });
-    const link = (sent[0].template.html().match(/href='([^']+)'/) ?? [])[1];
+    const link = emailedLink(sent[0]);
     const token = new URL(link).pathname.split('/').pop();
     clearSent();
 
@@ -149,8 +157,7 @@ describe('email change', () => {
 
   /** Follows the first link of the last email sent, the way a click in the mail client would. */
   async function followLastLink(cookie: string) {
-    const html = sent.at(-1)?.template.html() ?? '';
-    const href = /href='([^']+)'/.exec(html)?.[1] ?? '';
+    const href = emailedLink(sent.at(-1));
     return request(href.replace(TEST_ORIGIN, '').replace(AUTH_BASE_PATH, ''), { cookie });
   }
 
@@ -251,7 +258,7 @@ describe('a failed send', () => {
     it('does not fail a completed password reset', async () => {
       await signUp();
       await request('/request-password-reset', { body: { email: EMAIL, redirectTo: `${TEST_ORIGIN}/reset` } });
-      const link = /href='([^']+)'/.exec(sent[0].template.html())?.[1] ?? '';
+      const link = emailedLink(sent[0]);
       failSends();
 
       const res = await request('/reset-password', { body: { newPassword: NEW_PASSWORD, token: new URL(link).pathname.split('/').pop() } });
@@ -300,7 +307,7 @@ describe('a failed send', () => {
     it('still completes an email change when the notice to the old address fails', async () => {
       const cookie = await signUp();
       await request('/change-email', { cookie, body: { newEmail: NEW_EMAIL, callbackURL: '/email-verified' } });
-      const href = /href='([^']+)'/.exec(sent.at(-1)?.template.html() ?? '')?.[1] ?? '';
+      const href = emailedLink(sent.at(-1));
       failSends();
 
       const res = await request(href.replace(TEST_ORIGIN, '').replace(AUTH_BASE_PATH, ''), { cookie });
