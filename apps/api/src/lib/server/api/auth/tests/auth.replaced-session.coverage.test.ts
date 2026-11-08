@@ -130,11 +130,11 @@ describe('endpoints that keep their own session handling', () => {
 
   it('confirming two-factor enrolment swaps the current session and keeps the other device', async () => {
     const t = build();
-    const { cookie: signUp } = await signUpWithEmail(t.request, TEST_USER);
+    const { cookie: signUpCookie } = await signUpWithEmail(t.request, TEST_USER);
     const otherDevice = await t.signIn();
-    const enable = await t.request('/two-factor/enable', { cookie: signUp, body: { password: PASSWORD } });
+    const enable = await t.request('/two-factor/enable', { cookie: signUpCookie, body: { password: PASSWORD } });
     const { totpURI } = (await enable.json()) as { totpURI: string };
-    const enrolled = cookiesFrom(enable, signUp);
+    const enrolled = cookiesFrom(enable, signUpCookie);
 
     const verify = await t.request('/two-factor/verify-totp', { cookie: enrolled, body: { code: totpCode(totpURI) } });
 

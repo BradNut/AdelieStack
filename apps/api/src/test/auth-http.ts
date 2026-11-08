@@ -1,4 +1,5 @@
 import { totpCode } from '@adelie/test-utils/totp';
+import { TEST_EMAIL } from '#lib/server/api/common/testing/factories';
 
 export interface AuthRequestOptions {
   body?: unknown;
@@ -22,7 +23,7 @@ interface SignUpCredentials extends AuthCredentials {
 }
 
 /** The default user for tests that don't care about its details. Override one with a spread at the call site. */
-export const TEST_USER = { name: 'Penguin', email: 'penguin@example.com', password: 'Correct-horse-9' };
+export const TEST_USER = { name: 'Penguin', email: TEST_EMAIL, password: 'Correct-horse-9' };
 
 export interface EmailSignUp {
   /** The sign-up response, with its body still unread. */

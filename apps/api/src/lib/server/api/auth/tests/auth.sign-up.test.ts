@@ -4,6 +4,7 @@ import { type AuthRequest, cookiesFrom, signUpWithEmail, TEST_USER } from '../..
 import { createTestAuth } from '../../../../../test/auth-instance';
 
 const { password: PASSWORD } = TEST_USER;
+const VISITOR_EMAIL = 'visitor@example.com';
 /** The sign-up endpoints that are gated by `signUpEnabled`. A new one must be gated, then listed here. */
 const GATED_SIGN_UP_PATHS = ['/sign-up/email'];
 
@@ -24,7 +25,7 @@ describe('sign-up when closed', () => {
   it('rejects email/password sign-up with Better Auth’s sign-up-disabled code', async () => {
     const { request } = createTestAuth({ signUpEnabled: false });
 
-    const { res } = await signUpWithEmail(request, { ...TEST_USER, email: 'visitor@example.com' });
+    const { res } = await signUpWithEmail(request, { ...TEST_USER, email: VISITOR_EMAIL });
 
     expect(res.ok).toBe(false);
     expect(res.status).toBe(400);
@@ -33,11 +34,11 @@ describe('sign-up when closed', () => {
 
   it('creates no user for the rejected request', async () => {
     const { auth, request } = createTestAuth({ signUpEnabled: false });
-    await signUpWithEmail(request, { ...TEST_USER, email: 'visitor@example.com' });
+    await signUpWithEmail(request, { ...TEST_USER, email: VISITOR_EMAIL });
 
     const { internalAdapter } = await auth.$context;
 
-    expect(await internalAdapter.findUserByEmail('visitor@example.com')).toBeNull();
+    expect(await internalAdapter.findUserByEmail(VISITOR_EMAIL)).toBeNull();
   });
 
   it('lets the server create an admin the way the seed does', async () => {
@@ -79,10 +80,10 @@ describe('sign-up when open', () => {
   it('accepts email/password sign-up', async () => {
     const { request } = createTestAuth({ signUpEnabled: true });
 
-    const { res } = await signUpWithEmail(request, { ...TEST_USER, email: 'visitor@example.com' });
+    const { res } = await signUpWithEmail(request, { ...TEST_USER, email: VISITOR_EMAIL });
 
     expect(res.status).toBe(200);
-    expect(((await res.json()) as { user: { email: string } }).user.email).toBe('visitor@example.com');
+    expect(((await res.json()) as { user: { email: string } }).user.email).toBe(VISITOR_EMAIL);
   });
 });
 
@@ -100,7 +101,7 @@ describe('sign-up gate coverage', () => {
   it.each(GATED_SIGN_UP_PATHS)('rejects %s while closed', async (path) => {
     const { request } = createTestAuth({ signUpEnabled: false });
 
-    const res = await request(path, { body: { name: 'Test User', email: 'visitor@example.com', password: PASSWORD } });
+    const res = await request(path, { body: { name: 'Test User', email: VISITOR_EMAIL, password: PASSWORD } });
 
     expect(res.ok).toBe(false);
   });

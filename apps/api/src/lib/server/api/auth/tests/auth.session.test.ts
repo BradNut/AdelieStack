@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { type AuthRequest, cookiesFrom, signUpWithEmail, TEST_USER } from '../../../../../test/auth-http';
 import { createTestAuth } from '../../../../../test/auth-instance';
 
+const { email: EMAIL, password: PASSWORD } = TEST_USER;
+
 describe('session settings', () => {
   it('pins expiry, update age and fresh age to the shared constants', async () => {
     const { auth } = createTestAuth();
@@ -52,7 +54,7 @@ describe('fresh vs stale sessions', () => {
     expect(refused.status).toBe(400);
     expect(db.user).toHaveLength(1);
 
-    const signedIn = await request('/sign-in/email', { body: { email: TEST_USER.email, password: TEST_USER.password } });
+    const signedIn = await request('/sign-in/email', { body: { email: EMAIL, password: PASSWORD } });
     expect(signedIn.status).toBe(200);
     expect((await deleteUser(request, cookiesFrom(signedIn))).status).toBe(200);
     expect(db.user).toHaveLength(0);
@@ -85,7 +87,7 @@ describe('client IP', () => {
     const { request, db } = createTestAuth({ trustProxy });
     await signUpWithEmail(request, TEST_USER);
     for (const s of db.session) s.ipAddress = undefined;
-    await request('/sign-in/email', { body: { email: TEST_USER.email, password: TEST_USER.password }, headers });
+    await request('/sign-in/email', { body: { email: EMAIL, password: PASSWORD }, headers });
     return db.session.at(-1)?.ipAddress;
   }
 
