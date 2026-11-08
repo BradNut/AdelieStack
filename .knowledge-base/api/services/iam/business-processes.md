@@ -36,12 +36,16 @@ before-hooks (password policy, role guard). Our after-hooks send Security Event 
 ```
 
 A sign-in or sign-up from a browser that already held a session ends that Replaced Session
-(`auth/auth.replaced-session.ts`), at the password step when a Two-factor Challenge follows. A
+(`auth/auth.replaced-session.ts`), as soon as a Two-factor Challenge is raised when one follows. A
 failed sign-in ends nothing, and the user's sessions on other devices are untouched.
 
-Passkey sign-in (`/passkey/*`) and social sign-in (`/sign-in/social`, then the provider callback)
-create a session without the password step. Social sign-in links to an existing account only when
-both sides report the email as verified.
+Passkey sign-in (`/passkey/*`) is a complete sign-in: it creates a session with no challenge. Social
+sign-in (`/sign-in/social`, then the provider callback) creates one directly only for a user without
+two-factor. A two-factor user gets the same challenge as after a password (ADR 0012, `auth/auth.social-two-factor.ts`):
+the callback redirects to the Two-factor Challenge page with a challenge cookie and no session, and the
+id-token sign-in answers `{ twoFactorRedirect: true }`. Social sign-in links to an existing account
+only when both sides report the email as verified, and that happens before the challenge, so an
+abandoned challenge can leave a linked Sign-in Account. It gives no session and can be unlinked from settings.
 
 ## Email Verification
 

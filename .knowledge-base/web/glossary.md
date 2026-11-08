@@ -327,4 +327,4 @@ A session created recently enough to allow sensitive account changes. Only signi
 Proving who you are again, with a password, a passkey or a linked social provider, to get a fresh session without leaving the page you were on. When the account has two-factor enabled, a password must be followed by a Two-factor Challenge, a passkey alone is enough, and social providers are not offered. The session the browser held before becomes a Replaced Session (API glossary) and ends.
 
 **Two-factor Challenge**  
-The step after a correct password on an account with two-factor enabled: the user enters an authenticator code, an emailed code or a recovery code before a session is created. The user is signed out until the challenge is completed.
+The step after a correct password or a social provider sign-in on an account with two-factor enabled: the user enters an authenticator code, an emailed code or a recovery code before a session is created. The user is signed out until the challenge is completed.

@@ -31,7 +31,7 @@ _Avoid_: credential account, email account
 A temporary password that changes every 30 seconds, used for multi-factor authentication.
 
 **Second Factor**
-An extra proof of identity asked after the password on an account with two-factor enabled: a TOTP code, an emailed one-time code or a Recovery Code. Asking for it is the Two-factor Challenge (web glossary).
+An extra proof of identity asked after the password or a social provider sign-in on an account with two-factor enabled: a TOTP code, an emailed one-time code or a Recovery Code. Asking for it is the Two-factor Challenge (web glossary).
 _Avoid_: MFA step, 2FA token
 
 **Recovery Code**

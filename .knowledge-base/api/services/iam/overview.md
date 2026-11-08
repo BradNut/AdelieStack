@@ -70,6 +70,7 @@ apps/api/src/lib/server/api/auth/
 ├── auth.role-guard.ts            # before-hook: several roles on admin role writes only with ALLOW_MULTIPLE_ROLES
 ├── auth.replaced-session.ts      # after-hook: a sign-in ends the session the browser held before
 ├── auth.social.ts                # GitHub / Google from env
+├── auth.social-two-factor.ts     # raises the Two-factor Challenge after a social sign-in (ADR 0012)
 ├── auth.captcha.ts, auth.hibp-status.ts, auth.provider-health.ts
 ├── auth.rate-limit.ts, auth.rate-limit.repository.ts
 ├── tables/auth.table.ts          # generated Drizzle schema; never hand-edit

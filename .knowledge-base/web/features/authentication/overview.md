@@ -83,7 +83,8 @@ lockout settles the dialog as dismissed and sends the user to `/login?returnTo=<
 action. The codes that end the challenge, and the copy for each, live in one map in `two-factor-challenge.svelte`.
 An emailed code has its own attempt counter and expiry: when only that code is used up (`TOO_MANY_ATTEMPTS_REQUEST_NEW_CODE`
 from `verify-otp`) or expired, the user stays on the code step and can request a new code, subject to the email rate
-limit. Two-factor users are not offered social providers in the dialog; a passkey alone is enough.
+limit. Two-factor users are not offered social providers in the dialog, because they would gain no capability from a
+much longer flow; a passkey alone is enough.
 
 ### Social login (GitHub, Google)
 
@@ -91,7 +92,7 @@ Buttons render on `/login` and `/signup` for each provider in `socialProviders`,
 layout loads from the public `GET /api/config` (`loadPublicConfig`). A fresh install reports none, so
 no buttons render. Clicking one calls `authClient.signIn.social` (`lib/client/social-auth.ts`); the
 provider redirects back through `/api/auth/callback/<provider>` (proxied to Better Auth) and a refusal
-lands on `/login?error=<code>`, shown with the translated copy for that code (`socialErrorMessage`; messages `auth_social_error_<code>` in `messages/<locale>/auth.json`, codes in `SocialAuthErrorCode`). Only the login page shows it: errors always return there, also when the attempt started on sign-up. Signed-in users
+lands on `/login?error=<code>`, shown with the translated copy for that code (`socialErrorMessage`; messages `auth_social_error_<code>` in `messages/<locale>/auth.json`, codes in `SocialAuthErrorCode`). Only the login page shows it: errors always return there, also when the attempt started on sign-up. A two-factor user is redirected from the callback to `/login/two-factor`, the same challenge as after a password, and lands on the home page when it succeeds (ADR 0012). Signed-in users
 link and unlink providers at `/settings/connected-accounts` (the nav link appears only when a provider
 is configured). Setup and linking rules: the API
 [environment runbook](../../../api/runbooks/environment-config.md#social-login-github-google).

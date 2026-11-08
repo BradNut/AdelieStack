@@ -22,7 +22,7 @@ session operations.
    - `banned` → they are refused until unbanned (`/admin/unban-user`) or `ban_expires` passes.
    - No `credential` account → they have no password; they sign in with a social provider or a
      passkey, or set a password through password reset.
-   - `two_factor_enabled` → after the password they must complete the Two-factor Challenge.
+   - `two_factor_enabled` → after the password or a social provider they must complete the Two-factor Challenge.
 2. If they get `429`:
    - With `X-Retry-After`: a rate limit; the header says how long to wait. Counters are in Redis
      under `auth-rate-limit:`.

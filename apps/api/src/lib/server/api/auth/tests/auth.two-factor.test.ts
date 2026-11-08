@@ -2,7 +2,15 @@ import { APP_NAME, TWO_FACTOR_OTP_PERIOD_MINUTES } from '@adelie/shared';
 import { totpCode } from '@adelie/test-utils/totp';
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { SendProps } from '#lib/server/api/mail/interfaces/mailer.interface';
-import { type AuthRequest, cookiesFrom, signUpWithEmail, signUpWithTotp, startTwoFactorSignIn, TEST_USER } from '../../../../../test/auth-http';
+import {
+  type AuthRequest,
+  cookiesFrom,
+  emailedOtp,
+  signUpWithEmail,
+  signUpWithTotp,
+  startTwoFactorSignIn,
+  TEST_USER,
+} from '../../../../../test/auth-http';
 import { createTestAuth } from '../../../../../test/auth-instance';
 
 const { email: EMAIL, password: PASSWORD } = TEST_USER;
@@ -131,7 +139,7 @@ describe('sign-in with an emailed OTP', () => {
     const { to, template } = sent[0];
     expect(to).toBe(EMAIL);
     expect(template.subject()).toBe('Your sign-in code');
-    const otp = template.html().match(/token-text'>(\d+)</)?.[1];
+    const otp = emailedOtp(sent[0]);
     expect(otp).toBeDefined();
     expect(template.html()).toContain(`valid for ${TWO_FACTOR_OTP_PERIOD_MINUTES} minutes`);
 
@@ -145,7 +153,7 @@ describe('sign-in with an emailed OTP', () => {
     await signUpWithTotp(request, TEST_USER);
     const { challengeCookie } = await startTwoFactorSignIn(request, TEST_USER);
     await request('/two-factor/send-otp', { cookie: challengeCookie, body: {} });
-    const otp = sent[0].template.html().match(/token-text'>(\d+)</)?.[1] ?? '';
+    const otp = emailedOtp(sent[0]) ?? '';
     const wrong = otp === '000000' ? '111111' : '000000';
 
     const res = await request('/two-factor/verify-otp', { cookie: challengeCookie, body: { code: wrong } });

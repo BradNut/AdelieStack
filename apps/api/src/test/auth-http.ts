@@ -1,5 +1,6 @@
 import { totpCode } from '@adelie/test-utils/totp';
 import { TEST_EMAIL } from '#lib/server/api/common/testing/factories';
+import type { SendProps } from '#lib/server/api/mail/interfaces/mailer.interface';
 
 export interface AuthRequestOptions {
   body?: unknown;
@@ -60,6 +61,11 @@ export function cookiesFrom(res: Response, previous = ''): string {
     jar.set(pair.split('=')[0], pair);
   }
   return [...jar.values()].join('; ');
+}
+
+/** The code in a two-factor OTP email, or undefined when `mail` is missing or holds no code. */
+export function emailedOtp(mail: SendProps | undefined): string | undefined {
+  return mail?.template.html().match(/token-text'>(\d+)</)?.[1];
 }
 
 /** Signs up with email and password. A rejected sign-up does not throw: check `res`. */

@@ -47,7 +47,7 @@
 
 	const canReauthenticate = $derived(methods !== null && (methods.password || methods.passkey || methods.providers.length > 0));
 
-	/** A two-factor account confirms with the password and a code, or a passkey; social providers skip the second factor. */
+	/** A two-factor account confirms with the password and a code, or a passkey; a social provider would add a much longer flow and no new capability (ADR 0012). */
 	async function detectMethods(): Promise<Methods> {
 		const [session, accounts, passkeys] = await Promise.all([
 			authClient.getSession(),

@@ -1,7 +1,7 @@
 import type { BetterAuthPlugin } from 'better-auth';
 import { createAuthMiddleware } from 'better-auth/api';
-import { isRecord } from '#lib/server/api/common/utils/is-record';
 import { AuthEndpoint } from './auth.endpoints';
+import { isTwoFactorRedirect } from './auth.two-factor-redirect';
 
 /**
  * The sign-in endpoints that end the Replaced Session. Not a generic "a new session was set" rule: admin
@@ -22,15 +22,10 @@ export const ReplacedSessionPath = {
 
 const replacedSessionPaths: readonly string[] = Object.values(ReplacedSessionPath);
 
-/** The two-factor plugin's answer to a correct password: the new session is already gone, and the challenge starts. */
-function isTwoFactorRedirect(returned: unknown): boolean {
-  return isRecord(returned) && returned.twoFactorRedirect === true;
-}
-
 /**
  * After-hook that ends the session the browser held before signing in again, whoever signs in. Better Auth's sign-in
- * never revokes it, and the two-factor plugin drops its cookie at the password step, so it would stay valid until it
- * expires. Holding the cookie is the same authority sign-out relies on, so the session is deleted by its token with no
+ * never revokes it, and the two-factor plugin drops its cookie when it raises a challenge, so it would stay valid until
+ * it expires. Holding the cookie is the same authority sign-out relies on, so the session is deleted by its token with no
  * owner check; a missing, badly signed or already-ended session is a no-op. Best-effort: an error is logged and the
  * sign-in response is left as it is.
  */
