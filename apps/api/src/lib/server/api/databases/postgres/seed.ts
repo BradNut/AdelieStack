@@ -5,7 +5,7 @@ import { ConfigService } from '#lib/server/api/common/configs/config.service';
 import { createScriptDb } from './drizzle.client';
 import * as schema from './drizzle-schema';
 import * as seeds from './seeds';
-import { seedAuthOptions } from './seeds/auth-options';
+import { authOptionsFromEnvs } from './seeds/auth-options';
 
 if (!process.env.DB_SEEDING) {
   throw new Error('You must set DB_SEEDING to "true" when running seeds');
@@ -19,7 +19,7 @@ for (const table of tables) {
 }
 
 const envs = new ConfigService().envs;
-const auth = createOfflineAuth({ database: drizzleAuthDatabase(db), ...seedAuthOptions(envs) });
+const auth = createOfflineAuth({ database: drizzleAuthDatabase(db), ...authOptionsFromEnvs(envs) });
 
 const { ADMIN_EMAIL, ADMIN_PASSWORD, SIGN_UP_ENABLED } = envs;
 await seeds.users(auth, { adminEmail: ADMIN_EMAIL, adminPassword: ADMIN_PASSWORD, signUpEnabled: SIGN_UP_ENABLED });
