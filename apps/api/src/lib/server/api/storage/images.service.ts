@@ -9,7 +9,8 @@ const KNOWN_GOOD_PNG = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAADElEQVQImWNgYGAAAAAEAAGjChXjAAAAAElFTkSuQmCC',
   'base64',
 );
-const OUT_OF_MEMORY_PATTERN = /out of memory/i;
+/** libvips says "out of memory"; libjpeg says "Insufficient memory (case N)". */
+const OUT_OF_MEMORY_PATTERN = /out of memory|insufficient memory/i;
 
 @injectable()
 export class ImagesService {
@@ -26,6 +27,7 @@ export class ImagesService {
         this.loggerService.log.error({ err: error }, 'Image processing failed');
         throw new HTTPException(StatusCodes.INTERNAL_SERVER_ERROR, { message: 'The image could not be processed. Please try again later.' });
       }
+      this.loggerService.log.warn({ err: error }, 'Image refused as unprocessable');
       throw new HTTPException(StatusCodes.UNPROCESSABLE_ENTITY, {
         message: 'File rejected: it is not a valid image or cannot be resized as requested.',
       });

@@ -58,6 +58,19 @@ describe('ImagesService', () => {
       expect(error.status).toBe(StatusCodes.UNPROCESSABLE_ENTITY);
     });
 
+    it('keeps a trace of why an upload was refused, without telling the client', async () => {
+      const logger = createLoggerServiceMock();
+
+      const error = await failureOf(createService(logger).resize(Buffer.from('not an image'), { width: 10 }));
+
+      expect(error.status).toBe(StatusCodes.UNPROCESSABLE_ENTITY);
+      expect(error.message).not.toMatch(/unsupported image format/i);
+      expect(logger.log.warn).toHaveBeenCalledWith(
+        expect.objectContaining({ err: expect.objectContaining({ message: expect.stringMatching(/unsupported image format/i) }) }),
+        expect.any(String),
+      );
+    });
+
     it.each([
       ['a width of zero', { width: 0 }],
       ['a negative width', { width: -1 }],
@@ -81,6 +94,7 @@ describe('ImagesService', () => {
     describe("when the failure is not the client's fault", () => {
       // Observed from sharp 0.35 under a memory cap; the same process still resized a small image straight after.
       const OUT_OF_MEMORY = 'vips_tracked: out of memory -- size == 1144MB';
+      const JPEG_OUT_OF_MEMORY = 'VipsJpeg: Insufficient memory (case 4)';
       const LIBRARY_BROKEN = 'vips: unable to initialise thread pool';
 
       const failToBuffer = (message: string) => vi.spyOn(sharp.prototype, 'toBuffer').mockRejectedValue(new Error(message));
@@ -98,9 +112,12 @@ describe('ImagesService', () => {
         expect(error.status).toBe(StatusCodes.INTERNAL_SERVER_ERROR);
       });
 
-      it('reports a server error when the server runs out of memory, even though a small image still works', async () => {
+      it.each([
+        ['libvips', OUT_OF_MEMORY],
+        ['the JPEG decoder', JPEG_OUT_OF_MEMORY],
+      ])('reports a server error when %s runs out of memory, even though a small image still works', async (_label, message) => {
         const png = await createPng(40, 20);
-        vi.spyOn(sharp.prototype, 'toBuffer').mockRejectedValueOnce(new Error(OUT_OF_MEMORY));
+        vi.spyOn(sharp.prototype, 'toBuffer').mockRejectedValueOnce(new Error(message));
 
         const error = await failureOf(createService().resize(png, { width: 10 }));
 
