@@ -14,7 +14,7 @@ export default defineConfig({
     unstubEnvs: true,
     coverage: {
       include: ['src/**/*.{js,ts}'],
-      exclude: ['**/*.{test,spec}.{js,ts}', 'src/test/**', '**/common/testing/**', '**/migrate.ts', '**/seed.ts', '**/seeds/**', 'src/server.ts'],
+      exclude: ['**/*.{test,spec}.{js,ts}', 'src/test/**', '**/common/testing/**', '**/migrate.ts', '**/seed.ts', '**/seeds/**'],
     },
   },
 });
