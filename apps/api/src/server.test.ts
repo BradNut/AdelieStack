@@ -92,8 +92,6 @@ function stubDeploymentEnv({ jobsEnabled }: { jobsEnabled: boolean }) {
   vi.stubEnv('SIGNING_SECRET', 'test-signing-secret');
   vi.stubEnv('BETTER_AUTH_SECRET', 'test-better-auth-secret-of-32-chars-min');
   vi.stubEnv('JOBS_ENABLED', String(jobsEnabled));
-  // The rate limiter's Redis store loads its scripts as soon as a limited route is built, which the network guard rightly blocks.
-  vi.stubEnv('DISABLE_RATE_LIMIT', 'true');
 }
 
 let signalHandlers: Record<Signal, NodeJS.SignalsListener[]>;
