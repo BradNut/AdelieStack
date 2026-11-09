@@ -2,7 +2,7 @@ import { StatusCodes } from '@adelie/shared';
 import { Container } from '@needle-di/core';
 import NodeClam from 'clamscan';
 import type { HTTPException } from 'hono/http-exception';
-import sharp from 'sharp';
+import sharp, { type ResizeOptions } from 'sharp';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConfigService } from '#lib/server/api/common/configs/config.service';
 import type { EnvsDto } from '#lib/server/api/common/configs/dtos/env.dto';
@@ -218,19 +218,28 @@ describe('StorageService', () => {
       expect(resize).not.toHaveBeenCalled();
     });
 
-    it('treats resize options with only undefined values as empty', async () => {
+    it.each([
+      ['only undefined values', { width: undefined, height: undefined }],
+      ['only a fit', { fit: 'cover' }],
+      ['modifiers and no dimensions', { fit: 'contain', background: '#ffffff', withoutEnlargement: true }],
+    ] satisfies [string, ResizeOptions][])('leaves an upload unchanged when the resize options have %s', async (_label, resizeOptions) => {
       const putObject = vi.spyOn(S3StorageClient.prototype, 'putObject').mockResolvedValue();
       const original = await createPng(40, 20, { compressionLevel: 0 });
       const resize = vi.fn(async () => UNUSED_RESIZE_RESULT);
 
-      await createService({ images: { resize } }).upload({
-        file: pngFile(original),
-        key: IMAGE_KEY,
-        resizeOptions: { width: undefined, height: undefined },
-      });
+      await createService({ images: { resize } }).upload({ file: pngFile(original), key: IMAGE_KEY, resizeOptions });
 
       expect(resize).not.toHaveBeenCalled();
       expect(putObject).toHaveBeenCalledWith(PUBLIC_BUCKET, IMAGE_KEY, original, PNG_CONTENT_TYPE);
+    });
+
+    it('still resizes when only a height is requested', async () => {
+      const putObject = vi.spyOn(S3StorageClient.prototype, 'putObject').mockResolvedValue();
+
+      await createService().upload({ file: pngFile(await createPng(40, 20)), key: IMAGE_KEY, resizeOptions: { height: 10 } });
+
+      const stored = putObject.mock.calls[0]?.[2] as Buffer;
+      await expect(dimensionsOf(stored)).resolves.toEqual({ width: 20, height: 10 });
     });
 
     it('still resizes when only some resize options are set', async () => {
