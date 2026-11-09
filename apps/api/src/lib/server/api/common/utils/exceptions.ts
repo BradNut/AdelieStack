@@ -21,6 +21,18 @@ export function BadRequest(message = 'Bad Request') {
   return new HTTPException(StatusCodes.BAD_REQUEST, { message });
 }
 
+export function PayloadTooLarge(message = 'Payload Too Large') {
+  return new HTTPException(StatusCodes.REQUEST_TOO_LONG, { message });
+}
+
+export function UnsupportedMediaType(message = 'Unsupported Media Type') {
+  return new HTTPException(StatusCodes.UNSUPPORTED_MEDIA_TYPE, { message });
+}
+
+export function UnprocessableEntity(message = 'Unprocessable Entity') {
+  return new HTTPException(StatusCodes.UNPROCESSABLE_ENTITY, { message });
+}
+
 export function InternalError(message = 'Internal Error') {
   return new HTTPException(StatusCodes.INTERNAL_SERVER_ERROR, { message });
 }

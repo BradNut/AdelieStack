@@ -2,7 +2,10 @@ import { StatusCodes } from '@adelie/shared';
 import { inject, injectable } from '@needle-di/core';
 import { HTTPException } from 'hono/http-exception';
 import { ConfigService } from '#lib/server/api/common/configs/config.service';
+import { m } from '#lib/server/api/common/i18n/index';
 import { publicId } from '#lib/server/api/common/utils/crypto';
+import { InternalError, PayloadTooLarge, UnprocessableEntity, UnsupportedMediaType } from '#lib/server/api/common/utils/exceptions';
+import { CONTENT_SNIFF_BYTES, detectContentType } from './content-type';
 import { ImagesService } from './images.service';
 import { S3StorageClientProvider } from './s3-storage.client';
 import { BucketVisibility, buildBucketName } from './storage.buckets';
@@ -46,11 +49,14 @@ export class StorageService {
     }
   }
 
-  async upload({ file, resizeOptions, key, visibility = BucketVisibility.PUBLIC }: Upload) {
+  async upload({ file, maxSizeBytes, acceptedTypes, resizeOptions, imageLimits, key, visibility }: Upload): Promise<{ key: string }> {
+    let contentType = await this.detectAcceptedType(file, { maxSizeBytes, acceptedTypes });
+
     let buffer: Buffer = Buffer.from(await file.arrayBuffer());
     // Only a width or height asks for a resize; without one, sharp would just re-encode the file.
-    if (resizeOptions?.width !== undefined || resizeOptions?.height !== undefined) {
-      buffer = await this.images.resize(buffer, resizeOptions);
+    if (resizeOptions?.width != null || resizeOptions?.height != null) {
+      buffer = await this.images.resize(buffer, resizeOptions, imageLimits);
+      contentType = await this.detectResizedType(buffer);
     }
 
     // Scan the final bytes before they ever reach storage; infected uploads are rejected.
@@ -58,7 +64,7 @@ export class StorageService {
 
     const bucket = this.bucketFor(visibility);
     const fileKey = key || publicId();
-    await this.storage.client.putObject(bucket, fileKey, buffer, file.type || undefined);
+    await this.storage.client.putObject(bucket, fileKey, buffer, contentType);
 
     // Record the clean verdict so later webhook/read checks can trust it without re-scanning.
     if (this.virusScanner.isEnabled) {
@@ -66,6 +72,33 @@ export class StorageService {
     }
 
     return { key: fileKey };
+  }
+
+  /**
+   * Refuses a file over the size limit or of an unlisted type, reading no more than its first bytes.
+   * Returns the type those bytes show it to be; the client's claimed type is never trusted.
+   */
+  private async detectAcceptedType(file: File, { maxSizeBytes, acceptedTypes }: Pick<Upload, 'maxSizeBytes' | 'acceptedTypes'>): Promise<string> {
+    if (file.size > maxSizeBytes) {
+      throw PayloadTooLarge(m.storage_upload_too_large());
+    }
+
+    const head = Buffer.from(await file.slice(0, CONTENT_SNIFF_BYTES).arrayBuffer());
+    const contentType = await detectContentType(head);
+    if (!contentType) {
+      throw UnprocessableEntity(m.storage_upload_unrecognized());
+    }
+    if (!acceptedTypes.includes(contentType)) {
+      throw UnsupportedMediaType(m.storage_upload_type_not_accepted());
+    }
+    return contentType;
+  }
+
+  /** A resize can change the format (sharp turns an SVG into a PNG), so what gets stored is identified afresh. */
+  private async detectResizedType(resized: Buffer): Promise<string> {
+    const contentType = await detectContentType(resized.subarray(0, CONTENT_SNIFF_BYTES));
+    if (!contentType) throw InternalError(m.storage_image_processing_failed());
+    return contentType;
   }
 
   /**
@@ -87,11 +120,11 @@ export class StorageService {
     }
   }
 
-  async get(key: string, visibility: BucketVisibility = BucketVisibility.PUBLIC): Promise<StoredObject> {
+  async get(key: string, visibility: BucketVisibility): Promise<StoredObject> {
     return this.storage.client.getObject(this.bucketFor(visibility), key);
   }
 
-  async remove(key: string, visibility: BucketVisibility = BucketVisibility.PUBLIC) {
+  async remove(key: string, visibility: BucketVisibility): Promise<void> {
     return this.storage.client.removeObject(this.bucketFor(visibility), key);
   }
 

@@ -42,9 +42,21 @@ export const scanTags = (status: ScanStatus, viruses?: string[]): Record<string,
   ...(viruses?.length ? { [ScanTag.VIRUSES]: viruses.join(',') } : {}),
 });
 
+/** How large an image may be going into, and coming out of, a resize. */
+export interface ImageLimits {
+  maxInputPixels: number;
+  maxOutputDimension: number;
+}
+
 export type Upload = {
   file: File;
   key?: string;
+  /** Largest file accepted. A larger one is refused before it is read. */
+  maxSizeBytes: number;
+  /** Types accepted, compared with what the file's bytes are. HTML and SVG are refused unless listed. */
+  acceptedTypes: readonly string[];
+  visibility: BucketVisibility;
   resizeOptions?: ResizeOptions;
-  visibility?: BucketVisibility;
+  /** Limits for the resize; `ImagesService` applies its defaults when omitted. */
+  imageLimits?: ImageLimits;
 };

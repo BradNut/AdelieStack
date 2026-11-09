@@ -29,5 +29,10 @@
   "mail_two_factor_otp_code_note": "(This code is valid for {minutes} minutes)",
   "storage_image_processing_failed": "The image could not be processed. Please try again later.",
   "storage_image_unprocessable": "File rejected: it is not a valid image or cannot be resized as requested.",
-  "storage_image_invalid_resize_options": "Invalid image resize options."
+  "storage_image_invalid_resize_options": "Invalid image resize options.",
+  "storage_upload_too_large": "File rejected: it is larger than this upload allows.",
+  "storage_upload_type_not_accepted": "File rejected: this file type is not accepted.",
+  "storage_upload_unrecognized": "File rejected: its type could not be recognised.",
+  "storage_image_too_many_pixels": "File rejected: the image has too many pixels.",
+  "storage_image_output_too_large": "The requested image size is too large."
 }

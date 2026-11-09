@@ -10,7 +10,7 @@ import { LoggerService } from '#lib/server/api/common/services/logger.service';
 import type { HonoEnv } from '#lib/server/api/common/utils/hono';
 import { ImagesService } from '#lib/server/api/storage/images.service';
 import { createLoggerServiceMock } from '../../../../../test/mocks/logger.mock';
-import { createJpeg, createPng, failureOf, IMAGE_LIBRARY_BROKEN } from './storage-test.helpers';
+import { createJpeg, createPng, failureOf, IMAGE_LIBRARY_BROKEN, withNullDimensions } from './storage-test.helpers';
 
 const createService = (logger = createLoggerServiceMock()) => {
   const container = new Container();
@@ -175,10 +175,89 @@ describe('ImagesService', () => {
       });
     });
 
-    it('treats a width the image library accepts but cannot produce as a client error', async () => {
-      const error = await failureOf(createService().resize(await createPng(40, 20), { width: 100_000_000 }));
+    describe('limits', () => {
+      const LIMITS = { maxInputPixels: 1_000, maxOutputDimension: 100 };
 
-      expect(error.status).toBe(StatusCodes.UNPROCESSABLE_ENTITY);
+      /** Refusing on the header means nothing is decoded, so the pipeline's output step never runs. */
+      const watchDecoding = () => vi.spyOn(sharp.prototype, 'toBuffer');
+
+      afterEach(() => {
+        vi.restoreAllMocks();
+      });
+
+      it('refuses an input beyond the declared pixel limit, without decoding it', async () => {
+        const png = await createPng(40, 40);
+        const toBuffer = watchDecoding();
+
+        const error = await failureOf(createService().resize(png, { width: 10 }, LIMITS));
+
+        expect(error.status).toBe(StatusCodes.UNPROCESSABLE_ENTITY);
+        expect(error.message).toMatch(/too many pixels/i);
+        expect(toBuffer).not.toHaveBeenCalled();
+      });
+
+      it('accepts an input of exactly the declared pixel limit', async () => {
+        await expect(createService().resize(await createPng(40, 25), { width: 10 }, LIMITS)).resolves.toBeInstanceOf(Buffer);
+      });
+
+      it('accepts an output of exactly the declared dimension', async () => {
+        const resized = await createService().resize(await createPng(10, 10), { width: 100, height: 100 }, LIMITS);
+
+        const { width, height } = await sharp(resized).metadata();
+        expect({ width, height }).toEqual({ width: 100, height: 100 });
+      });
+
+      it.each([
+        ['a width', 10, 10, { width: 101 }],
+        ['a height', 10, 10, { height: 101 }],
+        ['both dimensions, one too large', 10, 10, { width: 50, height: 101 }],
+        ['a width that a tall image scales into too great a height', 2, 200, { width: 60 }],
+        ['a height that a wide image scales into too great a width', 200, 2, { height: 60 }],
+        ['an outside fit that scales past the limit', 2, 200, { width: 60, height: 60, fit: 'outside' }],
+        ['a width beside a null height, which scales like a lone width', 2, 200, withNullDimensions({ width: 60, height: null })],
+        ['a height beside a null width, which scales like a lone height', 200, 2, withNullDimensions({ width: null, height: 60 })],
+      ] satisfies [string, number, number, ResizeOptions][])(
+        'refuses %s beyond the declared maximum',
+        async (_label, sourceWidth, sourceHeight, options) => {
+          const png = await createPng(sourceWidth, sourceHeight);
+          const toBuffer = watchDecoding();
+
+          const error = await failureOf(createService().resize(png, options, { maxInputPixels: 1_000_000, maxOutputDimension: 100 }));
+
+          expect(error.status).toBe(StatusCodes.UNPROCESSABLE_ENTITY);
+          expect(error.message).toMatch(/size is too large/i);
+          expect(toBuffer).not.toHaveBeenCalled();
+        },
+      );
+
+      it('treats a width the image library accepts but cannot produce as a client error', async () => {
+        const generous = { maxInputPixels: 1_000_000, maxOutputDimension: 200_000_000 };
+
+        const error = await failureOf(createService().resize(await createPng(40, 20), { width: 100_000_000 }, generous));
+
+        expect(error.status).toBe(StatusCodes.UNPROCESSABLE_ENTITY);
+      });
+
+      it('applies a default output limit when the caller declares none', async () => {
+        const error = await failureOf(createService().resize(await createPng(40, 20), { width: 50_000, height: 50_000 }));
+
+        expect(error.status).toBe(StatusCodes.UNPROCESSABLE_ENTITY);
+        expect(error.message).toMatch(/size is too large/i);
+      });
+
+      it('applies a default pixel limit when the caller declares none', async () => {
+        const error = await failureOf(createService().resize(await createPng(8_000, 8_000, { compressionLevel: 1 }), { width: 10 }));
+
+        expect(error.status).toBe(StatusCodes.UNPROCESSABLE_ENTITY);
+        expect(error.message).toMatch(/too many pixels/i);
+      });
+
+      it.each([
+        ['de', 'Datei abgelehnt: Das Bild hat zu viele Pixel.'],
+        ['es', 'Archivo rechazado: la imagen tiene demasiados píxeles.'],
+      ])('refuses too many pixels in the language of the request (%s)', async (locale, message) => {
+        await expect(localisedFailure(locale, await createPng(8_000, 8_000, { compressionLevel: 1 }), { width: 10 })).resolves.toBe(message);
+      });
     });
   });
 });
