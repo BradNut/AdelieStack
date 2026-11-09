@@ -24,7 +24,15 @@ const REFUSED = { data: null, error: { error: { code: 'FORBIDDEN', message: 'Inv
 const BODY_HTML = '<p>secret-html-body</p>';
 const BODY_TEXT = 'secret-text-body';
 const API_KEY = 'us_secret_key';
-const template: EmailTemplate = { subject: () => 'Welcome', html: () => BODY_HTML, text: () => BODY_TEXT };
+class WelcomeEmail implements EmailTemplate {
+  subject = () => 'Welcome';
+  html = () => BODY_HTML;
+  text = () => BODY_TEXT;
+}
+const template = new WelcomeEmail();
+const A = { email: 'a@example.com', userId: 'user-a' };
+const B = { email: 'b@example.com', userId: 'user-b' };
+const C = { email: 'c@example.com', userId: 'user-c' };
 
 function buildService(envs: Parameters<typeof createConfigServiceMock>[0] = {}) {
   const logger = createLoggerServiceMock();
@@ -59,7 +67,7 @@ describe('UseSendMailerService sending', () => {
   it('sends one email per recipient with from, to, subject, html and text', async () => {
     const { service } = buildService();
 
-    await service.send({ to: ['a@example.com', 'b@example.com'], template });
+    await service.send({ to: [A, B], template });
 
     expect(fake.send.mock.calls.map(([payload]) => payload)).toEqual([
       { from: 'noreply@example.com', to: 'a@example.com', subject: 'Welcome', html: BODY_HTML, text: BODY_TEXT },
@@ -67,10 +75,10 @@ describe('UseSendMailerService sending', () => {
     ]);
   });
 
-  it('accepts a single recipient given as a string', async () => {
+  it('accepts a single recipient that is not in a list', async () => {
     const { service } = buildService();
 
-    await service.send({ to: 'a@example.com', template });
+    await service.send({ to: A, template });
 
     expect(fake.send).toHaveBeenCalledTimes(1);
     expect(fake.send.mock.calls[0][0].to).toBe('a@example.com');
@@ -84,7 +92,7 @@ describe('UseSendMailerService sending', () => {
     });
     const { service } = buildService();
 
-    const { rejected } = await settle(service.send({ to: ['a@example.com', 'b@example.com', 'c@example.com'], template }));
+    const { rejected } = await settle(service.send({ to: [A, B, C], template }));
 
     expect(fake.send.mock.calls.map(([payload]) => payload.to)).toEqual([
       'a@example.com',
@@ -102,7 +110,7 @@ describe('UseSendMailerService sending', () => {
     });
     const { service } = buildService();
 
-    const { rejected } = await settle(service.send({ to: ['a@example.com', 'b@example.com'], template }));
+    const { rejected } = await settle(service.send({ to: [A, B], template }));
 
     expect(fake.send).toHaveBeenCalledTimes(6);
     expect((rejected as Error).message).toBe('failed for a@example.com');
@@ -124,8 +132,8 @@ describe('UseSendMailerService client', () => {
     const { service } = buildService({ USESEND_BASE_URL: 'https://mail.example.com' });
     expect(fake.construct).not.toHaveBeenCalled();
 
-    await service.send({ to: 'a@example.com', template });
-    await service.send({ to: 'b@example.com', template });
+    await service.send({ to: A, template });
+    await service.send({ to: B, template });
 
     expect(fake.construct).toHaveBeenCalledTimes(1);
     expect(fake.construct).toHaveBeenCalledWith(API_KEY, 'https://mail.example.com');
@@ -134,7 +142,7 @@ describe('UseSendMailerService client', () => {
   it('hands the client the hosted useSend address when the base url is unset', async () => {
     const { service } = buildService();
 
-    await service.send({ to: 'a@example.com', template });
+    await service.send({ to: A, template });
 
     expect(fake.construct).toHaveBeenCalledWith(API_KEY, 'https://app.usesend.com');
   });
@@ -145,7 +153,7 @@ describe('UseSendMailerService retries', () => {
     fake.send.mockResolvedValueOnce(REFUSED).mockResolvedValueOnce(REFUSED);
     const { service } = buildService();
 
-    const { rejected } = await settle(service.send({ to: 'a@example.com', template }));
+    const { rejected } = await settle(service.send({ to: A, template }));
 
     expect(rejected).toBeUndefined();
     expect(fake.send).toHaveBeenCalledTimes(3);
@@ -155,7 +163,7 @@ describe('UseSendMailerService retries', () => {
     fake.send.mockRejectedValueOnce(new Error('fetch failed')).mockRejectedValueOnce(new Error('fetch failed'));
     const { service } = buildService();
 
-    const { rejected } = await settle(service.send({ to: 'a@example.com', template }));
+    const { rejected } = await settle(service.send({ to: A, template }));
 
     expect(rejected).toBeUndefined();
     expect(fake.send).toHaveBeenCalledTimes(3);
@@ -165,7 +173,7 @@ describe('UseSendMailerService retries', () => {
     fake.send.mockResolvedValueOnce({ data: null, error: { code: 'INTERNAL_SERVER_ERROR', message: 'Bad Gateway' } });
     const { service } = buildService();
 
-    await settle(service.send({ to: 'a@example.com', template }));
+    await settle(service.send({ to: A, template }));
 
     expect(fake.send).toHaveBeenCalledTimes(2);
   });
@@ -174,7 +182,7 @@ describe('UseSendMailerService retries', () => {
     fake.send.mockResolvedValue(REFUSED);
     const { service } = buildService();
 
-    const { rejected } = await settle(service.send({ to: 'a@example.com', template }));
+    const { rejected } = await settle(service.send({ to: A, template }));
 
     expect(rejected).toBeInstanceOf(Error);
     expect((rejected as Error).message).toContain('FORBIDDEN');
@@ -186,7 +194,7 @@ describe('UseSendMailerService retries', () => {
     fake.send.mockRejectedValueOnce(new Error('first')).mockRejectedValueOnce(new Error('second')).mockRejectedValueOnce(last);
     const { service } = buildService();
 
-    const { rejected } = await settle(service.send({ to: 'a@example.com', template }));
+    const { rejected } = await settle(service.send({ to: A, template }));
 
     expect(rejected).toBe(last);
     expect(fake.send).toHaveBeenCalledTimes(3);
@@ -196,7 +204,7 @@ describe('UseSendMailerService retries', () => {
     fake.send.mockResolvedValueOnce(REFUSED).mockResolvedValueOnce(REFUSED);
     const { service } = buildService();
 
-    const sending = service.send({ to: 'a@example.com', template });
+    const sending = service.send({ to: A, template });
 
     await vi.advanceTimersByTimeAsync(249);
     expect(fake.send).toHaveBeenCalledTimes(1);
@@ -214,7 +222,7 @@ describe('UseSendMailerService retries', () => {
     const { service } = buildService();
     const startedAt = Date.now();
 
-    await settle(service.send({ to: 'a@example.com', template }));
+    await settle(service.send({ to: A, template }));
 
     expect(vi.getTimerCount()).toBe(0);
     expect(Date.now() - startedAt).toBe(750);
@@ -226,7 +234,7 @@ describe('UseSendMailerService idempotency keys', () => {
     fake.send.mockResolvedValueOnce(REFUSED).mockRejectedValueOnce(new Error('fetch failed'));
     const { service } = buildService();
 
-    await settle(service.send({ to: 'a@example.com', template }));
+    await settle(service.send({ to: A, template }));
 
     const keys = idempotencyKeys();
     expect(keys).toHaveLength(3);
@@ -237,7 +245,7 @@ describe('UseSendMailerService idempotency keys', () => {
   it('gives different recipients different keys', async () => {
     const { service } = buildService();
 
-    await service.send({ to: ['a@example.com', 'b@example.com'], template });
+    await service.send({ to: [A, B], template });
 
     const [first, second] = idempotencyKeys();
     expect(first).toBeTruthy();
@@ -248,8 +256,8 @@ describe('UseSendMailerService idempotency keys', () => {
   it('gives a new message to the same recipient a new key', async () => {
     const { service } = buildService();
 
-    await service.send({ to: 'a@example.com', template });
-    await service.send({ to: 'a@example.com', template });
+    await service.send({ to: A, template });
+    await service.send({ to: A, template });
 
     const [first, second] = idempotencyKeys();
     expect(first).not.toBe(second);
@@ -260,17 +268,53 @@ describe('UseSendMailerService logs', () => {
   const entries = (logger: ReturnType<typeof createLoggerServiceMock>) =>
     [...logger.log.info.mock.calls, ...logger.log.warn.mock.calls, ...logger.log.error.mock.calls].map(([fields]) => fields);
 
-  it('writes one entry per attempt with recipient, attempt and error code', async () => {
+  it('writes one entry per attempt with the user, template, attempt and error code', async () => {
     fake.send.mockResolvedValueOnce(REFUSED).mockRejectedValueOnce(new Error('fetch failed'));
     const { service, logger } = buildService();
 
-    await settle(service.send({ to: 'a@example.com', template }));
+    await settle(service.send({ to: A, template }));
 
     expect(logger.log.warn.mock.calls.map(([fields]) => fields)).toEqual([
-      { to: 'a@example.com', attempt: 1, error: 'FORBIDDEN: Invalid API token' },
-      { to: 'a@example.com', attempt: 2, error: 'fetch failed' },
+      { userId: 'user-a', template: 'WelcomeEmail', attempt: 1, error: 'FORBIDDEN: Invalid API token' },
+      { userId: 'user-a', template: 'WelcomeEmail', attempt: 2, error: 'fetch failed' },
     ]);
-    expect(logger.log.info.mock.calls.map(([fields]) => fields)).toEqual([{ to: 'a@example.com', attempt: 3 }]);
+    expect(logger.log.info.mock.calls.map(([fields]) => fields)).toEqual([{ userId: 'user-a', template: 'WelcomeEmail', attempt: 3 }]);
+  });
+
+  it('gives each recipient their own user ID', async () => {
+    fake.send.mockImplementation(async ({ to }) => {
+      if (to === A.email) throw new Error('fetch failed');
+      return SENT;
+    });
+    const { service, logger } = buildService();
+
+    await settle(service.send({ to: [A, B], template }));
+
+    expect(logger.log.warn.mock.calls.map(([fields]) => fields.userId)).toEqual(['user-a', 'user-a', 'user-a']);
+    expect(logger.log.info.mock.calls.map(([fields]) => fields.userId)).toEqual(['user-b']);
+  });
+
+  it('logs a recipient with no account as a null user ID', async () => {
+    const { service, logger } = buildService();
+
+    await service.send({ to: { email: 'invitee@example.com', userId: null }, template });
+
+    expect(logger.log.info.mock.calls[0][0]).toEqual({ userId: null, template: 'WelcomeEmail', attempt: 1 });
+    expect(fake.send.mock.calls[0][0].to).toBe('invitee@example.com');
+  });
+
+  it('never logs the address of a send that succeeds or fails, even when the error quotes it', async () => {
+    const canary = { email: 'Leak.Canary@example.test', userId: 'user-canary' };
+    fake.send
+      .mockResolvedValueOnce({ data: null, error: { error: { code: 'VALIDATION', message: `Refused ${canary.email}` } } })
+      .mockRejectedValueOnce(new Error(`Timed out for ${canary.email}`));
+    const { service, logger } = buildService();
+
+    await settle(service.send({ to: canary, template }));
+
+    expect(entries(logger)).toHaveLength(3);
+    const logged = JSON.stringify([logger.log.info.mock.calls, logger.log.warn.mock.calls, logger.log.error.mock.calls]).toLowerCase();
+    expect(logged).not.toContain('leak.canary');
   });
 
   it.each([
@@ -283,16 +327,74 @@ describe('UseSendMailerService logs', () => {
     fake.send.mockResolvedValueOnce({ data: null, error });
     const { service, logger } = buildService();
 
-    await settle(service.send({ to: 'a@example.com', template }));
+    await settle(service.send({ to: A, template }));
 
     expect(logger.log.warn.mock.calls[0][0].error).toBe(expected);
+  });
+
+  describe('error text that quotes an address', () => {
+    const refusedWith = (message: string) => ({ data: null, error: { error: { code: 'VALIDATION', message } } });
+    const warned = (logger: ReturnType<typeof createLoggerServiceMock>) => logger.log.warn.mock.calls[0][0].error;
+
+    it.each([
+      ['as given', 'Cannot send to a@example.com today', 'VALIDATION: Cannot send to [email] today'],
+      ['in another case', 'Cannot send to A@Example.COM today', 'VALIDATION: Cannot send to [email] today'],
+      ['in angle brackets', 'Rejected <a@example.com>', 'VALIDATION: Rejected <[email]>'],
+      ['URL-encoded', 'POST /suppress/a%40example.com failed', 'VALIDATION: POST [email] failed'],
+      ['with URL characters before the @', 'Bounced first/last&a=b@example.com', 'VALIDATION: Bounced [email]'],
+      ['with an apostrophe', "Bounced o'brien@example.com", 'VALIDATION: Bounced [email]'],
+      ['among others', 'a@example.com and other@corp.example.org', 'VALIDATION: [email] and [email]'],
+    ])('masks it %s in the log entry', async (_name, message, expected) => {
+      fake.send.mockResolvedValueOnce(refusedWith(message));
+      const { service, logger } = buildService();
+
+      await settle(service.send({ to: A, template }));
+
+      expect(warned(logger)).toBe(expected);
+    });
+
+    it('masks an address in an error the library throws', async () => {
+      fake.send.mockRejectedValueOnce(new Error('connect failed for a@example.com'));
+      const { service, logger } = buildService();
+
+      await settle(service.send({ to: A, template }));
+
+      expect(warned(logger)).toBe('connect failed for [email]');
+    });
+
+    it('masks a thrown value that is not an Error', async () => {
+      fake.send.mockRejectedValueOnce('refused a@example.com');
+      const { service, logger } = buildService();
+
+      await settle(service.send({ to: A, template }));
+
+      expect(warned(logger)).toBe('refused [email]');
+    });
+
+    it('leaves text with no address alone', async () => {
+      fake.send.mockResolvedValueOnce(REFUSED);
+      const { service, logger } = buildService();
+
+      await settle(service.send({ to: A, template }));
+
+      expect(warned(logger)).toBe('FORBIDDEN: Invalid API token');
+    });
+
+    it('masks the error handed to the caller when every attempt is refused', async () => {
+      fake.send.mockResolvedValue(refusedWith('Cannot send to a@example.com'));
+      const { service } = buildService();
+
+      const { rejected } = await settle(service.send({ to: A, template }));
+
+      expect((rejected as Error).message).toBe('VALIDATION: Cannot send to [email]');
+    });
   });
 
   it('never logs the email body or the API key', async () => {
     fake.send.mockResolvedValueOnce(REFUSED);
     const { service, logger } = buildService();
 
-    await settle(service.send({ to: 'a@example.com', template }));
+    await settle(service.send({ to: A, template }));
 
     const logged = JSON.stringify([logger.log.info.mock.calls, logger.log.warn.mock.calls, logger.log.error.mock.calls]);
     expect(logged).not.toContain(BODY_HTML);

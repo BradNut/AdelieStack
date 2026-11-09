@@ -26,6 +26,7 @@ const { email: EMAIL, password: PASSWORD } = TEST_USER;
 const NEW_PASSWORD = 'Another-pass-7';
 const UNKNOWN_EMAIL = 'nobody@example.com';
 const RESET_REDIRECT = `${TEST_ORIGIN}/reset`;
+const NEW_EMAIL = 'emperor@example.com';
 
 let request: AuthRequest;
 let sent: SendProps[];
@@ -45,6 +46,11 @@ async function signUp() {
   const { cookie } = await signUpWithEmail(request, TEST_USER);
   clearSent();
   return cookie;
+}
+
+async function userIdOf(cookie: string) {
+  const session = (await (await request('/get-session', { cookie })).json()) as { user: { id: string } };
+  return session.user.id;
 }
 
 beforeEach(() => {
@@ -74,7 +80,7 @@ describe('verification email', () => {
     await signUpWithEmail(request, TEST_USER);
 
     expect(sent).toHaveLength(1);
-    expect(sent[0].to).toBe(EMAIL);
+    expect(sent[0].to).toMatchObject({ email: EMAIL });
     expect(sent[0].template).toBeInstanceOf(EmailVerificationEmail);
     expect(sent[0].template.html()).toContain(`${AUTH_BASE_PATH}/verify-email?token=`);
   });
@@ -87,7 +93,7 @@ describe('password reset', () => {
     await request('/request-password-reset', { body: { email: EMAIL, redirectTo: RESET_REDIRECT } });
 
     expect(sent).toHaveLength(1);
-    expect(sent[0].to).toBe(EMAIL);
+    expect(sent[0].to).toMatchObject({ email: EMAIL });
     expect(sent[0].template).toBeInstanceOf(PasswordResetLinkEmail);
   });
 
@@ -109,7 +115,7 @@ describe('password reset', () => {
     expect(res.ok).toBe(true);
     expect(sentTemplates()).toHaveLength(1);
     expect(sentTemplates()[0]).toBeInstanceOf(PasswordChangedEmail);
-    expect(sent[0].to).toBe(EMAIL);
+    expect(sent[0].to).toMatchObject({ email: EMAIL });
   });
 });
 
@@ -122,7 +128,7 @@ describe('security-event emails', () => {
     expect(res.ok).toBe(true);
     expect(sentTemplates()).toHaveLength(1);
     expect(sentTemplates()[0]).toBeInstanceOf(PasswordChangedEmail);
-    expect(sent[0].to).toBe(EMAIL);
+    expect(sent[0].to).toMatchObject({ email: EMAIL });
   });
 
   it('sends nothing when the current password is wrong', async () => {
@@ -235,7 +241,7 @@ describe('every email follows the language of the request that caused it', () =>
   it('the email change request and notice', async () => {
     const cookie = await signUp();
 
-    await request('/change-email', { cookie, headers: GERMAN, body: { newEmail: 'emperor@example.com', callbackURL: '/email-verified' } });
+    await request('/change-email', { cookie, headers: GERMAN, body: { newEmail: NEW_EMAIL, callbackURL: '/email-verified' } });
     expectGerman(EmailChangeRequestEmail);
 
     await request(emailedLink(sent.at(-1)).replace(TEST_ORIGIN, '').replace(AUTH_BASE_PATH, ''), { cookie, headers: GERMAN });
@@ -272,8 +278,6 @@ describe('the two-factor code email', () => {
 });
 
 describe('email change', () => {
-  const NEW_EMAIL = 'emperor@example.com';
-
   /** Follows the first link of the last email sent, the way a click in the mail client would. */
   async function followLastLink(cookie: string) {
     const href = emailedLink(sent.at(-1));
@@ -292,7 +296,7 @@ describe('email change', () => {
 
     expect(res.status).toBe(200);
     expect(sent).toHaveLength(1);
-    expect(sent[0].to).toBe(NEW_EMAIL);
+    expect(sent[0].to).toMatchObject({ email: NEW_EMAIL });
     expect(sent[0].template).toBeInstanceOf(EmailChangeRequestEmail);
     expect(await currentEmail(cookie)).toBe(EMAIL);
   });
@@ -305,7 +309,7 @@ describe('email change', () => {
 
     expect(await currentEmail(cookie)).toBe(NEW_EMAIL);
     expect(sent).toHaveLength(2);
-    expect(sent[1].to).toBe(EMAIL);
+    expect(sent[1].to).toMatchObject({ email: EMAIL });
     expect(sent[1].template).toBeInstanceOf(EmailChangeNoticeEmail);
     expect(sent[1].template.html()).toContain(NEW_EMAIL);
   });
@@ -348,8 +352,89 @@ describe('email change', () => {
   });
 });
 
+describe('the user each email is recorded against', () => {
+  const expectOnlyEmail = (email: string, userId: string) => {
+    expect(sent.map((data) => data.to)).toEqual([{ email, userId }]);
+  };
+
+  it('is the new user for the sign-up verification email', async () => {
+    const { cookie } = await signUpWithEmail(request, TEST_USER);
+
+    expectOnlyEmail(EMAIL, await userIdOf(cookie));
+  });
+
+  it('is the user for a verification resend', async () => {
+    const cookie = await signUp();
+
+    await request('/send-verification-email', { body: { email: EMAIL } });
+
+    expectOnlyEmail(EMAIL, await userIdOf(cookie));
+  });
+
+  it('is the user for a password reset link and the notice once it completes', async () => {
+    const cookie = await signUp();
+    const userId = await userIdOf(cookie);
+
+    await request('/request-password-reset', { body: { email: EMAIL, redirectTo: RESET_REDIRECT } });
+    expectOnlyEmail(EMAIL, userId);
+
+    const token = new URL(emailedLink(sent[0])).pathname.split('/').pop();
+    clearSent();
+    await request('/reset-password', { body: { newPassword: NEW_PASSWORD, token } });
+    expectOnlyEmail(EMAIL, userId);
+  });
+
+  it('is the user for a password change', async () => {
+    const cookie = await signUp();
+
+    await request('/change-password', { cookie, body: { currentPassword: PASSWORD, newPassword: NEW_PASSWORD } });
+
+    expectOnlyEmail(EMAIL, await userIdOf(cookie));
+  });
+
+  it('is the user for recovery code use and regeneration', async () => {
+    const {
+      cookie,
+      backupCodes: [code],
+    } = await signUpWithTotp(request, TEST_USER);
+    const userId = await userIdOf(cookie);
+    const { challengeCookie } = await startTwoFactorSignIn(request, TEST_USER);
+    clearSent();
+
+    await request('/two-factor/verify-backup-code', { cookie: challengeCookie, body: { code } });
+    expectOnlyEmail(EMAIL, userId);
+
+    clearSent();
+    await request('/two-factor/generate-backup-codes', { cookie, body: { password: PASSWORD } });
+    expectOnlyEmail(EMAIL, userId);
+  });
+
+  it('is the user for an emailed two-factor code', async () => {
+    const { cookie } = await signUpWithTotp(request, TEST_USER);
+    const userId = await userIdOf(cookie);
+    const { challengeCookie } = await startTwoFactorSignIn(request, TEST_USER);
+    clearSent();
+
+    await request('/two-factor/send-otp', { cookie: challengeCookie, body: {} });
+
+    expectOnlyEmail(EMAIL, userId);
+  });
+
+  it('is the same user for an email change confirmation and the notice to the old address', async () => {
+    const cookie = await signUp();
+    const userId = await userIdOf(cookie);
+
+    await request('/change-email', { cookie, body: { newEmail: NEW_EMAIL, callbackURL: '/email-verified' } });
+    expectOnlyEmail(NEW_EMAIL, userId);
+
+    const href = emailedLink(sent.at(-1));
+    clearSent();
+    await request(href.replace(TEST_ORIGIN, '').replace(AUTH_BASE_PATH, ''), { cookie });
+    expectOnlyEmail(EMAIL, userId);
+  });
+});
+
 describe('a failed send', () => {
-  const NEW_EMAIL = 'emperor@example.com';
   const VERIFIED_EMAIL = 'verified@example.com';
 
   useMailLog();
@@ -478,7 +563,7 @@ describe('a failed send', () => {
       expect(await verified.json()).toEqual(body);
       // Only the unverified address is sent to, so the verified one really took the no-send path.
       expect(mailerSend).toHaveBeenCalledTimes(1);
-      expect(mailerSend.mock.calls[0][0].to).toBe(EMAIL);
+      expect(mailerSend.mock.calls[0][0].to).toMatchObject({ email: EMAIL });
     });
 
     it('writes one entry naming the template when a verification resend is given up on', async () => {

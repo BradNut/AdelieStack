@@ -1,7 +1,7 @@
 import { createAuthMiddleware, isAPIError } from 'better-auth/api';
 import { getRequestLocale } from '#lib/server/api/common/i18n/index';
 import type { EmailTemplate } from '#lib/server/api/mail/interfaces/email-template.interface';
-import type { Mailer } from '#lib/server/api/mail/interfaces/mailer.interface';
+import type { Mailer, MailRecipient } from '#lib/server/api/mail/interfaces/mailer.interface';
 import { EmailChangeNoticeEmail } from '#lib/server/api/mail/templates/email-change-notice.template';
 import { EmailChangeRequestEmail } from '#lib/server/api/mail/templates/email-change-request.template';
 import { EmailVerificationEmail } from '#lib/server/api/mail/templates/email-verification.template';
@@ -15,9 +15,12 @@ import { CHANGE_EMAIL_REQUEST_TYPE, readVerificationToken } from './auth.verific
 /** What an `hooks.after` handler receives. */
 type AfterHookContext = Parameters<Parameters<typeof createAuthMiddleware>[0]>[0];
 
-interface Recipient {
+interface AuthMailUser {
+  id: string;
   email: string;
 }
+
+export const toMailRecipient = (user: AuthMailUser): MailRecipient => ({ email: user.email, userId: user.id });
 
 /** Stable, greppable log message for a Security Event email that could not be sent. */
 export const SECURITY_EVENT_EMAIL_FAILED_LOG = 'SECURITY_EVENT_EMAIL_FAILED';
@@ -45,7 +48,7 @@ export function createAuthMail(mailer: Mailer, log?: AuthMailLogger) {
    * Link Emails do not await this, so they leave the request: a response that waited on the send, or reflected how it
    * went, would show an anonymous caller which addresses have accounts during a mail outage.
    */
-  async function sendAndLogFailure(to: string, template: EmailTemplate, failureLog: string) {
+  async function sendAndLogFailure(to: MailRecipient, template: EmailTemplate, failureLog: string) {
     try {
       await mailer.send({ to, template });
     } catch {
@@ -67,25 +70,29 @@ export function createAuthMail(mailer: Mailer, log?: AuthMailLogger) {
       internalAdapter.findUserByEmail(claims.updateTo),
     ]);
     if (oldAccount || !newAccount) return;
-    await sendAndLogFailure(claims.email, new EmailChangeNoticeEmail(claims.updateTo, getRequestLocale()), SECURITY_EVENT_EMAIL_FAILED_LOG);
+    await sendAndLogFailure(
+      { email: claims.email, userId: newAccount.user.id },
+      new EmailChangeNoticeEmail(claims.updateTo, getRequestLocale()),
+      SECURITY_EVENT_EMAIL_FAILED_LOG,
+    );
   }
 
   return {
     /** Sign-up and resend verification, and (to the new address) the confirmation of an email change. */
-    async sendVerificationEmail({ user, url, token }: { user: Recipient; url: string; token?: string }) {
+    async sendVerificationEmail({ user, url, token }: { user: AuthMailUser; url: string; token?: string }) {
       const isEmailChange = readVerificationToken(token)?.requestType === CHANGE_EMAIL_REQUEST_TYPE;
       const locale = getRequestLocale();
       const template = isEmailChange ? new EmailChangeRequestEmail(url, locale) : new EmailVerificationEmail(url, locale);
-      void sendAndLogFailure(user.email, template, AUTH_LINK_EMAIL_FAILED_LOG);
+      void sendAndLogFailure(toMailRecipient(user), template, AUTH_LINK_EMAIL_FAILED_LOG);
     },
 
-    async sendResetPassword({ user, url }: { user: Recipient; url: string }) {
-      void sendAndLogFailure(user.email, new PasswordResetLinkEmail(url, getRequestLocale()), AUTH_LINK_EMAIL_FAILED_LOG);
+    async sendResetPassword({ user, url }: { user: AuthMailUser; url: string }) {
+      void sendAndLogFailure(toMailRecipient(user), new PasswordResetLinkEmail(url, getRequestLocale()), AUTH_LINK_EMAIL_FAILED_LOG);
     },
 
     /** Reset-by-link completion (`emailAndPassword.onPasswordReset`). */
-    async notifyPasswordChanged({ user }: { user: Recipient }) {
-      await sendAndLogFailure(user.email, new PasswordChangedEmail(getRequestLocale()), SECURITY_EVENT_EMAIL_FAILED_LOG);
+    async notifyPasswordChanged({ user }: { user: AuthMailUser }) {
+      await sendAndLogFailure(toMailRecipient(user), new PasswordChangedEmail(getRequestLocale()), SECURITY_EVENT_EMAIL_FAILED_LOG);
     },
 
     /**
@@ -101,13 +108,13 @@ export function createAuthMail(mailer: Mailer, log?: AuthMailLogger) {
       if (!user) return;
       switch (ctx.path) {
         case AuthEndpoint.CHANGE_PASSWORD:
-          await sendAndLogFailure(user.email, new PasswordChangedEmail(getRequestLocale()), SECURITY_EVENT_EMAIL_FAILED_LOG);
+          await sendAndLogFailure(toMailRecipient(user), new PasswordChangedEmail(getRequestLocale()), SECURITY_EVENT_EMAIL_FAILED_LOG);
           break;
         case AuthEndpoint.VERIFY_BACKUP_CODE:
-          await sendAndLogFailure(user.email, new RecoveryCodesUsedEmail(getRequestLocale()), SECURITY_EVENT_EMAIL_FAILED_LOG);
+          await sendAndLogFailure(toMailRecipient(user), new RecoveryCodesUsedEmail(getRequestLocale()), SECURITY_EVENT_EMAIL_FAILED_LOG);
           break;
         case AuthEndpoint.GENERATE_BACKUP_CODES:
-          await sendAndLogFailure(user.email, new RecoveryCodesRegeneratedEmail(getRequestLocale()), SECURITY_EVENT_EMAIL_FAILED_LOG);
+          await sendAndLogFailure(toMailRecipient(user), new RecoveryCodesRegeneratedEmail(getRequestLocale()), SECURITY_EVENT_EMAIL_FAILED_LOG);
           break;
       }
     }),
