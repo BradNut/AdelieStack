@@ -1,6 +1,6 @@
 # Infrastructure Troubleshooting
 
-Covers Redis, SeaweedFS / S3 (storage), ClamAV (antivirus, unwired), and email (unwired).
+Covers Redis, SeaweedFS / S3 (storage), ClamAV (antivirus), and email (unwired).
 
 ## Redis
 
@@ -59,16 +59,38 @@ Check both buckets exist and `PROJECT_NAME` / `ENVIRONMENT` match the bucket nam
 
 ---
 
-## ClamAV (Antivirus) — dependency present, not wired up
+## ClamAV (Antivirus)
 
-`clamscan` is listed as a dependency in `apps/api/package.json`, but there is no code anywhere in
-`apps/api/src` that imports or calls it. There is no antivirus scanning happening on uploads
-today, and no `ANTIVIRUS_ENABLED`/`CLAMAV_HOST`/`CLAMAV_PORT` env vars exist in
-`apps/api/.env.schema`. Treat this section as "if you're building ClamAV scanning," not as a
-troubleshooting guide for a live feature.
+Uploads are scanned on their final bytes, after any resize and before they reach storage, when
+`ANTIVIRUS_ENABLED` is on (it defaults to `false`). The API talks to a clamd daemon at
+`CLAMAV_HOST`:`CLAMAV_PORT`, and the connection opens on the first scan. Locally, clamd is the
+`clamav` service in `docker-compose.yaml`.
 
-If you wire it up, add the corresponding vars to `apps/api/.env.schema` first (per repo
-convention, every var the API reads must be declared there) before writing the integration.
+The upload path fails closed: while scanning is on, an upload the scanner cannot check is refused,
+so a clamd outage stops uploads.
+
+### Symptoms
+
+- Uploads failing with 503 `File could not be scanned for viruses`
+- Uploads failing with 422 `File rejected: virus detected`
+- Stored objects with no `scan-status` tag
+- `Failed to initialize ClamAV scanner` or `Error scanning stream` in logs
+
+### Diagnosis
+
+```bash
+printf 'nPING\n' | nc -w 2 "$CLAMAV_HOST" "$CLAMAV_PORT"
+# Expect: PONG
+```
+
+### Fixes
+
+| Problem | Fix |
+|---|---|
+| 503 on every upload | clamd is down or unreachable. Check `CLAMAV_HOST` / `CLAMAV_PORT` and the clamd container. A freshly started clamd takes a while to load its signatures before it answers |
+| 422 on an upload | Working as intended: clamd flagged the file, and the signature name is in the response and the logs. Nothing was stored |
+| Objects have no `scan-status` tag | `ANTIVIRUS_ENABLED` is off, so uploads are not being scanned. Set it to `true` and redeploy |
+| Object tagged `scan-status=error` | The storage webhook re-scan could not reach a verdict. Unlike the upload path, it leaves the object in place, so check clamd and review the object |
 
 ---
 
