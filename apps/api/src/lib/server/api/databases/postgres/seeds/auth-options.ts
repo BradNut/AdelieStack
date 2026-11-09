@@ -1,4 +1,4 @@
-import type { CreateAuthOptions } from '#lib/server/api/auth/auth.config';
+import { type Auth, type CreateAuthOptions, createOfflineAuth } from '#lib/server/api/auth/auth.config';
 import { createHibpHealth } from '#lib/server/api/auth/auth.hibp-status';
 import type { EnvsDto } from '#lib/server/api/common/configs/dtos/env.dto';
 
@@ -11,4 +11,9 @@ export function authOptionsFromEnvs(envs: SeedAuthEnvs): Pick<CreateAuthOptions,
     baseURL: envs.BETTER_AUTH_URL,
     hibpStatus: createHibpHealth({ enabled: envs.HIBP_ENABLED }),
   };
+}
+
+/** The auth instance the seed creates its users through. */
+export function createSeedAuth(database: CreateAuthOptions['database'], envs: SeedAuthEnvs): Auth {
+  return createOfflineAuth({ database, ...authOptionsFromEnvs(envs) });
 }

@@ -1,21 +1,22 @@
 import { PASSWORD_CHECK_UNAVAILABLE, PASSWORD_COMPROMISED } from '@adelie/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { authOptionsFromEnvs } from '#lib/server/api/databases/postgres/seeds/auth-options';
+import { createSeedAuth } from '#lib/server/api/databases/postgres/seeds/auth-options';
 import seedUsers from '#lib/server/api/databases/postgres/seeds/users';
-import { createTestAuth, TEST_ORIGIN } from '../../../../../../../test/auth-instance';
+import { createTestDatabase, TEST_ORIGIN } from '../../../../../../../test/auth-instance';
 import { HIBP_HOST, mockHibp, sha1 } from '../../../../../../../test/mocks/hibp.mock';
 import users from '../data/users.json';
 
 const ADMIN = { adminEmail: 'admin@example.com', adminPassword: 'seed-admin-passphrase-1' };
 const SEEDED_EMAILS = [ADMIN.adminEmail, ...users.map((user) => user.email)];
 
-/** An auth instance built from the options the seed script uses, and the seed's user step to run on it. */
+/** The auth instance the seed script builds, over a fresh in-memory database, and the seed's user step to run on it. */
 function seedWith(HIBP_ENABLED: boolean) {
-  const { auth, db } = createTestAuth(authOptionsFromEnvs({ BETTER_AUTH_SECRET: 'x'.repeat(32), BETTER_AUTH_URL: TEST_ORIGIN, HIBP_ENABLED }));
+  const { db, database } = createTestDatabase();
+  const auth = createSeedAuth(database, { BETTER_AUTH_SECRET: 'x'.repeat(32), BETTER_AUTH_URL: TEST_ORIGIN, HIBP_ENABLED });
   return { db, seed: () => seedUsers(auth, ADMIN) };
 }
 
-const emails = (db: ReturnType<typeof createTestAuth>['db']) => db.user.map((user) => user.email);
+const emails = (db: ReturnType<typeof createTestDatabase>['db']) => db.user.map((user) => user.email);
 
 beforeEach(() => {
   vi.spyOn(console, 'log').mockImplementation(() => {});
