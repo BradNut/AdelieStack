@@ -1,84 +1,38 @@
 name: Run_Svelte_Integration_on_PRs
 
-# Temporarily disabled
-# on:
-#   push:
-#     branches:
-#       - master
-#       - main
-#       - development
-#   pull_request:
-#     branches:
-#       - master
-#       - main
-#       - development
-
 on:
+  pull_request:
+    branches:
+      - main
+      - development
+    paths-ignore:
+      - '**.md'
+      - '.knowledge-base/**'
+      - 'docs/**'
+
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+# Throwaway values that only protect containers living for one run on this runner. No secrets here, so fork PRs work.
+# Everything else comes from the defaults in apps/api/.env.schema, which point at the services started below.
 env:
-  # Environment
-  SITE_VERSION: ${{ secrets.SITE_VERSION }}
-  ENVIRONMENT: ${{ secrets.ENVIRONMENT }}
-  DOMAIN: ${{ secrets.DOMAIN }}
-  PORT: ${{ secrets.PORT }}
-  ORIGIN: ${{ secrets.ORIGIN }}
-  # Database
-  DATABASE_USER: ${{ secrets.DATABASE_USER }}
-  DATABASE_PASSWORD: ${{ secrets.DATABASE_PASSWORD }}
-  DATABASE_HOST: ${{ secrets.DATABASE_HOST }}
-  DATABASE_PORT: ${{ secrets.DATABASE_PORT }}
-  DATABASE_DB: ${{ secrets.DATABASE_DB }}
-  # Drizzle
-  LOG_LEVEL: ${{ secrets.LOG_LEVEL }}
-  DB_MIGRATING: ${{ secrets.DB_MIGRATING }}
-  DB_SEEDING: ${{ secrets.DB_SEEDING }}
-  ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
-  ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
-  # The e2e flows register users through sign-up, which is closed by default.
-  SIGN_UP_ENABLED: 'true'
-  # Emails
-  SITE_NAME: ${{ secrets.SITE_NAME }}
-  SITE_URL: ${{ secrets.SITE_URL }}
-  # Redis
-  REDIS_URL: ${{ secrets.REDIS_URL }}
-  # Security
-  ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
-  SIGNING_SECRET: ${{ secrets.SIGNING_SECRET }}
-  # Storage - PUBLIC_ from vars, private from secrets
-  PUBLIC_IMAGE_URI: ${{ vars.PUBLIC_IMAGE_URI }}
-  STORAGE_URL: ${{ secrets.STORAGE_URL }}
-  STORAGE_ACCESS_KEY: ${{ secrets.STORAGE_ACCESS_KEY }}
-  STORAGE_SECRET_KEY: ${{ secrets.STORAGE_SECRET_KEY }}
-  STORAGE_HOST: ${{ secrets.STORAGE_HOST }}
-  STORAGE_PORT: ${{ secrets.STORAGE_PORT }}
-  STORAGE_SSL: ${{ secrets.STORAGE_SSL }}
-  # Multi-tenant storage (bucket namespace)
-  PROJECT_NAME: ${{ secrets.PROJECT_NAME }}
-  # Sentry
-  SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-  SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
-  SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
-  SENTRY_URL: ${{ secrets.SENTRY_URL }}
-  SENTRY_BACKEND_URL: ${{ secrets.SENTRY_BACKEND_URL }}
-  # Public - from vars
-  PUBLIC_SITE_NAME: ${{ vars.PUBLIC_SITE_NAME }}
-  PUBLIC_SITE_URL: ${{ vars.PUBLIC_SITE_URL }}
-  PUBLIC_SITE_VERSION: ${{ vars.PUBLIC_SITE_VERSION }}
-  PUBLIC_SENTRY_URL: ${{ vars.PUBLIC_SENTRY_URL }}
-  PUBLIC_UMAMI_URL: ${{ vars.PUBLIC_UMAMI_URL }}
-  PUBLIC_UMAMI_ID: ${{ vars.PUBLIC_UMAMI_ID }}
-  # Antivirus
-  ANTIVIRUS_ENABLED: ${{ secrets.ANTIVIRUS_ENABLED }}
-  CLAMAV_HOST: ${{ secrets.CLAMAV_HOST }}
-  CLAMAV_PORT: ${{ secrets.CLAMAV_PORT }}
+  SIGNING_SECRET: ci-only-not-a-secret-signing
+  BETTER_AUTH_SECRET: ci-only-not-a-secret-better-auth-key
+  ADMIN_PASSWORD: ci-only-not-a-secret-admin-password
+  # Playwright turns this off for the servers it starts; the seed runs outside Playwright.
+  HIBP_ENABLED: 'false'
 
 jobs:
   e2e-tests:
     name: Run end-to-end tests
-    timeout-minutes: 60
+    timeout-minutes: 20
     runs-on: ubuntu-latest
-    environment: development
 
     steps:
       - name: Checkout code
@@ -97,22 +51,35 @@ jobs:
         run: pnpm install
 
       - name: Install playwright browsers
-        run: pnpm --filter @adelie/web exec playwright install --with-deps
+        run: pnpm --filter @adelie/web exec playwright install --with-deps chromium
 
-      - name: Generate Paraglide files
-        run: pnpm --filter @adelie/web exec paraglide-js compile --project ./project.inlang --outdir ./src/lib/paraglide
+      - name: Start services
+        run: docker compose up -d postgres redis seaweedfs mailpit
 
-      - name: Build application
-        run: pnpm turbo run build --filter=@adelie/web
+      # Mailpit has to be up before the tests, or Playwright's global setup starts its stand-in instead.
+      - name: Wait for services
+        run: |
+          timeout 60 bash -c 'until docker compose exec -T postgres pg_isready -h localhost -U postgres -q; do sleep 1; done'
+          timeout 60 bash -c 'until docker compose exec -T redis redis-cli ping | grep -q PONG; do sleep 1; done'
+          timeout 60 bash -c 'until curl -fsS -o /dev/null http://localhost:8025/api/v1/info; do sleep 1; done'
+          pnpm storage:setup
 
+      # Turbo's plan for the web app leaves out the API's build task, which compiles these.
+      - name: Generate API Paraglide files
+        run: pnpm --filter @adelie/api paraglide:compile
+
+      - name: Migrate and seed the database
+        run: |
+          pnpm db:migrate
+          pnpm db:seed
+
+      # Only the web app's dependencies: Playwright builds the web app itself.
+      - name: Build workspace dependencies
+        run: pnpm turbo run build --filter=@adelie/web^...
+
+      # Not through Turbo: its strict env mode would keep the values above from reaching Playwright.
       - name: Run tests
-        env:
-          ORIGIN: http://localhost:4173
-          DOMAIN: localhost
-          PORT: '4173'
-          # Captcha stays off (CAPTCHA_ENABLED defaults to false) so e2e needs no provider account
-          CAPTCHA_ENABLED: 'false'
-        run: pnpm turbo run test:e2e --filter=@adelie/web
+        run: pnpm --filter @adelie/web test:e2e
 
       - name: Upload Playwright report
         uses: actions/upload-artifact@v4
