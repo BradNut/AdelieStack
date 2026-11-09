@@ -1,7 +1,7 @@
 import { createAuthMiddleware, isAPIError } from 'better-auth/api';
 import { getRequestLocale } from '#lib/server/api/common/i18n/index';
 import type { EmailTemplate } from '#lib/server/api/mail/interfaces/email-template.interface';
-import type { Mailer } from '#lib/server/api/mail/interfaces/mailer.interface';
+import type { Mailer, MailRecipient } from '#lib/server/api/mail/interfaces/mailer.interface';
 import { EmailChangeNoticeEmail } from '#lib/server/api/mail/templates/email-change-notice.template';
 import { EmailChangeRequestEmail } from '#lib/server/api/mail/templates/email-change-request.template';
 import { EmailVerificationEmail } from '#lib/server/api/mail/templates/email-verification.template';
@@ -16,8 +16,11 @@ import { CHANGE_EMAIL_REQUEST_TYPE, readVerificationToken } from './auth.verific
 type AfterHookContext = Parameters<Parameters<typeof createAuthMiddleware>[0]>[0];
 
 interface Recipient {
+  id: string;
   email: string;
 }
+
+const mailRecipient = (user: Recipient): MailRecipient => ({ email: user.email, userId: user.id });
 
 /** Stable, greppable log message for a Security Event email that could not be sent. */
 export const SECURITY_EVENT_EMAIL_FAILED_LOG = 'SECURITY_EVENT_EMAIL_FAILED';
@@ -37,7 +40,7 @@ export function createAuthMail(mailer: Mailer, log?: AuthMailLogger) {
    * error, nor lose what it returns (new recovery codes, a session). The entry leaves out the provider's error text,
    * which can quote the address; the mailer's own per-attempt entries carry the detail.
    */
-  async function sendSecurityEvent(to: string, template: EmailTemplate) {
+  async function sendSecurityEvent(to: MailRecipient, template: EmailTemplate) {
     try {
       await mailer.send({ to, template });
     } catch {
@@ -59,7 +62,7 @@ export function createAuthMail(mailer: Mailer, log?: AuthMailLogger) {
       internalAdapter.findUserByEmail(claims.updateTo),
     ]);
     if (oldAccount || !newAccount) return;
-    await sendSecurityEvent(claims.email, new EmailChangeNoticeEmail(claims.updateTo, getRequestLocale()));
+    await sendSecurityEvent({ email: claims.email, userId: newAccount.user.id }, new EmailChangeNoticeEmail(claims.updateTo, getRequestLocale()));
   }
 
   return {
@@ -68,16 +71,16 @@ export function createAuthMail(mailer: Mailer, log?: AuthMailLogger) {
       const isEmailChange = readVerificationToken(token)?.requestType === CHANGE_EMAIL_REQUEST_TYPE;
       const locale = getRequestLocale();
       const template = isEmailChange ? new EmailChangeRequestEmail(url, locale) : new EmailVerificationEmail(url, locale);
-      await mailer.send({ to: user.email, template });
+      await mailer.send({ to: mailRecipient(user), template });
     },
 
     async sendResetPassword({ user, url }: { user: Recipient; url: string }) {
-      await mailer.send({ to: user.email, template: new PasswordResetLinkEmail(url, getRequestLocale()) });
+      await mailer.send({ to: mailRecipient(user), template: new PasswordResetLinkEmail(url, getRequestLocale()) });
     },
 
     /** Reset-by-link completion (`emailAndPassword.onPasswordReset`). */
     async notifyPasswordChanged({ user }: { user: Recipient }) {
-      await sendSecurityEvent(user.email, new PasswordChangedEmail(getRequestLocale()));
+      await sendSecurityEvent(mailRecipient(user), new PasswordChangedEmail(getRequestLocale()));
     },
 
     /**
@@ -93,13 +96,13 @@ export function createAuthMail(mailer: Mailer, log?: AuthMailLogger) {
       if (!user) return;
       switch (ctx.path) {
         case AuthEndpoint.CHANGE_PASSWORD:
-          await sendSecurityEvent(user.email, new PasswordChangedEmail(getRequestLocale()));
+          await sendSecurityEvent(mailRecipient(user), new PasswordChangedEmail(getRequestLocale()));
           break;
         case AuthEndpoint.VERIFY_BACKUP_CODE:
-          await sendSecurityEvent(user.email, new RecoveryCodesUsedEmail(getRequestLocale()));
+          await sendSecurityEvent(mailRecipient(user), new RecoveryCodesUsedEmail(getRequestLocale()));
           break;
         case AuthEndpoint.GENERATE_BACKUP_CODES:
-          await sendSecurityEvent(user.email, new RecoveryCodesRegeneratedEmail(getRequestLocale()));
+          await sendSecurityEvent(mailRecipient(user), new RecoveryCodesRegeneratedEmail(getRequestLocale()));
           break;
       }
     }),

@@ -215,7 +215,10 @@ export function createAuth({
           otpOptions: {
             period: TWO_FACTOR_OTP_PERIOD_MINUTES,
             async sendOTP({ user, otp }) {
-              await mailer.send({ to: user.email, template: new TwoFactorOtpEmail(otp, TWO_FACTOR_OTP_PERIOD_MINUTES, getRequestLocale()) });
+              await mailer.send({
+                to: { email: user.email, userId: user.id },
+                template: new TwoFactorOtpEmail(otp, TWO_FACTOR_OTP_PERIOD_MINUTES, getRequestLocale()),
+              });
             },
           },
         }),

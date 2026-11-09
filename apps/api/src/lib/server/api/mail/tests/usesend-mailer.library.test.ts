@@ -52,7 +52,7 @@ describe('UseSendMailerService over the real usesend-js', () => {
     fetchMock.mockResolvedValueOnce(json(200, { emailId: 'email-1' }));
     const { service } = buildService({ USESEND_BASE_URL: 'https://mail.example.com' });
 
-    await service.send({ to: 'a@example.com', template });
+    await service.send({ to: { email: 'a@example.com', userId: 'user-a' }, template });
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, init] = fetchMock.mock.calls[0];
@@ -74,7 +74,7 @@ describe('UseSendMailerService over the real usesend-js', () => {
     // What the env DTO turns an empty value into.
     const { service } = buildService({ USESEND_BASE_URL: undefined });
 
-    await service.send({ to: 'a@example.com', template });
+    await service.send({ to: { email: 'a@example.com', userId: 'user-a' }, template });
 
     expect(fetchMock.mock.calls[0][0]).toBe('https://app.usesend.com/api/v1/emails');
   });
@@ -83,7 +83,7 @@ describe('UseSendMailerService over the real usesend-js', () => {
     fetchMock.mockImplementation(async () => json(403, { error: { code: 'FORBIDDEN', message: 'Invalid API token' } }));
     const { service, logger } = buildService();
 
-    const rejected = await settle(service.send({ to: 'a@example.com', template }));
+    const rejected = await settle(service.send({ to: { email: 'a@example.com', userId: 'user-a' }, template }));
 
     expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(rejected?.message).toBe('FORBIDDEN: Invalid API token');
@@ -94,7 +94,7 @@ describe('UseSendMailerService over the real usesend-js', () => {
     fetchMock.mockImplementation(async () => new Response('<html>oops</html>', { status: 502, statusText: 'Bad Gateway' }));
     const { service } = buildService();
 
-    const rejected = await settle(service.send({ to: 'a@example.com', template }));
+    const rejected = await settle(service.send({ to: { email: 'a@example.com', userId: 'user-a' }, template }));
 
     expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(rejected?.message).toBe('INTERNAL_SERVER_ERROR: Bad Gateway');
@@ -105,7 +105,7 @@ describe('UseSendMailerService over the real usesend-js', () => {
     fetchMock.mockResolvedValueOnce(json(200, { emailId: 'email-1' }));
     const { service } = buildService();
 
-    await settle(service.send({ to: 'a@example.com', template }));
+    await settle(service.send({ to: { email: 'a@example.com', userId: 'user-a' }, template }));
 
     const keys = fetchMock.mock.calls.map(([, init]) => new Headers(init?.headers).get('Idempotency-Key'));
     expect(keys).toHaveLength(2);

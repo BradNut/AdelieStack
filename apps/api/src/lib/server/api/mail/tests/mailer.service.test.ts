@@ -13,6 +13,8 @@ const template: EmailTemplate = {
   text: () => 'Hello penguin',
 };
 
+const PENGUIN = { email: 'penguin@example.com', userId: 'user-penguin' };
+
 /** Every variable the env DTO requires, and no `MAILER_TRANSPORT`. */
 const ENV_WITHOUT_TRANSPORT = {
   DATABASE_USER: 'postgres',
@@ -48,18 +50,18 @@ describe('MailerService transport selection', () => {
   it('routes to the dev (mailpit) transport by default', async () => {
     const { service, useSendMailer, devMailer } = buildMailerService(MailerTransport.MAILPIT);
 
-    await service.send({ to: 'penguin@example.com', template });
+    await service.send({ to: PENGUIN, template });
 
-    expect(devMailer.send).toHaveBeenCalledWith({ to: 'penguin@example.com', template });
+    expect(devMailer.send).toHaveBeenCalledWith({ to: PENGUIN, template });
     expect(useSendMailer.send).not.toHaveBeenCalled();
   });
 
   it('routes to the useSend transport when MAILER_TRANSPORT is unsend', async () => {
     const { service, useSendMailer, devMailer } = buildMailerService(MailerTransport.UNSEND);
 
-    await service.send({ to: 'penguin@example.com', template });
+    await service.send({ to: PENGUIN, template });
 
-    expect(useSendMailer.send).toHaveBeenCalledWith({ to: 'penguin@example.com', template });
+    expect(useSendMailer.send).toHaveBeenCalledWith({ to: PENGUIN, template });
     expect(devMailer.send).not.toHaveBeenCalled();
   });
 
@@ -69,9 +71,9 @@ describe('MailerService transport selection', () => {
     const devMailer = { send: vi.fn() } as unknown as DevMailerService;
     const service = new MailerService({ envs } as ConfigService, useSendMailer, devMailer);
 
-    await service.send({ to: 'penguin@example.com', template });
+    await service.send({ to: PENGUIN, template });
 
-    expect(devMailer.send).toHaveBeenCalledWith({ to: 'penguin@example.com', template });
+    expect(devMailer.send).toHaveBeenCalledWith({ to: PENGUIN, template });
     expect(useSendMailer.send).not.toHaveBeenCalled();
   });
 });
@@ -91,7 +93,7 @@ describe('DevMailerService send', () => {
   });
 
   it('posts the rendered template to the mailpit inbox', async () => {
-    await new DevMailerService().send({ to: 'penguin@example.com', template });
+    await new DevMailerService().send({ to: PENGUIN, template });
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, options] = fetchMock.mock.calls[0];

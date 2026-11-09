@@ -9,6 +9,12 @@ import type { Mailer, SendProps } from './interfaces/mailer.interface';
 const MAX_SEND_ATTEMPTS = 3;
 const BASE_RETRY_DELAY_MS = 250;
 const UNKNOWN_SEND_ERROR = 'unknown useSend error';
+const MASKED_EMAIL = '[email]';
+/**
+ * Anything shaped like an address, plain or URL-encoded. Deliberately loose: over-matching only blurs a message, while
+ * a miss writes an address to the logs. The lengths are the limits of an address, and keep matching linear on long text.
+ */
+const EMAIL_SHAPED = /[^\s<>()[\]",;:@/=?&#]{1,64}(?:@|%40)[^\s<>()[\]",;:@/=?&#']{1,255}/g;
 /**
  * Always passed to the client. Left to itself the library reads `USESEND_BASE_URL` from `process.env` at import and
  * keeps an empty string as its address, so every send would go to the relative `/api/v1`.
@@ -16,6 +22,9 @@ const UNKNOWN_SEND_ERROR = 'unknown useSend error';
 const USESEND_DEFAULT_BASE_URL = 'https://app.usesend.com';
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** Provider error text can quote the recipient, so none of it is logged or handed on without passing through here. */
+const maskEmails = (text: string) => text.replace(EMAIL_SHAPED, MASKED_EMAIL);
 
 /**
  * `code: message` from the `error` that `emails.send()` resolves with. Its type says `{ code, message }`, but the
@@ -55,7 +64,7 @@ export class UseSendMailerService implements Mailer {
     const failures: unknown[] = [];
     for (const recipient of recipients) {
       try {
-        await this.sendWithRetry({ ...content, to: recipient });
+        await this.sendWithRetry({ ...content, to: recipient.email }, { userId: recipient.userId, template: template.constructor.name });
       } catch (err) {
         failures.push(err);
       }
@@ -64,17 +73,20 @@ export class UseSendMailerService implements Mailer {
   }
 
   /** Every failure is retried: the library hides the HTTP status. The key stops a retry from sending a second copy. */
-  private async sendWithRetry(payload: Parameters<UseSend['emails']['send']>[0] & { to: string }) {
+  private async sendWithRetry(
+    payload: Parameters<UseSend['emails']['send']>[0] & { to: string },
+    logFields: { userId: string | null; template: string },
+  ) {
     const idempotencyKey = publicId();
     for (let attempt = 1; ; attempt++) {
       try {
         const { error } = await this.getClient().emails.send(payload, { idempotencyKey });
         // A refused send resolves rather than throws.
-        if (error !== null) throw new Error(describeReturnedError(error));
-        this.logger.log.info({ to: payload.to, attempt }, 'useSend email sent');
+        if (error !== null) throw new Error(maskEmails(describeReturnedError(error)));
+        this.logger.log.info({ ...logFields, attempt }, 'useSend email sent');
         return;
       } catch (err) {
-        this.logger.log.warn({ to: payload.to, attempt, error: err instanceof Error ? err.message : String(err) }, 'useSend email failed');
+        this.logger.log.warn({ ...logFields, attempt, error: maskEmails(err instanceof Error ? err.message : String(err)) }, 'useSend email failed');
         if (attempt === MAX_SEND_ATTEMPTS) throw err;
         await wait(BASE_RETRY_DELAY_MS * 2 ** (attempt - 1));
       }

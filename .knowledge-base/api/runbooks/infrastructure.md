@@ -87,7 +87,10 @@ local stack. `unsend` sends through useSend (formerly Unsend) with `usesend-js`,
 - **No duplicates on retry**: every attempt for one message and recipient carries the same
   `Idempotency-Key`.
 - **Logs**: one entry per attempt, `useSend email sent` (info) or `useSend email failed` (warn), with
-  `to`, `attempt` and, on failure, `error` (`code: message`). Never the email body or the API key.
+  `userId`, `template`, `attempt` and, on failure, `error` (`code: message`). `userId` is `null` for a
+  recipient with no account. Never the recipient's address, the email body or the API key: anything shaped
+  like an address in `error` reads `[email]`, and so does the error handed to the caller for a refused send.
+  To trace a recipient, see the [IAM runbook](../services/iam/runbook.md).
 
 ## Related
 

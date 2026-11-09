@@ -1,7 +1,13 @@
 import type { EmailTemplate } from './email-template.interface';
 
+/** Who an email goes to. Logs identify them by `userId`, never `email`; `null` means they have no account. */
+export type MailRecipient = {
+  email: string;
+  userId: string | null;
+};
+
 export type SendProps = {
-  to: string | string[];
+  to: MailRecipient | MailRecipient[];
   template: EmailTemplate;
 };
 
