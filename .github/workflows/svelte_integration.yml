@@ -77,9 +77,9 @@ jobs:
       - name: Build workspace dependencies
         run: pnpm turbo run build --filter=@adelie/web^...
 
-      # Not through Turbo: its strict env mode would keep the values above from reaching Playwright.
+      # Playwright directly: Turbo's strict env mode and the varlock filter in the test:e2e script would both drop the values above.
       - name: Run tests
-        run: pnpm --filter @adelie/web test:e2e
+        run: pnpm --filter @adelie/web exec playwright test
 
       - name: Upload Playwright report
         uses: actions/upload-artifact@v4
