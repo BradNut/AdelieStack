@@ -44,11 +44,11 @@ Multi-stage build on `node:24-alpine`:
 Container start: `CMD ["./node_modules/.bin/tsx", "src/server.ts"]` — this runs the server
 directly. **There is no migrate or seed step in the Dockerfile CMD or an entrypoint script.**
 If you need migrations to run before the server starts in a Docker deployment, run
-`pnpm --filter @adelie/api db:migrate` (and, if needed, `db:seed`) as a separate step —
-manually or via a platform pre-deploy hook — before/alongside starting the container. Do not
-assume `DB_MIGRATING=true` alone triggers migration inside this image; the schema does declare
-`DB_MIGRATING`/`DB_SEEDING` flags (see [Environment Configuration](./environment-config.md)), but
-no code path in this image currently reads them to run `db:migrate`/`db:seed` automatically.
+`DB_MIGRATING=true pnpm --filter @adelie/api db:migrate` (and, if needed, `DB_SEEDING=true ... db:seed`)
+as a separate step — manually or via a platform pre-deploy hook — before/alongside starting the
+container. Do not assume `DB_MIGRATING=true` alone triggers migration inside this image: the
+`DB_MIGRATING`/`DB_SEEDING` flags only permit those scripts to run (see
+[Environment Configuration](./environment-config.md)), and the running API ignores them.
 
 **Never hand-edit `drizzle/*.sql` or `drizzle/meta/**`. Use `pnpm db:generate` then `pnpm db:migrate`.**
 

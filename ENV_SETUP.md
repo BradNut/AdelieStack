@@ -30,15 +30,13 @@ inside a service.
   echo "BETTER_AUTH_SECRET=$(openssl rand -base64 32)"
 } > apps/api/.env.local
 
-# For the first run only, add DB_MIGRATING=true and DB_SEEDING=true to apps/api/.env.local.
-
 # Start infrastructure (Postgres, Redis, SeaweedFS, Mailpit, ...)
 docker compose up -d
 pnpm storage:setup
 
-# Initialize the database
-pnpm db:migrate
-pnpm db:seed
+# Initialize the database. These flags only unlock the two scripts; the API ignores them.
+DB_MIGRATING=true pnpm db:migrate
+DB_SEEDING=true pnpm db:seed
 
 # Start both apps
 pnpm dev
