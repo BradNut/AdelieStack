@@ -69,6 +69,10 @@ Whether the most recent call to an external screening provider (the Captcha Prov
 An account change the user is told about by email: password changed, Recovery Code used, Recovery Codes regenerated, and email address changed (sent to the old address). Sent from the after-hook in `auth/auth.mail.ts`.
 _Avoid_: Alert, notification
 
+**Link Email**
+An email carrying a link the user must follow to finish what they asked for: verify an address, confirm an email change or reset a password. Unlike a Security Event, losing one blocks the user.
+_Avoid_: action email, transactional email
+
 ## Data & Storage
 
 **Drizzle ORM**

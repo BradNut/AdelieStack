@@ -29,7 +29,7 @@
 		const captchaMessage = captchaErrorMessage(error);
 		if (captchaMessage) return void toast.error(captchaMessage);
 		if (toastIfError(error, 'Could not send the verification email.')) return;
-		toast.success(`Verification email sent to ${email}.`);
+		toast.success(`We're sending a verification email to ${email}. It can take a few minutes.`);
 	}
 </script>
 

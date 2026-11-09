@@ -45,7 +45,7 @@
 			{#if pendingEmail}
 				<Alert.Root data-testid="email-change-pending">
 					<Alert.Description>
-						If {pendingEmail} can be used, we sent a confirmation link there. Your email stays {data.authedUser?.email} until you follow it.
+						If {pendingEmail} can be used, we're sending a confirmation link there. It can take a few minutes. Your email stays {data.authedUser?.email} until you follow it.
 					</Alert.Description>
 				</Alert.Root>
 			{/if}
