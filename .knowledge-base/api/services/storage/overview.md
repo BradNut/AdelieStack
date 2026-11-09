@@ -8,7 +8,7 @@ in local development; any S3-compatible provider works in production.
 ## Responsibilities
 
 - Ensure the public and private buckets exist on startup (idempotent)
-- Upload files, optionally resizing images with `sharp`
+- Upload files, optionally resizing images through `ImagesService`
 - Read and delete objects
 
 ## Key Concepts
@@ -35,6 +35,7 @@ that identity and restart SeaweedFS.
 
 - `storage/s3-storage.client.ts` - thin `@aws-sdk/client-s3` wrapper (path-style addressing, SigV4)
 - `storage/storage.service.ts` - `configure`, `upload`, `get`, `remove`; the S3 client is created lazily on first use
+- `storage/images.service.ts` - `ImagesService`, the one home for image processing (`resize`, using `sharp`); forks can inject it directly
 - `storage/storage.buckets.ts` - `BucketVisibility` and `buildBucketName`
 - `storage/storage.types.ts` - client config and upload types
 - `storage/tests/` - client, service, and `s3-config.json` tests

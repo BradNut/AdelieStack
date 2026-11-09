@@ -1,8 +1,10 @@
 import { Container } from '@needle-di/core';
 import NodeClam from 'clamscan';
 import type { HTTPException } from 'hono/http-exception';
+import sharp from 'sharp';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConfigService } from '#lib/server/api/common/configs/config.service';
+import { ImagesService } from '#lib/server/api/storage/images.service';
 import { S3StorageClient } from '#lib/server/api/storage/s3-storage.client';
 import { BucketVisibility } from '#lib/server/api/storage/storage.buckets';
 import { StorageService } from '#lib/server/api/storage/storage.service';
@@ -40,10 +42,30 @@ const createServiceWithScanner = (scanner: Partial<VirusScannerService>) => {
   return container.get(StorageService);
 };
 
+/** Builds a StorageService with a stubbed ImagesService so delegation can be observed directly. */
+const createServiceWithImages = (images: Partial<ImagesService>) => {
+  const container = new Container();
+  container.bind({ provide: ConfigService, useValue: { envs } as unknown as ConfigService });
+  container.bind({ provide: ImagesService, useValue: images as ImagesService });
+  return container.get(StorageService);
+};
+
 const scanStub = (scanBuffer: () => Promise<ScanResponse>): Partial<VirusScannerService> => ({
   isEnabled: true,
   scanBuffer: vi.fn(scanBuffer),
 });
+
+const createPng = (width: number, height: number) =>
+  sharp({ create: { width, height, channels: 3, background: { r: 200, g: 40, b: 40 } } })
+    .png()
+    .toBuffer();
+
+const pngFile = (bytes: Buffer) => new File([new Uint8Array(bytes)], 'image.png', { type: 'image/png' });
+
+const dimensionsOf = async (bytes: Buffer) => {
+  const { width, height } = await sharp(bytes).metadata();
+  return { width, height };
+};
 
 describe('StorageService', () => {
   beforeEach(() => {
@@ -118,6 +140,75 @@ describe('StorageService', () => {
       const file = new File(['x'], 'x.txt', { type: 'text/plain' });
 
       await expect(createService().upload({ file })).rejects.toThrow('upload failed');
+    });
+  });
+
+  describe('upload resizing', () => {
+    it('resizes through ImagesService and stores what it returns', async () => {
+      const putObject = vi.spyOn(S3StorageClient.prototype, 'putObject').mockResolvedValue();
+      const original = await createPng(40, 20);
+      const resizedBytes = Buffer.from('resized-by-images-service');
+      const resize = vi.fn(async () => resizedBytes);
+
+      await createServiceWithImages({ resize }).upload({ file: pngFile(original), key: 'img', resizeOptions: { width: 10 } });
+
+      expect(resize).toHaveBeenCalledWith(original, { width: 10 });
+      expect(putObject).toHaveBeenCalledWith(PUBLIC_BUCKET, 'img', resizedBytes, 'image/png');
+    });
+
+    it('stores an image with the requested dimensions', async () => {
+      const putObject = vi.spyOn(S3StorageClient.prototype, 'putObject').mockResolvedValue();
+
+      await createService().upload({ file: pngFile(await createPng(40, 20)), key: 'img', resizeOptions: { width: 10, height: 10 } });
+
+      const stored = putObject.mock.calls[0]?.[2] as Buffer;
+      await expect(dimensionsOf(stored)).resolves.toEqual({ width: 10, height: 10 });
+    });
+
+    it('stores an upload without resize options unchanged', async () => {
+      const putObject = vi.spyOn(S3StorageClient.prototype, 'putObject').mockResolvedValue();
+      const original = await createPng(40, 20);
+      const resize = vi.fn(async () => Buffer.from('should-not-be-used'));
+
+      await createServiceWithImages({ resize }).upload({ file: pngFile(original), key: 'img' });
+
+      expect(resize).not.toHaveBeenCalled();
+      expect(putObject).toHaveBeenCalledWith(PUBLIC_BUCKET, 'img', original, 'image/png');
+    });
+
+    it('stores nothing when the upload cannot be resized', async () => {
+      const putObject = vi.spyOn(S3StorageClient.prototype, 'putObject').mockResolvedValue();
+      const file = new File(['not an image'], 'fake.png', { type: 'image/png' });
+
+      await expect(createService().upload({ file, resizeOptions: { width: 10 } })).rejects.toThrow();
+
+      expect(putObject).not.toHaveBeenCalled();
+    });
+
+    it('scans the resized bytes before anything reaches storage', async () => {
+      const putObject = vi.spyOn(S3StorageClient.prototype, 'putObject').mockResolvedValue();
+      vi.spyOn(S3StorageClient.prototype, 'setObjectTagging').mockResolvedValue();
+      const scanner = scanStub(async () => ({ result: ScanResult.CLEAN }));
+      const scanBuffer = vi.mocked(scanner.scanBuffer as VirusScannerService['scanBuffer']);
+
+      await createServiceWithScanner(scanner).upload({ file: pngFile(await createPng(40, 20)), key: 'img', resizeOptions: { width: 10 } });
+
+      const scanned = scanBuffer.mock.calls[0]?.[0] as Buffer;
+      await expect(dimensionsOf(scanned)).resolves.toEqual({ width: 10, height: 5 });
+      expect(putObject).toHaveBeenCalledWith(PUBLIC_BUCKET, 'img', scanned, 'image/png');
+      expect(scanBuffer.mock.invocationCallOrder[0]).toBeLessThan(putObject.mock.invocationCallOrder[0] as number);
+    });
+
+    it('never persists a resized upload that scans as infected', async () => {
+      const putObject = vi.spyOn(S3StorageClient.prototype, 'putObject').mockResolvedValue();
+      const scanner = scanStub(async () => ({ result: ScanResult.INFECTED, viruses: ['Eicar-Test-Signature'] }));
+
+      const error = (await createServiceWithScanner(scanner)
+        .upload({ file: pngFile(await createPng(40, 20)), resizeOptions: { width: 10 } })
+        .catch((e) => e)) as HTTPException;
+
+      expect(error.status).toBe(422);
+      expect(putObject).not.toHaveBeenCalled();
     });
   });
 
