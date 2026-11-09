@@ -14,8 +14,8 @@ procedures.
 - `ORIGIN` is the allowed CORS / session origin; `DOMAIN` (hostname only) is the session cookie
   domain.
 - `DB_MIGRATING` and `DB_SEEDING` are for the `db:migrate` and `db:seed` scripts only: each script
-  refuses to run unless its flag is exactly `true`, and both default to `false`. Set them on the
-  command rather than in an env file. The running API ignores them and always uses its normal
+  refuses to run unless its flag resolves to true (varlock normalizes `TRUE`, `1` and `yes` to
+  `true` first), and both default to `false`. Set them on the command rather than in an env file. The running API ignores them and always uses its normal
   connection pool, and neither flag starts a migration or seed by itself.
 - Seeding the admin needs `ADMIN_PASSWORD`. With `SIGN_UP_ENABLED` false and no password set, the
   seed warns that nobody can sign in.
