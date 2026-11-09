@@ -12,7 +12,6 @@ import { RootController } from './common/factories/controllers.factory';
 import { browserSessions } from './common/middleware/browser-session.middleware';
 import { requestLocale } from './common/middleware/locale.middleware';
 import { otelInstrumentation } from './common/middleware/otel.middleware';
-import { rateLimit } from './common/middleware/rate-limit.middleware';
 import { LoggerService } from './common/services/logger.service';
 import { publicId } from './common/utils/crypto';
 import { ConfigController } from './config/config.controller';
@@ -42,9 +41,6 @@ export class ApplicationController extends RootController {
       .get('/healthz', (c) => {
         // Public, so it answers only that the API is up; provider outages are found in the logs.
         return c.json({ status: 'ok' });
-      })
-      .get('/rate-limit', rateLimit({ limit: 3, minutes: 1 }), (c) => {
-        return c.json({ message: 'Test!' });
       });
   }
 

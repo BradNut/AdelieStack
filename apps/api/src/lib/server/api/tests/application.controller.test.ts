@@ -15,19 +15,6 @@ import { ConfigController } from '#lib/server/api/config/config.controller';
 import type { StorageWebhookController } from '#lib/server/api/storage/storage-webhook.controller';
 import { UsersController } from '#lib/server/api/users/users.controller';
 
-// The rate-limited routes resolve RedisService from their own container; keep them off a real Redis.
-vi.mock('#lib/server/api/databases/redis/redis.service', async () => {
-  const { injectable } = await import('@needle-di/core');
-  const { createRedisServiceMock } = await import('../../../../test/mocks/redis.mock');
-  return {
-    RedisService: injectable()(
-      class RedisService {
-        redis = createRedisServiceMock().redis;
-      },
-    ),
-  };
-});
-
 const handler = vi.fn();
 const getSession = vi.fn();
 const hibpStatus: { health: ProviderHealthStateName } = { health: ProviderHealthState.UNKNOWN };
@@ -105,6 +92,14 @@ describe('GET /api/healthz', () => {
     getSession.mockResolvedValue({ user, session: buildAuthSession({ userId: user.id }) });
 
     await expectOnlyUp(ProviderHealthState.UNAVAILABLE);
+  });
+});
+
+describe('GET /api/rate-limit', () => {
+  it('is not served, so no open route exists just to show whether rate limiting is on', async () => {
+    const res = await buildApp().request('/api/rate-limit');
+
+    expect(res.status).toBe(404);
   });
 });
 
