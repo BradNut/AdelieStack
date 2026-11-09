@@ -102,7 +102,7 @@
 			<Alert.Root>
 				<Alert.Title>Check your email</Alert.Title>
 				<Alert.Description>
-					If an account exists for that address, we sent a link to reset your password.
+					If an account exists for that address, we're sending a link to reset your password. It can take a few minutes.
 				</Alert.Description>
 			</Alert.Root>
 		{:else}
