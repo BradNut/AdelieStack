@@ -3,7 +3,7 @@ import sharp, { type ResizeOptions } from 'sharp';
 
 @injectable()
 export class ImagesService {
-  private async resize(fileBuffer: Buffer, resizeOptions: ResizeOptions) {
+  async resize(fileBuffer: Buffer, resizeOptions: ResizeOptions): Promise<Buffer> {
     return sharp(fileBuffer).resize(resizeOptions).toBuffer();
   }
 }

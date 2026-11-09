@@ -1,9 +1,9 @@
 import { StatusCodes } from '@adelie/shared';
 import { inject, injectable } from '@needle-di/core';
 import { HTTPException } from 'hono/http-exception';
-import sharp from 'sharp';
 import { ConfigService } from '#lib/server/api/common/configs/config.service';
 import { publicId } from '#lib/server/api/common/utils/crypto';
+import { ImagesService } from './images.service';
 import { S3StorageClientProvider } from './s3-storage.client';
 import { BucketVisibility, buildBucketName } from './storage.buckets';
 import { ScanStatus, type StoredObject, scanTags, type Upload } from './storage.types';
@@ -15,6 +15,7 @@ export class StorageService {
     private readonly configService = inject(ConfigService),
     private readonly virusScanner = inject(VirusScannerService),
     private readonly storage = inject(S3StorageClientProvider),
+    private readonly images = inject(ImagesService),
   ) {}
 
   /** Idempotently ensures the public and private buckets exist. */
@@ -48,7 +49,7 @@ export class StorageService {
   async upload({ file, resizeOptions, key, visibility = BucketVisibility.PUBLIC }: Upload) {
     let buffer: Buffer = Buffer.from(await file.arrayBuffer());
     if (resizeOptions) {
-      buffer = await sharp(buffer).resize(resizeOptions).toBuffer();
+      buffer = await this.images.resize(buffer, resizeOptions);
     }
 
     // Scan the final bytes before they ever reach storage; infected uploads are rejected.
