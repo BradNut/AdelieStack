@@ -332,7 +332,7 @@ describe('StorageService', () => {
 
     it.each([
       ['bytes of no recognisable type', 'just some text'],
-      ['an empty file', ''],
+      ['a single byte, the smallest file that is not empty', 'x'],
     ])('refuses %s with a 422 and stores nothing', async (_label, content) => {
       const putObject = storing();
 
@@ -341,6 +341,72 @@ describe('StorageService', () => {
       expect(error.status).toBe(StatusCodes.UNPROCESSABLE_ENTITY);
       expect(error.message).toMatch(/recogni[sz]ed/i);
       expect(putObject).not.toHaveBeenCalled();
+    });
+
+    describe('when the file is empty', () => {
+      const EVERY_RESIZE_REQUEST = [
+        ['without resize options', undefined],
+        ['with empty resize options', {}],
+        ['with resize options', { width: 10 }],
+      ] satisfies [string, ResizeOptions | undefined][];
+
+      it.each(EVERY_RESIZE_REQUEST)('refuses an upload %s with a 422 that says the file is empty', async (_label, resizeOptions) => {
+        const error = await failureOf(createService().upload({ ...IMAGE_UPLOAD, file: fileOf('', PNG_CONTENT_TYPE), resizeOptions }));
+
+        expect(error.status).toBe(StatusCodes.UNPROCESSABLE_ENTITY);
+        expect(error.message).toMatch(/empty/i);
+      });
+
+      it.each(EVERY_RESIZE_REQUEST)('stops an upload %s before it is sniffed, resized, scanned or stored', async (_label, resizeOptions) => {
+        const putObject = storing();
+        const setObjectTagging = vi.spyOn(S3StorageClient.prototype, 'setObjectTagging').mockResolvedValue();
+        const scanner = scanStub(async () => ({ result: ScanResult.CLEAN }));
+        const resize = vi.fn(async () => UNUSED_RESIZE_RESULT);
+        const file = fileOf('', PNG_CONTENT_TYPE);
+        const slice = vi.spyOn(file, 'slice');
+
+        await failureOf(createService({ scanner, images: { resize } }).upload({ ...IMAGE_UPLOAD, file, resizeOptions }));
+
+        expect(slice).not.toHaveBeenCalled();
+        expect(resize).not.toHaveBeenCalled();
+        expect(scanner.scanBuffer).not.toHaveBeenCalled();
+        expect(putObject).not.toHaveBeenCalled();
+        expect(setObjectTagging).not.toHaveBeenCalled();
+      });
+
+      it.each([
+        ['an accepted type', PNG_CONTENT_TYPE],
+        ['an unlisted type', 'application/pdf'],
+        ['no type', ''],
+      ])('refuses it the same way when the client claimed %s', async (_label, claimedType) => {
+        const putObject = storing();
+
+        const error = await failureOf(createService().upload({ ...IMAGE_UPLOAD, file: fileOf('', claimedType) }));
+
+        expect(error.status).toBe(StatusCodes.UNPROCESSABLE_ENTITY);
+        expect(error.message).toMatch(/empty/i);
+        expect(putObject).not.toHaveBeenCalled();
+      });
+    });
+
+    it.each([
+      ['without resize options', undefined],
+      ['with resize options', { width: 2 }],
+    ] satisfies [string, ResizeOptions | undefined][])('still scans and stores a file that is not empty %s', async (_label, resizeOptions) => {
+      const putObject = storing();
+      vi.spyOn(S3StorageClient.prototype, 'setObjectTagging').mockResolvedValue();
+      const scanner = scanStub(async () => ({ result: ScanResult.CLEAN }));
+
+      const result = await createService({ scanner }).upload({
+        ...IMAGE_UPLOAD,
+        file: pngFile(await createPng(4, 4)),
+        key: IMAGE_KEY,
+        resizeOptions,
+      });
+
+      expect(result).toEqual({ key: IMAGE_KEY });
+      expect(scanner.scanBuffer).toHaveBeenCalledOnce();
+      expect(putObject).toHaveBeenCalledOnce();
     });
 
     it('passes declared image limits on to image processing', async () => {

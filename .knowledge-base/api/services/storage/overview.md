@@ -51,7 +51,7 @@ that identity and restart SeaweedFS.
 - Keep private files in the private bucket; the anonymous identity must never reference it
 - Storage credentials stay server-side
 - Every `upload` declares `maxSizeBytes`, `acceptedTypes` and `visibility`; there is no default bucket. Limits from `@adelie/shared` (`MAX_UPLOAD_SIZE_BYTES`, `ACCEPTED_IMAGE_TYPES`) are the usual values
-- The stored content type comes from the file's bytes. Larger files get a 413, unlisted types a 415 and unrecognisable bytes a 422, all before the whole file is read. HTML and SVG are refused unless listed in `acceptedTypes`
+- The stored content type comes from the file's bytes. Empty files and unrecognisable bytes get a 422, larger files a 413 and unlisted types a 415, all before the whole file is read. HTML and SVG are refused unless listed in `acceptedTypes`
 - Resizes refuse inputs over `maxInputPixels` and outputs over `maxOutputDimension` with a 422; pass `imageLimits` to change the defaults in `@adelie/shared`
 - A route that accepts uploads should also set a body limit, since multipart parsing happens before `upload` runs
 

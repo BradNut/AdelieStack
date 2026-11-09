@@ -75,10 +75,13 @@ export class StorageService {
   }
 
   /**
-   * Refuses a file over the size limit or of an unlisted type, reading no more than its first bytes.
+   * Refuses a file that is empty, over the size limit or of an unlisted type, reading no more than its first bytes.
    * Returns the type those bytes show it to be; the client's claimed type is never trusted.
    */
   private async detectAcceptedType(file: File, { maxSizeBytes, acceptedTypes }: Pick<Upload, 'maxSizeBytes' | 'acceptedTypes'>): Promise<string> {
+    if (file.size === 0) {
+      throw UnprocessableEntity(m.storage_upload_empty());
+    }
     if (file.size > maxSizeBytes) {
       throw PayloadTooLarge(m.storage_upload_too_large());
     }
