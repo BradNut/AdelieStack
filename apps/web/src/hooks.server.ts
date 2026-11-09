@@ -24,9 +24,13 @@ Sentry.init({
 const MODE_WATCHER_PLACEHOLDER = '/* modewatcher.init */';
 const themeInitScript = createInitialModeExpression();
 
-const apiClient: Handle = async ({ event, resolve }) => {
-  warnIfClientAddressUnconfigured(event.request.headers);
+/** Sub-requests are skipped: `apiClient` adds the forwarding header to them itself, so they say nothing about a proxy. */
+const clientAddressWarning: Handle = ({ event, resolve }) => {
+  if (!event.isSubRequest) warnIfClientAddressUnconfigured(event.request.headers);
+  return resolve(event);
+};
 
+const apiClient: Handle = async ({ event, resolve }) => {
   /* ------------------------------ Register api ------------------------------ */
   const api: Api = honoClient({
     fetch: event.fetch,
@@ -50,7 +54,7 @@ const apiClient: Handle = async ({ event, resolve }) => {
   return response;
 };
 
-export const handle: Handle = sequence(sentryHandle(), apiClient, i18n);
+export const handle: Handle = sequence(sentryHandle(), clientAddressWarning, apiClient, i18n);
 
 export const handleError: HandleServerError = ({ kind, error }) => {
   const errorId = crypto.randomUUID();

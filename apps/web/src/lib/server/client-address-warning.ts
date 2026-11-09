@@ -1,8 +1,8 @@
 import { AUTH_CLIENT_IP_HEADER } from '@adelie/shared/constants';
 import { ADDRESS_HEADER } from '$app/env/private';
 
-/** Headers a reverse proxy sets to say who the client is. */
-const FORWARDING_HEADERS = [AUTH_CLIENT_IP_HEADER, 'x-real-ip', 'cf-connecting-ip', 'forwarded'] as const;
+/** Headers a reverse proxy sets to say who the client is, limited to those `ADDRESS_HEADER` can name: adapter-node cannot parse `Forwarded`. */
+const FORWARDING_HEADERS = [AUTH_CLIENT_IP_HEADER, 'x-real-ip', 'cf-connecting-ip'] as const;
 
 let warned = false;
 
