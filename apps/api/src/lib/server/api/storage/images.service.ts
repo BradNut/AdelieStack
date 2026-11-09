@@ -22,11 +22,14 @@ const DEFAULT_IMAGE_LIMITS: ImageLimits = {
 
 type Dimensions = { width: number; height: number };
 
-/** The size a resize aims for. A lone dimension or an `outside` fit scales the other side, which can far exceed what was asked for. */
+/**
+ * The size a resize aims for. A lone dimension or an `outside` fit scales the other side, which can far exceed what was asked for.
+ * sharp's types rule out a null dimension but it treats one as absent, so null has to count as absent here too.
+ */
 const plannedOutput = (source: Dimensions, { width, height, fit }: ResizeOptions): Dimensions => {
-  if (width !== undefined && height !== undefined && fit !== 'outside') return { width, height };
+  if (width != null && height != null && fit !== 'outside') return { width, height };
 
-  const scale = Math.max(width === undefined ? 0 : width / source.width, height === undefined ? 0 : height / source.height);
+  const scale = Math.max((width ?? 0) / source.width, (height ?? 0) / source.height);
   return { width: source.width * scale, height: source.height * scale };
 };
 

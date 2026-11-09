@@ -53,7 +53,7 @@ export class StorageService {
 
     let buffer: Buffer = Buffer.from(await file.arrayBuffer());
     // Only a width or height asks for a resize; without one, sharp would just re-encode the file.
-    if (resizeOptions?.width !== undefined || resizeOptions?.height !== undefined) {
+    if (resizeOptions?.width != null || resizeOptions?.height != null) {
       buffer = await this.images.resize(buffer, resizeOptions, imageLimits);
     }
 

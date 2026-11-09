@@ -15,7 +15,7 @@ import { ScanStatus, ScanTag } from '#lib/server/api/storage/storage.types';
 import { type ScanResponse, ScanResult, VirusScannerService } from '#lib/server/api/storage/virus-scanner.service';
 import { createConfigServiceMock } from '../../../../../test/mocks/config.mock';
 import { createLoggerServiceMock } from '../../../../../test/mocks/logger.mock';
-import { createJpeg, createPng, failureOf, IMAGE_LIBRARY_BROKEN } from './storage-test.helpers';
+import { createJpeg, createPng, failureOf, IMAGE_LIBRARY_BROKEN, withNullDimensions } from './storage-test.helpers';
 
 const envs: Partial<EnvsDto> = {
   ANTIVIRUS_ENABLED: false,
@@ -404,6 +404,7 @@ describe('StorageService', () => {
 
     it.each([
       ['only undefined values', { width: undefined, height: undefined }],
+      ['only null values', withNullDimensions({ width: null, height: null })],
       ['only a fit', { fit: 'cover' }],
       ['modifiers and no dimensions', { fit: 'contain', background: '#ffffff', withoutEnlargement: true }],
     ] satisfies [string, ResizeOptions][])('leaves an upload unchanged when the resize options have %s', async (_label, resizeOptions) => {

@@ -10,7 +10,7 @@ import { LoggerService } from '#lib/server/api/common/services/logger.service';
 import type { HonoEnv } from '#lib/server/api/common/utils/hono';
 import { ImagesService } from '#lib/server/api/storage/images.service';
 import { createLoggerServiceMock } from '../../../../../test/mocks/logger.mock';
-import { createJpeg, createPng, failureOf, IMAGE_LIBRARY_BROKEN } from './storage-test.helpers';
+import { createJpeg, createPng, failureOf, IMAGE_LIBRARY_BROKEN, withNullDimensions } from './storage-test.helpers';
 
 const createService = (logger = createLoggerServiceMock()) => {
   const container = new Container();
@@ -208,6 +208,8 @@ describe('ImagesService', () => {
         ['a width that a tall image scales into too great a height', 2, 200, { width: 60 }],
         ['a height that a wide image scales into too great a width', 200, 2, { height: 60 }],
         ['an outside fit that scales past the limit', 2, 200, { width: 60, height: 60, fit: 'outside' }],
+        ['a width beside a null height, which scales like a lone width', 2, 200, withNullDimensions({ width: 60, height: null })],
+        ['a height beside a null width, which scales like a lone height', 200, 2, withNullDimensions({ width: null, height: 60 })],
       ] satisfies [string, number, number, ResizeOptions][])(
         'refuses %s beyond the declared maximum',
         async (_label, sourceWidth, sourceHeight, options) => {
