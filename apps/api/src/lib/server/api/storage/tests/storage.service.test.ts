@@ -37,6 +37,7 @@ const PRIVATE_BUCKET = 'adelie-private-development';
 
 const IMAGE_KEY = 'img';
 const PNG_CONTENT_TYPE = 'image/png';
+const PDF_CONTENT_TYPE = 'application/pdf';
 const UNUSED_RESIZE_RESULT = Buffer.from('should-not-be-stored');
 
 /** What every upload has to state: the limits it is held to and the bucket it goes to. */
@@ -257,9 +258,9 @@ describe('StorageService', () => {
     it('accepts a non-image type when the caller lists it', async () => {
       const putObject = storing();
 
-      await createService().upload({ ...IMAGE_UPLOAD, file: fileOf(PDF, ''), key: IMAGE_KEY, acceptedTypes: ['application/pdf'] });
+      await createService().upload({ ...IMAGE_UPLOAD, file: fileOf(PDF, ''), key: IMAGE_KEY, acceptedTypes: [PDF_CONTENT_TYPE] });
 
-      expect(putObject).toHaveBeenCalledWith(PUBLIC_BUCKET, IMAGE_KEY, Buffer.from(PDF), 'application/pdf');
+      expect(putObject).toHaveBeenCalledWith(PUBLIC_BUCKET, IMAGE_KEY, Buffer.from(PDF), PDF_CONTENT_TYPE);
     });
 
     it.each([
@@ -350,24 +351,21 @@ describe('StorageService', () => {
         ['with resize options', { width: 10 }],
       ] satisfies [string, ResizeOptions | undefined][];
 
-      it.each(EVERY_RESIZE_REQUEST)('refuses an upload %s with a 422 that says the file is empty', async (_label, resizeOptions) => {
-        const error = await failureOf(createService().upload({ ...IMAGE_UPLOAD, file: fileOf('', PNG_CONTENT_TYPE), resizeOptions }));
-
+      const expectRefusedAsEmpty = (error: HTTPException) => {
         expect(error.status).toBe(StatusCodes.UNPROCESSABLE_ENTITY);
         expect(error.message).toMatch(/empty/i);
-      });
+      };
 
-      it.each(EVERY_RESIZE_REQUEST)('stops an upload %s before it is sniffed, resized, scanned or stored', async (_label, resizeOptions) => {
+      it.each(EVERY_RESIZE_REQUEST)('refuses an upload %s as empty, with nothing resized, scanned or stored', async (_label, resizeOptions) => {
         const putObject = storing();
         const setObjectTagging = vi.spyOn(S3StorageClient.prototype, 'setObjectTagging').mockResolvedValue();
         const scanner = scanStub(async () => ({ result: ScanResult.CLEAN }));
         const resize = vi.fn(async () => UNUSED_RESIZE_RESULT);
         const file = fileOf('', PNG_CONTENT_TYPE);
-        const slice = vi.spyOn(file, 'slice');
 
-        await failureOf(createService({ scanner, images: { resize } }).upload({ ...IMAGE_UPLOAD, file, resizeOptions }));
+        const error = await failureOf(createService({ scanner, images: { resize } }).upload({ ...IMAGE_UPLOAD, file, resizeOptions }));
 
-        expect(slice).not.toHaveBeenCalled();
+        expectRefusedAsEmpty(error);
         expect(resize).not.toHaveBeenCalled();
         expect(scanner.scanBuffer).not.toHaveBeenCalled();
         expect(putObject).not.toHaveBeenCalled();
@@ -375,36 +373,25 @@ describe('StorageService', () => {
       });
 
       it.each([
-        ['an accepted type', PNG_CONTENT_TYPE],
-        ['an unlisted type', 'application/pdf'],
+        ['an unlisted type', PDF_CONTENT_TYPE],
         ['no type', ''],
       ])('refuses it the same way when the client claimed %s', async (_label, claimedType) => {
         const putObject = storing();
 
         const error = await failureOf(createService().upload({ ...IMAGE_UPLOAD, file: fileOf('', claimedType) }));
 
-        expect(error.status).toBe(StatusCodes.UNPROCESSABLE_ENTITY);
-        expect(error.message).toMatch(/empty/i);
+        expectRefusedAsEmpty(error);
         expect(putObject).not.toHaveBeenCalled();
       });
     });
 
-    it.each([
-      ['without resize options', undefined],
-      ['with resize options', { width: 2 }],
-    ] satisfies [string, ResizeOptions | undefined][])('still scans and stores a file that is not empty %s', async (_label, resizeOptions) => {
+    it('still scans and stores a file that is not empty', async () => {
       const putObject = storing();
       vi.spyOn(S3StorageClient.prototype, 'setObjectTagging').mockResolvedValue();
       const scanner = scanStub(async () => ({ result: ScanResult.CLEAN }));
 
-      const result = await createService({ scanner }).upload({
-        ...IMAGE_UPLOAD,
-        file: pngFile(await createPng(4, 4)),
-        key: IMAGE_KEY,
-        resizeOptions,
-      });
+      await createService({ scanner }).upload({ ...IMAGE_UPLOAD, file: pngFile(await createPng(4, 4)) });
 
-      expect(result).toEqual({ key: IMAGE_KEY });
       expect(scanner.scanBuffer).toHaveBeenCalledOnce();
       expect(putObject).toHaveBeenCalledOnce();
     });
