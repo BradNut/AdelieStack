@@ -1,16 +1,11 @@
-import { inject, injectable } from '@needle-di/core';
+import { injectable } from '@needle-di/core';
 import { and, desc, eq, lt } from 'drizzle-orm';
 import { DrizzleRepository } from '#lib/server/api/common/factories/drizzle-repository.factory';
 import { takeFirstOrThrow } from '#lib/server/api/common/utils/drizzle';
-import { DrizzleService } from '#lib/server/api/databases/postgres/drizzle.service';
 import { type AuditLog, audit_log_table, type CreateAuditLog } from './tables/audit-log.table';
 
 @injectable()
 export class AuditRepository extends DrizzleRepository {
-  constructor(drizzle = inject(DrizzleService)) {
-    super(drizzle);
-  }
-
   async create(data: CreateAuditLog, db = this.drizzle.db): Promise<AuditLog> {
     return db.insert(audit_log_table).values(data).returning().then(takeFirstOrThrow);
   }

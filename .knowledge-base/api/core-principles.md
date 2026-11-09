@@ -20,9 +20,8 @@ Modules under `apps/api/src/lib/server/api/` are flat, not nested by layer:
 ```
 
 A repository that queries Postgres extends `DrizzleRepository` (`common/factories/drizzle-repository.factory.ts`)
-and reads the connection from `this.drizzle` instead of injecting `DrizzleService` itself. Each query method takes
-`db = this.drizzle.db` as its last parameter so a caller can pass a transaction. `AuditRepository` is the example
-to copy. A repository over Redis extends `RedisRepository` the same way.
+and reads the connection from `this.drizzle` instead of injecting `DrizzleService` itself. `AuditRepository` is the
+example to copy.
 
 Import across directories with the `#lib/*` subpath import (`package.json` `imports`, mapped to
 `./src/lib/*.ts`), extensionless: `#lib/server/api/auth/auth.service`. Use `./` for siblings.

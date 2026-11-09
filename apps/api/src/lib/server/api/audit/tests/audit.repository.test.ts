@@ -1,61 +1,118 @@
+import { StatusCodes } from '@adelie/shared';
 import { describe, expect, it } from 'vitest';
 import { AuditRepository } from '#lib/server/api/audit/audit.repository';
+import { SecurityAuditAction } from '#lib/server/api/audit/audit.service';
 import { DrizzleRepository } from '#lib/server/api/common/factories/drizzle-repository.factory';
 import { createTestContainer, mockProvider } from '#lib/server/api/common/testing/test-container';
 import { DrizzleService } from '#lib/server/api/databases/postgres/drizzle.service';
 
-type Row = { id: string };
+interface StubAuditRow {
+  id: string;
+}
 
-/** Stands in for a Drizzle connection or transaction: every query answers with `rows`. */
-function createFakeDb(rows: Row[]) {
-  const fake = {
-    query: { audit_log_table: { findFirst: async () => rows[0], findMany: async () => rows } },
-    insert: () => ({ values: () => ({ returning: async () => [...rows] }) }),
-    delete: () => ({ where: () => ({ returning: async () => [...rows] }) }),
+type Connection = DrizzleService['db'];
+
+/** Stands in for a Drizzle connection or transaction: every query settles the way `runQuery` does. */
+function createConnection(runQuery: () => Promise<StubAuditRow[]>) {
+  const connection = {
+    query: { audit_log_table: { findFirst: async () => (await runQuery())[0], findMany: runQuery } },
+    insert: () => ({ values: () => ({ returning: runQuery }) }),
+    delete: () => ({ where: () => ({ returning: runQuery }) }),
   };
-  return fake as unknown as DrizzleService['db'];
+  return connection as unknown as Connection;
 }
 
-function buildRepository(rows: Row[]) {
-  const container = createTestContainer(mockProvider(DrizzleService, { db: createFakeDb(rows) }));
-  return container.get(AuditRepository);
+function connectionReturning(rows: StubAuditRow[]) {
+  return createConnection(async () => [...rows]);
 }
 
-const auditRow = { action: 'login_succeeded', entity_type: 'session' };
+function resolveRepository(injectedConnection: Connection) {
+  return createTestContainer(mockProvider(DrizzleService, { db: injectedConnection })).get(AuditRepository);
+}
+
+const newAuditEntry = { action: SecurityAuditAction.LOGIN_SUCCEEDED, entity_type: 'session' };
+
+/** Registers the two connection-selection cases that every repository method has to satisfy. */
+function itRunsOnTheSelectedConnection(
+  runMethod: (repository: AuditRepository, transaction?: Connection) => Promise<unknown>,
+  resultFor: (row: StubAuditRow) => unknown,
+) {
+  it('runs on the injected connection by default', async () => {
+    const injectedRow = { id: 'injected-row' };
+    const repository = resolveRepository(connectionReturning([injectedRow]));
+
+    await expect(runMethod(repository)).resolves.toEqual(resultFor(injectedRow));
+  });
+
+  it('runs on the transaction it is handed instead of the injected connection', async () => {
+    const transactionRow = { id: 'transaction-row' };
+    // Two rows, so `deleteOlderThan` counts 2 rather than the transaction's 1 if it runs on the wrong connection.
+    const injectedRows = [{ id: 'injected-row' }, { id: 'second-injected-row' }];
+    const repository = resolveRepository(connectionReturning(injectedRows));
+
+    await expect(runMethod(repository, connectionReturning([transactionRow]))).resolves.toEqual(resultFor(transactionRow));
+  });
+}
 
 describe('AuditRepository', () => {
   it('is built on the shared Drizzle repository base', () => {
-    expect(buildRepository([])).toBeInstanceOf(DrizzleRepository);
+    expect(resolveRepository(connectionReturning([]))).toBeInstanceOf(DrizzleRepository);
   });
 
-  it('runs every query on the injected connection by default', async () => {
-    const row = { id: 'injected' };
-    const repository = buildRepository([row]);
+  describe('create', () => {
+    itRunsOnTheSelectedConnection(
+      (repository, transaction) => repository.create(newAuditEntry, transaction),
+      (row) => row,
+    );
 
-    await expect(repository.create(auditRow)).resolves.toEqual(row);
-    await expect(repository.findOneById('injected')).resolves.toEqual(row);
-    await expect(repository.findManyByEntity('session', 'sess-1')).resolves.toEqual([row]);
-    await expect(repository.findManyByActor('user-1')).resolves.toEqual([row]);
-    await expect(repository.deleteOlderThan(new Date())).resolves.toBe(1);
+    it('throws NotFound when the insert returns no row', async () => {
+      await expect(resolveRepository(connectionReturning([])).create(newAuditEntry)).rejects.toMatchObject({
+        status: StatusCodes.NOT_FOUND,
+        message: 'The requested resource was not found.',
+      });
+    });
   });
 
-  it('runs every query on the transaction it is handed instead of the injected connection', async () => {
-    const row = { id: 'transaction' };
-    const transaction = createFakeDb([row]);
-    const repository = buildRepository([{ id: 'injected' }, { id: 'injected-too' }]);
+  describe('findOneById', () => {
+    itRunsOnTheSelectedConnection(
+      (repository, transaction) => repository.findOneById('audit-row-id', transaction),
+      (row) => row,
+    );
 
-    await expect(repository.create(auditRow, transaction)).resolves.toEqual(row);
-    await expect(repository.findOneById('transaction', transaction)).resolves.toEqual(row);
-    await expect(repository.findManyByEntity('session', 'sess-1', transaction)).resolves.toEqual([row]);
-    await expect(repository.findManyByActor('user-1', transaction)).resolves.toEqual([row]);
-    await expect(repository.deleteOlderThan(new Date(), transaction)).resolves.toBe(1);
+    it('resolves undefined when no row has the id', async () => {
+      await expect(resolveRepository(connectionReturning([])).findOneById('missing-id')).resolves.toBeUndefined();
+    });
+
+    it('propagates the error when the query rejects', async () => {
+      const queryError = new Error('connection terminated');
+      const repository = resolveRepository(createConnection(() => Promise.reject(queryError)));
+
+      await expect(repository.findOneById('audit-row-id')).rejects.toBe(queryError);
+    });
   });
 
-  it('fails a create when the insert returns no row', async () => {
-    await expect(buildRepository([]).create(auditRow)).rejects.toThrow();
+  describe('findManyByEntity', () => {
+    itRunsOnTheSelectedConnection(
+      (repository, transaction) => repository.findManyByEntity('session', 'session-id', transaction),
+      (row) => [row],
+    );
   });
 
-  it('reports zero when nothing is old enough to delete', async () => {
-    await expect(buildRepository([]).deleteOlderThan(new Date())).resolves.toBe(0);
+  describe('findManyByActor', () => {
+    itRunsOnTheSelectedConnection(
+      (repository, transaction) => repository.findManyByActor('actor-user-id', transaction),
+      (row) => [row],
+    );
+  });
+
+  describe('deleteOlderThan', () => {
+    itRunsOnTheSelectedConnection(
+      (repository, transaction) => repository.deleteOlderThan(new Date(), transaction),
+      () => 1,
+    );
+
+    it('reports zero when nothing is old enough to delete', async () => {
+      await expect(resolveRepository(connectionReturning([])).deleteOlderThan(new Date())).resolves.toBe(0);
+    });
   });
 });
