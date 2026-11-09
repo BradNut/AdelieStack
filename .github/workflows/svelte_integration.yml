@@ -59,9 +59,12 @@ jobs:
       # Mailpit has to be up before the tests, or Playwright's global setup starts its stand-in instead.
       - name: Wait for services
         run: |
-          timeout 60 bash -c 'until docker compose exec -T postgres pg_isready -h localhost -U postgres -q; do sleep 1; done'
-          timeout 60 bash -c 'until docker compose exec -T redis redis-cli ping | grep -q PONG; do sleep 1; done'
-          timeout 60 bash -c 'until curl -fsS -o /dev/null http://localhost:8025/api/v1/info; do sleep 1; done'
+          wait_for() {
+            timeout 60 bash -c "until $2; do sleep 1; done" || { echo "::error::$1 was not ready within 60 seconds"; exit 1; }
+          }
+          wait_for Postgres 'docker compose exec -T postgres pg_isready -h localhost -U postgres -q'
+          wait_for Redis 'docker compose exec -T redis redis-cli ping | grep -q PONG'
+          wait_for Mailpit 'curl -fs -o /dev/null http://localhost:8025/api/v1/info'
           pnpm storage:setup
 
       # Turbo's plan for the web app leaves out the API's build task, which compiles these.
