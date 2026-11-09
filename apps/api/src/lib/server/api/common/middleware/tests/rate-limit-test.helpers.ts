@@ -10,11 +10,14 @@ export async function expectRateLimitBypassed(createMiddleware: () => (c: never,
   expect(rateLimitTestMocks.rateLimiterMock).not.toHaveBeenCalled();
 }
 
-type NoSessionOptions = {
-  keyGenerator: (ctx: { var: { session: null }; req: { path: string } }) => string;
+type NoSessionContext = { var: { session: null }; req: { path: string } };
+
+type RateLimitOptions<TContext> = {
+  keyGenerator: (ctx: TContext) => string;
 };
 
-export function getNoSessionRateLimitOptions(createMiddleware: () => unknown): NoSessionOptions {
+/** Options of the limiter `createMiddleware` just created. */
+export function getRateLimitOptions<TContext = NoSessionContext>(createMiddleware: () => unknown): RateLimitOptions<TContext> {
   createMiddleware();
-  return rateLimitTestMocks.rateLimiterMock.mock.calls[0][0] as NoSessionOptions;
+  return rateLimitTestMocks.rateLimiterMock.mock.lastCall?.[0] as RateLimitOptions<TContext>;
 }
