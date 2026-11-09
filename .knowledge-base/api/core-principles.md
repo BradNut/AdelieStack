@@ -17,7 +17,12 @@ Modules under `apps/api/src/lib/server/api/` are flat, not nested by layer:
   <module>.repository.ts   # Data access layer
   tables/                  # Drizzle table definitions
   dtos/                    # Request/response DTOs
+  tests/                   # Unit tests for the module
 ```
+
+A repository that queries Postgres extends `DrizzleRepository` (`common/factories/drizzle-repository.factory.ts`)
+and reads the connection from `this.drizzle` instead of injecting `DrizzleService` itself. `AuditRepository` is the
+example to copy.
 
 Import across directories with the `#lib/*` subpath import (`package.json` `imports`, mapped to
 `./src/lib/*.ts`), extensionless: `#lib/server/api/auth/auth.service`. Use `./` for siblings.

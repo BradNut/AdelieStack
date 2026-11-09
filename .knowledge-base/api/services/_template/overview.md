@@ -28,17 +28,13 @@
 ## Service Structure
 
 ```
-[service-name]/
-├── routes/
-│   └── [feature].routes.ts
-├── services/
-│   └── [feature].service.ts
-├── repositories/
-│   └── [feature].repository.ts
-├── validations/
-│   └── [feature].validation.ts
-└── types/
-    └── [feature].types.ts
+[module]/
+├── [module].controller.ts
+├── [module].service.ts
+├── [module].repository.ts
+├── tables/
+├── dtos/
+└── tests/
 ```
 
 ## Core Features

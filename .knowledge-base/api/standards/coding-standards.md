@@ -44,22 +44,8 @@ enum UserRole {
 ## Code Organization
 
 ### File Structure
-```
-services/{service-name}/
-├── routes/              # Hono route handlers
-│   ├── {feature}.routes.ts
-│   └── {feature}.routes.test.ts
-├── services/            # Business logic
-│   ├── {feature}.service.ts
-│   └── {feature}.service.test.ts
-├── repositories/        # Data access
-│   ├── {feature}.repository.ts
-│   └── {feature}.repository.test.ts
-├── validations/         # Zod schemas
-│   └── {feature}.validation.ts
-└── types/              # TypeScript interfaces
-    └── {feature}.types.ts
-```
+Modules are flat, not nested by layer. See [Module Layout](../core-principles.md#module-layout), which also covers
+what a repository extends.
 
 ### Naming Conventions
 
@@ -190,7 +176,7 @@ export type CreateUserInput = z.infer<typeof createUserSchema>;
 ## Testing
 
 ### Test Organization
-- Co-locate tests with source files: `{name}.test.ts`
+- Keep tests in the module's `tests/` folder: `{name}.test.ts`
 - Use descriptive test names
 - Include positive and negative test cases
 - Mock external dependencies

@@ -48,22 +48,17 @@ Every test suite must include:
 
 ### File Structure
 ```
-services/iam/
-├── routes/
-│   ├── auth.routes.ts
-│   └── auth.routes.test.ts
-├── services/
-│   ├── auth.service.ts
-│   └── auth.service.test.ts
-└── repositories/
-    ├── user.repository.ts
-    └── user.repository.test.ts
+audit/
+├── audit.repository.ts
+├── audit.service.ts
+└── tests/
+    ├── audit.repository.test.ts
+    └── audit.service.test.ts
 ```
 
 ### Test Naming Convention
 - Test files: `{name}.test.ts` or `{name}.spec.ts`
-- Co-locate with source files
-- Mirror source file structure
+- Keep tests in the module's `tests/` folder
 
 ## Test Structure
 
