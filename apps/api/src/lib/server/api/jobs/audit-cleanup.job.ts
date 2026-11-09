@@ -20,6 +20,9 @@ export const AUDIT_RETENTION_DAYS = 90;
 /** Cron pattern: run once a week at midnight on Sunday. */
 const AUDIT_CLEANUP_SCHEDULE = '0 0 * * 0';
 
+/** How long {@link AuditCleanupJob.register} waits for Redis. BullMQ retries forever when Redis is down, so without this the boot hangs. */
+export const JOB_REGISTER_TIMEOUT_MS = 10_000;
+
 export interface AuditCleanupResult {
   deleted: number;
 }
@@ -54,17 +57,35 @@ export class AuditCleanupJob {
   /**
    * Schedule the repeatable cleanup and start the worker that runs it. Call
    * once during application startup. Opens Redis connections, so it must not
-   * run at import time.
+   * run at import time. Fails after {@link JOB_REGISTER_TIMEOUT_MS} if Redis
+   * has not answered, closing whatever it opened.
    */
   async register(): Promise<void> {
-    await this.getQueue().upsertJobScheduler(
-      AUDIT_CLEANUP_JOB,
-      { pattern: AUDIT_CLEANUP_SCHEDULE },
-      {
-        name: AUDIT_CLEANUP_JOB,
-        opts: { removeOnComplete: true, removeOnFail: 50 },
-      },
-    );
+    let limitTimer: NodeJS.Timeout | undefined;
+    const limit = new Promise<never>((_resolve, reject) => {
+      limitTimer = setTimeout(
+        () => reject(new Error(`Job registration did not finish within ${JOB_REGISTER_TIMEOUT_MS}ms; check that Redis is reachable at REDIS_URL`)),
+        JOB_REGISTER_TIMEOUT_MS,
+      );
+    });
+
+    try {
+      const scheduled = this.getQueue().upsertJobScheduler(
+        AUDIT_CLEANUP_JOB,
+        { pattern: AUDIT_CLEANUP_SCHEDULE },
+        {
+          name: AUDIT_CLEANUP_JOB,
+          opts: { removeOnComplete: true, removeOnFail: 50 },
+        },
+      );
+      await Promise.race([scheduled, limit]);
+    } catch (error) {
+      await this.close().catch((closeError) => console.error('Could not close job connections after a failed registration', closeError));
+      console.error(`Background job registration failed: ${error instanceof Error ? error.message : String(error)}`);
+      throw error;
+    } finally {
+      clearTimeout(limitTimer);
+    }
 
     this.worker ??= this.jobsService.createWorker(AUDIT_CLEANUP_QUEUE, (job) => this.process(job));
   }
@@ -81,6 +102,7 @@ export class AuditCleanupJob {
 
     const cutoff = dayjs().subtract(AUDIT_RETENTION_DAYS, 'day').toDate();
     const deleted = await this.auditRepository.deleteOlderThan(cutoff);
+    console.info(`audit cleanup deleted ${deleted} rows older than ${AUDIT_RETENTION_DAYS} days`);
     return { deleted };
   }
 
