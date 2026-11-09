@@ -48,7 +48,8 @@ export class StorageService {
 
   async upload({ file, resizeOptions, key, visibility = BucketVisibility.PUBLIC }: Upload) {
     let buffer: Buffer = Buffer.from(await file.arrayBuffer());
-    if (resizeOptions) {
+    // Empty options ask for no resize; sharp would still re-encode the file.
+    if (resizeOptions && Object.values(resizeOptions).some((option) => option !== undefined)) {
       buffer = await this.images.resize(buffer, resizeOptions);
     }
 
