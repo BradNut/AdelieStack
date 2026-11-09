@@ -2,7 +2,7 @@ import 'varlock/auto-load';
 import { flushTelemetry } from './instrument.mjs';
 import 'dotenv/config';
 import { serve } from '@hono/node-server';
-import { startServer } from './lib/server/api';
+import { startServer } from '#lib/server/api/index';
 
 const port = Number(process.env.PORT ?? 3001);
 const hostname = process.env.HOST ?? '0.0.0.0';

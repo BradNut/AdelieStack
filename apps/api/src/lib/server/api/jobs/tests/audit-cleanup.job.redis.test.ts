@@ -28,8 +28,10 @@ async function closedPort(): Promise<number> {
 describe('AuditCleanupJob against an unreachable Redis', () => {
   it('fails register within the limit', { timeout: REGISTER_LIMIT_MS + CLOSE_MARGIN_MS * 2 }, async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
-    const REDIS_URL = `redis://127.0.0.1:${await closedPort()}`;
-    const job = createTestContainer(mockProvider(ConfigService, { envs: { REDIS_URL } }), mockProvider(AuditRepository, {})).get(AuditCleanupJob);
+    const redisUrl = `redis://127.0.0.1:${await closedPort()}`;
+    const job = createTestContainer(mockProvider(ConfigService, { envs: { REDIS_URL: redisUrl } }), mockProvider(AuditRepository, {})).get(
+      AuditCleanupJob,
+    );
 
     const startedAt = performance.now();
     await expect(job.register()).rejects.toThrow(/did not finish within 10000ms/);

@@ -6,7 +6,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  * network edges are replaced. Every double records into `boot.events`, so a test can assert what happened and in what order.
  */
 const boot = vi.hoisted(() => {
-  type S3Command = { constructor: { name: string }; input: { Bucket?: string } };
+  interface S3Command {
+    constructor: { name: string };
+    input: { Bucket?: string };
+  }
 
   const state = {
     events: [] as string[],
@@ -75,6 +78,7 @@ vi.mock('@aws-sdk/client-s3', async (importOriginal) => ({
 /** Written out rather than imported, so a changed limit fails here. */
 const SHUTDOWN_LIMIT_MS = 8_000;
 const SIGNALS = ['SIGINT', 'SIGTERM'] as const;
+type Signal = (typeof SIGNALS)[number];
 
 const PUBLIC_BUCKET = 'adelie-public-development';
 const PRIVATE_BUCKET = 'adelie-private-development';
@@ -92,16 +96,13 @@ function stubDeploymentEnv({ jobsEnabled }: { jobsEnabled: boolean }) {
   vi.stubEnv('DISABLE_RATE_LIMIT', 'true');
 }
 
-let signalHandlers: Record<(typeof SIGNALS)[number], NodeJS.SignalsListener[]>;
+let signalHandlers: Record<Signal, NodeJS.SignalsListener[]>;
 let exit: ReturnType<typeof vi.spyOn>;
 
 /** Imports the real entry point, keeping the signal handlers it installs so a test can deliver them without signalling the test runner. */
 async function bootServer() {
   vi.resetModules();
-  const before = Object.fromEntries(SIGNALS.map((signal) => [signal, process.listeners(signal)])) as Record<
-    (typeof SIGNALS)[number],
-    NodeJS.SignalsListener[]
-  >;
+  const before = Object.fromEntries(SIGNALS.map((signal) => [signal, process.listeners(signal)])) as Record<Signal, NodeJS.SignalsListener[]>;
   const { ApplicationController } = await import('#lib/server/api/application.controller');
   const registerControllers = vi.spyOn(ApplicationController.prototype, 'registerControllers');
 
@@ -116,7 +117,7 @@ async function bootServer() {
   return { registerControllers };
 }
 
-const deliver = (signal: (typeof SIGNALS)[number]) => {
+const deliver = (signal: Signal) => {
   for (const handler of signalHandlers[signal]) handler(signal);
 };
 

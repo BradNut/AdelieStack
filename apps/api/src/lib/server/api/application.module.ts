@@ -6,11 +6,16 @@ import { AuditCleanupJob } from './jobs/audit-cleanup.job';
 import { StorageService } from './storage/storage.service';
 
 /** The whole shutdown sequence must finish within this, leaving room inside the platform's kill grace period. */
-export const SHUTDOWN_TIMEOUT_MS = 8_000;
+const SHUTDOWN_TIMEOUT_MS = 8_000;
 
-export interface ShutdownResources {
+interface ShutdownResources {
   server: Pick<ServerType, 'close'>;
   flushTelemetry: () => Promise<void>;
+}
+
+interface StartedApplication {
+  app: ReturnType<ApplicationController['registerControllers']>;
+  handleShutdownSignals: (resources: ShutdownResources) => void;
 }
 
 @injectable()
@@ -23,7 +28,7 @@ export class ApplicationModule {
   ) {}
 
   /** Runs startup, then builds the app: the one place routes and middleware are registered. */
-  async start() {
+  async start(): Promise<StartedApplication> {
     await this.onApplicationStartup();
     const app = this.applicationController.registerControllers();
 
@@ -69,7 +74,7 @@ export class ApplicationModule {
     ];
 
     const unfinished = new Set(steps.map((step) => step.name));
-    const limit = setTimeout(() => {
+    const shutdownTimer = setTimeout(() => {
       console.error(`Shutdown did not finish within ${SHUTDOWN_TIMEOUT_MS}ms. Unfinished: ${[...unfinished].join(', ')}`);
       process.exit(1);
     }, SHUTDOWN_TIMEOUT_MS);
@@ -85,7 +90,7 @@ export class ApplicationModule {
       unfinished.delete(name);
     }
 
-    clearTimeout(limit);
+    clearTimeout(shutdownTimer);
     process.exit(clean ? 0 : 1);
   }
 }
