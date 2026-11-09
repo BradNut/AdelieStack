@@ -2,11 +2,7 @@ import { Container } from '@needle-di/core';
 import sharp from 'sharp';
 import { describe, expect, it } from 'vitest';
 import { ImagesService } from '#lib/server/api/storage/images.service';
-
-const createPng = (width: number, height: number) =>
-  sharp({ create: { width, height, channels: 3, background: { r: 200, g: 40, b: 40 } } })
-    .png()
-    .toBuffer();
+import { createPng } from './storage-test.helpers';
 
 const createService = () => new Container().get(ImagesService);
 
@@ -35,6 +31,16 @@ describe('ImagesService', () => {
 
     it('rejects input that is not an image', async () => {
       await expect(createService().resize(Buffer.from('not an image'), { width: 10 })).rejects.toThrow();
+    });
+
+    it('rejects a width of zero', async () => {
+      const png = await createPng(40, 20);
+
+      await expect(createService().resize(png, { width: 0 })).rejects.toThrow(/width/);
+    });
+
+    it('rejects an empty buffer', async () => {
+      await expect(createService().resize(Buffer.alloc(0), { width: 10 })).rejects.toThrow(/empty/i);
     });
   });
 });
