@@ -1,9 +1,14 @@
 import { StatusCodes } from '@adelie/shared';
 import { Container } from '@needle-di/core';
+import { Hono } from 'hono';
+import { contextStorage } from 'hono/context-storage';
 import type { HTTPException } from 'hono/http-exception';
 import sharp, { type ResizeOptions } from 'sharp';
+import { onError } from 'stoker/middlewares';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { requestLocale } from '#lib/server/api/common/middleware/locale.middleware';
 import { LoggerService } from '#lib/server/api/common/services/logger.service';
+import type { HonoEnv } from '#lib/server/api/common/utils/hono';
 import { ImagesService } from '#lib/server/api/storage/images.service';
 import { createLoggerServiceMock } from '../../../../../test/mocks/logger.mock';
 import { createPng } from './storage-test.helpers';
@@ -22,6 +27,21 @@ const createJpeg = (width: number, height: number) =>
 const firstHalf = (bytes: Buffer) => bytes.subarray(0, Math.floor(bytes.length / 2));
 
 const failureOf = (promise: Promise<unknown>) => promise.catch((error) => error) as Promise<HTTPException>;
+
+/** Resizes inside a request sent with `Accept-Language: locale` and returns the error message the client receives. */
+const localisedFailure = async (locale: string, bytes: Buffer, options: ResizeOptions) => {
+  const app = new Hono<HonoEnv>()
+    .use(contextStorage())
+    .use(requestLocale)
+    .get('/', async (c) => {
+      await createService().resize(bytes, options);
+      return c.body(null);
+    })
+    .onError(onError);
+
+  const response = await app.request('/', { headers: { 'accept-language': locale } });
+  return ((await response.json()) as { message: string }).message;
+};
 
 describe('ImagesService', () => {
   describe('resize', () => {
@@ -91,6 +111,20 @@ describe('ImagesService', () => {
       expect(error.message).toMatch(/resize options/i);
     });
 
+    it.each([
+      ['de', 'bytes that are not an image', 'Datei abgelehnt: Sie ist kein gültiges Bild oder lässt sich nicht wie angefordert skalieren.'],
+      ['es', 'bytes that are not an image', 'Archivo rechazado: no es una imagen válida o no se puede redimensionar como se solicitó.'],
+    ])('refuses an upload in the language of the request (%s, %s)', async (locale, _label, message) => {
+      await expect(localisedFailure(locale, Buffer.from('not an image'), { width: 10 })).resolves.toBe(message);
+    });
+
+    it.each([
+      ['de', 'Ungültige Optionen für die Bildskalierung.'],
+      ['es', 'Opciones de redimensionamiento de imagen no válidas.'],
+    ])('refuses invalid resize options in the language of the request (%s)', async (locale, message) => {
+      await expect(localisedFailure(locale, await createPng(40, 20), { width: 0 })).resolves.toBe(message);
+    });
+
     describe("when the failure is not the client's fault", () => {
       // Observed from sharp 0.35 under a memory cap; the same process still resized a small image straight after.
       const OUT_OF_MEMORY = 'vips_tracked: out of memory -- size == 1144MB';
@@ -122,6 +156,16 @@ describe('ImagesService', () => {
         const error = await failureOf(createService().resize(png, { width: 10 }));
 
         expect(error.status).toBe(StatusCodes.INTERNAL_SERVER_ERROR);
+      });
+
+      it.each([
+        ['de', 'Das Bild konnte nicht verarbeitet werden. Bitte versuchen Sie es später erneut.'],
+        ['es', 'No se pudo procesar la imagen. Inténtalo de nuevo más tarde.'],
+      ])('reports a server error in the language of the request (%s)', async (locale, message) => {
+        const png = await createPng(40, 20);
+        failToBuffer(LIBRARY_BROKEN);
+
+        await expect(localisedFailure(locale, png, { width: 10 })).resolves.toBe(message);
       });
 
       it('keeps the image library error out of the message and in the log', async () => {

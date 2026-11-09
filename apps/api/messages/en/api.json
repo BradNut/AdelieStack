@@ -26,5 +26,8 @@
   "mail_two_factor_otp_title": "Your sign-in code",
   "mail_two_factor_otp_body": "Enter this code to finish signing in. If you did not try to sign in, you can ignore this message.",
   "mail_two_factor_otp_code_label": "Verification code",
-  "mail_two_factor_otp_code_note": "(This code is valid for {minutes} minutes)"
+  "mail_two_factor_otp_code_note": "(This code is valid for {minutes} minutes)",
+  "storage_image_processing_failed": "The image could not be processed. Please try again later.",
+  "storage_image_unprocessable": "File rejected: it is not a valid image or cannot be resized as requested.",
+  "storage_image_invalid_resize_options": "Invalid image resize options."
 }

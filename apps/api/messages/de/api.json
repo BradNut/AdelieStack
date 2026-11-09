@@ -26,5 +26,8 @@
   "mail_two_factor_otp_title": "Ihr Anmeldecode",
   "mail_two_factor_otp_body": "Geben Sie diesen Code ein, um die Anmeldung abzuschließen. Falls Sie nicht versucht haben, sich anzumelden, können Sie diese Nachricht ignorieren.",
   "mail_two_factor_otp_code_label": "Bestätigungscode",
-  "mail_two_factor_otp_code_note": "(Dieser Code ist {minutes} Minuten lang gültig)"
+  "mail_two_factor_otp_code_note": "(Dieser Code ist {minutes} Minuten lang gültig)",
+  "storage_image_processing_failed": "Das Bild konnte nicht verarbeitet werden. Bitte versuchen Sie es später erneut.",
+  "storage_image_unprocessable": "Datei abgelehnt: Sie ist kein gültiges Bild oder lässt sich nicht wie angefordert skalieren.",
+  "storage_image_invalid_resize_options": "Ungültige Optionen für die Bildskalierung."
 }

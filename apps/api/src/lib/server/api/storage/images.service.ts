@@ -2,7 +2,9 @@ import { StatusCodes } from '@adelie/shared';
 import { inject, injectable } from '@needle-di/core';
 import { HTTPException } from 'hono/http-exception';
 import sharp, { type ResizeOptions } from 'sharp';
+import { m } from '#lib/server/api/common/i18n/index';
 import { LoggerService } from '#lib/server/api/common/services/logger.service';
+import { InternalError } from '#lib/server/api/common/utils/exceptions';
 
 /** A valid 1x1 PNG: if sharp cannot resize this, the fault is in the server, not the upload. */
 const KNOWN_GOOD_PNG = Buffer.from(
@@ -25,12 +27,10 @@ export class ImagesService {
     } catch (error) {
       if (await this.isCausedByServer(error)) {
         this.loggerService.log.error({ err: error }, 'Image processing failed');
-        throw new HTTPException(StatusCodes.INTERNAL_SERVER_ERROR, { message: 'The image could not be processed. Please try again later.' });
+        throw InternalError(m.storage_image_processing_failed());
       }
       this.loggerService.log.warn({ err: error }, 'Image refused as unprocessable');
-      throw new HTTPException(StatusCodes.UNPROCESSABLE_ENTITY, {
-        message: 'File rejected: it is not a valid image or cannot be resized as requested.',
-      });
+      throw new HTTPException(StatusCodes.UNPROCESSABLE_ENTITY, { message: m.storage_image_unprocessable() });
     }
   }
 
@@ -39,7 +39,7 @@ export class ImagesService {
     try {
       sharp().resize(resizeOptions);
     } catch {
-      throw new HTTPException(StatusCodes.UNPROCESSABLE_ENTITY, { message: 'Invalid image resize options.' });
+      throw new HTTPException(StatusCodes.UNPROCESSABLE_ENTITY, { message: m.storage_image_invalid_resize_options() });
     }
   }
 
