@@ -28,7 +28,7 @@ that actually exists).
 
 ## Prerequisites
 
-`pnpm test:e2e` needs the local infra and a seeded admin: `docker compose up -d`, then `pnpm db:migrate && pnpm db:seed`. The script runs Playwright under the API env (`varlock run --path ../api/`), so the tests sign in with the same `ADMIN_PASSWORD` the seed used. Global setup stops the run with "Infra not running" when Postgres or Redis is unreachable. `pnpm test` runs unit tests only.
+`pnpm test:e2e` needs the local infra and a seeded admin: `docker compose up -d`, then `pnpm db:migrate && pnpm db:seed`. The script runs Playwright under the API env (`varlock run --path ../api/`), so the tests sign in with the same `ADMIN_PASSWORD` the seed used. Global setup stops the run with "Infra not running" when Postgres or Redis is unreachable. SeaweedFS must be up as well: without it the API exits at startup and Playwright reports that its web server failed to start. `pnpm test` runs unit tests only.
 
 ## Run E2E Locally (against dev server or built app)
 

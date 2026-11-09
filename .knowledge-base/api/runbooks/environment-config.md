@@ -126,7 +126,8 @@ The reCAPTCHA keys above are v2 and always pass, so they do not exercise `CAPTCH
 ## Storage
 
 Buckets: `${PROJECT_NAME}-public-${ENVIRONMENT}` and `${PROJECT_NAME}-private-${ENVIRONMENT}`.
-Provision locally with `pnpm storage:setup`. Credentials must match
+The API creates missing buckets at startup and refuses to start if storage is unreachable.
+`pnpm storage:setup` provisions them without starting the API. Credentials must match
 `docker/seaweedfs/s3-config.json`. SeaweedFS S3 runs locally; production takes any S3-compatible
 provider. `PUBLIC_IMAGE_URI` is the public bucket base URI and must equal the web app's value.
 
