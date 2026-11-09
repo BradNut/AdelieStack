@@ -160,7 +160,7 @@ A random string used for password resets or temporary authentication.
 Temporary URL that grants access to a private S3 object.
 
 **ClamAV**
-Antivirus engine that scans the final bytes of an upload before they reach storage, reached through the `clamscan` client. Gated by `ANTIVIRUS_ENABLED`; when on, the scanner fails closed, so an upload it cannot check is refused.
+Antivirus engine that scans the final bytes of an upload before they reach storage, reached through the `clamscan` client. Gated by `ANTIVIRUS_ENABLED`; when on, the upload fails closed if the scanner errors.
 
 ## Monitoring & Operations
 

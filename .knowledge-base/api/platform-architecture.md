@@ -62,11 +62,15 @@
   (`storage/virus-scanner.service.ts`); the connection opens on the first scan
 - **Configuration**: `ANTIVIRUS_ENABLED` (default `false`), `CLAMAV_HOST`, `CLAMAV_PORT`. When
   disabled, scans report clean without contacting clamd and objects get no scan tags
-- **Failure mode**: the upload path fails closed. If the scanner cannot reach a verdict the upload
-  is refused and nothing is stored
-- **Webhook re-scan**: as defense-in-depth, the storage webhook re-scans objects after they land
-  (`storage/file-scanner.worker.ts`). Infected objects are deleted; a scanner error only tags the
-  object `error` and leaves it in place
+- **Failure mode**: the upload path fails closed. If the scanner errors, for example because clamd
+  is unreachable, the upload is refused and nothing is stored
+- **Known gap**: on a clamd read timeout or a reply it cannot parse, `clamscan` resolves with
+  `isInfected: null` instead of erroring. `VirusScannerService.scanStream` counts that as clean, so
+  those files are stored and tagged clean
+- **Webhook re-scan**: as defense-in-depth, objects are re-scanned after they land when the storage
+  provider is configured to send object-created notifications to the storage webhook
+  (`storage/file-scanner.worker.ts`); nothing in the local stack sets that up. Infected objects are
+  deleted; a scanner error only tags the object `error` and leaves it in place
 
 #### Spotlight
 - **Purpose**: Error tracking and application monitoring
@@ -139,6 +143,9 @@
 5. Upload to the storage bucket and, when scanning is on, tag the object `scan-status=clean`
 6. Store metadata in PostgreSQL
 7. Return file URL to client
+
+> `StorageService.upload` implements steps 3-5. The template ships no upload route that calls it, so
+> steps 1, 2, 6 and 7 are what an app's own route adds around it.
 
 ## Monitoring & Observability
 

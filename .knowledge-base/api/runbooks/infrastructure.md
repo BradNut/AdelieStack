@@ -66,8 +66,9 @@ Uploads are scanned on their final bytes, after any resize and before they reach
 `CLAMAV_HOST`:`CLAMAV_PORT`, and the connection opens on the first scan. Locally, clamd is the
 `clamav` service in `docker-compose.yaml`.
 
-The upload path fails closed: while scanning is on, an upload the scanner cannot check is refused,
-so a clamd outage stops uploads.
+The upload path fails closed: while scanning is on, an upload is refused if the scanner errors, so a
+clamd outage stops uploads. See the known gap in
+[Platform Architecture](../platform-architecture.md#clamav) for the one case that does not.
 
 ### Symptoms
 
@@ -89,7 +90,7 @@ printf 'nPING\n' | nc -w 2 "$CLAMAV_HOST" "$CLAMAV_PORT"
 |---|---|
 | 503 on every upload | clamd is down or unreachable. Check `CLAMAV_HOST` / `CLAMAV_PORT` and the clamd container. A freshly started clamd takes a while to load its signatures before it answers |
 | 422 on an upload | Working as intended: clamd flagged the file, and the signature name is in the response and the logs. Nothing was stored |
-| Objects have no `scan-status` tag | `ANTIVIRUS_ENABLED` is off, so uploads are not being scanned. Set it to `true` and redeploy |
+| Objects have no `scan-status` tag | `ANTIVIRUS_ENABLED` is off, or was when the object was stored. Set it to `true` and redeploy; objects already stored are not backfilled. Tagging can also fail after the write, which leaves a scanned object untagged |
 | Object tagged `scan-status=error` | The storage webhook re-scan could not reach a verdict. Unlike the upload path, it leaves the object in place, so check clamd and review the object |
 
 ---
