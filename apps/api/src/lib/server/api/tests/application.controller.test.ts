@@ -1,8 +1,10 @@
+import { RoleName } from '@adelie/shared';
 import { Hono } from 'hono';
 import pino from 'pino';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AdminExampleController } from '#lib/server/api/admin/admin-example.controller';
 import { ApplicationController } from '#lib/server/api/application.controller';
+import { ProviderHealthState, type ProviderHealthStateName } from '#lib/server/api/auth/auth.provider-health';
 import type { AuthService } from '#lib/server/api/auth/auth.service';
 import { RolesService } from '#lib/server/api/auth/roles';
 import type { ConfigService } from '#lib/server/api/common/configs/config.service';
@@ -28,8 +30,8 @@ vi.mock('#lib/server/api/databases/redis/redis.service', async () => {
 
 const handler = vi.fn();
 const getSession = vi.fn();
-const hibpStatus = { health: 'unknown' };
-const captchaStatus = { health: 'disabled' };
+const hibpStatus: { health: ProviderHealthStateName } = { health: ProviderHealthState.UNKNOWN };
+const captchaStatus: { health: ProviderHealthStateName } = { health: ProviderHealthState.DISABLED };
 const captchaPublicConfig = { enabled: false } as { enabled: boolean; provider?: string; siteKey?: string };
 const rolesService = new RolesService(
   { envs: { ALLOW_MULTIPLE_ROLES: false } } as ConfigService,
@@ -61,8 +63,8 @@ beforeEach(() => {
   for (const [key, value] of Object.entries(validEnvs)) vi.stubEnv(key, value);
   handler.mockReset().mockImplementation(async () => new Response('from-better-auth'));
   getSession.mockReset().mockResolvedValue(null);
-  hibpStatus.health = 'unknown';
-  captchaStatus.health = 'disabled';
+  hibpStatus.health = ProviderHealthState.UNKNOWN;
+  captchaStatus.health = ProviderHealthState.DISABLED;
 });
 
 describe('auth handler mount', () => {
@@ -83,30 +85,26 @@ describe('auth handler mount', () => {
 });
 
 describe('GET /api/healthz', () => {
-  const providerStates = ['disabled', 'unknown', 'available', 'unavailable'];
-  const everyProviderState = providerStates.flatMap((hibp) => providerStates.map((captcha) => [hibp, captcha] as const));
-
-  it.each(everyProviderState)('answers only that the API is up when HIBP is %s and captcha is %s', async (hibp, captcha) => {
-    hibpStatus.health = hibp;
-    captchaStatus.health = captcha;
+  async function expectOnlyUp(providerState: ProviderHealthStateName) {
+    hibpStatus.health = providerState;
+    captchaStatus.health = providerState;
 
     const res = await buildApp().request('/api/healthz');
 
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ status: 'ok' });
     expect(handler).not.toHaveBeenCalled();
+  }
+
+  it.each(Object.values(ProviderHealthState))('answers only that the API is up when both providers are %s', async (providerState) => {
+    await expectOnlyUp(providerState);
   });
 
   it('answers the same when signed in', async () => {
-    const user = buildAuthUser({ role: 'admin' });
+    const user = buildAuthUser({ role: RoleName.ADMIN });
     getSession.mockResolvedValue({ user, session: buildAuthSession({ userId: user.id }) });
-    hibpStatus.health = 'unavailable';
-    captchaStatus.health = 'unavailable';
 
-    const res = await buildApp().request('/api/healthz');
-
-    expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ status: 'ok' });
+    await expectOnlyUp(ProviderHealthState.UNAVAILABLE);
   });
 });
 
