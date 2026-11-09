@@ -106,6 +106,35 @@ describe('StorageService', () => {
 
       await expect(createService().configure()).rejects.toThrow('connection refused');
     });
+
+    describe('when another instance races to create a bucket', () => {
+      it('continues when the create failed because the bucket now exists', async () => {
+        vi.spyOn(S3StorageClient.prototype, 'bucketExists')
+          .mockResolvedValueOnce(false) // public: absent on the first look
+          .mockResolvedValueOnce(true) // public: there on the re-check, the other instance won
+          .mockResolvedValueOnce(true); // private: already there
+        const createBucket = vi.spyOn(S3StorageClient.prototype, 'createBucket').mockRejectedValue(new Error('BucketAlreadyOwnedByYou'));
+
+        await expect(createService().configure()).resolves.toBeUndefined();
+
+        expect(createBucket).toHaveBeenCalledTimes(1);
+        expect(createBucket).toHaveBeenCalledWith(PUBLIC_BUCKET);
+      });
+
+      it('rethrows the original create error when the bucket is still absent', async () => {
+        vi.spyOn(S3StorageClient.prototype, 'bucketExists').mockResolvedValue(false);
+        vi.spyOn(S3StorageClient.prototype, 'createBucket').mockRejectedValue(new Error('AccessDenied'));
+
+        await expect(createService().configure()).rejects.toThrow('AccessDenied');
+      });
+
+      it('rethrows the original create error when the re-check itself fails', async () => {
+        vi.spyOn(S3StorageClient.prototype, 'bucketExists').mockResolvedValueOnce(false).mockRejectedValueOnce(new Error('connection reset'));
+        vi.spyOn(S3StorageClient.prototype, 'createBucket').mockRejectedValue(new Error('AccessDenied'));
+
+        await expect(createService().configure()).rejects.toThrow('AccessDenied');
+      });
+    });
   });
 
   describe('upload', () => {

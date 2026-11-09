@@ -52,7 +52,8 @@ Check both buckets exist and `PROJECT_NAME` / `ENVIRONMENT` match the bucket nam
 | Problem | Fix |
 |---|---|
 | Wrong `STORAGE_*` vars | Verify `STORAGE_HOST`, `STORAGE_PORT`, `STORAGE_ACCESS_KEY`, `STORAGE_SECRET_KEY` |
-| Bucket not found | Run `pnpm storage:setup` (creates `<PROJECT_NAME>-public-<ENVIRONMENT>` and `<PROJECT_NAME>-private-<ENVIRONMENT>`) |
+| API exits at startup with a storage error | Storage is unreachable or the credentials cannot create or read the buckets. The API does not serve until storage answers |
+| Bucket not found | Restart the API, or run `pnpm storage:setup` (either creates `<PROJECT_NAME>-public-<ENVIRONMENT>` and `<PROJECT_NAME>-private-<ENVIRONMENT>`) |
 | Public files return 403 | Grant `Read:<public-bucket>` to the `anonymous` identity in `docker/seaweedfs/s3-config.json`, then restart SeaweedFS |
 | `STORAGE_SSL=false` in prod | If storage is behind HTTPS, set `STORAGE_SSL=true` |
 

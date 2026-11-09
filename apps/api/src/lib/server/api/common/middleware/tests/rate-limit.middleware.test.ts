@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { expectRateLimitBypassed, getNoSessionRateLimitOptions } from './rate-limit-test.helpers';
+import { expectRateLimitBypassed, getRateLimitOptions } from './rate-limit-test.helpers';
 import { rateLimitTestMocks } from './rate-limit-test.mocks';
 import './rate-limit-test.setup';
 
@@ -48,7 +48,7 @@ describe('rate-limit.middleware', () => {
   });
 
   it('falls back to client IP and request path when no session exists', () => {
-    const options = getNoSessionRateLimitOptions(() => rateLimit({ limit: 3, minutes: 1 }));
+    const options = getRateLimitOptions(() => rateLimit({ limit: 3, minutes: 1 }));
 
     const key = options.keyGenerator({
       var: { session: null },
@@ -64,7 +64,7 @@ describe('rate-limit.middleware', () => {
       throw new Error('ip failure');
     });
 
-    const options = getNoSessionRateLimitOptions(() => rateLimit({ limit: 3, minutes: 1 }));
+    const options = getRateLimitOptions(() => rateLimit({ limit: 3, minutes: 1 }));
 
     expect(() =>
       options.keyGenerator({

@@ -1,30 +1,21 @@
+import { AUTH_CLIENT_IP_HEADER } from '@adelie/shared';
 import type { Context } from 'hono';
 
 /**
- * Extracts the client IP address from the request.
- * Only trusts proxy headers when TRUST_PROXY is enabled, so a client cannot spoof its IP
- * by sending `x-forwarded-for` when the API is not actually behind a trusted proxy.
- * Falls back to localhost for local development.
+ * Extracts the client IP address from the request, from the one header Better Auth also trusts
+ * ({@link AUTH_CLIENT_IP_HEADER}), and only when TRUST_PROXY is enabled. No other header is read: a
+ * proxy may set only that one, so a client could send any other and choose its own address.
+ * Falls back to localhost when TRUST_PROXY is off, or the header is absent or its first value is
+ * empty. That applies in production too, where those clients share one rate-limit bucket.
  */
 export function getClientIp(c: Context, trustProxy: boolean): string {
   if (trustProxy) {
-    // Check multiple proxy headers in order of preference
-    const forwarded = c.req.header('x-forwarded-for');
-    if (forwarded) {
-      return forwarded.split(',')[0].trim();
-    }
-
-    const realIp = c.req.header('x-real-ip');
-    if (realIp) {
-      return realIp.trim();
-    }
-
-    const cfConnectingIp = c.req.header('cf-connecting-ip');
-    if (cfConnectingIp) {
-      return cfConnectingIp.trim();
+    const clientIp = c.req.header(AUTH_CLIENT_IP_HEADER)?.split(',')[0].trim();
+    if (clientIp) {
+      return clientIp;
     }
   }
 
-  // In local development without a proxy, default to localhost
+  // No client IP is known: every such request resolves to this one address, in any environment.
   return '127.0.0.1';
 }

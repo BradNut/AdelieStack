@@ -6,15 +6,11 @@ import * as Sentry from '@sentry/node';
 const sdk = startOpenTelemetrySdk({ serviceName: 'adelie-api' });
 if (sdk) {
   console.log('OpenTelemetry SDK initialized for API');
+}
 
-  // Graceful shutdown
-  process.on('SIGTERM', () => {
-    sdk
-      .shutdown()
-      .then(() => console.log('OpenTelemetry SDK shut down successfully'))
-      .catch((error) => console.error('Error shutting down OpenTelemetry SDK', error))
-      .finally(() => process.exit(0));
-  });
+/** Flushes and stops the OpenTelemetry SDK. Signals are handled by the application's shutdown sequence, which calls this last. */
+export async function flushTelemetry() {
+  await sdk?.shutdown();
 }
 
 // Initialize Sentry. Spotlight and PII are dev-only.

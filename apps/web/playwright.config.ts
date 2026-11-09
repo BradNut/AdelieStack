@@ -17,7 +17,11 @@ export const SOCIAL_WEB_ORIGIN = `http://localhost:${SOCIAL_WEB_PORT}`;
  * dev origin (:5173) cannot break the run with "Invalid origin". Breached-password screening
  * is off because the flows must not depend on the external HIBP service. Sign-up is on, because
  * the flows register users through it and it is closed by default. Auth rate limiting is off
- * because the flows sign in far more often from one address than a person would.
+ * because the flows sign in far more often from one address than a person would. Background
+ * jobs are off because no flow needs them.
+ *
+ * The API refuses to boot without its storage, so SeaweedFS must be running along with Postgres
+ * and Redis (`docker compose up -d`).
  *
  * Email arrives in Mailpit on :8025. Global setup starts a small stand-in when nothing is
  * listening there; with a real Mailpit running, that is used instead.
@@ -42,6 +46,7 @@ export default defineConfig({
         BETTER_AUTH_URL: WEB_ORIGIN,
         PASSKEY_RP_ID: 'localhost',
         HIBP_ENABLED: 'false',
+        JOBS_ENABLED: 'false',
         SIGN_UP_ENABLED: 'true',
         DISABLE_RATE_LIMIT: 'true',
       },
@@ -75,6 +80,7 @@ export default defineConfig({
         BETTER_AUTH_URL: SOCIAL_WEB_ORIGIN,
         PASSKEY_RP_ID: 'localhost',
         HIBP_ENABLED: 'false',
+        JOBS_ENABLED: 'false',
         SIGN_UP_ENABLED: 'true',
         DISABLE_RATE_LIMIT: 'true',
         GITHUB_CLIENT_ID: 'e2e-placeholder-id',

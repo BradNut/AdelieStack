@@ -7,7 +7,7 @@ in local development; any S3-compatible provider works in production.
 
 ## Responsibilities
 
-- Ensure the public and private buckets exist on startup (idempotent)
+- Ensure the public and private buckets exist on startup (idempotent); any storage error fails the boot
 - Upload files, optionally resizing images through `ImagesService`
 - Read and delete objects
 
@@ -29,7 +29,7 @@ that identity and restart SeaweedFS.
 
 1. `docker compose up -d seaweedfs` (S3 API on `:8333`, filer UI on `:8888`, master on `:9333`)
 2. `pnpm storage:setup` runs `scripts/setup-seaweedfs.sh`, which creates both buckets through the S3 API. It is
-   safe to re-run. `pnpm initialize` runs it for you.
+   safe to re-run. `pnpm initialize` runs it for you. The API also creates missing buckets when it starts.
 
 ## Code Map
 
