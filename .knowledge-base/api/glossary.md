@@ -63,7 +63,7 @@ An action on a resource (for example `user: ban`) that a role grants, defined by
 The rules for which roles a user may hold and how a stored role value becomes the roles a permission check uses: one role per user unless multiple roles are allowed, and the least-privileged role for anything empty or unknown. Applies when roles are written and when they are read.
 
 **Provider Health**
-Whether the most recent call to an external screening provider (the Captcha Provider, Have I Been Pwned) reached it: disabled, unknown (no call since start), available or unavailable. Reported on the health endpoint without calling the provider again.
+Whether the most recent call to an external screening provider (the Captcha Provider, Have I Been Pwned) reached it: disabled, unknown (no call since start), available or unavailable. Tracked inside the API and never reported on a public endpoint; operators find an outage from the failure log entries.
 
 **Security Event**
 An account change the user is told about by email: password changed, Recovery Code used, Recovery Codes regenerated, and email address changed (sent to the old address). Sent from the after-hook in `auth/auth.mail.ts`.

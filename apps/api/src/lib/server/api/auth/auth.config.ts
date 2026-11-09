@@ -69,13 +69,13 @@ export interface CreateAuthOptions {
   /** Defaults to off: one role per user. */
   allowMultipleRoles?: boolean;
   /**
-   * Screening new passwords against Have I Been Pwned: carries the on/off switch and records each check's outcome for
-   * the health surface. Defaults to on; an outage rejects the request while on.
+   * Screening new passwords against Have I Been Pwned: carries the on/off switch and records each check's outcome in
+   * Provider Health. Defaults to on; an outage rejects the request while on.
    */
   hibpStatus?: ProviderHealth;
   /** Requires a Captcha Token on anonymous auth endpoints. Omit to leave captcha off. */
   captcha?: CaptchaConfig;
-  /** Records each verification's outcome for the health surface. */
+  /** Records each verification's outcome in Provider Health. */
   captchaStatus?: ProviderHealth;
   /**
    * Where rate-limit counters live. Omit to turn auth rate limiting off (tests, `DISABLE_RATE_LIMIT`);

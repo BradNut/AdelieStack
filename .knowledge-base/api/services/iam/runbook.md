@@ -151,10 +151,12 @@ an `AUTH_LINK_EMAIL_FAILED` entry does not prove it was delivered. The user can 
 
 ```bash
 curl http://localhost:3001/api/healthz
-# { "status": "ok", "hibp": "available|unavailable|unknown|disabled", "captcha": "..." }
+# { "status": "ok" }
 ```
 
-`hibp` and `captcha` report the last provider call, never a new one; see the environment config runbook.
+This is public and says only that the API is up. For a Have I Been Pwned or captcha outage, check the logs instead: every
+failed check writes one error entry starting with `HIBP_CHECK_FAILED` or `CAPTCHA_VERIFY_FAILED`. See the environment
+config runbook.
 
 ## Related Documentation
 

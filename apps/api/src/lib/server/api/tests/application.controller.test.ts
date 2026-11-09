@@ -1,8 +1,10 @@
+import { RoleName } from '@adelie/shared';
 import { Hono } from 'hono';
 import pino from 'pino';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AdminExampleController } from '#lib/server/api/admin/admin-example.controller';
 import { ApplicationController } from '#lib/server/api/application.controller';
+import { ProviderHealthState, type ProviderHealthStateName } from '#lib/server/api/auth/auth.provider-health';
 import type { AuthService } from '#lib/server/api/auth/auth.service';
 import { RolesService } from '#lib/server/api/auth/roles';
 import type { ConfigService } from '#lib/server/api/common/configs/config.service';
@@ -13,23 +15,10 @@ import { ConfigController } from '#lib/server/api/config/config.controller';
 import type { StorageWebhookController } from '#lib/server/api/storage/storage-webhook.controller';
 import { UsersController } from '#lib/server/api/users/users.controller';
 
-// The rate-limited routes resolve RedisService from their own container; keep them off a real Redis.
-vi.mock('#lib/server/api/databases/redis/redis.service', async () => {
-  const { injectable } = await import('@needle-di/core');
-  const { createRedisServiceMock } = await import('../../../../test/mocks/redis.mock');
-  return {
-    RedisService: injectable()(
-      class RedisService {
-        redis = createRedisServiceMock().redis;
-      },
-    ),
-  };
-});
-
 const handler = vi.fn();
 const getSession = vi.fn();
-const hibpStatus = { health: 'unknown' };
-const captchaStatus = { health: 'disabled' };
+const hibpStatus: { health: ProviderHealthStateName } = { health: ProviderHealthState.UNKNOWN };
+const captchaStatus: { health: ProviderHealthStateName } = { health: ProviderHealthState.DISABLED };
 const captchaPublicConfig = { enabled: false } as { enabled: boolean; provider?: string; siteKey?: string };
 const rolesService = new RolesService(
   { envs: { ALLOW_MULTIPLE_ROLES: false } } as ConfigService,
@@ -61,8 +50,8 @@ beforeEach(() => {
   for (const [key, value] of Object.entries(validEnvs)) vi.stubEnv(key, value);
   handler.mockReset().mockImplementation(async () => new Response('from-better-auth'));
   getSession.mockReset().mockResolvedValue(null);
-  hibpStatus.health = 'unknown';
-  captchaStatus.health = 'disabled';
+  hibpStatus.health = ProviderHealthState.UNKNOWN;
+  captchaStatus.health = ProviderHealthState.DISABLED;
 });
 
 describe('auth handler mount', () => {
@@ -82,25 +71,35 @@ describe('auth handler mount', () => {
   });
 });
 
-describe('GET /healthz', () => {
-  it.each(['disabled', 'unknown', 'available', 'unavailable'])('reports HIBP as %s without touching Better Auth', async (health) => {
-    hibpStatus.health = health;
+describe('GET /api/healthz', () => {
+  async function expectOnlyUp(providerState: ProviderHealthStateName) {
+    hibpStatus.health = providerState;
+    captchaStatus.health = providerState;
 
-    const res = await buildApp().request('/healthz');
+    const res = await buildApp().request('/api/healthz');
 
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ status: 'ok', hibp: health, captcha: 'disabled' });
+    expect(await res.json()).toEqual({ status: 'ok' });
     expect(handler).not.toHaveBeenCalled();
+  }
+
+  it.each(Object.values(ProviderHealthState))('answers only that the API is up when both providers are %s', async (providerState) => {
+    await expectOnlyUp(providerState);
   });
 
-  it.each(['disabled', 'unknown', 'available', 'unavailable'])('reports captcha as %s without touching Better Auth', async (health) => {
-    captchaStatus.health = health;
+  it('answers the same when signed in', async () => {
+    const user = buildAuthUser({ role: RoleName.ADMIN });
+    getSession.mockResolvedValue({ user, session: buildAuthSession({ userId: user.id }) });
 
-    const res = await buildApp().request('/healthz');
+    await expectOnlyUp(ProviderHealthState.UNAVAILABLE);
+  });
+});
 
-    expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ status: 'ok', hibp: 'unknown', captcha: health });
-    expect(handler).not.toHaveBeenCalled();
+describe('GET /api/rate-limit', () => {
+  it('is not served, so no open route exists just to show whether rate limiting is on', async () => {
+    const res = await buildApp().request('/api/rate-limit');
+
+    expect(res.status).toBe(404);
   });
 });
 

@@ -43,7 +43,7 @@ export class AuthService {
     return enabledSocialProviders(this.socialCredentials);
   }
 
-  /** Outcome of the most recent Captcha Token verification, for the health surface. */
+  /** Outcome of the most recent Captcha Token verification. */
   readonly captchaStatus: ProviderHealth;
 
   /** What the web may know about captcha: never the secret. */
@@ -52,7 +52,7 @@ export class AuthService {
     return { enabled: true, provider: this.captchaConfig.provider, siteKey: this.captchaConfig.siteKey };
   }
 
-  /** Outcome of the most recent breached-password check, for the health surface. */
+  /** Outcome of the most recent breached-password check. */
   readonly hibpStatus: ProviderHealth;
 
   get auth(): Auth {
