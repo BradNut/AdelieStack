@@ -24,8 +24,6 @@ env:
   DATABASE_DB: ${{ secrets.DATABASE_DB }}
   # Drizzle
   LOG_LEVEL: ${{ secrets.LOG_LEVEL }}
-  DB_MIGRATING: ${{ secrets.DB_MIGRATING }}
-  DB_SEEDING: ${{ secrets.DB_SEEDING }}
   ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
   ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
   # Emails
