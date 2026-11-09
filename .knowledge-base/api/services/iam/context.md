@@ -33,8 +33,8 @@
 - **Purpose**: verification links, reset links, emailed two-factor codes, Security Events
 - **Usage**: `MAILER_TRANSPORT=mailpit` posts to Mailpit; `unsend` selects `UseSendMailerService`,
   which sends through useSend
-- **Failure Impact**: a send is tried 3 times. Most flows then still answer success without the email; resending
-  verification answers `500` (see the [runbook](./runbook.md))
+- **Failure Impact**: a send is tried 3 times. Every flow then still answers success without the email, including
+  resending verification, whose Link Email leaves the request (see the [runbook](./runbook.md))
 - **Fallback**: none
 
 #### Have I Been Pwned and the Captcha Provider (optional)
