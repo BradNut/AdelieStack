@@ -26,5 +26,8 @@
   "mail_two_factor_otp_title": "Tu código de inicio de sesión",
   "mail_two_factor_otp_body": "Introduce este código para terminar de iniciar sesión. Si no has intentado iniciar sesión, puedes ignorar este mensaje.",
   "mail_two_factor_otp_code_label": "Código de verificación",
-  "mail_two_factor_otp_code_note": "(Este código es válido durante {minutes} minutos)"
+  "mail_two_factor_otp_code_note": "(Este código es válido durante {minutes} minutos)",
+  "storage_image_processing_failed": "No se pudo procesar la imagen. Inténtalo de nuevo más tarde.",
+  "storage_image_unprocessable": "Archivo rechazado: no es una imagen válida o no se puede redimensionar como se solicitó.",
+  "storage_image_invalid_resize_options": "Opciones de redimensionamiento de imagen no válidas."
 }
