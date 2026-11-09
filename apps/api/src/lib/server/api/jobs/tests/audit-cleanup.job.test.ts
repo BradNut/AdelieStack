@@ -137,6 +137,8 @@ describe('AuditCleanupJob', () => {
   describe('when Redis does not answer during register', () => {
     /** The real limit from the issue, written out so a changed constant fails here. */
     const REGISTER_LIMIT_MS = 10_000;
+    /** How long a failed registration waits for its connections to close, written out for the same reason. */
+    const CLOSE_LIMIT_MS = 2_000;
     let releaseUpsert: () => void;
     let stalled: ReturnType<typeof build>;
 
@@ -175,7 +177,30 @@ describe('AuditCleanupJob', () => {
       await failure;
 
       expect(stalled.jobsService.closeQueue).toHaveBeenCalledOnce();
-      expect(console.error).toHaveBeenCalledWith(expect.stringMatching(/Redis/));
+      expect(console.error).toHaveBeenCalledWith(
+        'Background job registration failed',
+        expect.objectContaining({ message: expect.stringMatching(/Redis/) }),
+      );
+      expect(stalled.jobsService.processor).toBeNull();
+    });
+
+    it('logs at the limit and still fails when closing the connections never finishes', async () => {
+      stalled.jobsService.closeQueue.mockImplementation(() => new Promise<void>(() => {}));
+      const settled = vi.fn();
+      const registering = stalled.job.register();
+      registering.catch(settled);
+      const failure = expect(registering).rejects.toThrow(/did not finish within 10000ms/);
+
+      await vi.advanceTimersByTimeAsync(REGISTER_LIMIT_MS);
+      expect(stalled.jobsService.closeQueue).toHaveBeenCalledOnce();
+      expect(console.error).toHaveBeenCalledWith(
+        'Background job registration failed',
+        expect.objectContaining({ message: expect.stringMatching(/Redis/) }),
+      );
+      expect(settled).not.toHaveBeenCalled();
+
+      await vi.advanceTimersByTimeAsync(CLOSE_LIMIT_MS);
+      await failure;
       expect(stalled.jobsService.processor).toBeNull();
     });
 
