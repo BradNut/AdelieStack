@@ -5,6 +5,7 @@ import { sentryHandle } from '@sentry/sveltekit';
 import type { Handle, HandleServerError } from '@sveltejs/kit/hooks';
 import { sequence } from '@sveltejs/kit/hooks';
 import { createInitialModeExpression } from 'mode-watcher';
+import { warnIfClientAddressUnconfigured } from '#lib/server/client-address-warning.ts';
 import { loadSessionUser } from '#lib/server/session-user.ts';
 import { honoClient, parseApiResponse } from '#lib/utils/api.ts';
 import type { Api } from '#lib/utils/types.ts';
@@ -24,6 +25,8 @@ const MODE_WATCHER_PLACEHOLDER = '/* modewatcher.init */';
 const themeInitScript = createInitialModeExpression();
 
 const apiClient: Handle = async ({ event, resolve }) => {
+  warnIfClientAddressUnconfigured(event.request.headers);
+
   /* ------------------------------ Register api ------------------------------ */
   const api: Api = honoClient({
     fetch: event.fetch,

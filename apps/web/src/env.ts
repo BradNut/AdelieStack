@@ -8,6 +8,10 @@ const optional = (value: string | undefined) => value || undefined;
  * `.env.schema` (varlock) stays the source of truth for types, defaults and required-ness; list a variable here only when app code imports it.
  */
 export const variables = defineEnvVars({
+  ADDRESS_HEADER: {
+    schema: optional,
+    description: 'Header adapter-node reads the client address from behind a proxy; only read here to warn when it is missing.',
+  },
   API_PROXY_BASE_URL: {
     schema: optional,
     description: 'Base URL of the API for the /api proxy; the proxy falls back to its default when empty.',
