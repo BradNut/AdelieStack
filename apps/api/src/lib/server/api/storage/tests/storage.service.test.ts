@@ -280,31 +280,70 @@ describe('StorageService', () => {
       expect(putObject).not.toHaveBeenCalled();
     });
 
-    it('stores nothing when the requested width is out of range', async () => {
-      const putObject = vi.spyOn(S3StorageClient.prototype, 'putObject').mockResolvedValue();
-      const file = pngFile(await createPng(40, 20));
+    describe('when an upload cannot be resized', () => {
+      /** Everything sharp was seen to put in its own messages, plus the library's own names. */
+      const IMAGE_LIBRARY_INTERNALS = /sharp|vips|libpng|expected|input buffer|corrupt header|unsupported image format|positive integer/i;
 
-      await expect(createService().upload({ file, resizeOptions: { width: 0 } })).rejects.toThrow(/width/);
+      const rejectionOf = (promise: Promise<unknown>) => promise.catch((error) => error) as Promise<HTTPException>;
 
-      expect(putObject).not.toHaveBeenCalled();
-    });
+      it.each([
+        ['bytes that are not an image', async () => new File(['not an image'], 'fake.png', { type: PNG_CONTENT_TYPE })],
+        ['an empty file', async () => new File([], 'empty.png', { type: PNG_CONTENT_TYPE })],
+        ['a truncated image', async () => pngFile((await createPng(200, 100, { compressionLevel: 0 })).subarray(0, 200))],
+      ])('refuses %s with a clear 422 and stores nothing', async (_label, makeFile) => {
+        const putObject = vi.spyOn(S3StorageClient.prototype, 'putObject').mockResolvedValue();
 
-    it('stores nothing when the file to resize is empty', async () => {
-      const putObject = vi.spyOn(S3StorageClient.prototype, 'putObject').mockResolvedValue();
-      const file = new File([], 'empty.png', { type: PNG_CONTENT_TYPE });
+        const error = await rejectionOf(createService().upload({ file: await makeFile(), resizeOptions: { width: 10 } }));
 
-      await expect(createService().upload({ file, resizeOptions: { width: 10 } })).rejects.toThrow(/empty/i);
+        expect(error.status).toBe(StatusCodes.UNPROCESSABLE_ENTITY);
+        expect(error.message).toMatch(/not a valid image/i);
+        expect(error.message).not.toMatch(IMAGE_LIBRARY_INTERNALS);
+        expect(putObject).not.toHaveBeenCalled();
+      });
 
-      expect(putObject).not.toHaveBeenCalled();
-    });
+      it('never reaches the virus scanner with a rejected upload', async () => {
+        const scanner = scanStub(async () => ({ result: ScanResult.CLEAN }));
 
-    it('stores nothing when the upload cannot be resized', async () => {
-      const putObject = vi.spyOn(S3StorageClient.prototype, 'putObject').mockResolvedValue();
-      const file = new File(['not an image'], 'fake.png', { type: PNG_CONTENT_TYPE });
+        await rejectionOf(
+          createService({ scanner }).upload({ file: new File(['nope'], 'fake.png', { type: PNG_CONTENT_TYPE }), resizeOptions: { width: 10 } }),
+        );
 
-      await expect(createService().upload({ file, resizeOptions: { width: 10 } })).rejects.toThrow();
+        expect(scanner.scanBuffer).not.toHaveBeenCalled();
+      });
 
-      expect(putObject).not.toHaveBeenCalled();
+      it.each([
+        ['a width of zero', { width: 0 }],
+        ['a height of zero', { height: 0 }],
+        ['a negative width', { width: -5 }],
+      ] satisfies [string, ResizeOptions][])('refuses %s as a client error and stores nothing', async (_label, resizeOptions) => {
+        const putObject = vi.spyOn(S3StorageClient.prototype, 'putObject').mockResolvedValue();
+
+        const error = await rejectionOf(createService().upload({ file: pngFile(await createPng(40, 20)), resizeOptions }));
+
+        expect(error.status).toBe(StatusCodes.UNPROCESSABLE_ENTITY);
+        expect(error.message).not.toMatch(IMAGE_LIBRARY_INTERNALS);
+        expect(putObject).not.toHaveBeenCalled();
+      });
+
+      it('reports a failure of the image library as a server error, stores nothing and exposes no internals', async () => {
+        const putObject = vi.spyOn(S3StorageClient.prototype, 'putObject').mockResolvedValue();
+        const file = pngFile(await createPng(40, 20));
+        vi.spyOn(sharp.prototype, 'toBuffer').mockRejectedValue(new Error('vips: unable to initialise thread pool'));
+
+        const error = await rejectionOf(createService().upload({ file, resizeOptions: { width: 10 } }));
+
+        expect(error.status).toBe(StatusCodes.INTERNAL_SERVER_ERROR);
+        expect(error.message).not.toMatch(IMAGE_LIBRARY_INTERNALS);
+        expect(putObject).not.toHaveBeenCalled();
+      });
+
+      it('still reports a storage failure after a successful resize as it is', async () => {
+        vi.spyOn(S3StorageClient.prototype, 'putObject').mockRejectedValue(new Error('upload failed'));
+
+        await expect(createService().upload({ file: pngFile(await createPng(40, 20)), resizeOptions: { width: 10 } })).rejects.toThrow(
+          'upload failed',
+        );
+      });
     });
 
     it('scans the resized bytes before anything reaches storage', async () => {

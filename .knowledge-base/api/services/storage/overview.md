@@ -35,7 +35,7 @@ that identity and restart SeaweedFS.
 
 - `storage/s3-storage.client.ts` - thin `@aws-sdk/client-s3` wrapper (path-style addressing, SigV4)
 - `storage/storage.service.ts` - `configure`, `upload`, `get`, `remove`; the S3 client is created lazily on first use
-- `storage/images.service.ts` - `ImagesService`, the one home for image processing (`resize`, using `sharp`); forks can inject it directly
+- `storage/images.service.ts` - `ImagesService`, the one home for image processing (`resize`, using `sharp`); forks can inject it directly. Bytes or options it cannot use are refused with a 422; failures of the server itself stay 500s, with the `sharp` error logged rather than returned
 - `storage/storage.buckets.ts` - `BucketVisibility` and `buildBucketName`
 - `storage/storage.types.ts` - client config and upload types
 - `storage/tests/` - client, service, and `s3-config.json` tests
