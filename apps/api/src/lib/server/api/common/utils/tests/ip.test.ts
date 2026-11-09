@@ -1,5 +1,7 @@
+import { AUTH_CLIENT_IP_HEADER } from '@adelie/shared';
 import { Hono } from 'hono';
 import { describe, expect, it, vi } from 'vitest';
+import { IGNORED_CLIENT_IP_HEADERS } from '#lib/server/api/common/testing/client-ip';
 import { getClientIp } from '#lib/server/api/common/utils/ip';
 
 const SPOOFED_IP = '198.51.100.66';
@@ -13,8 +15,19 @@ async function resolveIp(trustProxy: boolean, headers: Record<string, string>): 
 }
 
 describe('getClientIp', () => {
-  it.each(['x-real-ip', 'cf-connecting-ip'])('ignores a spoofed %s when the trusted header is absent', async (header) => {
+  it.each(IGNORED_CLIENT_IP_HEADERS)('ignores a spoofed %s when the trusted header is absent', async (header) => {
     expect(await resolveIp(true, { [header]: SPOOFED_IP })).toBe(NO_PROXY_IP);
+  });
+
+  it.each([', 1.2.3.4', ' , 1.2.3.4', ','])('falls back when the first value of the trusted header %j is empty', async (value) => {
+    expect(await resolveIp(true, { [AUTH_CLIENT_IP_HEADER]: value })).toBe(NO_PROXY_IP);
+  });
+
+  it('falls back when the trusted header is only whitespace', () => {
+    // A real Request strips surrounding whitespace, so this needs the header value as given.
+    const context = { req: { header: vi.fn().mockReturnValue('   ') } } as never;
+
+    expect(getClientIp(context, true)).toBe(NO_PROXY_IP);
   });
 
   it('returns first forwarded IP when trust proxy is enabled', () => {
