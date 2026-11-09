@@ -82,25 +82,31 @@ describe('auth handler mount', () => {
   });
 });
 
-describe('GET /healthz', () => {
-  it.each(['disabled', 'unknown', 'available', 'unavailable'])('reports HIBP as %s without touching Better Auth', async (health) => {
-    hibpStatus.health = health;
+describe('GET /api/healthz', () => {
+  const providerStates = ['disabled', 'unknown', 'available', 'unavailable'];
+  const everyProviderState = providerStates.flatMap((hibp) => providerStates.map((captcha) => [hibp, captcha] as const));
 
-    const res = await buildApp().request('/healthz');
+  it.each(everyProviderState)('answers only that the API is up when HIBP is %s and captcha is %s', async (hibp, captcha) => {
+    hibpStatus.health = hibp;
+    captchaStatus.health = captcha;
+
+    const res = await buildApp().request('/api/healthz');
 
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ status: 'ok', hibp: health, captcha: 'disabled' });
+    expect(await res.json()).toEqual({ status: 'ok' });
     expect(handler).not.toHaveBeenCalled();
   });
 
-  it.each(['disabled', 'unknown', 'available', 'unavailable'])('reports captcha as %s without touching Better Auth', async (health) => {
-    captchaStatus.health = health;
+  it('answers the same when signed in', async () => {
+    const user = buildAuthUser({ role: 'admin' });
+    getSession.mockResolvedValue({ user, session: buildAuthSession({ userId: user.id }) });
+    hibpStatus.health = 'unavailable';
+    captchaStatus.health = 'unavailable';
 
-    const res = await buildApp().request('/healthz');
+    const res = await buildApp().request('/api/healthz');
 
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ status: 'ok', hibp: 'unknown', captcha: health });
-    expect(handler).not.toHaveBeenCalled();
+    expect(await res.json()).toEqual({ status: 'ok' });
   });
 });
 

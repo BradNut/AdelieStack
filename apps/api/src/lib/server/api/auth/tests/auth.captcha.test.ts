@@ -180,7 +180,7 @@ describe('captcha provider outage', () => {
     expect(outage.status).not.toBe(invalid.status);
   });
 
-  it('logs each outage with the greppable prefix and reports unavailable on the health surface', async () => {
+  it('logs each outage with the greppable prefix and records the provider as unavailable', async () => {
     stubNetwork('down');
     const { post, log, captchaStatus } = build();
 

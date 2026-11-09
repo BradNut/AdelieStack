@@ -68,7 +68,7 @@ Optional. A provider is registered with Better Auth only when **both** its clien
 ### HIBP outage
 
 - **Symptom**: sign-up, reset-password, change-password and admin password changes fail with `503 PASSWORD_CHECK_UNAVAILABLE`; the forms show "We can't verify your password right now". Sign-in is unaffected.
-- **Find it**: every failed check writes one error log entry starting with `HIBP_CHECK_FAILED` (grep for it). `GET /healthz` returns `hibp`: `available` (last check succeeded), `unavailable` (last check failed), `unknown` (no check since start) or `disabled` (`HIBP_ENABLED=false`). Health probes read the last result and never call HIBP, so `hibp` only changes when a password is checked. The overall `status` stays `ok`.
+- **Find it**: every failed check writes one error log entry starting with `HIBP_CHECK_FAILED` (grep the API logs for it). `/api/healthz` is public and says only that the API is up, so it stays `{ "status": "ok" }` during an outage. Entries appear only when a password is checked. Whether screening is on is the deployment's `HIBP_ENABLED` value.
 - **Mitigate**: set `HIBP_ENABLED=false` and restart the API. Breached passwords are accepted until you set it back to `true` and restart.
 
 ## Auth rate limiting
@@ -121,7 +121,7 @@ The reCAPTCHA keys above are v2 and always pass, so they do not exercise `CAPTCH
 ### Captcha outage
 
 - **Symptom**: protected forms fail with `503 CAPTCHA_UNAVAILABLE`; the forms show "Captcha is temporarily unavailable". Passkey and OAuth sign-in are unaffected. An invalid token is a different, 4xx answer.
-- **Find it**: every failed verification writes one error log entry starting with `CAPTCHA_VERIFY_FAILED` (grep for it). `GET /healthz` returns `captcha`: `available` (last verification reached the provider), `unavailable` (last one did not), `unknown` (none since start) or `disabled`. Probes read the last result and never call the provider, so `captcha` only changes when a token is verified. The overall `status` stays `ok`.
+- **Find it**: every failed verification writes one error log entry starting with `CAPTCHA_VERIFY_FAILED` (grep the API logs for it). `/api/healthz` is public and says only that the API is up, so it stays `{ "status": "ok" }` during an outage. Entries appear only when a token is verified. Whether captcha is on is the deployment's `CAPTCHA_ENABLED` value.
 - **Mitigate**: set `CAPTCHA_ENABLED=false` and restart the API. The protected endpoints are unchallenged until you set it back to `true` and restart.
 
 ## Storage

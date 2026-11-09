@@ -41,14 +41,14 @@
 - **Purpose**: breached-password screening; Captcha Token verification
 - **Failure Impact**: HIBP unreachable → password-setting requests fail with
   `503 PASSWORD_CHECK_UNAVAILABLE`; captcha unreachable → protected requests fail with
-  `503 CAPTCHA_UNAVAILABLE`. Both are reported by `/api/healthz`.
+  `503 CAPTCHA_UNAVAILABLE`. Each failure writes one error log entry (`HIBP_CHECK_FAILED`,
+  `CAPTCHA_VERIFY_FAILED`); see the [runbook](./runbook.md).
 
 ### Downstream Dependencies (code that depends on IAM)
 
 - `authSession` middleware, on every route after `/api/auth/*`: sets `c.var.user` and `c.var.session`
 - `requirePermission` (`auth/permission.middleware.ts`): 401 signed out, 403 without the permission
 - `GET /api/config/captcha`: public captcha config from `AuthService.captchaPublicConfig`
-- `/api/healthz`: `hibp` and `captcha` Provider Health
 - The web app, through the Better Auth Svelte client and the `/api` proxy
 
 ## Integration Patterns

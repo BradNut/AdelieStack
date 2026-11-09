@@ -1,4 +1,4 @@
-/** What the health surface reports about an external screening provider (Captcha Provider, Have I Been Pwned). */
+/** What the API last learned about an external screening provider (Captcha Provider, Have I Been Pwned). */
 export const ProviderHealthState = {
   /** The provider's switch is off. */
   DISABLED: 'disabled',
@@ -30,7 +30,7 @@ export interface ProviderHealthOptions {
   log?: ProviderHealthLogger;
 }
 
-/** Remembers the outcome of the most recent provider call so health probes can report it without calling the provider. */
+/** Remembers the outcome of the most recent provider call and logs each failure. Never reported on a public endpoint. */
 export class ProviderHealth {
   private lastCheck: ProviderCheckResult | null = null;
 

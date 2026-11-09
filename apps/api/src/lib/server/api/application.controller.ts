@@ -40,10 +40,8 @@ export class ApplicationController extends RootController {
         return c.json({ status: 'ok' });
       })
       .get('/healthz', (c) => {
-        // HIBP is reported from the last breached-password check; probes never call it, and an outage
-        // does not fail liveness (sign-in and the rest of the app still work).
-        // Captcha is reported the same way: from the last verification, never by calling the provider.
-        return c.json({ status: 'ok', hibp: this.authService.hibpStatus.health, captcha: this.authService.captchaStatus.health });
+        // Public, so it answers only that the API is up; provider outages are found in the logs.
+        return c.json({ status: 'ok' });
       })
       .get('/rate-limit', rateLimit({ limit: 3, minutes: 1 }), (c) => {
         return c.json({ message: 'Test!' });
