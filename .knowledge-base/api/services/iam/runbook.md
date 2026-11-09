@@ -87,9 +87,19 @@ A ban is lifted through the admin endpoint.
 
 **Diagnosis:**
 1. `MAILER_TRANSPORT=mailpit` (the default): check Mailpit at `http://localhost:8025`.
-2. `MAILER_TRANSPORT=unsend`: search the logs for the recipient. Each attempt writes one entry:
-   `useSend email sent`, or `useSend email failed` with `attempt` and `error` (`code: message`).
+2. `MAILER_TRANSPORT=unsend`: logs hold no addresses, so find the account's id and search the logs for it as
+   `userId`:
+   ```sql
+   SELECT id FROM users WHERE email = '<address>';
+   ```
+   Each attempt writes one entry: `useSend email sent`, or `useSend email failed` with `attempt` and `error`
+   (`code: message`, any address shown as `[email]`). `template` names the email.
    Three failures in a row mean the send was given up on. No entry at all means nothing tried to send.
+   - `users.email` holds only the account's current address, so during an email change look up whichever
+     address the account has now. Confirmation for a new address missing: look up the old address and find
+     `EmailChangeRequestEmail`. Notice to the old address missing: look up the new address and find
+     `EmailChangeNoticeEmail`.
+   - A deleted account cannot be traced by address: its row is gone, and nothing else links an address to a `userId`.
 3. Too many requests from one client → `429` on the email endpoints (3 per 5 minutes per IP).
 
 **What the user sees when a send is given up on:**

@@ -137,7 +137,7 @@ describe('sign-in with an emailed OTP', () => {
     expect(otpRes.status).toBe(200);
     expect(sent).toHaveLength(1);
     const { to, template } = sent[0];
-    expect(to).toBe(EMAIL);
+    expect(to).toMatchObject({ email: EMAIL });
     expect(template.subject()).toBe('Your sign-in code');
     const otp = emailedOtp(sent[0]);
     expect(otp).toBeDefined();
