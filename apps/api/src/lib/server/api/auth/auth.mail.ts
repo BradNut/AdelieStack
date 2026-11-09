@@ -36,28 +36,20 @@ export interface AuthMailLogger {
  */
 export function createAuthMail(mailer: Mailer, log?: AuthMailLogger) {
   /**
-   * Security Events are told after the change has committed, so a failed send must not answer the request with an
-   * error, nor lose what it returns (new recovery codes, a session). The entry leaves out the provider's error text,
-   * which can quote the address; the mailer's own per-attempt entries carry the detail.
+   * Sends an email and logs a failure instead of throwing it. The entry leaves out the provider's error text, which
+   * can quote the address; the mailer's own per-attempt entries carry the detail.
+   *
+   * Security Events await this. They are told after the change has committed, so a failed send must not answer the
+   * request with an error, nor lose what it returns (new recovery codes, a session).
+   *
+   * Link Emails do not await this, so they leave the request: a response that waited on the send, or reflected how it
+   * went, would show an anonymous caller which addresses have accounts during a mail outage.
    */
-  async function sendSecurityEvent(to: string, template: EmailTemplate) {
+  async function sendAndLogFailure(to: string, template: EmailTemplate, failureLog: string) {
     try {
       await mailer.send({ to, template });
     } catch {
-      log?.error({ template: template.constructor.name }, SECURITY_EVENT_EMAIL_FAILED_LOG);
-    }
-  }
-
-  /**
-   * Link Emails leave the request: a response that waited on the send, or reflected how it went, would show an
-   * anonymous caller which addresses have accounts during a mail outage. Nothing awaits this, so every failure ends
-   * here, and as with a Security Event the entry leaves out the provider's error text.
-   */
-  async function detachLinkEmail(to: string, template: EmailTemplate) {
-    try {
-      await mailer.send({ to, template });
-    } catch {
-      log?.error({ template: template.constructor.name }, AUTH_LINK_EMAIL_FAILED_LOG);
+      log?.error({ template: template.constructor.name }, failureLog);
     }
   }
 
@@ -75,7 +67,7 @@ export function createAuthMail(mailer: Mailer, log?: AuthMailLogger) {
       internalAdapter.findUserByEmail(claims.updateTo),
     ]);
     if (oldAccount || !newAccount) return;
-    await sendSecurityEvent(claims.email, new EmailChangeNoticeEmail(claims.updateTo, getRequestLocale()));
+    await sendAndLogFailure(claims.email, new EmailChangeNoticeEmail(claims.updateTo, getRequestLocale()), SECURITY_EVENT_EMAIL_FAILED_LOG);
   }
 
   return {
@@ -84,16 +76,16 @@ export function createAuthMail(mailer: Mailer, log?: AuthMailLogger) {
       const isEmailChange = readVerificationToken(token)?.requestType === CHANGE_EMAIL_REQUEST_TYPE;
       const locale = getRequestLocale();
       const template = isEmailChange ? new EmailChangeRequestEmail(url, locale) : new EmailVerificationEmail(url, locale);
-      void detachLinkEmail(user.email, template);
+      void sendAndLogFailure(user.email, template, AUTH_LINK_EMAIL_FAILED_LOG);
     },
 
     async sendResetPassword({ user, url }: { user: Recipient; url: string }) {
-      void detachLinkEmail(user.email, new PasswordResetLinkEmail(url, getRequestLocale()));
+      void sendAndLogFailure(user.email, new PasswordResetLinkEmail(url, getRequestLocale()), AUTH_LINK_EMAIL_FAILED_LOG);
     },
 
     /** Reset-by-link completion (`emailAndPassword.onPasswordReset`). */
     async notifyPasswordChanged({ user }: { user: Recipient }) {
-      await sendSecurityEvent(user.email, new PasswordChangedEmail(getRequestLocale()));
+      await sendAndLogFailure(user.email, new PasswordChangedEmail(getRequestLocale()), SECURITY_EVENT_EMAIL_FAILED_LOG);
     },
 
     /**
@@ -109,13 +101,13 @@ export function createAuthMail(mailer: Mailer, log?: AuthMailLogger) {
       if (!user) return;
       switch (ctx.path) {
         case AuthEndpoint.CHANGE_PASSWORD:
-          await sendSecurityEvent(user.email, new PasswordChangedEmail(getRequestLocale()));
+          await sendAndLogFailure(user.email, new PasswordChangedEmail(getRequestLocale()), SECURITY_EVENT_EMAIL_FAILED_LOG);
           break;
         case AuthEndpoint.VERIFY_BACKUP_CODE:
-          await sendSecurityEvent(user.email, new RecoveryCodesUsedEmail(getRequestLocale()));
+          await sendAndLogFailure(user.email, new RecoveryCodesUsedEmail(getRequestLocale()), SECURITY_EVENT_EMAIL_FAILED_LOG);
           break;
         case AuthEndpoint.GENERATE_BACKUP_CODES:
-          await sendSecurityEvent(user.email, new RecoveryCodesRegeneratedEmail(getRequestLocale()));
+          await sendAndLogFailure(user.email, new RecoveryCodesRegeneratedEmail(getRequestLocale()), SECURITY_EVENT_EMAIL_FAILED_LOG);
           break;
       }
     }),
