@@ -63,7 +63,7 @@ Optional. A provider is registered with Better Auth only when **both** its clien
 
 | Variable | Default | Notes |
 |---|---|---|
-| `HIBP_ENABLED` | `true` | Screens new passwords against Have I Been Pwned (Better Auth `haveIBeenPwned` plugin) on sign-up, change-password and admin set-user-password. When on, an unreachable HIBP **rejects** the request (fail closed) and nothing is changed. When `false`, no HIBP request is made on any path. Restart the API after changing it. |
+| `HIBP_ENABLED` | `true` | Screens new passwords against Have I Been Pwned (Better Auth `haveIBeenPwned` plugin) on sign-up, change-password and admin set-user-password. When on, an unreachable HIBP **rejects** the request (fail closed) and nothing is changed. When `false`, no HIBP request is made on any path, including seeding (`pnpm db:seed` reads the same switch and fails during an outage while it is on; the seed truncates every table first, so a seed that fails this way leaves the database empty). Restart the API after changing it. |
 
 ### HIBP outage
 

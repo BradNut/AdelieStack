@@ -6,6 +6,7 @@ import { type AuthRequest, cookiesFrom, signUpWithEmail, signUpWithTotp, TEST_US
 import { createTestAuth } from '../../../../../test/auth-instance';
 
 const { email: EMAIL, password: PASSWORD } = TEST_USER;
+const ACCOUNT_NOT_FOUND_CODE = 'ACCOUNT_NOT_FOUND';
 
 let auth: Auth;
 let db: Record<string, Record<string, unknown>[]>;
@@ -29,13 +30,18 @@ beforeEach(() => {
   }));
 });
 
+async function signedInUserId(cookie: string) {
+  const { user } = (await (await request('/get-session', { cookie })).json()) as { user: { id: string } };
+  return user.id;
+}
+
 /** Gives the signed-in user a GitHub Sign-in Account next to their Password Account. Returns the user id. */
 async function linkGithub(cookie: string) {
-  const { user } = (await (await request('/get-session', { cookie })).json()) as { user: { id: string } };
-  await (await auth.$context).internalAdapter.updateUser(user.id, { emailVerified: true });
+  const userId = await signedInUserId(cookie);
+  await (await auth.$context).internalAdapter.updateUser(userId, { emailVerified: true });
   const link = await request('/link-social', { cookie, body: { provider: SocialProvider.GITHUB, idToken: { token: 't' } } });
   expect(link.status).toBe(200);
-  return user.id;
+  return userId;
 }
 
 /** A user with a Password Account and GitHub, with or without a Second Factor enrolled. */
@@ -80,6 +86,17 @@ describe('unlinking the Password Account', () => {
     expect(await providerIdsOf(user.id)).toEqual([CREDENTIAL_PROVIDER_ID, SocialProvider.GITHUB]);
   });
 
+  it('refuses a user with a Second Factor whose only Sign-in Account is the Password Account, and keeps that Password Account', async () => {
+    const { cookie } = await signUpWithTotp(request, TEST_USER);
+    const userId = await signedInUserId(cookie);
+
+    const res = await unlink(cookie, await accountIdOf(userId, CREDENTIAL_PROVIDER_ID));
+
+    expect(res.status).toBe(400);
+    expect(((await res.json()) as { code: string }).code).toBe(AuthErrorCode.PASSWORD_REQUIRED_FOR_TWO_FACTOR);
+    expect(await providerIdsOf(userId)).toEqual([CREDENTIAL_PROVIDER_ID]);
+  });
+
   it('unlinks the Password Account of a user without two-factor who has another Sign-in Account', async () => {
     const user = await userWithGithub({ twoFactor: false });
 
@@ -117,7 +134,7 @@ describe('other unlinks for a two-factor user', () => {
     const res = await unlink(user.cookie, 'unknown-account-id');
 
     expect(res.status).toBe(400);
-    expect(((await res.json()) as { code: string }).code).toBe('ACCOUNT_NOT_FOUND');
+    expect(((await res.json()) as { code: string }).code).toBe(ACCOUNT_NOT_FOUND_CODE);
     expect(await providerIdsOf(user.id)).toEqual([CREDENTIAL_PROVIDER_ID, SocialProvider.GITHUB]);
   });
 
@@ -129,6 +146,33 @@ describe('other unlinks for a two-factor user', () => {
     expect(res.status).toBe(400);
     expect(((await res.json()) as { code: string }).code).toBe('VALIDATION_ERROR');
     expect(await providerIdsOf(user.id)).toEqual([CREDENTIAL_PROVIDER_ID, SocialProvider.GITHUB]);
+  });
+});
+
+describe("unlinking another user's Sign-in Account", () => {
+  /**
+   * The signed-in user holds two Sign-in Accounts, because Better Auth refuses a user with only one before it looks up
+   * the account id. GitHub's mocked profile is fixed to `TEST_USER`, so the other user's GitHub account is seeded.
+   */
+  async function twoFactorCookieAndOtherGithubUserId() {
+    const signedIn = await userWithGithub({ twoFactor: true });
+    const { cookie } = await signUpWithEmail(request, { ...TEST_USER, email: 'other-user@example.com' });
+    const otherUserId = await signedInUserId(cookie);
+    await (await auth.$context).internalAdapter.linkAccount({ userId: otherUserId, providerId: SocialProvider.GITHUB, accountId: 'gh-2' });
+    return { cookie: signedIn.cookie, otherUserId };
+  }
+
+  it.each([
+    ['Password Account', CREDENTIAL_PROVIDER_ID],
+    ['social Sign-in Account', SocialProvider.GITHUB],
+  ])("answers Better Auth's own ACCOUNT_NOT_FOUND when a user with a Second Factor targets another user's %s", async (_, providerId) => {
+    const { cookie, otherUserId } = await twoFactorCookieAndOtherGithubUserId();
+
+    const res = await unlink(cookie, await accountIdOf(otherUserId, providerId));
+
+    expect(res.status).toBe(400);
+    expect(((await res.json()) as { code: string }).code).toBe(ACCOUNT_NOT_FOUND_CODE);
+    expect(await providerIdsOf(otherUserId)).toEqual([CREDENTIAL_PROVIDER_ID, SocialProvider.GITHUB]);
   });
 });
 

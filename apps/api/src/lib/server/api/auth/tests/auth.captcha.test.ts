@@ -12,11 +12,11 @@ import { CAPTCHA_VERIFY_FAILED_LOG, createCaptchaHealth } from '#lib/server/api/
 import { createHibpHealth } from '#lib/server/api/auth/auth.hibp-status';
 import { ProviderHealthState } from '#lib/server/api/auth/auth.provider-health';
 import { createTestAuth, TEST_ORIGIN } from '../../../../../test/auth-instance';
+import { HIBP_HOST } from '../../../../../test/mocks/hibp.mock';
 
 const PASSWORD = 'correct horse battery';
 const PWNED_PASSWORD = 'password12345';
 const TURNSTILE_VERIFY = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
-const HIBP_HOST = 'https://api.pwnedpasswords.com/range/';
 const TOKEN = 'token-from-widget';
 
 const sha1 = (value: string) => createHash('sha1').update(value).digest('hex').toUpperCase();
