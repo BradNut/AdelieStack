@@ -1,9 +1,9 @@
 import { Container } from '@needle-di/core';
 import type { Context } from 'hono';
-import { RedisStore, rateLimiter } from 'hono-rate-limiter';
+import { rateLimiter } from 'hono-rate-limiter';
 import { ConfigService } from '#lib/server/api/common/configs/config.service';
 import type { HonoEnv } from '#lib/server/api/common/utils/hono';
-import { adaptIoredisForHonoRateLimiter } from '#lib/server/api/common/utils/hono-rate-limiter-redis-client';
+import { createLazyRedisStore } from '#lib/server/api/common/utils/hono-rate-limiter-redis';
 import { getClientIp } from '#lib/server/api/common/utils/ip';
 import { RedisService } from '#lib/server/api/databases/redis/redis.service';
 
@@ -37,9 +37,7 @@ export function rateLimit({ limit, minutes, key = '' }: { limit: number; minutes
       const pathKey = key || c.req.path;
       return `${clientKey}_${pathKey}`;
     },
-    // Redis store configuration
-    store: new RedisStore({
-      client: adaptIoredisForHonoRateLimiter(getRedisClient),
-    }) as never,
+    // Connects Redis on the first request to this route, not while routes are built.
+    store: createLazyRedisStore<HonoEnv>(getRedisClient),
   });
 }

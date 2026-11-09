@@ -19,10 +19,6 @@ function resetRateLimitMocks() {
   rateLimiterMock.mockReturnValue('middleware');
 }
 
-const RedisStoreMock = class {
-  constructor(public config: { client: unknown }) {}
-};
-
 function createRateLimitContainerClass(mocks: RateLimitContainerMocks) {
   return class {
     get(token: { name?: string }) {
@@ -51,7 +47,6 @@ function createRateLimitContainerClass(mocks: RateLimitContainerMocks) {
 function createHonoRateLimiterMock() {
   return {
     rateLimiter: rateLimiterMock,
-    RedisStore: RedisStoreMock,
   };
 }
 

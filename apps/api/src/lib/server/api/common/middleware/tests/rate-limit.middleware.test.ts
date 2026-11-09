@@ -28,7 +28,6 @@ describe('rate-limit.middleware', () => {
 
     const options = rateLimitTestMocks.rateLimiterMock.mock.calls[0][0] as {
       keyGenerator: (ctx: { var: { session: { userId: string } | null }; req: { path: string } }) => string;
-      store: { config: { client: { decr: (key: string) => Promise<number> } } };
       windowMs: number;
       limit: number;
     };
@@ -42,9 +41,6 @@ describe('rate-limit.middleware', () => {
     expect(getClientIpMock).not.toHaveBeenCalled();
     expect(options.windowMs).toBe(900000);
     expect(options.limit).toBe(10);
-
-    await options.store.config.client.decr('foo');
-    expect(rateLimitTestMocks.callMock).toHaveBeenCalledWith('DECR', 'foo');
   });
 
   it('falls back to client IP and request path when no session exists', () => {
