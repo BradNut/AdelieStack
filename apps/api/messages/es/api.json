@@ -29,5 +29,10 @@
   "mail_two_factor_otp_code_note": "(Este código es válido durante {minutes} minutos)",
   "storage_image_processing_failed": "No se pudo procesar la imagen. Inténtalo de nuevo más tarde.",
   "storage_image_unprocessable": "Archivo rechazado: no es una imagen válida o no se puede redimensionar como se solicitó.",
-  "storage_image_invalid_resize_options": "Opciones de redimensionamiento de imagen no válidas."
+  "storage_image_invalid_resize_options": "Opciones de redimensionamiento de imagen no válidas.",
+  "storage_upload_too_large": "Archivo rechazado: es más grande de lo que permite esta subida.",
+  "storage_upload_type_not_accepted": "Archivo rechazado: este tipo de archivo no se acepta.",
+  "storage_upload_unrecognized": "Archivo rechazado: no se pudo reconocer su tipo.",
+  "storage_image_too_many_pixels": "Archivo rechazado: la imagen tiene demasiados píxeles.",
+  "storage_image_output_too_large": "El tamaño de imagen solicitado es demasiado grande."
 }
