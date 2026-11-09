@@ -8,8 +8,6 @@ export const validEnvs: Record<string, string> = {
   DATABASE_HOST: 'localhost',
   DATABASE_PORT: '5432',
   DATABASE_DB: 'postgres',
-  DB_MIGRATING: 'false',
-  DB_SEEDING: 'false',
   LOG_LEVEL: 'info',
   ORIGIN: 'http://localhost:5173',
   DOMAIN: 'localhost',

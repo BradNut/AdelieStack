@@ -10,14 +10,13 @@ export class DrizzleService {
   public schema: typeof drizzleSchema = drizzleSchema;
 
   constructor(private configService = inject(ConfigService)) {
-    const { DATABASE_USER, DATABASE_PASSWORD, DATABASE_HOST, DATABASE_PORT, DATABASE_DB, DB_MIGRATING, DB_SEEDING, ENV } = this.configService.envs;
+    const { DATABASE_USER, DATABASE_PASSWORD, DATABASE_HOST, DATABASE_PORT, DATABASE_DB, ENV } = this.configService.envs;
     this.db = createPostgresDb({
       user: DATABASE_USER,
       password: DATABASE_PASSWORD,
       host: DATABASE_HOST,
       port: DATABASE_PORT,
       database: DATABASE_DB,
-      max: DB_MIGRATING || DB_SEEDING ? 1 : undefined,
       env: ENV,
     });
   }

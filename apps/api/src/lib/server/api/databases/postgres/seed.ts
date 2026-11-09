@@ -7,11 +7,7 @@ import * as schema from './drizzle-schema';
 import * as seeds from './seeds';
 import { createSeedAuth } from './seeds/auth-options';
 
-if (!process.env.DB_SEEDING) {
-  throw new Error('You must set DB_SEEDING to "true" when running seeds');
-}
-
-const db = createScriptDb();
+const db = createScriptDb('DB_SEEDING');
 
 const tables = (Object.values(schema) as unknown[]).filter((value): value is Table => is(value, Table));
 for (const table of tables) {

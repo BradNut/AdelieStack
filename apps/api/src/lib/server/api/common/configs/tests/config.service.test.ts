@@ -8,8 +8,6 @@ const parsedEnvs = {
   DATABASE_PORT: 5432,
   PORT: 3001,
   STORAGE_PORT: 8333,
-  DB_MIGRATING: false,
-  DB_SEEDING: false,
   STORAGE_SSL: false,
   TRUST_PROXY: false,
   DISABLE_RATE_LIMIT: false,
@@ -41,6 +39,13 @@ describe('ConfigService', () => {
   it('validateEnvs returns the parsed env set', async () => {
     const service = await createConfigService();
     expect(service.validateEnvs()).toMatchObject(parsedEnvs);
+  });
+
+  it('leaves the script-only flags out of the validated env', async () => {
+    setProcessEnvs({ ...validEnvs, DB_MIGRATING: 'true', DB_SEEDING: 'true' });
+    const { envs } = await createConfigService();
+    expect(envs).not.toHaveProperty('DB_MIGRATING');
+    expect(envs).not.toHaveProperty('DB_SEEDING');
   });
 
   it('enables multiple roles only when ALLOW_MULTIPLE_ROLES is true', async () => {

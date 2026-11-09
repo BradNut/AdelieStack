@@ -11,8 +11,6 @@ const baseEnvsDto = z.object({
   DATABASE_HOST: z.string(),
   DATABASE_PORT: z.coerce.number(),
   DATABASE_DB: z.string(),
-  DB_MIGRATING: z.stringbool().default(false),
-  DB_SEEDING: z.stringbool().default(false),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
   ORIGIN: z.string(),
   DOMAIN: z.string(),

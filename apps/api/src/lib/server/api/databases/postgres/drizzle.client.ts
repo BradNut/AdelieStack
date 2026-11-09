@@ -22,8 +22,14 @@ export function createPostgresDb({ env, ...pool }: PostgresConnection) {
   return drizzle(new Pool({ ...pool, ssl: false }), { ...DRIZZLE_CONFIG, logger: !isProdEnv(env) });
 }
 
-/** For one-off scripts (migrate, seed), which read only the variables they need and hold one connection. */
-export function createScriptDb() {
+/**
+ * For one-off scripts (migrate, seed), which read only the variables they need and hold one connection.
+ * Refuses unless the script's flag is exactly "true": `.env.schema` defaults it to "false", a truthy string.
+ */
+export function createScriptDb(flag: 'DB_MIGRATING' | 'DB_SEEDING') {
+  if (process.env[flag] !== 'true') {
+    throw new Error(`You must set ${flag} to "true" to run this script.`);
+  }
   return createPostgresDb({
     user: process.env.DATABASE_USER,
     password: process.env.DATABASE_PASSWORD,

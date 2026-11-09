@@ -30,7 +30,7 @@
     "setup:query": "node scripts/setup-tanstack-query.mjs",
     "check:watch": "pnpm --filter @adelie/web check:watch",
     "storage:setup": "bash scripts/setup-seaweedfs.sh",
-    "initialize": "pnpm install && docker compose up --no-recreate -d && pnpm storage:setup && pnpm db:generate && pnpm db:migrate && pnpm db:seed",
+    "initialize": "pnpm install && docker compose up --no-recreate -d && pnpm storage:setup && pnpm db:generate && DB_MIGRATING=true pnpm db:migrate && DB_SEEDING=true pnpm db:seed",
     "lint": "pnpm turbo run lint --filter=@adelie/web --filter=@adelie/api",
     "format": "pnpm turbo run format --filter=@adelie/web",
     "storybook": "pnpm --filter @adelie/web storybook",
