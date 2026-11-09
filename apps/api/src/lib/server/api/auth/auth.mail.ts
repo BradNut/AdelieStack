@@ -15,12 +15,12 @@ import { CHANGE_EMAIL_REQUEST_TYPE, readVerificationToken } from './auth.verific
 /** What an `hooks.after` handler receives. */
 type AfterHookContext = Parameters<Parameters<typeof createAuthMiddleware>[0]>[0];
 
-interface Recipient {
+interface AuthMailUser {
   id: string;
   email: string;
 }
 
-const mailRecipient = (user: Recipient): MailRecipient => ({ email: user.email, userId: user.id });
+export const toMailRecipient = (user: AuthMailUser): MailRecipient => ({ email: user.email, userId: user.id });
 
 /** Stable, greppable log message for a Security Event email that could not be sent. */
 export const SECURITY_EVENT_EMAIL_FAILED_LOG = 'SECURITY_EVENT_EMAIL_FAILED';
@@ -67,20 +67,20 @@ export function createAuthMail(mailer: Mailer, log?: AuthMailLogger) {
 
   return {
     /** Sign-up and resend verification, and (to the new address) the confirmation of an email change. */
-    async sendVerificationEmail({ user, url, token }: { user: Recipient; url: string; token?: string }) {
+    async sendVerificationEmail({ user, url, token }: { user: AuthMailUser; url: string; token?: string }) {
       const isEmailChange = readVerificationToken(token)?.requestType === CHANGE_EMAIL_REQUEST_TYPE;
       const locale = getRequestLocale();
       const template = isEmailChange ? new EmailChangeRequestEmail(url, locale) : new EmailVerificationEmail(url, locale);
-      await mailer.send({ to: mailRecipient(user), template });
+      await mailer.send({ to: toMailRecipient(user), template });
     },
 
-    async sendResetPassword({ user, url }: { user: Recipient; url: string }) {
-      await mailer.send({ to: mailRecipient(user), template: new PasswordResetLinkEmail(url, getRequestLocale()) });
+    async sendResetPassword({ user, url }: { user: AuthMailUser; url: string }) {
+      await mailer.send({ to: toMailRecipient(user), template: new PasswordResetLinkEmail(url, getRequestLocale()) });
     },
 
     /** Reset-by-link completion (`emailAndPassword.onPasswordReset`). */
-    async notifyPasswordChanged({ user }: { user: Recipient }) {
-      await sendSecurityEvent(mailRecipient(user), new PasswordChangedEmail(getRequestLocale()));
+    async notifyPasswordChanged({ user }: { user: AuthMailUser }) {
+      await sendSecurityEvent(toMailRecipient(user), new PasswordChangedEmail(getRequestLocale()));
     },
 
     /**
@@ -96,13 +96,13 @@ export function createAuthMail(mailer: Mailer, log?: AuthMailLogger) {
       if (!user) return;
       switch (ctx.path) {
         case AuthEndpoint.CHANGE_PASSWORD:
-          await sendSecurityEvent(mailRecipient(user), new PasswordChangedEmail(getRequestLocale()));
+          await sendSecurityEvent(toMailRecipient(user), new PasswordChangedEmail(getRequestLocale()));
           break;
         case AuthEndpoint.VERIFY_BACKUP_CODE:
-          await sendSecurityEvent(mailRecipient(user), new RecoveryCodesUsedEmail(getRequestLocale()));
+          await sendSecurityEvent(toMailRecipient(user), new RecoveryCodesUsedEmail(getRequestLocale()));
           break;
         case AuthEndpoint.GENERATE_BACKUP_CODES:
-          await sendSecurityEvent(mailRecipient(user), new RecoveryCodesRegeneratedEmail(getRequestLocale()));
+          await sendSecurityEvent(toMailRecipient(user), new RecoveryCodesRegeneratedEmail(getRequestLocale()));
           break;
       }
     }),

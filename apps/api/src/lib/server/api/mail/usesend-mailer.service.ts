@@ -14,7 +14,7 @@ const MASKED_EMAIL = '[email]';
  * Anything shaped like an address, plain or URL-encoded. Deliberately loose: over-matching only blurs a message, while
  * a miss writes an address to the logs. The lengths are the limits of an address, and keep matching linear on long text.
  */
-const EMAIL_SHAPED = /[^\s<>()[\]",;:@/=?&#]{1,64}(?:@|%40)[^\s<>()[\]",;:@/=?&#']{1,255}/g;
+const EMAIL_SHAPED = /[^\s<>()[\]",;:@]{1,64}(?:@|%40)[^\s<>()[\]",;:@/=?&#']{1,255}/g;
 /**
  * Always passed to the client. Left to itself the library reads `USESEND_BASE_URL` from `process.env` at import and
  * keeps an empty string as its address, so every send would go to the relative `/api/v1`.
@@ -23,7 +23,7 @@ const USESEND_DEFAULT_BASE_URL = 'https://app.usesend.com';
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-/** Provider error text can quote the recipient, so none of it is logged or handed on without passing through here. */
+/** Provider error text can quote the recipient, so it is masked before it is logged or put in an error raised here. */
 const maskEmails = (text: string) => text.replace(EMAIL_SHAPED, MASKED_EMAIL);
 
 /**

@@ -303,14 +303,18 @@ describe('UseSendMailerService logs', () => {
     expect(fake.send.mock.calls[0][0].to).toBe('invitee@example.com');
   });
 
-  it('never logs the address of a send that succeeds or fails', async () => {
-    fake.send.mockResolvedValueOnce(REFUSED).mockRejectedValueOnce(new Error('fetch failed'));
+  it('never logs the address of a send that succeeds or fails, even when the error quotes it', async () => {
+    const canary = { email: 'Leak.Canary@example.test', userId: 'user-canary' };
+    fake.send
+      .mockResolvedValueOnce({ data: null, error: { error: { code: 'VALIDATION', message: `Refused ${canary.email}` } } })
+      .mockRejectedValueOnce(new Error(`Timed out for ${canary.email}`));
     const { service, logger } = buildService();
 
-    await settle(service.send({ to: A, template }));
+    await settle(service.send({ to: canary, template }));
 
     expect(entries(logger)).toHaveLength(3);
-    expect(JSON.stringify(entries(logger))).not.toContain(A.email);
+    const logged = JSON.stringify([logger.log.info.mock.calls, logger.log.warn.mock.calls, logger.log.error.mock.calls]).toLowerCase();
+    expect(logged).not.toContain('leak.canary');
   });
 
   it.each([
@@ -336,7 +340,8 @@ describe('UseSendMailerService logs', () => {
       ['as given', 'Cannot send to a@example.com today', 'VALIDATION: Cannot send to [email] today'],
       ['in another case', 'Cannot send to A@Example.COM today', 'VALIDATION: Cannot send to [email] today'],
       ['in angle brackets', 'Rejected <a@example.com>', 'VALIDATION: Rejected <[email]>'],
-      ['URL-encoded', 'POST /suppress/a%40example.com failed', 'VALIDATION: POST /suppress/[email] failed'],
+      ['URL-encoded', 'POST /suppress/a%40example.com failed', 'VALIDATION: POST [email] failed'],
+      ['with URL characters before the @', 'Bounced first/last&a=b@example.com', 'VALIDATION: Bounced [email]'],
       ['with an apostrophe', "Bounced o'brien@example.com", 'VALIDATION: Bounced [email]'],
       ['among others', 'a@example.com and other@corp.example.org', 'VALIDATION: [email] and [email]'],
     ])('masks it %s in the log entry', async (_name, message, expected) => {

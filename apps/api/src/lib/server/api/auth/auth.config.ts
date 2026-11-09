@@ -24,7 +24,7 @@ import type { Mailer } from '#lib/server/api/mail/interfaces/mailer.interface';
 import { TwoFactorOtpEmail } from '#lib/server/api/mail/templates/two-factor-otp.template';
 import { type CaptchaConfig, captchaPlugin, createCaptchaHealth } from './auth.captcha';
 import { createHibpHealth } from './auth.hibp-status';
-import { type AuthMailLogger, createAuthMail } from './auth.mail';
+import { type AuthMailLogger, createAuthMail, toMailRecipient } from './auth.mail';
 import { passwordAccountGuard } from './auth.password-account-guard';
 import { createPasswordPolicyHook, hibpScreening } from './auth.password-policy';
 import { ac, roles } from './auth.permissions';
@@ -216,7 +216,7 @@ export function createAuth({
             period: TWO_FACTOR_OTP_PERIOD_MINUTES,
             async sendOTP({ user, otp }) {
               await mailer.send({
-                to: { email: user.email, userId: user.id },
+                to: toMailRecipient(user),
                 template: new TwoFactorOtpEmail(otp, TWO_FACTOR_OTP_PERIOD_MINUTES, getRequestLocale()),
               });
             },

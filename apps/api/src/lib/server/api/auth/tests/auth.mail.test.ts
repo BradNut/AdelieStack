@@ -23,6 +23,7 @@ import { createTestAuth, TEST_ORIGIN } from '../../../../../test/auth-instance';
 
 const { email: EMAIL, password: PASSWORD } = TEST_USER;
 const NEW_PASSWORD = 'Another-pass-7';
+const NEW_EMAIL = 'emperor@example.com';
 
 let request: AuthRequest;
 let sent: SendProps[];
@@ -219,7 +220,7 @@ describe('every email follows the language of the request that caused it', () =>
   it('the email change request and notice', async () => {
     const cookie = await signUp();
 
-    await request('/change-email', { cookie, headers: GERMAN, body: { newEmail: 'emperor@example.com', callbackURL: '/email-verified' } });
+    await request('/change-email', { cookie, headers: GERMAN, body: { newEmail: NEW_EMAIL, callbackURL: '/email-verified' } });
     expectGerman(EmailChangeRequestEmail);
 
     await request(emailedLink(sent.at(-1)).replace(TEST_ORIGIN, '').replace(AUTH_BASE_PATH, ''), { cookie, headers: GERMAN });
@@ -256,8 +257,6 @@ describe('the two-factor code email', () => {
 });
 
 describe('email change', () => {
-  const NEW_EMAIL = 'emperor@example.com';
-
   /** Follows the first link of the last email sent, the way a click in the mail client would. */
   async function followLastLink(cookie: string) {
     const href = emailedLink(sent.at(-1));
@@ -333,7 +332,6 @@ describe('email change', () => {
 });
 
 describe('the user each email is recorded against', () => {
-  const NEW_EMAIL = 'emperor@example.com';
   const expectOnlyEmail = (email: string, userId: string) => {
     expect(sent.map((data) => data.to)).toEqual([{ email, userId }]);
   };
@@ -416,7 +414,6 @@ describe('the user each email is recorded against', () => {
 });
 
 describe('a failed send', () => {
-  const NEW_EMAIL = 'emperor@example.com';
   const mailLog = { error: vi.fn() };
   let failSends: () => void;
 

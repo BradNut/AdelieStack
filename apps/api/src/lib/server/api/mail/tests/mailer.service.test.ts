@@ -106,4 +106,13 @@ describe('DevMailerService send', () => {
     expect(body.Text).toBe('Hello penguin');
     expect(body.To).toEqual([{ Email: 'penguin@example.com', Name: 'penguin@example.com' }]);
   });
+
+  it('addresses every recipient of a list, with nothing but their email', async () => {
+    await new DevMailerService().send({ to: [PENGUIN, { email: 'invitee@example.com', userId: null }], template });
+
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).To).toEqual([
+      { Email: 'penguin@example.com', Name: 'penguin@example.com' },
+      { Email: 'invitee@example.com', Name: 'invitee@example.com' },
+    ]);
+  });
 });
