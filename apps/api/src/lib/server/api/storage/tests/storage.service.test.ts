@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConfigService } from '#lib/server/api/common/configs/config.service';
 import type { EnvsDto } from '#lib/server/api/common/configs/dtos/env.dto';
 import { LoggerService } from '#lib/server/api/common/services/logger.service';
-import { ActiveContentType } from '#lib/server/api/storage/content-type';
+import { ActiveContentType, CONTENT_SNIFF_BYTES } from '#lib/server/api/storage/content-type';
 import { ImagesService } from '#lib/server/api/storage/images.service';
 import { S3StorageClient } from '#lib/server/api/storage/s3-storage.client';
 import { BucketVisibility } from '#lib/server/api/storage/storage.buckets';
@@ -289,6 +289,27 @@ describe('StorageService', () => {
       await createService().upload({ ...IMAGE_UPLOAD, file: fileOf(content, ''), key: IMAGE_KEY, acceptedTypes: [type] });
 
       expect(putObject).toHaveBeenCalledWith(PUBLIC_BUCKET, IMAGE_KEY, Buffer.from(content), type);
+    });
+
+    it('refuses markup whose root lies beyond what is read, even when the caller accepts XML', async () => {
+      const putObject = storing();
+      const padded = `<?xml version="1.0"?><!--${'x'.repeat(CONTENT_SNIFF_BYTES)}-->${SVG}`;
+
+      const error = await failureOf(
+        createService().upload({ ...IMAGE_UPLOAD, file: fileOf(padded, 'application/xml'), acceptedTypes: ['application/xml'] }),
+      );
+
+      expect(error.status).toBe(StatusCodes.UNPROCESSABLE_ENTITY);
+      expect(putObject).not.toHaveBeenCalled();
+    });
+
+    it('keeps plain XML that contains a body element as XML', async () => {
+      const putObject = storing();
+      const xml = '<?xml version="1.0"?><note><body>hi</body></note>';
+
+      await createService().upload({ ...IMAGE_UPLOAD, file: fileOf(xml, ''), key: IMAGE_KEY, acceptedTypes: ['application/xml'] });
+
+      expect(putObject).toHaveBeenCalledWith(PUBLIC_BUCKET, IMAGE_KEY, Buffer.from(xml), 'application/xml');
     });
 
     it('classifies a document embedding SVG as HTML', async () => {
