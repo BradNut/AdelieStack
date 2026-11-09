@@ -5,6 +5,7 @@ import { sentryHandle } from '@sentry/sveltekit';
 import type { Handle, HandleServerError } from '@sveltejs/kit/hooks';
 import { sequence } from '@sveltejs/kit/hooks';
 import { createInitialModeExpression } from 'mode-watcher';
+import { warnIfClientAddressUnconfigured } from '#lib/server/client-address-warning.ts';
 import { loadSessionUser } from '#lib/server/session-user.ts';
 import { honoClient, parseApiResponse } from '#lib/utils/api.ts';
 import type { Api } from '#lib/utils/types.ts';
@@ -22,6 +23,12 @@ Sentry.init({
 /** Marks where app.html expects the pre-paint theme script (it carries SvelteKit's CSP nonce). */
 const MODE_WATCHER_PLACEHOLDER = '/* modewatcher.init */';
 const themeInitScript = createInitialModeExpression();
+
+/** Sub-requests are skipped: `apiClient` adds the forwarding header to them itself, so they say nothing about a proxy. */
+const clientAddressWarning: Handle = ({ event, resolve }) => {
+  if (!event.isSubRequest) warnIfClientAddressUnconfigured(event.request.headers);
+  return resolve(event);
+};
 
 const apiClient: Handle = async ({ event, resolve }) => {
   /* ------------------------------ Register api ------------------------------ */
@@ -47,7 +54,7 @@ const apiClient: Handle = async ({ event, resolve }) => {
   return response;
 };
 
-export const handle: Handle = sequence(sentryHandle(), apiClient, i18n);
+export const handle: Handle = sequence(sentryHandle(), clientAddressWarning, apiClient, i18n);
 
 export const handleError: HandleServerError = ({ kind, error }) => {
   const errorId = crypto.randomUUID();

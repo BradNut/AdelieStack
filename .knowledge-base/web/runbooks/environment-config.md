@@ -23,6 +23,9 @@ cannot say.
   CORS). To pin the origin SvelteKit trusts, set `WEB_ORIGIN`: build-time, passed to
   `paths.origin` in `vite.config.ts`, baked into the build. Set it for plain-HTTP deployments; see
   [Deployment](./deployment.md#request-origin-adapter-node-6).
+- `ADDRESS_HEADER` and `XFF_DEPTH` are read at runtime by adapter-node and tell it where the client address is behind a
+  proxy. Leave them unset without one. See [Deployment](./deployment.md#client-address-behind-a-proxy) for the values per
+  proxy type.
 - `API_PROXY_BASE_URL` is the target for `src/routes/api/[...slug]/+server.ts` and is never
   exposed to the client.
 - `PUBLIC_IMAGE_URI` is required with no cross-environment default. It must be supplied as a
