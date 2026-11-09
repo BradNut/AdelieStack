@@ -69,6 +69,24 @@ Do not reuse `ORIGIN` for this: the API reads `ORIGIN` for CORS and `.env.schema
 
 See [Environment Configuration](./environment-config.md).
 
+## Client Address Behind a Proxy
+
+By default adapter-node takes the client address from the socket, which behind a proxy is the proxy itself. Every client then reaches the API with the same address and shares one rate-limit bucket, so clients can lock each other out. Behind a proxy, set these at runtime:
+
+| Proxy | `ADDRESS_HEADER` | `XFF_DEPTH` |
+|---|---|---|
+| Appends to `X-Forwarded-For` (Coolify/Traefik, nginx `$proxy_add_x_forwarded_for`, most load balancers) | `x-forwarded-for` | How many trusted proxies are in front of the web app: `1` for a single proxy such as Coolify/Traefik, `2` when two proxies each append, such as a CDN in front of nginx |
+| Sets `X-Real-IP` | `x-real-ip` | Not read; leave unset |
+| Sets `CF-Connecting-IP` | `cf-connecting-ip` | Not read; leave unset |
+
+**Set these only behind a proxy that controls the header**, since a client could otherwise supply it and choose its own address. For `x-real-ip` and `cf-connecting-ip`, the proxy must overwrite any value the client sent, and the web app must be reachable only through that proxy. For `x-forwarded-for`, `XFF_DEPTH` counts from the right, so addresses a client prepends are ignored as long as every counted hop is yours.
+
+The web tier sends the API this one address in `X-Forwarded-For`, replacing whatever arrived, so the proxy does not need changing for traffic through the web app. The API must have `TRUST_PROXY=true` to read it (see the [API environment runbook](../../api/runbooks/environment-config.md)).
+
+Requests that lack the configured header fail with a 500, because adapter-node throws when asked for the address. So does an `XFF_DEPTH` larger than the number of addresses in the header. That includes a health check sent straight to the container: send it through the proxy, or have it set the header.
+
+**Symptom of it being missing:** clients get 429s they did not earn, and the web logs say `ADDRESS_HEADER is unset`, once per process, when a request carries `X-Forwarded-For`, `X-Real-IP`, `CF-Connecting-IP` or `Forwarded`. The warning goes to the logs only; no endpoint reports it.
+
 ## Post-Deploy Check
 
 ```bash
