@@ -26,8 +26,22 @@ export class StorageService {
       const bucket = this.bucketFor(visibility);
       if (!(await client.bucketExists(bucket))) {
         console.info(`creating storage bucket ${bucket}...`);
-        await client.createBucket(bucket);
+        await this.createBucketUnlessRaced(bucket);
       }
+    }
+  }
+
+  /**
+   * Another instance booting at the same moment can create the bucket between the check and the create.
+   * Providers word that failure differently, so ask whether the bucket exists now instead of matching error names.
+   */
+  private async createBucketUnlessRaced(bucket: string) {
+    const { client } = this.storage;
+    try {
+      await client.createBucket(bucket);
+    } catch (createError) {
+      const existsNow = await client.bucketExists(bucket).catch(() => false);
+      if (!existsNow) throw createError;
     }
   }
 

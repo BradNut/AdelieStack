@@ -17,7 +17,9 @@ Push to `main` → Coolify auto-builds → replaces container on success.
   `pnpm install --frozen-lockfile --filter @adelie/api...`
 - Build: `pnpm --filter @adelie/api run paraglide:compile` (compiles Paraglide message modules;
   there is no other build step — the API runs TypeScript directly via `tsx`)
-- Start: `pnpm --filter @adelie/api start` → `tsx src/server.ts`
+- Start: `cd apps/api && exec ./node_modules/.bin/tsx src/server.ts`. Do not start it through
+  `pnpm`: pnpm does not pass SIGTERM on, so the graceful shutdown never runs. If the platform's
+  Start Command setting (Coolify, for example) overrides `nixpacks.toml`, it needs the same command.
 
 Migrations do **not** run automatically on Nixpacks deploys — see
 [Database Migrations](./database-migrations.md#production-migrations).
@@ -49,6 +51,27 @@ assume `DB_MIGRATING=true` alone triggers migration inside this image; the schem
 no code path in this image currently reads them to run `db:migrate`/`db:seed` automatically.
 
 **Never hand-edit `drizzle/*.sql` or `drizzle/meta/**`. Use `pnpm db:generate` then `pnpm db:migrate`.**
+
+## Startup and Shutdown
+
+`src/server.ts` runs startup, then starts listening, so a failed startup means the server never serves.
+
+Startup fails the boot when:
+
+- Any storage request errors. Missing buckets are created; a bucket another instance created at the
+  same moment is fine.
+- `JOBS_ENABLED` is true and Redis has not answered within 10s.
+
+On SIGINT or SIGTERM the API logs `Shutting down...`, closes HTTP, closes jobs, flushes telemetry and
+exits. The sequence has 8s overall. A step that errors is logged and later steps still run. The exit
+code is 0 when every step succeeded and 1 if any step failed or the limit was reached; at the limit the
+log names what was unfinished.
+
+## Audit Log Retention
+
+With `JOBS_ENABLED` true (the default), a job runs weekly (Sunday 00:00) and **permanently deletes
+audit rows older than 90 days**. Each run logs how many rows it deleted. Export audit rows first if you
+must keep them longer. An interrupted run is safe: the delete either completes or BullMQ reruns the job.
 
 ## Required Env Before Deploy
 

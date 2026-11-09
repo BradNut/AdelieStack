@@ -1,17 +1,17 @@
 import 'varlock/auto-load';
-import './instrument.mjs';
+import { flushTelemetry } from './instrument.mjs';
 import 'dotenv/config';
 import { serve } from '@hono/node-server';
-import { app } from './lib/server/api';
+import { startServer } from '#lib/server/api/index';
 
 const port = Number(process.env.PORT ?? 3001);
 const hostname = process.env.HOST ?? '0.0.0.0';
 
-const appInstance = await app;
+const { app, handleShutdownSignals } = await startServer();
 
-serve(
+const server = serve(
   {
-    fetch: appInstance.fetch,
+    fetch: app.fetch,
     port,
     hostname,
   },
@@ -19,3 +19,5 @@ serve(
     console.log(`API server listening on http://${hostname}:${info.port}`);
   },
 );
+
+handleShutdownSignals({ server, flushTelemetry });
