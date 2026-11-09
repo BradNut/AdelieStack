@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import { PASSWORD_COMPROMISED, PASSWORD_POLICY_RULES, PASSWORD_POLICY_VIOLATION } from '@adelie/shared';
 import { hashPassword } from 'better-auth/crypto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -6,32 +5,14 @@ import type { Auth } from '#lib/server/api/auth/auth.config';
 import { createHibpHealth } from '#lib/server/api/auth/auth.hibp-status';
 import { type AuthRequest, cookiesFrom, signUpWithEmail, TEST_USER } from '../../../../../test/auth-http';
 import { createTestAuth, TEST_ORIGIN } from '../../../../../test/auth-instance';
+import { HIBP_HOST, mockHibp, sha1 } from '../../../../../test/mocks/hibp.mock';
 
 const COMPLIANT_PASSWORD = 'correct horse battery';
 const OTHER_PASSWORD = 'another long passphrase';
 const PWNED_PASSWORD = 'password12345';
-const HIBP_HOST = 'https://api.pwnedpasswords.com/range/';
 const WEAK = ' short';
 const WEAK_RULES = [PASSWORD_POLICY_RULES.MIN_LENGTH, PASSWORD_POLICY_RULES.LEADING_OR_TRAILING_SPACE];
 
-const sha1 = (value: string) => createHash('sha1').update(value).digest('hex').toUpperCase();
-
-/** Mocks the HIBP range API (no real network): `pwned` passwords are reported with a count, everything else is clean. */
-function mockHibp(pwned: string[], failWith?: number) {
-  const fetchMock = vi.fn(async (input: string | URL | Request) => {
-    const url = String(input instanceof Request ? input.url : input);
-    if (!url.startsWith(HIBP_HOST)) throw new Error(`unexpected network call: ${url}`);
-    if (failWith) return new Response('nope', { status: failWith });
-    const prefix = url.slice(HIBP_HOST.length);
-    const lines = pwned
-      .map(sha1)
-      .filter((hash) => hash.startsWith(prefix))
-      .map((hash) => `${hash.slice(5)}:42`);
-    return new Response(['0000000000000000000000000000000000A:0', ...lines].join('\r\n'), { status: 200 });
-  });
-  vi.stubGlobal('fetch', fetchMock);
-  return fetchMock;
-}
 const { email: EMAIL } = TEST_USER;
 
 let auth: Auth;

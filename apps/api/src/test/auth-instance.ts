@@ -20,12 +20,21 @@ export function stubGoogleUserInfo(email: string) {
 }
 
 /**
+ * A fresh in-memory auth database: `database` is the adapter to hand to Better Auth, `db` the rows it writes. For code
+ * under test that builds its own auth instance; everything else should use {@link createTestAuth}.
+ */
+export function createTestDatabase() {
+  const db: Record<string, Row[]> = { user: [], session: [], account: [], verification: [], twoFactor: [], passkey: [] };
+  return { db, database: memoryAdapter(db) };
+}
+
+/**
  * Builds a Better Auth instance over a fresh in-memory database with test defaults: sign-up open, HIBP off
  * (no network), a fresh mailer spy. Pass only the options a test changes; they are spread over the defaults.
  * The returned `mailer` is the default spy, so it records nothing when a test passes its own `mailer`.
  */
 export function createTestAuth(overrides: Partial<Omit<CreateAuthOptions, 'database'>> = {}) {
-  const db: Record<string, Row[]> = { user: [], session: [], account: [], verification: [], twoFactor: [], passkey: [] };
+  const { db, database } = createTestDatabase();
   const mailer = createMailerServiceMock();
   const auth = createAuth({
     secret: 'test-secret-that-is-at-least-32-characters',
@@ -37,7 +46,7 @@ export function createTestAuth(overrides: Partial<Omit<CreateAuthOptions, 'datab
     signUpEnabled: true,
     hibpStatus: createHibpHealth({ enabled: false }),
     ...overrides,
-    database: memoryAdapter(db),
+    database,
   });
 
   // The request context the real mount runs in, so a test sees the locale an email is written in.
