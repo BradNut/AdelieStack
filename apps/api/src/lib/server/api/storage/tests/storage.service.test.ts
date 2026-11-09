@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConfigService } from '#lib/server/api/common/configs/config.service';
 import type { EnvsDto } from '#lib/server/api/common/configs/dtos/env.dto';
 import { LoggerService } from '#lib/server/api/common/services/logger.service';
+import { ActiveContentType } from '#lib/server/api/storage/content-type';
 import { ImagesService } from '#lib/server/api/storage/images.service';
 import { S3StorageClient } from '#lib/server/api/storage/s3-storage.client';
 import { BucketVisibility } from '#lib/server/api/storage/storage.buckets';
@@ -315,8 +316,8 @@ describe('StorageService', () => {
 
     it('passes declared image limits on to image processing', async () => {
       storing();
-      const resize = vi.fn(async () => UNUSED_RESIZE_RESULT);
       const original = await createPng(4, 4);
+      const resize = vi.fn(async () => original);
       const imageLimits = { maxInputPixels: 100, maxOutputDimension: 50 };
 
       await createService({ images: { resize } }).upload({ ...IMAGE_UPLOAD, file: pngFile(original), resizeOptions: { width: 2 }, imageLimits });
@@ -345,13 +346,42 @@ describe('StorageService', () => {
     it('resizes through ImagesService and stores what it returns', async () => {
       const putObject = vi.spyOn(S3StorageClient.prototype, 'putObject').mockResolvedValue();
       const original = await createPng(40, 20);
-      const resizedBytes = Buffer.from('resized-by-images-service');
+      const resizedBytes = await createJpeg(10, 5);
       const resize = vi.fn(async () => resizedBytes);
 
       await createService({ images: { resize } }).upload({ ...IMAGE_UPLOAD, file: pngFile(original), key: IMAGE_KEY, resizeOptions: { width: 10 } });
 
       expect(resize).toHaveBeenCalledWith(original, { width: 10 }, undefined);
-      expect(putObject).toHaveBeenCalledWith(PUBLIC_BUCKET, IMAGE_KEY, resizedBytes, PNG_CONTENT_TYPE);
+      expect(putObject).toHaveBeenCalledWith(PUBLIC_BUCKET, IMAGE_KEY, resizedBytes, 'image/jpeg');
+    });
+
+    it('stores a resized SVG as the PNG the image library made of it', async () => {
+      const putObject = vi.spyOn(S3StorageClient.prototype, 'putObject').mockResolvedValue();
+      const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="20"><rect width="40" height="20"/></svg>';
+
+      await createService().upload({
+        ...IMAGE_UPLOAD,
+        file: new File([svg], 'logo.svg', { type: ActiveContentType.SVG }),
+        acceptedTypes: [ActiveContentType.SVG],
+        key: IMAGE_KEY,
+        resizeOptions: { width: 10 },
+      });
+
+      const stored = putObject.mock.calls[0]?.[2] as Buffer;
+      expect((await sharp(stored).metadata()).format).toBe('png');
+      expect(putObject).toHaveBeenCalledWith(PUBLIC_BUCKET, IMAGE_KEY, stored, PNG_CONTENT_TYPE);
+    });
+
+    it('reports a server error and stores nothing when the resized bytes are of no known type', async () => {
+      const putObject = vi.spyOn(S3StorageClient.prototype, 'putObject').mockResolvedValue();
+      const resize = vi.fn(async () => Buffer.from('not any known format'));
+
+      const error = await failureOf(
+        createService({ images: { resize } }).upload({ ...IMAGE_UPLOAD, file: pngFile(await createPng(40, 20)), resizeOptions: { width: 10 } }),
+      );
+
+      expect(error.status).toBe(StatusCodes.INTERNAL_SERVER_ERROR);
+      expect(putObject).not.toHaveBeenCalled();
     });
 
     it('stores an image with the requested dimensions', async () => {

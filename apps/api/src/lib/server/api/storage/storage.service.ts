@@ -4,6 +4,7 @@ import { HTTPException } from 'hono/http-exception';
 import { ConfigService } from '#lib/server/api/common/configs/config.service';
 import { m } from '#lib/server/api/common/i18n/index';
 import { publicId } from '#lib/server/api/common/utils/crypto';
+import { InternalError } from '#lib/server/api/common/utils/exceptions';
 import { CONTENT_SNIFF_BYTES, detectContentType } from './content-type';
 import { ImagesService } from './images.service';
 import { S3StorageClientProvider } from './s3-storage.client';
@@ -49,12 +50,13 @@ export class StorageService {
   }
 
   async upload({ file, maxSizeBytes, acceptedTypes, resizeOptions, imageLimits, key, visibility }: Upload) {
-    const contentType = await this.admit(file, maxSizeBytes, acceptedTypes);
+    let contentType = await this.admit(file, maxSizeBytes, acceptedTypes);
 
     let buffer: Buffer = Buffer.from(await file.arrayBuffer());
     // Only a width or height asks for a resize; without one, sharp would just re-encode the file.
     if (resizeOptions?.width != null || resizeOptions?.height != null) {
       buffer = await this.images.resize(buffer, resizeOptions, imageLimits);
+      contentType = await this.detectResizedType(buffer);
     }
 
     // Scan the final bytes before they ever reach storage; infected uploads are rejected.
@@ -89,6 +91,13 @@ export class StorageService {
     if (!acceptedTypes.includes(contentType)) {
       throw new HTTPException(StatusCodes.UNSUPPORTED_MEDIA_TYPE, { message: m.storage_upload_type_not_accepted() });
     }
+    return contentType;
+  }
+
+  /** A resize can change the format (sharp turns an SVG into a PNG), so what gets stored is identified afresh. */
+  private async detectResizedType(resized: Buffer): Promise<string> {
+    const contentType = await detectContentType(resized.subarray(0, CONTENT_SNIFF_BYTES));
+    if (!contentType) throw InternalError(m.storage_image_processing_failed());
     return contentType;
   }
 
