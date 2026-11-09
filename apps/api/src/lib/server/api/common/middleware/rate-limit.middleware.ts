@@ -3,7 +3,7 @@ import type { Context } from 'hono';
 import { rateLimiter } from 'hono-rate-limiter';
 import { ConfigService } from '#lib/server/api/common/configs/config.service';
 import type { HonoEnv } from '#lib/server/api/common/utils/hono';
-import { createLazyRedisStore } from '#lib/server/api/common/utils/hono-rate-limiter-redis-client';
+import { createLazyRedisStore } from '#lib/server/api/common/utils/hono-rate-limiter-redis';
 import { getClientIp } from '#lib/server/api/common/utils/ip';
 import { RedisService } from '#lib/server/api/databases/redis/redis.service';
 

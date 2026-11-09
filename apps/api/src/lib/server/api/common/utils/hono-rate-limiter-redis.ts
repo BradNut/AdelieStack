@@ -1,4 +1,4 @@
-import type { Env, Input } from 'hono';
+import type { Env } from 'hono';
 import { type HonoConfigType, type RedisClient, RedisStore } from 'hono-rate-limiter';
 import type Redis from 'ioredis';
 
@@ -37,14 +37,14 @@ export function adaptIoredisForHonoRateLimiter(getRedis: () => Redis): RedisClie
  * A store whose constructor could not load its scripts is replaced on the next use: `get` never reloads
  * a script, so it would otherwise keep rejecting after Redis comes back.
  */
-export function createLazyRedisStore<E extends Env = Env, P extends string = string, I extends Input = Input>(getRedis: () => Redis) {
-  let options: HonoConfigType<E, P, I> | undefined;
-  let current: { store: RedisStore<E, P, I>; loadFailed: boolean } | undefined;
+export function createLazyRedisStore<E extends Env = Env>(getRedis: () => Redis) {
+  let options: HonoConfigType<E> | undefined;
+  let current: { store: RedisStore<E>; loadFailed: boolean } | undefined;
 
-  const store = () => {
+  const resolveStore = () => {
     if (current && !current.loadFailed) return current.store;
 
-    const built = { store: new RedisStore<E, P, I>({ client: adaptIoredisForHonoRateLimiter(getRedis) }), loadFailed: false };
+    const built = { store: new RedisStore<E>({ client: adaptIoredisForHonoRateLimiter(getRedis) }), loadFailed: false };
     if (options) built.store.init(options);
     Promise.all([built.store.incrementScriptSha, built.store.getScriptSha, built.store.decrementScriptSha]).catch(() => {
       built.loadFailed = true;
@@ -54,12 +54,12 @@ export function createLazyRedisStore<E extends Env = Env, P extends string = str
   };
 
   return {
-    init(config: HonoConfigType<E, P, I>) {
+    init(config: HonoConfigType<E>) {
       options = config;
     },
-    get: (key: string) => store().get(key),
-    increment: (key: string) => store().increment(key),
-    decrement: (key: string) => store().decrement(key),
-    resetKey: (key: string) => store().resetKey(key),
+    get: (key: string) => resolveStore().get(key),
+    increment: (key: string) => resolveStore().increment(key),
+    decrement: (key: string) => resolveStore().decrement(key),
+    resetKey: (key: string) => resolveStore().resetKey(key),
   };
 }
