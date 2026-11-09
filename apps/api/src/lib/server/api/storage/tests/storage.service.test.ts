@@ -2,7 +2,7 @@ import { StatusCodes } from '@adelie/shared';
 import { Container } from '@needle-di/core';
 import NodeClam from 'clamscan';
 import type { HTTPException } from 'hono/http-exception';
-import sharp from 'sharp';
+import sharp, { type ResizeOptions } from 'sharp';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConfigService } from '#lib/server/api/common/configs/config.service';
 import type { EnvsDto } from '#lib/server/api/common/configs/dtos/env.dto';
@@ -34,6 +34,7 @@ const PRIVATE_BUCKET = 'adelie-private-development';
 
 const IMAGE_KEY = 'img';
 const PNG_CONTENT_TYPE = 'image/png';
+const UNUSED_RESIZE_RESULT = Buffer.from('should-not-be-stored');
 
 type ServiceBindings = {
   scanner?: Partial<VirusScannerService>;
@@ -196,6 +197,87 @@ describe('StorageService', () => {
       await createService().upload({ file: pngFile(original), key: IMAGE_KEY });
 
       expect(putObject).toHaveBeenCalledWith(PUBLIC_BUCKET, IMAGE_KEY, original, PNG_CONTENT_TYPE);
+    });
+
+    it('stores an upload with empty resize options byte-identical to the file received', async () => {
+      const putObject = vi.spyOn(S3StorageClient.prototype, 'putObject').mockResolvedValue();
+      // Uncompressed on purpose: sharp re-encodes a default PNG to identical bytes, which would hide a stray trip through it.
+      const original = await createPng(40, 20, { compressionLevel: 0 });
+
+      await createService().upload({ file: pngFile(original), key: IMAGE_KEY, resizeOptions: {} });
+
+      expect(putObject).toHaveBeenCalledWith(PUBLIC_BUCKET, IMAGE_KEY, original, PNG_CONTENT_TYPE);
+    });
+
+    it('does not send an upload with empty resize options through image processing', async () => {
+      vi.spyOn(S3StorageClient.prototype, 'putObject').mockResolvedValue();
+      const resize = vi.fn(async () => UNUSED_RESIZE_RESULT);
+
+      await createService({ images: { resize } }).upload({ file: pngFile(await createPng(40, 20)), key: IMAGE_KEY, resizeOptions: {} });
+
+      expect(resize).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['only undefined values', { width: undefined, height: undefined }],
+      ['only a fit', { fit: 'cover' }],
+      ['modifiers and no dimensions', { fit: 'contain', background: '#ffffff', withoutEnlargement: true }],
+    ] satisfies [string, ResizeOptions][])('leaves an upload unchanged when the resize options have %s', async (_label, resizeOptions) => {
+      const putObject = vi.spyOn(S3StorageClient.prototype, 'putObject').mockResolvedValue();
+      const original = await createPng(40, 20, { compressionLevel: 0 });
+      const resize = vi.fn(async () => UNUSED_RESIZE_RESULT);
+
+      await createService({ images: { resize } }).upload({ file: pngFile(original), key: IMAGE_KEY, resizeOptions });
+
+      expect(resize).not.toHaveBeenCalled();
+      expect(putObject).toHaveBeenCalledWith(PUBLIC_BUCKET, IMAGE_KEY, original, PNG_CONTENT_TYPE);
+    });
+
+    it('still resizes when only a height is requested', async () => {
+      const putObject = vi.spyOn(S3StorageClient.prototype, 'putObject').mockResolvedValue();
+
+      await createService().upload({ file: pngFile(await createPng(40, 20)), key: IMAGE_KEY, resizeOptions: { height: 10 } });
+
+      const stored = putObject.mock.calls[0]?.[2] as Buffer;
+      await expect(dimensionsOf(stored)).resolves.toEqual({ width: 20, height: 10 });
+    });
+
+    it('still resizes when only some resize options are set', async () => {
+      const putObject = vi.spyOn(S3StorageClient.prototype, 'putObject').mockResolvedValue();
+
+      await createService().upload({
+        file: pngFile(await createPng(40, 20)),
+        key: IMAGE_KEY,
+        resizeOptions: { width: 10, height: undefined },
+      });
+
+      const stored = putObject.mock.calls[0]?.[2] as Buffer;
+      await expect(dimensionsOf(stored)).resolves.toEqual({ width: 10, height: 5 });
+    });
+
+    it('scans an upload with empty resize options before anything reaches storage', async () => {
+      const putObject = vi.spyOn(S3StorageClient.prototype, 'putObject').mockResolvedValue();
+      vi.spyOn(S3StorageClient.prototype, 'setObjectTagging').mockResolvedValue();
+      const scanner = scanStub(async () => ({ result: ScanResult.CLEAN }));
+      const scanBuffer = vi.mocked(scanner.scanBuffer as VirusScannerService['scanBuffer']);
+      const original = await createPng(40, 20, { compressionLevel: 0 });
+
+      await createService({ scanner }).upload({ file: pngFile(original), key: IMAGE_KEY, resizeOptions: {} });
+
+      expect(scanBuffer).toHaveBeenCalledWith(original);
+      expect(scanBuffer.mock.invocationCallOrder[0]).toBeLessThan(putObject.mock.invocationCallOrder[0] as number);
+    });
+
+    it('never persists an upload with empty resize options that scans as infected', async () => {
+      const putObject = vi.spyOn(S3StorageClient.prototype, 'putObject').mockResolvedValue();
+      const scanner = scanStub(async () => ({ result: ScanResult.INFECTED, viruses: ['Eicar-Test-Signature'] }));
+
+      const error = (await createService({ scanner })
+        .upload({ file: pngFile(await createPng(40, 20)), resizeOptions: {} })
+        .catch((e) => e)) as HTTPException;
+
+      expect(error.status).toBe(StatusCodes.UNPROCESSABLE_ENTITY);
+      expect(putObject).not.toHaveBeenCalled();
     });
 
     it('stores nothing when the requested width is out of range', async () => {
