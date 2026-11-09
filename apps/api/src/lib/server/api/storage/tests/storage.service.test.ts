@@ -34,6 +34,7 @@ const PRIVATE_BUCKET = 'adelie-private-development';
 
 const IMAGE_KEY = 'img';
 const PNG_CONTENT_TYPE = 'image/png';
+const UNUSED_RESIZE_RESULT = Buffer.from('should-not-be-stored');
 
 type ServiceBindings = {
   scanner?: Partial<VirusScannerService>;
@@ -210,7 +211,7 @@ describe('StorageService', () => {
 
     it('does not send an upload with empty resize options through image processing', async () => {
       vi.spyOn(S3StorageClient.prototype, 'putObject').mockResolvedValue();
-      const resize = vi.fn(async () => Buffer.from('should-not-be-stored'));
+      const resize = vi.fn(async () => UNUSED_RESIZE_RESULT);
 
       await createService({ images: { resize } }).upload({ file: pngFile(await createPng(40, 20)), key: IMAGE_KEY, resizeOptions: {} });
 
@@ -220,7 +221,7 @@ describe('StorageService', () => {
     it('treats resize options with only undefined values as empty', async () => {
       const putObject = vi.spyOn(S3StorageClient.prototype, 'putObject').mockResolvedValue();
       const original = await createPng(40, 20, { compressionLevel: 0 });
-      const resize = vi.fn(async () => Buffer.from('should-not-be-stored'));
+      const resize = vi.fn(async () => UNUSED_RESIZE_RESULT);
 
       await createService({ images: { resize } }).upload({
         file: pngFile(original),
