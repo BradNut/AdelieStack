@@ -6,6 +6,7 @@ import { type AuthRequest, cookiesFrom, signUpWithEmail, signUpWithTotp, TEST_US
 import { createTestAuth } from '../../../../../test/auth-instance';
 
 const { email: EMAIL, password: PASSWORD } = TEST_USER;
+const ACCOUNT_NOT_FOUND_CODE = 'ACCOUNT_NOT_FOUND';
 
 let auth: Auth;
 let db: Record<string, Record<string, unknown>[]>;
@@ -133,7 +134,7 @@ describe('other unlinks for a two-factor user', () => {
     const res = await unlink(user.cookie, 'unknown-account-id');
 
     expect(res.status).toBe(400);
-    expect(((await res.json()) as { code: string }).code).toBe('ACCOUNT_NOT_FOUND');
+    expect(((await res.json()) as { code: string }).code).toBe(ACCOUNT_NOT_FOUND_CODE);
     expect(await providerIdsOf(user.id)).toEqual([CREDENTIAL_PROVIDER_ID, SocialProvider.GITHUB]);
   });
 
@@ -153,7 +154,7 @@ describe("unlinking another user's Sign-in Account", () => {
    * The signed-in user holds two Sign-in Accounts, because Better Auth refuses a user with only one before it looks up
    * the account id. GitHub's mocked profile is fixed to `TEST_USER`, so the other user's GitHub account is seeded.
    */
-  async function signedInUserAndOtherUserId() {
+  async function twoFactorCookieAndOtherGithubUserId() {
     const signedIn = await userWithGithub({ twoFactor: true });
     const { cookie } = await signUpWithEmail(request, { ...TEST_USER, email: 'other-user@example.com' });
     const otherUserId = await signedInUserId(cookie);
@@ -165,12 +166,12 @@ describe("unlinking another user's Sign-in Account", () => {
     ['Password Account', CREDENTIAL_PROVIDER_ID],
     ['social Sign-in Account', SocialProvider.GITHUB],
   ])("answers Better Auth's own ACCOUNT_NOT_FOUND when a user with a Second Factor targets another user's %s", async (_, providerId) => {
-    const { cookie, otherUserId } = await signedInUserAndOtherUserId();
+    const { cookie, otherUserId } = await twoFactorCookieAndOtherGithubUserId();
 
     const res = await unlink(cookie, await accountIdOf(otherUserId, providerId));
 
     expect(res.status).toBe(400);
-    expect(((await res.json()) as { code: string }).code).toBe('ACCOUNT_NOT_FOUND');
+    expect(((await res.json()) as { code: string }).code).toBe(ACCOUNT_NOT_FOUND_CODE);
     expect(await providerIdsOf(otherUserId)).toEqual([CREDENTIAL_PROVIDER_ID, SocialProvider.GITHUB]);
   });
 });
