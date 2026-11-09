@@ -2,7 +2,6 @@ import { StatusCodes } from '@adelie/shared';
 import { Container } from '@needle-di/core';
 import { Hono } from 'hono';
 import { contextStorage } from 'hono/context-storage';
-import type { HTTPException } from 'hono/http-exception';
 import sharp, { type ResizeOptions } from 'sharp';
 import { onError } from 'stoker/middlewares';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -11,7 +10,7 @@ import { LoggerService } from '#lib/server/api/common/services/logger.service';
 import type { HonoEnv } from '#lib/server/api/common/utils/hono';
 import { ImagesService } from '#lib/server/api/storage/images.service';
 import { createLoggerServiceMock } from '../../../../../test/mocks/logger.mock';
-import { createPng } from './storage-test.helpers';
+import { createJpeg, createPng, failureOf, IMAGE_LIBRARY_BROKEN } from './storage-test.helpers';
 
 const createService = (logger = createLoggerServiceMock()) => {
   const container = new Container();
@@ -19,14 +18,7 @@ const createService = (logger = createLoggerServiceMock()) => {
   return container.get(ImagesService);
 };
 
-const createJpeg = (width: number, height: number) =>
-  sharp({ create: { width, height, channels: 3, background: { r: 200, g: 40, b: 40 } } })
-    .jpeg()
-    .toBuffer();
-
 const firstHalf = (bytes: Buffer) => bytes.subarray(0, Math.floor(bytes.length / 2));
-
-const failureOf = (promise: Promise<unknown>) => promise.catch((error) => error) as Promise<HTTPException>;
 
 /** Resizes inside a request sent with `Accept-Language: locale` and returns the error message the client receives. */
 const localisedFailure = async (locale: string, bytes: Buffer, options: ResizeOptions) => {
@@ -128,8 +120,8 @@ describe('ImagesService', () => {
     describe("when the failure is not the client's fault", () => {
       // Observed from sharp 0.35 under a memory cap; the same process still resized a small image straight after.
       const OUT_OF_MEMORY = 'vips_tracked: out of memory -- size == 1144MB';
+      // libjpeg's wording for the same failure, as sharp reports it.
       const JPEG_OUT_OF_MEMORY = 'VipsJpeg: Insufficient memory (case 4)';
-      const LIBRARY_BROKEN = 'vips: unable to initialise thread pool';
 
       const failToBuffer = (message: string) => vi.spyOn(sharp.prototype, 'toBuffer').mockRejectedValue(new Error(message));
 
@@ -139,7 +131,7 @@ describe('ImagesService', () => {
 
       it('reports a server error when the image library cannot process even a known-good image', async () => {
         const png = await createPng(40, 20);
-        failToBuffer(LIBRARY_BROKEN);
+        failToBuffer(IMAGE_LIBRARY_BROKEN);
 
         const error = await failureOf(createService().resize(png, { width: 10 }));
 
@@ -163,7 +155,7 @@ describe('ImagesService', () => {
         ['es', 'No se pudo procesar la imagen. Inténtalo de nuevo más tarde.'],
       ])('reports a server error in the language of the request (%s)', async (locale, message) => {
         const png = await createPng(40, 20);
-        failToBuffer(LIBRARY_BROKEN);
+        failToBuffer(IMAGE_LIBRARY_BROKEN);
 
         await expect(localisedFailure(locale, png, { width: 10 })).resolves.toBe(message);
       });
@@ -171,13 +163,13 @@ describe('ImagesService', () => {
       it('keeps the image library error out of the message and in the log', async () => {
         const png = await createPng(40, 20);
         const logger = createLoggerServiceMock();
-        failToBuffer(LIBRARY_BROKEN);
+        failToBuffer(IMAGE_LIBRARY_BROKEN);
 
         const error = await failureOf(createService(logger).resize(png, { width: 10 }));
 
         expect(error.message).not.toMatch(/vips|thread pool/i);
         expect(logger.log.error).toHaveBeenCalledWith(
-          expect.objectContaining({ err: expect.objectContaining({ message: LIBRARY_BROKEN }) }),
+          expect.objectContaining({ err: expect.objectContaining({ message: IMAGE_LIBRARY_BROKEN }) }),
           expect.any(String),
         );
       });

@@ -6,6 +6,7 @@ import sharp, { type ResizeOptions } from 'sharp';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConfigService } from '#lib/server/api/common/configs/config.service';
 import type { EnvsDto } from '#lib/server/api/common/configs/dtos/env.dto';
+import { LoggerService } from '#lib/server/api/common/services/logger.service';
 import { ImagesService } from '#lib/server/api/storage/images.service';
 import { S3StorageClient } from '#lib/server/api/storage/s3-storage.client';
 import { BucketVisibility } from '#lib/server/api/storage/storage.buckets';
@@ -13,7 +14,8 @@ import { StorageService } from '#lib/server/api/storage/storage.service';
 import { ScanStatus, ScanTag } from '#lib/server/api/storage/storage.types';
 import { type ScanResponse, ScanResult, VirusScannerService } from '#lib/server/api/storage/virus-scanner.service';
 import { createConfigServiceMock } from '../../../../../test/mocks/config.mock';
-import { createPng } from './storage-test.helpers';
+import { createLoggerServiceMock } from '../../../../../test/mocks/logger.mock';
+import { createPng, failureOf, IMAGE_LIBRARY_BROKEN } from './storage-test.helpers';
 
 const envs: Partial<EnvsDto> = {
   ANTIVIRUS_ENABLED: false,
@@ -45,6 +47,7 @@ type ServiceBindings = {
 const createService = ({ scanner, images }: ServiceBindings = {}) => {
   const container = new Container();
   container.bind({ provide: ConfigService, useValue: createConfigServiceMock(envs) as unknown as ConfigService });
+  container.bind({ provide: LoggerService, useValue: createLoggerServiceMock() as unknown as LoggerService });
   if (scanner) container.bind({ provide: VirusScannerService, useValue: scanner as VirusScannerService });
   if (images) container.bind({ provide: ImagesService, useValue: images as ImagesService });
   return container.get(StorageService);
@@ -284,8 +287,6 @@ describe('StorageService', () => {
       /** Everything sharp was seen to put in its own messages, plus the library's own names. */
       const IMAGE_LIBRARY_INTERNALS = /sharp|vips|libpng|expected|input buffer|corrupt header|unsupported image format|positive integer/i;
 
-      const rejectionOf = (promise: Promise<unknown>) => promise.catch((error) => error) as Promise<HTTPException>;
-
       it.each([
         ['bytes that are not an image', async () => new File(['not an image'], 'fake.png', { type: PNG_CONTENT_TYPE })],
         ['an empty file', async () => new File([], 'empty.png', { type: PNG_CONTENT_TYPE })],
@@ -293,7 +294,7 @@ describe('StorageService', () => {
       ])('refuses %s with a clear 422 and stores nothing', async (_label, makeFile) => {
         const putObject = vi.spyOn(S3StorageClient.prototype, 'putObject').mockResolvedValue();
 
-        const error = await rejectionOf(createService().upload({ file: await makeFile(), resizeOptions: { width: 10 } }));
+        const error = await failureOf(createService().upload({ file: await makeFile(), resizeOptions: { width: 10 } }));
 
         expect(error.status).toBe(StatusCodes.UNPROCESSABLE_ENTITY);
         expect(error.message).toMatch(/not a valid image/i);
@@ -304,7 +305,7 @@ describe('StorageService', () => {
       it('never reaches the virus scanner with a rejected upload', async () => {
         const scanner = scanStub(async () => ({ result: ScanResult.CLEAN }));
 
-        await rejectionOf(
+        await failureOf(
           createService({ scanner }).upload({ file: new File(['nope'], 'fake.png', { type: PNG_CONTENT_TYPE }), resizeOptions: { width: 10 } }),
         );
 
@@ -318,7 +319,7 @@ describe('StorageService', () => {
       ] satisfies [string, ResizeOptions][])('refuses %s as a client error and stores nothing', async (_label, resizeOptions) => {
         const putObject = vi.spyOn(S3StorageClient.prototype, 'putObject').mockResolvedValue();
 
-        const error = await rejectionOf(createService().upload({ file: pngFile(await createPng(40, 20)), resizeOptions }));
+        const error = await failureOf(createService().upload({ file: pngFile(await createPng(40, 20)), resizeOptions }));
 
         expect(error.status).toBe(StatusCodes.UNPROCESSABLE_ENTITY);
         expect(error.message).not.toMatch(IMAGE_LIBRARY_INTERNALS);
@@ -328,9 +329,9 @@ describe('StorageService', () => {
       it('reports a failure of the image library as a server error, stores nothing and exposes no internals', async () => {
         const putObject = vi.spyOn(S3StorageClient.prototype, 'putObject').mockResolvedValue();
         const file = pngFile(await createPng(40, 20));
-        vi.spyOn(sharp.prototype, 'toBuffer').mockRejectedValue(new Error('vips: unable to initialise thread pool'));
+        vi.spyOn(sharp.prototype, 'toBuffer').mockRejectedValue(new Error(IMAGE_LIBRARY_BROKEN));
 
-        const error = await rejectionOf(createService().upload({ file, resizeOptions: { width: 10 } }));
+        const error = await failureOf(createService().upload({ file, resizeOptions: { width: 10 } }));
 
         expect(error.status).toBe(StatusCodes.INTERNAL_SERVER_ERROR);
         expect(error.message).not.toMatch(IMAGE_LIBRARY_INTERNALS);
