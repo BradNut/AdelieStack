@@ -4,7 +4,7 @@ import { HTTPException } from 'hono/http-exception';
 import sharp, { type ResizeOptions } from 'sharp';
 import { m } from '#lib/server/api/common/i18n/index';
 import { LoggerService } from '#lib/server/api/common/services/logger.service';
-import { InternalError } from '#lib/server/api/common/utils/exceptions';
+import { InternalError, UnprocessableEntity } from '#lib/server/api/common/utils/exceptions';
 import type { ImageLimits } from './storage.types';
 
 /** A valid 1x1 PNG: if sharp cannot resize this, the fault is in the server, not the upload. */
@@ -20,7 +20,10 @@ const DEFAULT_IMAGE_LIMITS: ImageLimits = {
   maxOutputDimension: MAX_IMAGE_OUTPUT_DIMENSION,
 };
 
-type Dimensions = { width: number; height: number };
+interface Dimensions {
+  width: number;
+  height: number;
+}
 
 /**
  * The size a resize aims for. A lone dimension or an `outside` fit scales the other side, which can far exceed what was asked for.
@@ -69,12 +72,12 @@ export class ImagesService {
 
   private assertWithinLimits(source: Dimensions, resizeOptions: ResizeOptions, limits: ImageLimits) {
     if (source.width * source.height > limits.maxInputPixels) {
-      throw new HTTPException(StatusCodes.UNPROCESSABLE_ENTITY, { message: m.storage_image_too_many_pixels() });
+      throw UnprocessableEntity(m.storage_image_too_many_pixels());
     }
 
     const output = plannedOutput(source, resizeOptions);
     if (Math.max(output.width, output.height) > limits.maxOutputDimension) {
-      throw new HTTPException(StatusCodes.UNPROCESSABLE_ENTITY, { message: m.storage_image_output_too_large() });
+      throw UnprocessableEntity(m.storage_image_output_too_large());
     }
   }
 

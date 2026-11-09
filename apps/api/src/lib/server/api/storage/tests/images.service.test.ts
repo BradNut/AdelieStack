@@ -178,16 +178,22 @@ describe('ImagesService', () => {
     describe('limits', () => {
       const LIMITS = { maxInputPixels: 1_000, maxOutputDimension: 100 };
 
+      /** Refusing on the header means nothing is decoded, so the pipeline's output step never runs. */
+      const watchDecoding = () => vi.spyOn(sharp.prototype, 'toBuffer');
+
+      afterEach(() => {
+        vi.restoreAllMocks();
+      });
+
       it('refuses an input beyond the declared pixel limit, without decoding it', async () => {
         const png = await createPng(40, 40);
-        const toBuffer = vi.spyOn(sharp.prototype, 'toBuffer');
+        const toBuffer = watchDecoding();
 
         const error = await failureOf(createService().resize(png, { width: 10 }, LIMITS));
 
         expect(error.status).toBe(StatusCodes.UNPROCESSABLE_ENTITY);
         expect(error.message).toMatch(/too many pixels/i);
         expect(toBuffer).not.toHaveBeenCalled();
-        toBuffer.mockRestore();
       });
 
       it('accepts an input of exactly the declared pixel limit', async () => {
@@ -214,16 +220,23 @@ describe('ImagesService', () => {
         'refuses %s beyond the declared maximum',
         async (_label, sourceWidth, sourceHeight, options) => {
           const png = await createPng(sourceWidth, sourceHeight);
-          const toBuffer = vi.spyOn(sharp.prototype, 'toBuffer');
+          const toBuffer = watchDecoding();
 
           const error = await failureOf(createService().resize(png, options, { maxInputPixels: 1_000_000, maxOutputDimension: 100 }));
 
           expect(error.status).toBe(StatusCodes.UNPROCESSABLE_ENTITY);
           expect(error.message).toMatch(/size is too large/i);
           expect(toBuffer).not.toHaveBeenCalled();
-          toBuffer.mockRestore();
         },
       );
+
+      it('treats a width the image library accepts but cannot produce as a client error', async () => {
+        const generous = { maxInputPixels: 1_000_000, maxOutputDimension: 200_000_000 };
+
+        const error = await failureOf(createService().resize(await createPng(40, 20), { width: 100_000_000 }, generous));
+
+        expect(error.status).toBe(StatusCodes.UNPROCESSABLE_ENTITY);
+      });
 
       it('applies a default output limit when the caller declares none', async () => {
         const error = await failureOf(createService().resize(await createPng(40, 20), { width: 50_000, height: 50_000 }));

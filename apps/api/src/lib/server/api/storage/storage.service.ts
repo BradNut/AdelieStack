@@ -4,7 +4,7 @@ import { HTTPException } from 'hono/http-exception';
 import { ConfigService } from '#lib/server/api/common/configs/config.service';
 import { m } from '#lib/server/api/common/i18n/index';
 import { publicId } from '#lib/server/api/common/utils/crypto';
-import { InternalError } from '#lib/server/api/common/utils/exceptions';
+import { InternalError, PayloadTooLarge, UnprocessableEntity, UnsupportedMediaType } from '#lib/server/api/common/utils/exceptions';
 import { CONTENT_SNIFF_BYTES, detectContentType } from './content-type';
 import { ImagesService } from './images.service';
 import { S3StorageClientProvider } from './s3-storage.client';
@@ -49,8 +49,8 @@ export class StorageService {
     }
   }
 
-  async upload({ file, maxSizeBytes, acceptedTypes, resizeOptions, imageLimits, key, visibility }: Upload) {
-    let contentType = await this.admit(file, maxSizeBytes, acceptedTypes);
+  async upload({ file, maxSizeBytes, acceptedTypes, resizeOptions, imageLimits, key, visibility }: Upload): Promise<{ key: string }> {
+    let contentType = await this.detectAcceptedType(file, { maxSizeBytes, acceptedTypes });
 
     let buffer: Buffer = Buffer.from(await file.arrayBuffer());
     // Only a width or height asks for a resize; without one, sharp would just re-encode the file.
@@ -78,18 +78,18 @@ export class StorageService {
    * Refuses a file over the size limit or of an unlisted type, reading no more than its first bytes.
    * Returns the type those bytes show it to be; the client's claimed type is never trusted.
    */
-  private async admit(file: File, maxSizeBytes: number, acceptedTypes: readonly string[]): Promise<string> {
+  private async detectAcceptedType(file: File, { maxSizeBytes, acceptedTypes }: Pick<Upload, 'maxSizeBytes' | 'acceptedTypes'>): Promise<string> {
     if (file.size > maxSizeBytes) {
-      throw new HTTPException(StatusCodes.REQUEST_TOO_LONG, { message: m.storage_upload_too_large() });
+      throw PayloadTooLarge(m.storage_upload_too_large());
     }
 
     const head = Buffer.from(await file.slice(0, CONTENT_SNIFF_BYTES).arrayBuffer());
     const contentType = await detectContentType(head);
     if (!contentType) {
-      throw new HTTPException(StatusCodes.UNPROCESSABLE_ENTITY, { message: m.storage_upload_unrecognized() });
+      throw UnprocessableEntity(m.storage_upload_unrecognized());
     }
     if (!acceptedTypes.includes(contentType)) {
-      throw new HTTPException(StatusCodes.UNSUPPORTED_MEDIA_TYPE, { message: m.storage_upload_type_not_accepted() });
+      throw UnsupportedMediaType(m.storage_upload_type_not_accepted());
     }
     return contentType;
   }
@@ -124,7 +124,7 @@ export class StorageService {
     return this.storage.client.getObject(this.bucketFor(visibility), key);
   }
 
-  async remove(key: string, visibility: BucketVisibility) {
+  async remove(key: string, visibility: BucketVisibility): Promise<void> {
     return this.storage.client.removeObject(this.bucketFor(visibility), key);
   }
 

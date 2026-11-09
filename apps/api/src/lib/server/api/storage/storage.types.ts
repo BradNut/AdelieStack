@@ -43,10 +43,10 @@ export const scanTags = (status: ScanStatus, viruses?: string[]): Record<string,
 });
 
 /** How large an image may be going into, and coming out of, a resize. */
-export type ImageLimits = {
+export interface ImageLimits {
   maxInputPixels: number;
   maxOutputDimension: number;
-};
+}
 
 export type Upload = {
   file: File;

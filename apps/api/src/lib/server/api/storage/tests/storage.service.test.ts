@@ -3,7 +3,7 @@ import { Container } from '@needle-di/core';
 import NodeClam from 'clamscan';
 import type { HTTPException } from 'hono/http-exception';
 import sharp, { type ResizeOptions } from 'sharp';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
 import { ConfigService } from '#lib/server/api/common/configs/config.service';
 import type { EnvsDto } from '#lib/server/api/common/configs/dtos/env.dto';
 import { LoggerService } from '#lib/server/api/common/services/logger.service';
@@ -12,7 +12,7 @@ import { ImagesService } from '#lib/server/api/storage/images.service';
 import { S3StorageClient } from '#lib/server/api/storage/s3-storage.client';
 import { BucketVisibility } from '#lib/server/api/storage/storage.buckets';
 import { StorageService } from '#lib/server/api/storage/storage.service';
-import { ScanStatus, ScanTag } from '#lib/server/api/storage/storage.types';
+import { ScanStatus, ScanTag, type Upload } from '#lib/server/api/storage/storage.types';
 import { type ScanResponse, ScanResult, VirusScannerService } from '#lib/server/api/storage/virus-scanner.service';
 import { createConfigServiceMock } from '../../../../../test/mocks/config.mock';
 import { createLoggerServiceMock } from '../../../../../test/mocks/logger.mock';
@@ -174,6 +174,14 @@ describe('StorageService', () => {
   });
 
   describe('upload limits', () => {
+    it('makes every caller state the limits and the bucket', () => {
+      expectTypeOf<Upload['maxSizeBytes']>().toEqualTypeOf<number>();
+      expectTypeOf<Upload['acceptedTypes']>().toEqualTypeOf<readonly string[]>();
+      expectTypeOf<Upload['visibility']>().toEqualTypeOf<BucketVisibility>();
+      expectTypeOf<StorageService['get']>().parameter(1).toEqualTypeOf<BucketVisibility>();
+      expectTypeOf<StorageService['remove']>().parameter(1).toEqualTypeOf<BucketVisibility>();
+    });
+
     const HTML = '<!doctype html><html><body><script>alert(1)</script></body></html>';
     const SVG = '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>';
     const XML_DECLARED_SVG = '<?xml version="1.0"?>\n<!-- a logo -->\n<svg xmlns="http://www.w3.org/2000/svg"></svg>';
@@ -280,9 +288,9 @@ describe('StorageService', () => {
     });
 
     it.each([
-      ['HTML', HTML, 'text/html'],
-      ['SVG', SVG, 'image/svg+xml'],
-      ['SVG behind an XML declaration', XML_DECLARED_SVG, 'image/svg+xml'],
+      ['HTML', HTML, ActiveContentType.HTML],
+      ['SVG', SVG, ActiveContentType.SVG],
+      ['SVG behind an XML declaration', XML_DECLARED_SVG, ActiveContentType.SVG],
     ])('accepts %s only when the caller explicitly lists it', async (_label, content, type) => {
       const putObject = storing();
 

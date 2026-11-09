@@ -188,11 +188,14 @@ function sanitizeForLogging(user: User) {
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
-function validateFile(file: File) {
+async function validateFile(file: File) {
   if (file.size > MAX_FILE_SIZE) {
     throw new ValidationError('File too large');
   }
-  if (!ALLOWED_TYPES.includes(file.type)) {
+  // Judge the file by its bytes: file.type is only what the client claimed.
+  const head = Buffer.from(await file.slice(0, CONTENT_SNIFF_BYTES).arrayBuffer());
+  const contentType = await detectContentType(head);
+  if (!contentType || !ALLOWED_TYPES.includes(contentType)) {
     throw new ValidationError('Invalid file type');
   }
 }
