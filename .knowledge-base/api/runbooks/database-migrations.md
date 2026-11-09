@@ -13,17 +13,15 @@ pnpm --filter @adelie/api db:generate
 git diff drizzle/
 
 # 4. Apply to local DB
-pnpm --filter @adelie/api db:migrate
+DB_MIGRATING=true pnpm --filter @adelie/api db:migrate
 ```
 
 ## Production Migrations
 
-Docker startup runs `DB_MIGRATING=true pnpm db:migrate` automatically before starting the server.
-
-Nixpacks deployment: migrations do **not** run automatically. Must run manually or via Coolify pre-deploy hook:
+Migrations do **not** run automatically, in Docker or Nixpacks deployments. Run them manually or via a Coolify pre-deploy hook:
 
 ```bash
-pnpm --filter @adelie/api db:migrate
+DB_MIGRATING=true pnpm --filter @adelie/api db:migrate
 ```
 
 ## Commands
@@ -31,9 +29,9 @@ pnpm --filter @adelie/api db:migrate
 | Command | What it does |
 |---|---|
 | `pnpm db:generate` | Generate migration SQL from schema diff |
-| `pnpm db:migrate` | Apply pending migrations to DB |
+| `pnpm db:migrate` | Apply pending migrations to DB (refuses unless `DB_MIGRATING=true`) |
 | `pnpm db:push` | Push schema directly to DB (dev only, no migration file) |
-| `pnpm db:seed` | Seed initial data (requires `DB_SEEDING=true` or explicit run) |
+| `pnpm db:seed` | Seed initial data (refuses unless `DB_SEEDING=true`) |
 | `pnpm db:studio` | Open Drizzle Studio GUI |
 
 ## Seeding
@@ -41,8 +39,6 @@ pnpm --filter @adelie/api db:migrate
 ```bash
 DB_SEEDING=true ADMIN_EMAIL=admin@example.com ADMIN_PASSWORD=<pw> pnpm --filter @adelie/api db:seed
 ```
-
-Or set `DB_SEEDING=true` in env and restart Docker container (seed runs after migrate).
 
 ## Troubleshooting
 

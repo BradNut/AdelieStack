@@ -99,7 +99,9 @@ async function assertInfraReady() {
     if (!(await portIsOpen(service.host, service.port))) down.push(`${service.name} (${service.host}:${service.port})`);
   }
   if (down.length > 0) {
-    throw new Error(`Infra not running: ${down.join(', ')}. Start it with \`docker compose up -d\`, then \`pnpm db:migrate && pnpm db:seed\`.`);
+    throw new Error(
+      `Infra not running: ${down.join(', ')}. Start it with \`docker compose up -d\`, then \`DB_MIGRATING=true pnpm db:migrate && DB_SEEDING=true pnpm db:seed\`.`,
+    );
   }
 }
 

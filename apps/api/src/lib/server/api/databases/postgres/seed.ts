@@ -2,16 +2,12 @@ import 'varlock/auto-load';
 import { getTableName, is, sql, Table } from 'drizzle-orm';
 import { drizzleAuthDatabase } from '#lib/server/api/auth/auth.config';
 import { ConfigService } from '#lib/server/api/common/configs/config.service';
-import { createScriptDb } from './drizzle.client';
+import { createScriptDb, SCRIPT_DB_FLAGS } from './drizzle.client';
 import * as schema from './drizzle-schema';
 import * as seeds from './seeds';
 import { createSeedAuth } from './seeds/auth-options';
 
-if (!process.env.DB_SEEDING) {
-  throw new Error('You must set DB_SEEDING to "true" when running seeds');
-}
-
-const db = createScriptDb();
+const db = createScriptDb(SCRIPT_DB_FLAGS.SEEDING);
 
 const tables = (Object.values(schema) as unknown[]).filter((value): value is Table => is(value, Table));
 for (const table of tables) {

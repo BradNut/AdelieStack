@@ -47,12 +47,10 @@ It is deliberately not an "all batteries included" boilerplate. See [How to Use]
 2. Set up your env files — see [`ENV_SETUP.md`](./ENV_SETUP.md) (each app declares its own
    variables in `apps/<app>/.env.schema` with local defaults; you only need to generate the API
    secrets into `apps/api/.env.local`)
-3. Ensure that DB_SEEDING and DB_MIGRATING are set to `true` in `apps/api/.env.local` for this first run.
-4. `pnpm install`
-5. The database extension `citext` is being used to allow for case-insensitive string matching. To install the extension run `CREATE EXTENSION IF NOT EXISTS citext;` or add inside an additional drizzle SQL file for startup to use.
-6. `pnpm initialize` (this will start the docker-compose, provision the SeaweedFS storage buckets, and run the initial database migration.) Re-run `pnpm storage:setup` any time to (idempotently) recreate the buckets, e.g. after wiping the `seaweedfs_data` volume.
-7. `pnpm dev`
-8. Ensure that DB_SEEDING and DB_MIGRATING are set back to `false` (or removed) in `apps/api/.env.local` after initial set up.
+3. `pnpm install`
+4. The database extension `citext` is being used to allow for case-insensitive string matching. To install the extension run `CREATE EXTENSION IF NOT EXISTS citext;` or add inside an additional drizzle SQL file for startup to use.
+5. `pnpm initialize` (this will start the docker-compose, provision the SeaweedFS storage buckets, and run the initial database migration and seed, setting `DB_MIGRATING` and `DB_SEEDING` for those two scripts only.) Re-run `pnpm storage:setup` any time to (idempotently) recreate the buckets, e.g. after wiping the `seaweedfs_data` volume.
+6. `pnpm dev`
 
 No additional setup is required, zero api keys, zero services to signup for, zero cost.
 

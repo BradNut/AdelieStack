@@ -1,5 +1,6 @@
 import { isProdEnv } from '@adelie/shared';
-import { drizzle } from 'drizzle-orm/node-postgres';
+import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
+import type { Client } from 'pg';
 import Pool from 'pg-pool';
 import * as drizzleSchema from './drizzle-schema';
 
@@ -17,13 +18,27 @@ interface PostgresConnection {
   env?: string;
 }
 
+type PostgresDb = NodePgDatabase<typeof drizzleSchema> & { $client: Pool<Client> };
+
+/** The env var each one-off script requires to be on before it will run. */
+export const SCRIPT_DB_FLAGS = { MIGRATING: 'DB_MIGRATING', SEEDING: 'DB_SEEDING' } as const;
+
+type ScriptDbFlag = (typeof SCRIPT_DB_FLAGS)[keyof typeof SCRIPT_DB_FLAGS];
+
 /** Builds the Drizzle client. A pool connects on its first query, so this opens nothing. */
-export function createPostgresDb({ env, ...pool }: PostgresConnection) {
+export function createPostgresDb({ env, ...pool }: PostgresConnection): PostgresDb {
   return drizzle(new Pool({ ...pool, ssl: false }), { ...DRIZZLE_CONFIG, logger: !isProdEnv(env) });
 }
 
-/** For one-off scripts (migrate, seed), which read only the variables they need and hold one connection. */
-export function createScriptDb() {
+/**
+ * For one-off scripts (migrate, seed), which read only the variables they need and hold one connection.
+ * Refuses unless the script's flag resolves to true. Varlock has already turned `TRUE`, `1` and `yes` into "true";
+ * the guard compares strings because `.env.schema` defaults the flag to "false", a truthy string.
+ */
+export function createScriptDb(requiredEnvVar: ScriptDbFlag): PostgresDb {
+  if (process.env[requiredEnvVar] !== 'true') {
+    throw new Error(`You must set ${requiredEnvVar} to "true" to run this script.`);
+  }
   return createPostgresDb({
     user: process.env.DATABASE_USER,
     password: process.env.DATABASE_PASSWORD,

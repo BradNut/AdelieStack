@@ -11,11 +11,9 @@
 	const setupSteps = [
 		'Make sure Docker is running.',
 		'Set up your env files — see ENV_SETUP.md. Each app declares its variables in apps/<app>/.env.schema.',
-		'For the first run, set DB_SEEDING and DB_MIGRATING to true in apps/api/.env.local.',
 		'Run pnpm install.',
-		'Run pnpm initialize to start Docker, provision storage buckets, and run the first migration.',
-		'Run pnpm dev.',
-		'Set DB_SEEDING and DB_MIGRATING back to false after the first run.'
+		'Run pnpm initialize to start Docker, provision storage buckets, and run the first migration and seed.',
+		'Run pnpm dev.'
 	];
 
 	const commands = [
