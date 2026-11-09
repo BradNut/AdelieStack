@@ -61,7 +61,8 @@
       "cache": false
     },
     "db:migrate": {
-      "cache": false
+      "cache": false,
+      "passThroughEnv": ["DB_MIGRATING"]
     },
     "db:seed": {
       "cache": false
