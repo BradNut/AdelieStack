@@ -4,7 +4,7 @@ import { Hono } from 'hono';
 import { contextStorage } from 'hono/context-storage';
 import { requestId } from 'hono/request-id';
 import pino from 'pino';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest';
 import { createAuth } from '#lib/server/api/auth/auth.config';
 import { createHibpHealth } from '#lib/server/api/auth/auth.hibp-status';
 import { errorHandler } from '#lib/server/api/common/middleware/error-handler.middleware';
@@ -55,7 +55,7 @@ function signIn(app: Hono<HonoEnv>) {
   });
 }
 
-let consoleError: ReturnType<typeof vi.spyOn>;
+let consoleError: MockInstance<typeof console.error>;
 
 beforeEach(() => {
   consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
