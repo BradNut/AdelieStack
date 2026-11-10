@@ -49,7 +49,7 @@ describe('email settings page', () => {
 
     await submitNewEmail();
 
-    expect(await screen.findByTestId('email-change-pending')).toBeTruthy();
+    expect((await screen.findByRole('alert')).textContent).toContain(NEW_EMAIL);
     expect(authClient.changeEmail).toHaveBeenCalledExactlyOnceWith(expectedCall);
     expect(freshSession.open).toBe(false);
   });
@@ -60,10 +60,10 @@ describe('email settings page', () => {
 
     await submitNewEmail();
     await waitFor(() => expect(freshSession.open).toBe(true));
-    expect(screen.queryByTestId('email-change-pending')).toBeNull();
+    expect(screen.queryByRole('alert')).toBeNull();
     freshSession.settle(ReauthOutcome.CONFIRMED);
 
-    expect(await screen.findByTestId('email-change-pending')).toBeTruthy();
+    expect((await screen.findByRole('alert')).textContent).toContain(NEW_EMAIL);
     expect(authClient.changeEmail).toHaveBeenCalledTimes(2);
     expect(authClient.changeEmail).toHaveBeenNthCalledWith(2, expectedCall);
   });
@@ -77,7 +77,7 @@ describe('email settings page', () => {
     freshSession.settle(ReauthOutcome.DISMISSED);
 
     expect(await screen.findByText(NOT_FRESH.error.message)).toBeTruthy();
-    expect(screen.queryByTestId('email-change-pending')).toBeNull();
+    expect(screen.queryByRole('alert')).toBeNull();
     expect(authClient.changeEmail).toHaveBeenCalledOnce();
   });
 
@@ -89,6 +89,6 @@ describe('email settings page', () => {
 
     expect(await screen.findByText('Email is the same')).toBeTruthy();
     expect(freshSession.open).toBe(false);
-    expect(screen.queryByTestId('email-change-pending')).toBeNull();
+    expect(screen.queryByRole('alert')).toBeNull();
   });
 });
