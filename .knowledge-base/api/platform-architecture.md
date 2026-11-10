@@ -70,7 +70,10 @@
 - **Webhook re-scan**: as defense-in-depth, objects are re-scanned after they land when the storage
   provider is configured to send object-created notifications to the storage webhook
   (`storage/file-scanner.worker.ts`); nothing in the local stack sets that up. Infected objects are
-  deleted; a scanner error only tags the object `error` and leaves it in place
+  deleted; a scanner error only tags the object `error` and leaves it in place. The webhook requires
+  the `STORAGE_WEBHOOK_SECRET` bearer token (production refuses to start without it), ignores events
+  for buckets other than the project's own, skips keys it cannot decode, and handles at most 10
+  records per request
 
 #### Spotlight
 - **Purpose**: Error tracking and application monitoring

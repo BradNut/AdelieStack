@@ -1,3 +1,4 @@
+import { createHash, timingSafeEqual } from 'node:crypto';
 import { StatusCodes } from '@adelie/shared';
 import { inject, injectable } from '@needle-di/core';
 import type { Context } from 'hono';
@@ -6,11 +7,28 @@ import { Controller } from '#lib/server/api/common/factories/controllers.factory
 import { LoggerService } from '#lib/server/api/common/services/logger.service';
 import type { HonoEnv } from '#lib/server/api/common/utils/hono';
 import { FileScannerWorker, type StorageScanJob } from './file-scanner.worker';
+import { BucketVisibility, buildBucketName } from './storage.buckets';
 
 // S3-compatible providers emit object-created events whose name starts with this.
 const S3_OBJECT_CREATED_PREFIX = 's3:ObjectCreated:';
 // SeaweedFS filer notifications key objects under this path prefix.
 const SEAWEEDFS_BUCKET_PREFIX = '/buckets/';
+// A provider sends one record per object; a larger batch is cut here so one request cannot queue unbounded scans.
+const MAX_RECORDS_PER_REQUEST = 10;
+const BEARER_PREFIX = 'Bearer ';
+
+/** Hashing both sides first gives equal-length buffers, so the comparison takes the same time whatever the input. */
+const sha256 = (value: string) => createHash('sha256').update(value).digest();
+const safeEqual = (a: string, b: string) => timingSafeEqual(sha256(a), sha256(b));
+
+/** A key that is not valid URI encoding names no object we wrote; skip it rather than fail the request. */
+function decodeObjectKey(key: string): string | null {
+  try {
+    return decodeURIComponent(key);
+  } catch {
+    return null;
+  }
+}
 
 type S3WebhookEvent = {
   Records?: Array<{
@@ -50,12 +68,13 @@ export function extractScanJobs(event: unknown): StorageScanJob[] {
 
   const s3Event = event as S3WebhookEvent;
   if (Array.isArray(s3Event.Records)) {
-    return s3Event.Records.flatMap((record) => {
-      if (!record.eventName?.startsWith(S3_OBJECT_CREATED_PREFIX)) return [];
+    return s3Event.Records.slice(0, MAX_RECORDS_PER_REQUEST).flatMap((record) => {
+      if (!record?.eventName?.startsWith(S3_OBJECT_CREATED_PREFIX)) return [];
       const bucket = record.s3?.bucket?.name;
-      const key = record.s3?.object?.key;
-      if (!bucket || !key) return [];
-      return [{ bucket, key: decodeURIComponent(key) }];
+      const rawKey = record.s3?.object?.key;
+      if (!bucket || !rawKey) return [];
+      const key = decodeObjectKey(rawKey);
+      return key ? [{ bucket, key }] : [];
     });
   }
 
@@ -72,7 +91,8 @@ export function extractScanJobs(event: unknown): StorageScanJob[] {
 /**
  * Receives storage object-created notifications and dispatches virus scans. The
  * endpoint acknowledges immediately and scans asynchronously so the storage provider
- * is never kept waiting. An optional bearer secret (`STORAGE_WEBHOOK_SECRET`) guards it.
+ * is never kept waiting. A bearer secret (`STORAGE_WEBHOOK_SECRET`, required in production) guards it,
+ * and only the project's own buckets are scanned.
  */
 @injectable()
 export class StorageWebhookController extends Controller {
@@ -86,8 +106,14 @@ export class StorageWebhookController extends Controller {
 
   private isAuthorized(c: Context<HonoEnv>): boolean {
     const secret = this.configService.envs.STORAGE_WEBHOOK_SECRET;
+    // Only local development runs without a secret; production refuses to start without one.
     if (!secret) return true;
-    return c.req.header('authorization') === `Bearer ${secret}`;
+    return safeEqual(c.req.header('authorization') ?? '', `${BEARER_PREFIX}${secret}`);
+  }
+
+  private isProjectBucket(bucket: string): boolean {
+    const { PROJECT_NAME, ENVIRONMENT } = this.configService.envs;
+    return Object.values(BucketVisibility).some((visibility) => buildBucketName(PROJECT_NAME, ENVIRONMENT, visibility) === bucket);
   }
 
   routes() {
@@ -106,7 +132,7 @@ export class StorageWebhookController extends Controller {
           return c.json({ error: 'Invalid payload' }, StatusCodes.BAD_REQUEST);
         }
 
-        const jobs = extractScanJobs(rawEvent);
+        const jobs = extractScanJobs(rawEvent).filter((job) => this.isProjectBucket(job.bucket));
         if (jobs.length === 0) {
           this.loggerService.log.debug('Storage webhook payload produced no scan jobs');
           return c.json({ success: true, scanned: 0 }, StatusCodes.OK);
