@@ -78,7 +78,7 @@ export class ApplicationController extends RootController {
       .route('/users', this.usersController.routes())
       .route('/admin', this.adminExampleController.routes())
       .route('/storage', this.storageWebhookController.routes())
-      .onError(errorHandler({ env: this.configService.envs.ENV, logger: this.loggerService.log }))
+      .onError(errorHandler({ envs: this.configService.envs, logger: this.loggerService.log }))
       .notFound(notFound);
 
     configureOpenAPI(app);

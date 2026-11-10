@@ -1,4 +1,4 @@
-import { AppEnv, StatusCodes } from '@adelie/shared';
+import { isLocalDevEnv, type LocalDevEnvs, StatusCodes } from '@adelie/shared';
 import { DrizzleQueryError } from 'drizzle-orm';
 import type { ErrorHandler } from 'hono';
 import { HTTPException } from 'hono/http-exception';
@@ -15,10 +15,19 @@ const URL_CREDENTIALS_PATTERN = /\b([a-z][a-z\d+.-]*:\/\/)[^\s/@]+@/gi;
 /** Deep enough for a query error wrapping a driver error wrapping a socket error, and bounded against a cycle. */
 const MAX_LOGGED_CAUSES = 5;
 
+/** The settings that decide whether a client may see an error's detail; see {@link isLocalDevEnv}. */
+export type ErrorHandlerEnvs = LocalDevEnvs;
+
 interface ErrorHandlerOptions {
-  /** The API's `ENV` switch. Only an explicit `dev` shows error detail; any other or missing value hides it. */
-  env: string | undefined;
+  envs: ErrorHandlerEnvs;
   logger: Logger;
+}
+
+/** What a client gets for any error: a message and the request id to quote. `stack` is sent only in local development. */
+interface ErrorResponseBody {
+  message: string;
+  requestId: string;
+  stack?: string;
 }
 
 interface LoggedError {
@@ -53,20 +62,22 @@ function loggedError(error: Error, depth = 0): LoggedError {
 /**
  * Answers an error no handler caught. An unexpected error gets a generic, localised message and the request id, so
  * a client never sees the error text or stack, which can hold SQL, parameters or internal hosts. Only explicit local
- * development adds them back, for debugging. The full error is logged against the request id, with credentials
- * redacted and no request headers. A deliberate `HTTPException` keeps its status and message everywhere.
+ * development ({@link isLocalDevEnv}) adds them back, for debugging. The full error is logged against the request id,
+ * with credentials redacted and no request headers. A deliberate `HTTPException` keeps its status and message everywhere.
  */
-export function errorHandler({ env, logger }: ErrorHandlerOptions): ErrorHandler {
-  const showDetail = env === AppEnv.DEV;
+export function errorHandler({ envs, logger }: ErrorHandlerOptions): ErrorHandler {
+  const showDetail = isLocalDevEnv(envs);
 
   return (error, c) => {
     const requestId: string = c.get('requestId');
     // A deliberate error chose its status and message for the client, so both go out as thrown.
-    if (error instanceof HTTPException) return c.json({ message: error.message, requestId }, error.status);
+    if (error instanceof HTTPException) return c.json<ErrorResponseBody>({ message: error.message, requestId }, error.status);
 
     logger.error({ reqId: requestId, error: loggedError(error) }, UNEXPECTED_ERROR_MESSAGE);
 
-    const body = showDetail ? { message: error.message, stack: error.stack, requestId } : { message: m.server_unexpected_error(), requestId };
+    const body: ErrorResponseBody = showDetail
+      ? { message: error.message, stack: error.stack, requestId }
+      : { message: m.server_unexpected_error(), requestId };
     return c.json(body, StatusCodes.INTERNAL_SERVER_ERROR);
   };
 }

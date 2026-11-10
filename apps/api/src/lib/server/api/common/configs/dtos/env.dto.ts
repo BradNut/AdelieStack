@@ -1,4 +1,14 @@
-import { APP_ENVS, APP_NAME, CAPTCHA_PROVIDERS, isProdEnv, SocialProvider } from '@adelie/shared';
+import {
+  APP_ENVS,
+  APP_NAME,
+  CAPTCHA_PROVIDERS,
+  DEPLOY_ENVIRONMENTS,
+  DeployEnvironment,
+  isProdEnv,
+  NODE_ENVS,
+  NodeEnv,
+  SocialProvider,
+} from '@adelie/shared';
 import { z } from 'zod/v4';
 import { findInvalidTrustedProxies } from '#lib/server/api/common/utils/ip';
 import { MailerTransport } from '#lib/server/api/mail/mailer-transport.constant';
@@ -65,7 +75,7 @@ const baseEnvsDto = z.object({
   GOOGLE_CLIENT_ID: z.preprocess(emptyAsUndefined, z.string().optional()),
   GOOGLE_CLIENT_SECRET: z.preprocess(emptyAsUndefined, z.string().optional()),
   ENV: z.enum(APP_ENVS),
-  NODE_ENV: z.enum(['development', 'production']).default('development'),
+  NODE_ENV: z.enum(NODE_ENVS).default(NodeEnv.DEVELOPMENT),
   PORT: z.coerce.number(),
   ADMIN_EMAIL: z.email().optional(),
   ADMIN_PASSWORD: z.string().optional(),
@@ -83,7 +93,7 @@ const baseEnvsDto = z.object({
   CLAMAV_HOST: z.string().default('localhost'),
   CLAMAV_PORT: z.coerce.number().default(3310),
   // Storage buckets are named `${PROJECT_NAME}-{public|private}-${ENVIRONMENT}`
-  ENVIRONMENT: z.enum(['development', 'staging', 'production']).default('development'),
+  ENVIRONMENT: z.enum(DEPLOY_ENVIRONMENTS).default(DeployEnvironment.DEVELOPMENT),
   PROJECT_NAME: z.string().min(1).default('adelie'),
   SITE_VERSION: z.string().optional(),
   // Security: trusted-proxy handling and the rate-limit kill switch (see rate-limit middleware).

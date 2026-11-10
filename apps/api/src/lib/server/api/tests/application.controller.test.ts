@@ -1,4 +1,4 @@
-import { AUTH_CLIENT_IP_HEADER, RoleName } from '@adelie/shared';
+import { AppEnv, AUTH_CLIENT_IP_HEADER, DeployEnvironment, NodeEnv, RoleName } from '@adelie/shared';
 import { Hono } from 'hono';
 import { TrieRouter } from 'hono/router/trie-router';
 import pino from 'pino';
@@ -424,12 +424,23 @@ describe('GET /api/users/me', () => {
 // The handler's own behaviour (environment gating, redaction, cause chain) is tested in error-handler.middleware.test.ts;
 // these check it is the app's handler, behind the request id, locale and logger.
 describe('error responses', () => {
+  const PRODUCTION_ENVS = { ENV: AppEnv.PROD, ENVIRONMENT: DeployEnvironment.PRODUCTION, NODE_ENV: NodeEnv.PRODUCTION };
   const failure = () => new Error('connect ECONNREFUSED db.internal:5432 for SELECT * FROM users');
+
+  it('decides on error detail from the configured environment', async () => {
+    const error = failure();
+    getSession.mockRejectedValue(error);
+
+    const res = await buildApp({ ENVIRONMENT: DeployEnvironment.DEVELOPMENT, NODE_ENV: NodeEnv.DEVELOPMENT }).request('/api/users/me');
+
+    expect(res.status).toBe(500);
+    expect(await res.json()).toMatchObject({ message: error.message, stack: error.stack });
+  });
 
   it('answers an unexpected error in a route with a generic message and the request id', async () => {
     getSession.mockRejectedValue(failure());
 
-    const res = await buildApp({ ENV: 'prod' }).request('/api/users/me');
+    const res = await buildApp(PRODUCTION_ENVS).request('/api/users/me');
 
     expect(res.status).toBe(500);
     expect(await res.json()).toEqual({
@@ -441,7 +452,7 @@ describe('error responses', () => {
   it('localises the generic message to the request language', async () => {
     getSession.mockRejectedValue(failure());
 
-    const res = await buildApp({ ENV: 'prod' }).request('/api/users/me', { headers: { 'Accept-Language': 'de' } });
+    const res = await buildApp(PRODUCTION_ENVS).request('/api/users/me', { headers: { 'Accept-Language': 'de' } });
 
     expect(res.status).toBe(500);
     expect(((await res.json()) as { message: string }).message).toBe('Bei uns ist ein Fehler aufgetreten. Bitte versuchen Sie es später erneut.');
@@ -451,7 +462,7 @@ describe('error responses', () => {
     const { log, entries } = captureLog();
     handler.mockRejectedValue(Forbidden('You may not do that'));
 
-    const res = await buildApp({ ENV: 'prod' }, log).request('/api/auth/sign-in/email', { method: 'POST' });
+    const res = await buildApp(PRODUCTION_ENVS, log).request('/api/auth/sign-in/email', { method: 'POST' });
 
     expect(res.status).toBe(403);
     expect(await res.json()).toEqual({ message: 'You may not do that', requestId: res.headers.get('x-request-id') });
@@ -462,7 +473,7 @@ describe('error responses', () => {
     const { log, entries } = captureLog();
     getSession.mockRejectedValue(failure());
 
-    const res = await buildApp({ ENV: 'prod' }, log).request('/api/users/me');
+    const res = await buildApp(PRODUCTION_ENVS, log).request('/api/users/me');
 
     const logged = errorEntries(entries());
     expect(logged).toHaveLength(1);

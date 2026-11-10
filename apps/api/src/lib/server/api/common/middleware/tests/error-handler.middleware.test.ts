@@ -1,15 +1,19 @@
+import { DeployEnvironment, NodeEnv } from '@adelie/shared';
 import { DrizzleQueryError } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { contextStorage } from 'hono/context-storage';
 import { requestId } from 'hono/request-id';
 import pino from 'pino';
 import { describe, expect, it } from 'vitest';
-import { errorHandler } from '#lib/server/api/common/middleware/error-handler.middleware';
+import { type ErrorHandlerEnvs, errorHandler } from '#lib/server/api/common/middleware/error-handler.middleware';
 import { requestLocale } from '#lib/server/api/common/middleware/locale.middleware';
 import { Forbidden } from '#lib/server/api/common/utils/exceptions';
 import type { HonoEnv } from '#lib/server/api/common/utils/hono';
 
 const GENERIC_MESSAGE = 'Something went wrong on our side. Please try again later.';
+
+const LOCAL_DEVELOPMENT: ErrorHandlerEnvs = { ENVIRONMENT: DeployEnvironment.DEVELOPMENT, NODE_ENV: NodeEnv.DEVELOPMENT };
+const PRODUCTION: ErrorHandlerEnvs = { ENVIRONMENT: DeployEnvironment.PRODUCTION, NODE_ENV: NodeEnv.PRODUCTION };
 
 interface ErrorLogEntry {
   level: number;
@@ -28,7 +32,7 @@ function captureLog() {
 }
 
 /** An app whose one route throws `error`, answered by the error handler. */
-function appThrowing(error: Error, env: string | undefined, log = pino({ enabled: false })) {
+function appThrowing(error: Error, envs: ErrorHandlerEnvs, log = pino({ enabled: false })) {
   return new Hono<HonoEnv>()
     .use(requestId())
     .use(contextStorage())
@@ -36,18 +40,20 @@ function appThrowing(error: Error, env: string | undefined, log = pino({ enabled
     .get('/fail', () => {
       throw error;
     })
-    .onError(errorHandler({ env, logger: log }));
+    .onError(errorHandler({ envs, logger: log }));
 }
 
 const HEADERS = { Cookie: 'better-auth.session_token=cookie-secret', Authorization: 'Bearer bearer-secret' };
 
 describe('errorHandler response', () => {
-  it.each([
-    ['production', 'prod'],
-    ['an unrecognised environment', 'test'],
-    ['a missing environment', undefined],
-  ])('answers an unexpected error in %s with a generic message and the request id', async (_case, env) => {
-    const res = await appThrowing(failure(), env).request('/fail');
+  it.each<[string, ErrorHandlerEnvs]>([
+    ['production', PRODUCTION],
+    ['staging', { ENVIRONMENT: DeployEnvironment.STAGING, NODE_ENV: NodeEnv.PRODUCTION }],
+    ['staging run as a development build', { ENVIRONMENT: DeployEnvironment.STAGING, NODE_ENV: NodeEnv.DEVELOPMENT }],
+    // The image sets NODE_ENV=production but ENVIRONMENT defaults to development: a deploy that kept the default.
+    ['a production build that kept the development default', { ENVIRONMENT: DeployEnvironment.DEVELOPMENT, NODE_ENV: NodeEnv.PRODUCTION }],
+  ])('answers an unexpected error in %s with a generic message and the request id', async (_case, envs) => {
+    const res = await appThrowing(failure(), envs).request('/fail');
 
     expect(res.status).toBe(500);
     const body = await res.json();
@@ -58,17 +64,17 @@ describe('errorHandler response', () => {
   it('shows the error text and stack only in explicit local development', async () => {
     const error = failure();
 
-    const res = await appThrowing(error, 'dev').request('/fail');
+    const res = await appThrowing(error, LOCAL_DEVELOPMENT).request('/fail');
 
     expect(res.status).toBe(500);
     expect(await res.json()).toEqual({ message: error.message, stack: error.stack, requestId: res.headers.get('x-request-id') });
   });
 
-  it.each([
-    ['production', 'prod'],
-    ['local development', 'dev'],
-  ])('keeps the status and message of a deliberate client error in %s', async (_case, env) => {
-    const res = await appThrowing(Forbidden('You may not do that'), env).request('/fail');
+  it.each<[string, ErrorHandlerEnvs]>([
+    ['production', PRODUCTION],
+    ['local development', LOCAL_DEVELOPMENT],
+  ])('keeps the status and message of a deliberate client error in %s', async (_case, envs) => {
+    const res = await appThrowing(Forbidden('You may not do that'), envs).request('/fail');
 
     expect(res.status).toBe(403);
     expect(await res.json()).toEqual({ message: 'You may not do that', requestId: res.headers.get('x-request-id') });
@@ -77,7 +83,7 @@ describe('errorHandler response', () => {
   it('does not log a deliberate client error', async () => {
     const { log, entries } = captureLog();
 
-    await appThrowing(Forbidden('You may not do that'), 'prod', log).request('/fail');
+    await appThrowing(Forbidden('You may not do that'), PRODUCTION, log).request('/fail');
 
     expect(entries()).toEqual([]);
   });
@@ -86,7 +92,7 @@ describe('errorHandler response', () => {
 describe('errorHandler logged detail', () => {
   async function failWith(error: Error) {
     const { log, output, entries } = captureLog();
-    const res = await appThrowing(error, 'prod', log).request('/fail', { headers: HEADERS });
+    const res = await appThrowing(error, PRODUCTION, log).request('/fail', { headers: HEADERS });
     expect(entries()).toHaveLength(1);
     return { res, output: output(), entry: entries()[0] };
   }
