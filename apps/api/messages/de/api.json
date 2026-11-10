@@ -30,6 +30,7 @@
   "storage_image_processing_failed": "Das Bild konnte nicht verarbeitet werden. Bitte versuchen Sie es später erneut.",
   "storage_image_unprocessable": "Datei abgelehnt: Sie ist kein gültiges Bild oder lässt sich nicht wie angefordert skalieren.",
   "storage_image_invalid_resize_options": "Ungültige Optionen für die Bildskalierung.",
+  "storage_upload_empty": "Datei abgelehnt: Sie ist leer.",
   "storage_upload_too_large": "Datei abgelehnt: Sie ist größer, als dieser Upload erlaubt.",
   "storage_upload_type_not_accepted": "Datei abgelehnt: Dieser Dateityp wird nicht akzeptiert.",
   "storage_upload_unrecognized": "Datei abgelehnt: Ihr Typ konnte nicht erkannt werden.",

@@ -50,7 +50,7 @@ export class StorageService {
   }
 
   async upload({ file, maxSizeBytes, acceptedTypes, resizeOptions, imageLimits, key, visibility }: Upload): Promise<{ key: string }> {
-    let contentType = await this.detectAcceptedType(file, { maxSizeBytes, acceptedTypes });
+    let contentType = await this.acceptedContentType(file, { maxSizeBytes, acceptedTypes });
 
     let buffer: Buffer = Buffer.from(await file.arrayBuffer());
     // Only a width or height asks for a resize; without one, sharp would just re-encode the file.
@@ -75,10 +75,13 @@ export class StorageService {
   }
 
   /**
-   * Refuses a file over the size limit or of an unlisted type, reading no more than its first bytes.
-   * Returns the type those bytes show it to be; the client's claimed type is never trusted.
+   * Returns the accepted type a file's first bytes show it to be; the client's claimed type is never trusted.
+   * Throws instead when the file is empty, over the size limit or not of a listed type, reading no more than those bytes.
    */
-  private async detectAcceptedType(file: File, { maxSizeBytes, acceptedTypes }: Pick<Upload, 'maxSizeBytes' | 'acceptedTypes'>): Promise<string> {
+  private async acceptedContentType(file: File, { maxSizeBytes, acceptedTypes }: Pick<Upload, 'maxSizeBytes' | 'acceptedTypes'>): Promise<string> {
+    if (file.size === 0) {
+      throw UnprocessableEntity(m.storage_upload_empty());
+    }
     if (file.size > maxSizeBytes) {
       throw PayloadTooLarge(m.storage_upload_too_large());
     }
