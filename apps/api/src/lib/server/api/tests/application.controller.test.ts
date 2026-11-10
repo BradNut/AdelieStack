@@ -1,4 +1,4 @@
-import { AUTH_CLIENT_IP_HEADER, RoleName } from '@adelie/shared';
+import { AppEnv, AUTH_CLIENT_IP_HEADER, DeployEnvironment, NodeEnv, RoleName } from '@adelie/shared';
 import { Hono } from 'hono';
 import { TrieRouter } from 'hono/router/trie-router';
 import pino from 'pino';
@@ -14,6 +14,7 @@ import { requestLogger } from '#lib/server/api/common/middleware/request-logger.
 import type { LoggerService } from '#lib/server/api/common/services/logger.service';
 import { buildAuthSession, buildAuthUser } from '#lib/server/api/common/testing/factories';
 import { MISSING_CLIENT_ADDRESS_WARNING_INTERVAL_MS } from '#lib/server/api/common/utils/client-address-warning';
+import { Forbidden } from '#lib/server/api/common/utils/exceptions';
 import { ConfigController } from '#lib/server/api/config/config.controller';
 import type { StorageWebhookController } from '#lib/server/api/storage/storage-webhook.controller';
 import { UsersController } from '#lib/server/api/users/users.controller';
@@ -77,6 +78,18 @@ function captureLog() {
     output: () => lines.join(''),
     entries: () => lines.map((line) => JSON.parse(line) as RequestLogEntry),
   };
+}
+
+type LogEntry = Record<string, unknown>;
+
+/** The request logger's entries: the ones that carry the request. */
+function requestEntries(entries: RequestLogEntry[]): RequestLogEntry[] {
+  return entries.filter((entry) => 'req' in entry);
+}
+
+/** Every other entry, such as the error handler's `Unexpected error`. */
+function errorEntries(entries: RequestLogEntry[]): LogEntry[] {
+  return entries.filter((entry) => !('req' in entry)) as unknown as LogEntry[];
 }
 
 /** Asserts the request produced exactly one entry, and that it holds nothing beyond the allow-list. */
@@ -225,9 +238,11 @@ describe('request logging', () => {
 
     expect(res.status).toBe(500);
     expect(output()).not.toContain('cookie-secret');
-    expect(output()).not.toContain('error-message-secret');
-    expectSingleAllowListedEntry(entries(), res, { method: 'POST', url: '/api/auth/sign-in/email' });
-    expect(entries()[0].msg).toBe('Request failed');
+    // The error itself is logged in its own entry (see "error responses"); the request entry keeps to the allow-list.
+    const logged = requestEntries(entries());
+    expect(JSON.stringify(logged)).not.toContain('error-message-secret');
+    expectSingleAllowListedEntry(logged, res, { method: 'POST', url: '/api/auth/sign-in/email' });
+    expect(logged[0].msg).toBe('Request failed');
   });
 
   it('logs an unmatched route with its 404 status', async () => {
@@ -403,6 +418,66 @@ describe('GET /api/users/me', () => {
 
     expect(res.status).toBe(200);
     expect(await res.json()).toBeNull();
+  });
+});
+
+// The handler's own behaviour (environment gating, redaction, cause chain) is tested in error-handler.middleware.test.ts;
+// these check it is the app's handler, behind the request id, locale and logger.
+describe('error responses', () => {
+  const PRODUCTION_ENVS = { ENV: AppEnv.PROD, ENVIRONMENT: DeployEnvironment.PRODUCTION, NODE_ENV: NodeEnv.PRODUCTION };
+  const failure = () => new Error('connect ECONNREFUSED db.internal:5432 for SELECT * FROM users');
+
+  it('decides on error detail from the configured environment', async () => {
+    const error = failure();
+    getSession.mockRejectedValue(error);
+
+    const res = await buildApp({ ENVIRONMENT: DeployEnvironment.DEVELOPMENT, NODE_ENV: NodeEnv.DEVELOPMENT }).request('/api/users/me');
+
+    expect(res.status).toBe(500);
+    expect(await res.json()).toMatchObject({ message: error.message, stack: error.stack });
+  });
+
+  it('answers an unexpected error in a route with a generic message and the request id', async () => {
+    getSession.mockRejectedValue(failure());
+
+    const res = await buildApp(PRODUCTION_ENVS).request('/api/users/me');
+
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({
+      message: 'Something went wrong on our side. Please try again later.',
+      requestId: res.headers.get('x-request-id'),
+    });
+  });
+
+  it('localises the generic message to the request language', async () => {
+    getSession.mockRejectedValue(failure());
+
+    const res = await buildApp(PRODUCTION_ENVS).request('/api/users/me', { headers: { 'Accept-Language': 'de' } });
+
+    expect(res.status).toBe(500);
+    expect(((await res.json()) as { message: string }).message).toBe('Bei uns ist ein Fehler aufgetreten. Bitte versuchen Sie es später erneut.');
+  });
+
+  it('keeps the status and message of a deliberate client error from the auth mount', async () => {
+    const { log, entries } = captureLog();
+    handler.mockRejectedValue(Forbidden('You may not do that'));
+
+    const res = await buildApp(PRODUCTION_ENVS, log).request('/api/auth/sign-in/email', { method: 'POST' });
+
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({ message: 'You may not do that', requestId: res.headers.get('x-request-id') });
+    expect(errorEntries(entries())).toEqual([]);
+  });
+
+  it('logs an unexpected error to the app logger against the request id', async () => {
+    const { log, entries } = captureLog();
+    getSession.mockRejectedValue(failure());
+
+    const res = await buildApp(PRODUCTION_ENVS, log).request('/api/users/me');
+
+    const logged = errorEntries(entries());
+    expect(logged).toHaveLength(1);
+    expect(logged[0]).toMatchObject({ msg: 'Unexpected error', reqId: res.headers.get('x-request-id') });
   });
 });
 

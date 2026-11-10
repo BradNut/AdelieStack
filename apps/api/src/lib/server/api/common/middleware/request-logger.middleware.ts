@@ -2,8 +2,7 @@ import type { MiddlewareHandler } from 'hono';
 import { type Env, pinoLogger } from 'hono-pino';
 import type { Logger } from 'pino';
 import { AuthEndpoint } from '#lib/server/api/auth/auth.endpoints';
-
-const REDACTED_PATH_SEGMENT = '[REDACTED]';
+import { REDACTED } from '#lib/server/api/common/utils/log-redaction';
 
 /** Fixed response messages: the library default on failure is `c.error.message`, free text that can hold anything. */
 const REQUEST_COMPLETED_MESSAGE = 'Request completed';
@@ -40,9 +39,9 @@ function percentDecodedAscii(path: string): string | null {
  */
 function sanitizedPath(path: string): string {
   const decoded = percentDecodedAscii(path);
-  if (decoded === null) return REDACTED_PATH_SEGMENT;
+  if (decoded === null) return REDACTED;
 
-  const redacted = decoded.replace(RESET_PASSWORD_TOKEN_PATTERN, `$1${REDACTED_PATH_SEGMENT}`);
+  const redacted = decoded.replace(RESET_PASSWORD_TOKEN_PATTERN, `$1${REDACTED}`);
   return redacted === decoded ? path : redacted;
 }
 

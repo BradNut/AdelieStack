@@ -77,8 +77,11 @@ opens no connection.
 
 - Better Auth answers its own errors (status plus a `code` such as `INVALID_EMAIL_OR_PASSWORD`,
   `PASSWORD_COMPROMISED`, `PASSWORD_CHECK_UNAVAILABLE`); a throttled request is `429` with `X-Retry-After`.
+- Anything else thrown inside `/api/auth/*` (a failed query, a bug) is not Better Auth's to answer:
+  `onAPIError: { throw: true }` sends it to the app's `errorHandler`, so it gets the same generic 500 and redacted,
+  request-id log entry as any route, instead of Better Auth printing it raw to the console.
 - Our routes throw `Unauthorized` / `Forbidden` from `common/utils/exceptions.ts`, handled by the
-  shared `onError` middleware.
+  app's `errorHandler` (`common/middleware/error-handler.middleware.ts`), which keeps their status and message.
 
 ## Related Documentation
 

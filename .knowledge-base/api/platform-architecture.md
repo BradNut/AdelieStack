@@ -152,7 +152,7 @@
 ### Logging
 - Structured JSON logs
 - Request/response logging: pino's standard fields (`level`, `time`, `pid`, `hostname`) plus request id, method, path (reset tokens redacted, no query), status, duration and a fixed `msg` (`Request completed`, or `Request failed` at `error` level when a handler threw) only; never headers or error messages
-- Error stack traces
+- Unexpected errors (`common/middleware/error-handler.middleware.ts`): a separate `Unexpected error` entry at `error` level with the request id and the error's type, message, stack and cause chain under `error`; connection-string credentials and query parameters are redacted, and headers stay out. The client gets a generic localised message (`server_unexpected_error`) and the request id; only explicit local development (`ENVIRONMENT=development` and `NODE_ENV=development`, `isLocalDevEnv`) adds the error text and stack. A thrown `HTTPException` is a deliberate client error: it keeps its status and message and is not logged as a failure
 - Performance metrics
 
 ### Error Tracking
