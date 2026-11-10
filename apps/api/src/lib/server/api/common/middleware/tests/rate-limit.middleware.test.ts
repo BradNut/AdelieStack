@@ -7,7 +7,8 @@ const { getClientIpMock } = vi.hoisted(() => ({
   getClientIpMock: vi.fn(),
 }));
 
-vi.mock('#lib/server/api/common/utils/ip', () => ({
+vi.mock('#lib/server/api/common/utils/ip', async (original) => ({
+  ...(await original<typeof import('#lib/server/api/common/utils/ip')>()),
   getClientIp: getClientIpMock,
 }));
 

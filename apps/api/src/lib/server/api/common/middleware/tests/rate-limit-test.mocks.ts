@@ -9,6 +9,7 @@ type RateLimitContainerMocks = {
 };
 
 const callMock = vi.fn();
+const warnMock = vi.fn();
 const rateLimiterMock = vi.fn();
 const disableRateLimitMock = { value: false };
 const trustProxyMock = { value: false };
@@ -27,6 +28,10 @@ function createRateLimitContainerClass(mocks: RateLimitContainerMocks) {
     get(token: { name?: string }) {
       if (token?.name?.includes('RedisService')) {
         return { redis: { call: mocks.callMock } };
+      }
+
+      if (token?.name?.includes('LoggerService')) {
+        return { log: { warn: warnMock } };
       }
 
       if (token?.name?.includes('ConfigService')) {
@@ -66,6 +71,7 @@ async function createNeedleDiMock(importOriginal: <T>() => Promise<T>) {
 
 export const rateLimitTestMocks = {
   callMock,
+  warnMock,
   rateLimiterMock,
   disableRateLimitMock,
   trustProxyMock,

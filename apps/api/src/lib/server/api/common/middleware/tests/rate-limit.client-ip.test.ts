@@ -1,8 +1,9 @@
 import { AUTH_CLIENT_IP_HEADER } from '@adelie/shared';
 import type { Context } from 'hono';
 import { Hono } from 'hono';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { IGNORED_CLIENT_IP_HEADERS } from '#lib/server/api/common/testing/client-ip';
+import { MISSING_CLIENT_ADDRESS_WARNING_INTERVAL_MS } from '#lib/server/api/common/utils/client-address-warning';
 import type { HonoEnv } from '#lib/server/api/common/utils/hono';
 import { getRateLimitOptions } from './rate-limit-test.helpers';
 import { rateLimitTestMocks } from './rate-limit-test.mocks';
@@ -80,5 +81,51 @@ describe('rate-limit key client IP', () => {
     });
 
     expect(key).toBe(SHARED_BUCKET_KEY);
+  });
+});
+
+describe('rate-limit warning for a missing client address', () => {
+  // Past any warning the tests above logged on the real clock.
+  let clock = Date.now() + 2 * MISSING_CLIENT_ADDRESS_WARNING_INTERVAL_MS;
+
+  beforeEach(() => {
+    rateLimitTestMocks.resetRateLimitMocks();
+    rateLimitTestMocks.trustProxyMock.value = true;
+    vi.useFakeTimers({ toFake: ['Date'] });
+    // The throttle lives for the process, so each test starts one full interval after the last.
+    clock += MISSING_CLIENT_ADDRESS_WARNING_INTERVAL_MS;
+    vi.setSystemTime(clock);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('warns and still keys the request on the shared bucket', async () => {
+    expect(await rateLimitKey({})).toBe(SHARED_BUCKET_KEY);
+
+    expect(rateLimitTestMocks.warnMock).toHaveBeenCalledOnce();
+    expect(rateLimitTestMocks.warnMock.mock.calls[0][0]).toContain(AUTH_CLIENT_IP_HEADER);
+  });
+
+  it('does not warn for a usable address, and keys on it', async () => {
+    expect(await rateLimitKey({ [AUTH_CLIENT_IP_HEADER]: '203.0.113.1' })).toBe(`203.0.113.1_${PATH}`);
+
+    expect(rateLimitTestMocks.warnMock).not.toHaveBeenCalled();
+  });
+
+  it('does not warn for a signed-in request, whose bucket is its own', async () => {
+    const { keyGenerator } = getRateLimitOptions<Context<HonoEnv>>(() => rateLimit({ limit: 3, minutes: 1 }));
+    const context = { var: { session: { userId: 'user-1' } }, req: { path: PATH, header: () => undefined } } as unknown as Context<HonoEnv>;
+
+    expect(keyGenerator(context)).toBe(`user-1_${PATH}`);
+    expect(rateLimitTestMocks.warnMock).not.toHaveBeenCalled();
+  });
+
+  it('does not warn with TRUST_PROXY off', async () => {
+    rateLimitTestMocks.trustProxyMock.value = false;
+
+    expect(await rateLimitKey({})).toBe(SHARED_BUCKET_KEY);
+    expect(rateLimitTestMocks.warnMock).not.toHaveBeenCalled();
   });
 });

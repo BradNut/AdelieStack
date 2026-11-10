@@ -13,7 +13,9 @@ import { browserSessions } from './common/middleware/browser-session.middleware'
 import { requestLocale } from './common/middleware/locale.middleware';
 import { otelInstrumentation } from './common/middleware/otel.middleware';
 import { LoggerService } from './common/services/logger.service';
+import { warnIfClientAddressMissing } from './common/utils/client-address-warning';
 import { publicId } from './common/utils/crypto';
+import { clientIpOptionsFromEnvs } from './common/utils/ip';
 import { ConfigController } from './config/config.controller';
 import configureOpenAPI from './configure-open-api';
 import { StorageWebhookController } from './storage/storage-webhook.controller';
@@ -58,7 +60,13 @@ export class ApplicationController extends RootController {
     // Better Auth owns /api/auth/* with its own request/response shapes. It is registered
     // before the session middleware and every other route, and kept out of the returned
     // chain so it stays outside the api-contract RPC types.
-    api.on(['GET', 'POST'], `${AUTH_ROUTE}/*`, (c) => this.authService.auth.handler(c.req.raw));
+    api.on(['GET', 'POST'], `${AUTH_ROUTE}/*`, (c) => {
+      // Better Auth's limiter keys on the client IP, and with none every client shares one bucket per path.
+      if (!this.configService.envs.DISABLE_RATE_LIMIT) {
+        warnIfClientAddressMissing(c, clientIpOptionsFromEnvs(this.configService.envs), () => this.loggerService.log);
+      }
+      return this.authService.auth.handler(c.req.raw);
+    });
 
     const app = api
       .use(authSession(this.authService))

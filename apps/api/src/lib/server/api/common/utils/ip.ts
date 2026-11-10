@@ -17,6 +17,11 @@ export interface ClientIpOptions {
   trustedProxies: string[];
 }
 
+/** The client IP settings from the validated environment. */
+export function clientIpOptionsFromEnvs(envs: { TRUST_PROXY: boolean; TRUSTED_PROXIES: string[] }): ClientIpOptions {
+  return { trustProxy: envs.TRUST_PROXY, trustedProxies: envs.TRUSTED_PROXIES };
+}
+
 /*
  * The parsing below mirrors Better Auth's `getIPFromHeader` (`@better-auth/core/utils/ip`), quirks included, so both
  * limiters agree on a client. client-ip-parity.test.ts runs one table of header values through both.
