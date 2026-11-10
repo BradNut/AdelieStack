@@ -4,6 +4,7 @@ import {
   CAPTCHA_PROVIDERS,
   DEPLOY_ENVIRONMENTS,
   DeployEnvironment,
+  isLocalDevEnv,
   isProdEnv,
   NODE_ENVS,
   NodeEnv,
@@ -15,6 +16,9 @@ import { MailerTransport } from '#lib/server/api/mail/mailer-transport.constant'
 
 /** An env file declares optional variables as `NAME=`; treat that empty string as unset. */
 const emptyAsUndefined = (value: unknown) => (value === '' ? undefined : value);
+
+/** Like {@link emptyAsUndefined}, but also unsets a whitespace-only value, for secrets where blanks are no secret at all. */
+const blankAsUndefined = (value: unknown) => (typeof value === 'string' && value.trim() === '' ? undefined : value);
 
 /** Splits a comma-separated variable, dropping the blanks a stray comma leaves. */
 const commaSeparated = (value: string) =>
@@ -86,8 +90,8 @@ const baseEnvsDto = z.object({
   STORAGE_SSL: z.stringbool().default(false),
   STORAGE_URL: z.string(),
   PUBLIC_IMAGE_URI: z.string(),
-  // Shared secret for authenticating storage object-created webhooks (Bearer token). Required in production.
-  STORAGE_WEBHOOK_SECRET: z.preprocess(emptyAsUndefined, z.string().optional()),
+  // Shared secret for authenticating storage object-created webhooks (Bearer token). Required outside local development.
+  STORAGE_WEBHOOK_SECRET: z.preprocess(blankAsUndefined, z.string().optional()),
   // Antivirus: scan uploads against a ClamAV (clamd) daemon before persisting.
   ANTIVIRUS_ENABLED: z.stringbool().default(false),
   CLAMAV_HOST: z.string().default('localhost'),
@@ -135,6 +139,14 @@ export function sharesOneRateLimitBucket(envs: Pick<z.infer<typeof baseEnvsDto>,
   return !envs.DISABLE_RATE_LIMIT && !envs.TRUST_PROXY;
 }
 
+/**
+ * Only a developer's own machine may run the storage webhook unauthenticated. `ENV` defaults to `dev` and a deploy may
+ * set only `NODE_ENV=production`, so the deploy settings ({@link isLocalDevEnv}) decide, and `ENV=prod` always requires it.
+ */
+function runsWithoutWebhookSecret(envs: Pick<z.infer<typeof baseEnvsDto>, 'ENV' | 'ENVIRONMENT' | 'NODE_ENV'>): boolean {
+  return !isProdEnv(envs.ENV) && isLocalDevEnv(envs);
+}
+
 export const envsDto = baseEnvsDto.superRefine((envs, ctx) => {
   if (isProdEnv(envs.ENV) && sharesOneRateLimitBucket(envs)) {
     ctx.addIssue({
@@ -143,11 +155,11 @@ export const envsDto = baseEnvsDto.superRefine((envs, ctx) => {
       message: `${SHARED_RATE_LIMIT_BUCKET_MESSAGE} (refused in production)`,
     });
   }
-  if (isProdEnv(envs.ENV) && envs.STORAGE_WEBHOOK_SECRET === undefined) {
+  if (!runsWithoutWebhookSecret(envs) && envs.STORAGE_WEBHOOK_SECRET === undefined) {
     ctx.addIssue({
       code: 'custom',
       path: ['STORAGE_WEBHOOK_SECRET'],
-      message: 'STORAGE_WEBHOOK_SECRET is required in production: without it anyone can drive the storage webhook',
+      message: 'STORAGE_WEBHOOK_SECRET is required outside local development: without it anyone can drive the storage webhook',
     });
   }
   for (const { id: idName, secret: secretName } of Object.values(SOCIAL_PROVIDER_ENV_NAMES)) {

@@ -147,7 +147,28 @@ describe('envsDto storage webhook secret', () => {
     expect(envsDto.safeParse({ ...prod, STORAGE_WEBHOOK_SECRET: 'webhook-secret' }).success).toBe(true);
   });
 
-  it('allows development without a storage webhook secret', () => {
+  it('treats a whitespace-only storage webhook secret as missing in production', () => {
+    const result = envsDto.safeParse({ ...prod, STORAGE_WEBHOOK_SECRET: '   ' });
+    expect(result.success).toBe(false);
+    expect(result.error?.issues.map((i) => i.path[0])).toContain('STORAGE_WEBHOOK_SECRET');
+  });
+
+  it.each([
+    ['ENVIRONMENT', 'production'],
+    ['ENVIRONMENT', 'staging'],
+    ['NODE_ENV', 'production'],
+  ])('refuses ENV=dev with %s=%s without a storage webhook secret', (name, value) => {
+    const result = envsDto.safeParse({ ...validEnv, ENV: 'dev', [name]: value });
+    expect(result.success).toBe(false);
+    expect(result.error?.issues.map((i) => i.path[0])).toContain('STORAGE_WEBHOOK_SECRET');
+  });
+
+  it('accepts a deployed ENV=dev with a storage webhook secret', () => {
+    const deployed = { ...validEnv, ENV: 'dev', ENVIRONMENT: 'production', NODE_ENV: 'production', STORAGE_WEBHOOK_SECRET: 'webhook-secret' };
+    expect(envsDto.safeParse(deployed).success).toBe(true);
+  });
+
+  it('allows local development without a storage webhook secret', () => {
     const result = envsDto.safeParse({ ...validEnv, ENV: 'dev', STORAGE_WEBHOOK_SECRET: '' });
     expect(result.success).toBe(true);
     expect(result.data?.STORAGE_WEBHOOK_SECRET).toBeUndefined();
