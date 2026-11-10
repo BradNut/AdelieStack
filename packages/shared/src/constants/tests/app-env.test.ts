@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DeployEnvironment, isLocalDevEnv, NodeEnv } from '../app-env';
+import { AppEnv, DeployEnvironment, declaresProduction, isLocalDevEnv, NodeEnv } from '../app-env';
 
 describe('isLocalDevEnv', () => {
   it('is true only for a development environment run outside a production build', () => {
@@ -13,5 +13,24 @@ describe('isLocalDevEnv', () => {
     ['production', DeployEnvironment.PRODUCTION, NodeEnv.PRODUCTION],
   ])('is false for %s', (_case, ENVIRONMENT, NODE_ENV) => {
     expect(isLocalDevEnv({ ENVIRONMENT, NODE_ENV })).toBe(false);
+  });
+});
+
+describe('declaresProduction', () => {
+  const local = { ENV: AppEnv.DEV, ENVIRONMENT: DeployEnvironment.DEVELOPMENT, NODE_ENV: NodeEnv.DEVELOPMENT };
+
+  it.each([
+    ['ENV=prod', { ENV: AppEnv.PROD }],
+    ['NODE_ENV=production', { NODE_ENV: NodeEnv.PRODUCTION }],
+    ['ENVIRONMENT=production', { ENVIRONMENT: DeployEnvironment.PRODUCTION }],
+  ])('is true when %s', (_case, overrides) => {
+    expect(declaresProduction({ ...local, ...overrides })).toBe(true);
+  });
+
+  it.each([
+    ['local development', {}],
+    ['a staging deploy on ENV=dev', { ENVIRONMENT: DeployEnvironment.STAGING }],
+  ])('is false for %s', (_case, overrides) => {
+    expect(declaresProduction({ ...local, ...overrides })).toBe(false);
   });
 });

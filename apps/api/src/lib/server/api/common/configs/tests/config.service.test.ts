@@ -62,13 +62,13 @@ describe('ConfigService', () => {
   it('throws a wrapped error when a required env is missing', async () => {
     setProcessEnvs({ ...validEnvs, SIGNING_SECRET: undefined });
     const { ConfigService } = await import('#lib/server/api/common/configs/config.service');
-    expect(() => new ConfigService()).toThrowError(/Missing environment variables:/);
+    expect(() => new ConfigService()).toThrowError(/^Invalid environment variables:/);
   });
 
   it('throws a wrapped error when ports are not numbers', async () => {
     setProcessEnvs({ ...validEnvs, DATABASE_PORT: 'nope', PORT: 'nope', STORAGE_PORT: 'nope' });
     const { ConfigService } = await import('#lib/server/api/common/configs/config.service');
-    expect(() => new ConfigService()).toThrowError(/Missing environment variables:/);
+    expect(() => new ConfigService()).toThrowError(/^Invalid environment variables:/);
   });
 
   it('turns HIBP screening off only when HIBP_ENABLED is false', async () => {
