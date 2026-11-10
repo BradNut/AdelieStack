@@ -5,10 +5,12 @@
 	import { authClient } from '#lib/auth-client.ts';
 	import { authErrorMessage } from '#lib/client/auth-form.ts';
 	import { withFreshSession } from '#lib/client/fresh-session.svelte.ts';
+	import { ReplayActionKey } from '#lib/client/reauth-replay.svelte.ts';
 	import * as Alert from '#lib/components/ui/alert/index.ts';
 	import * as Card from '#lib/components/ui/card/index.ts';
 	import * as Form from '#lib/components/ui/form/index.ts';
 	import { Input } from '#lib/components/ui/input/index.ts';
+	import * as m from '#lib/paraglide/messages.js';
 
 	const { data } = $props();
 
@@ -21,11 +23,13 @@
 		resetForm: true,
 		async onUpdate({ form }) {
 			if (!form.valid) return;
-			// A stale session is asked to sign in again; the change then starts without resubmitting.
-			const { error } = await withFreshSession(() =>
-				authClient.changeEmail({ newEmail: form.data.email, callbackURL: AuthCallbackPath.EMAIL_CHANGED }),
+			// A stale session is asked to sign in again; the change then starts without resubmitting, after a provider
+			// redirect too.
+			const { error } = await withFreshSession(
+				() => authClient.changeEmail({ newEmail: form.data.email, callbackURL: AuthCallbackPath.EMAIL_CHANGED }),
+				{ key: ReplayActionKey.CHANGE_EMAIL, args: { newEmail: form.data.email } },
 			);
-			if (error) return setError(form, 'email', authErrorMessage(error, 'Could not start the email change.'));
+			if (error) return setError(form, 'email', authErrorMessage(error, m.email_change_failed()));
 			pendingEmail = form.data.email;
 		},
 	});

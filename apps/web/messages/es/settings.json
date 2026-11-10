@@ -45,5 +45,7 @@
   "connected_accounts_connect": "Conectar {provider}",
   "connected_accounts_unlinked": "{provider} desvinculado.",
   "connected_accounts_load_failed": "No se pudieron cargar tus cuentas conectadas.",
-  "connected_accounts_unlink_failed": "No se pudo desvincular la cuenta."
+  "connected_accounts_unlink_failed": "No se pudo desvincular la cuenta.",
+  "email_change_started": "Si {email} se puede usar, enviaremos allí un enlace de confirmación. Puede tardar unos minutos.",
+  "email_change_failed": "No se pudo iniciar el cambio de correo."
 }

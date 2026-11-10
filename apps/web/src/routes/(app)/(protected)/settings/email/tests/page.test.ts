@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { AuthCallbackPath, type AuthedUser } from '@adelie/shared';
+import { AuthCallbackPath, type AuthedUser, ReplayActionKey } from '@adelie/shared';
 import { cleanup, render, screen, waitFor } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -66,6 +66,18 @@ describe('email settings page', () => {
     expect((await screen.findByRole('alert')).textContent).toContain(NEW_EMAIL);
     expect(authClient.changeEmail).toHaveBeenCalledTimes(2);
     expect(authClient.changeEmail).toHaveBeenNthCalledWith(2, expectedCall);
+  });
+
+  it('registers the change to run again if the user re-authenticates with a provider, which reloads the page', async () => {
+    authClient.changeEmail.mockResolvedValue(NOT_FRESH);
+    mount();
+
+    await submitNewEmail();
+
+    await waitFor(() => expect(freshSession.open).toBe(true));
+    expect(freshSession.replay).toEqual({ key: ReplayActionKey.CHANGE_EMAIL, args: { newEmail: NEW_EMAIL } });
+    freshSession.settle(ReauthOutcome.DISMISSED);
+    expect(await screen.findByText(NOT_FRESH.error.message)).toBeTruthy();
   });
 
   it('does not start the change when a stale session dismisses the prompt', async () => {

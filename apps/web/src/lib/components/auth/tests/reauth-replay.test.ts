@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { SocialProvider } from '@adelie/shared';
+import { AuthCallbackPath, SocialProvider } from '@adelie/shared';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { authPath, stubFetch } from '#lib/client/tests/fetch-stub.ts';
@@ -27,6 +27,9 @@ const USER = { id: 'u1', email: 'a@example.com', twoFactorEnabled: false };
 const UNLINK = authPath('/unlink-account');
 const LIST_ACCOUNTS = authPath('/list-accounts');
 const UNLINK_GITHUB: ReplayRequest = { key: ReplayActionKey.UNLINK_ACCOUNT, args: { accountId: 'acc-gh' } };
+const CHANGE_EMAIL = authPath('/change-email');
+const NEW_EMAIL = 'emperor@example.com';
+const CHANGE_TO_EMPEROR: ReplayRequest = { key: ReplayActionKey.CHANGE_EMAIL, args: { newEmail: NEW_EMAIL } };
 
 let network: ReturnType<typeof stubFetch>;
 
@@ -181,12 +184,14 @@ describe('returning from the provider', () => {
     ['an unknown action', JSON.stringify({ action: { key: 'delete-everything', args: {} }, userId: 'u1', at: Date.now() })],
     ['arguments of the wrong shape', JSON.stringify({ action: { key: 'unlink-account', args: { accountId: 42 } }, userId: 'u1', at: Date.now() })],
     ['no timestamp', JSON.stringify({ action: null, userId: 'u1' })],
+    ['an email change without an address', JSON.stringify({ action: { key: 'change-email', args: { newEmail: 42 } }, userId: 'u1', at: Date.now() })],
   ])('drops a tampered entry with %s and runs nothing', async (_name, raw) => {
     sessionStorage.setItem(PENDING_REAUTH_STORAGE_KEY, raw);
 
     await replayPendingReauth({ userId: 'u1', providerError: null });
 
     expect(network.sent(UNLINK)).toEqual([]);
+    expect(network.sent(CHANGE_EMAIL)).toEqual([]);
     expect(toast.info).not.toHaveBeenCalled();
     expect(sessionStorage.getItem(PENDING_REAUTH_STORAGE_KEY)).toBeNull();
   });
@@ -209,6 +214,46 @@ describe('returning from the provider', () => {
 
     expect(toast.error).toHaveBeenCalledExactlyOnceWith('Could not unlink the account.');
     expect(toast.success).not.toHaveBeenCalled();
+  });
+
+  it('starts a registered email change and tells the user the confirmation is on its way', async () => {
+    await leaveForProvider(CHANGE_TO_EMPEROR);
+    network.reply(CHANGE_EMAIL, { body: { status: true } });
+
+    await replayPendingReauth({ userId: 'u1', providerError: null });
+
+    expect(network.sent(CHANGE_EMAIL).map((request) => request.body)).toEqual([{ newEmail: NEW_EMAIL, callbackURL: AuthCallbackPath.EMAIL_CHANGED }]);
+    expect(toast.info).toHaveBeenCalledExactlyOnceWith(
+      `If ${NEW_EMAIL} can be used, we're sending a confirmation link there. It can take a few minutes.`,
+    );
+    expect(sessionStorage.getItem(PENDING_REAUTH_STORAGE_KEY)).toBeNull();
+  });
+
+  it('shows the refusal when the replayed email change is rejected', async () => {
+    await leaveForProvider(CHANGE_TO_EMPEROR);
+    network.reply(CHANGE_EMAIL, { status: 400, body: { message: 'Email is the same' } });
+
+    await replayPendingReauth({ userId: 'u1', providerError: null });
+
+    expect(toast.error).toHaveBeenCalledExactlyOnceWith('Email is the same');
+    expect(toast.info).not.toHaveBeenCalled();
+  });
+
+  it('shows the email change failure when the replayed change throws', async () => {
+    await leaveForProvider(CHANGE_TO_EMPEROR);
+    vi.mocked(fetch).mockRejectedValue(new TypeError('Failed to fetch'));
+
+    await expect(replayPendingReauth({ userId: 'u1', providerError: null })).resolves.toBeUndefined();
+
+    expect(toast.error).toHaveBeenCalledExactlyOnceWith('Could not start the email change.');
+  });
+
+  it('does not change the email of another user who signed in at the provider', async () => {
+    await leaveForProvider(CHANGE_TO_EMPEROR);
+
+    await replayPendingReauth({ userId: 'someone-else', providerError: null });
+
+    expect(network.sent(CHANGE_EMAIL)).toEqual([]);
   });
 
   it('shows the provider error once even when nothing was pending', async () => {

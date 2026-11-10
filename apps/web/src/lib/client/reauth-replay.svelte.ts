@@ -1,6 +1,7 @@
-import { PENDING_REAUTH_STORAGE_KEY, ReplayActionKey } from '@adelie/shared';
+import { AuthCallbackPath, PENDING_REAUTH_STORAGE_KEY, ReplayActionKey } from '@adelie/shared';
 import { toast } from 'svelte-sonner';
 import { authClient } from '#lib/auth-client.ts';
+import { toastIfError } from '#lib/client/auth-form.ts';
 import { notifyUnlinked, providerLabel } from '#lib/client/connected-accounts.ts';
 import * as m from '#lib/paraglide/messages.js';
 
@@ -10,6 +11,7 @@ export { PENDING_REAUTH_STORAGE_KEY, ReplayActionKey };
 /** The arguments each replayable action takes; never credentials or tokens. */
 interface ReplayArgs {
   [ReplayActionKey.UNLINK_ACCOUNT]: { accountId: string };
+  [ReplayActionKey.CHANGE_EMAIL]: { newEmail: string };
 }
 
 /** What a stale action registers so it can run again after re-authentication. */
@@ -54,6 +56,15 @@ const REPLAYABLE_ACTIONS: { [K in ReplayActionKey]: (args: ReplayArgs[K]) => Pro
       toast.error(m.connected_accounts_unlink_failed());
     }
   },
+  async [ReplayActionKey.CHANGE_EMAIL]({ newEmail }) {
+    try {
+      const { error } = await authClient.changeEmail({ newEmail, callbackURL: AuthCallbackPath.EMAIL_CHANGED });
+      if (toastIfError(error, m.email_change_failed())) return;
+      toast.info(m.email_change_started({ email: newEmail }));
+    } catch {
+      toast.error(m.email_change_failed());
+    }
+  },
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -66,6 +77,9 @@ function parseAction(value: unknown): ReplayRequest | null | undefined {
   if (!isRecord(value) || !isRecord(value.args)) return undefined;
   if (value.key === ReplayActionKey.UNLINK_ACCOUNT && typeof value.args.accountId === 'string') {
     return { key: value.key, args: { accountId: value.args.accountId } };
+  }
+  if (value.key === ReplayActionKey.CHANGE_EMAIL && typeof value.args.newEmail === 'string') {
+    return { key: value.key, args: { newEmail: value.args.newEmail } };
   }
   return undefined;
 }
@@ -85,6 +99,8 @@ function parsePending(raw: string): PendingReauth | null {
 function runAction(action: ReplayRequest): Promise<void> {
   switch (action.key) {
     case ReplayActionKey.UNLINK_ACCOUNT:
+      return REPLAYABLE_ACTIONS[action.key](action.args);
+    case ReplayActionKey.CHANGE_EMAIL:
       return REPLAYABLE_ACTIONS[action.key](action.args);
   }
 }

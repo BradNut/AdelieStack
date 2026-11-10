@@ -1,6 +1,7 @@
 /** Actions that can run again after a provider re-authentication. The value is what is stored for the action. */
 export const ReplayActionKey = {
   UNLINK_ACCOUNT: 'unlink-account',
+  CHANGE_EMAIL: 'change-email',
 } as const;
 export type ReplayActionKey = (typeof ReplayActionKey)[keyof typeof ReplayActionKey];
 
