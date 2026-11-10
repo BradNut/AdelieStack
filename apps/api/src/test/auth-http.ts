@@ -1,6 +1,7 @@
 import { totpCode } from '@adelie/test-utils/totp';
 import { TEST_EMAIL } from '#lib/server/api/common/testing/factories';
 import type { SendProps } from '#lib/server/api/mail/interfaces/mailer.interface';
+import { type createTestDatabase, TEST_ORIGIN } from './auth-instance';
 
 export interface AuthRequestOptions {
   body?: unknown;
@@ -96,4 +97,12 @@ export async function startTwoFactorSignIn(request: AuthRequest, { email, passwo
   const res = await request('/sign-in/email', { body: { email, password } });
   const { twoFactorRedirect } = (await res.json()) as { twoFactorRedirect?: boolean };
   return { challengeCookie: cookiesFrom(res), twoFactorRedirect };
+}
+
+/** Requests a password reset for {@link TEST_USER} and returns the emailed link's token, read from the rows in `db`. */
+export async function resetToken(request: AuthRequest, db: ReturnType<typeof createTestDatabase>['db']): Promise<string> {
+  const prefix = 'reset-password:';
+  await request('/request-password-reset', { body: { email: TEST_USER.email, redirectTo: `${TEST_ORIGIN}/reset` } });
+  const row = db.verification.find((v) => String(v.identifier).startsWith(prefix));
+  return String(row?.identifier).slice(prefix.length);
 }

@@ -193,6 +193,9 @@ export function createAuth({
       maxPasswordLength: MAX_PASSWORD_LENGTH,
       sendResetPassword: authMail.sendResetPassword,
       onPasswordReset: authMail.notifyPasswordChanged,
+      // A stolen session must not outlive the reset. The adapter runs without transactions, so sessions
+      // go first: a failed password write then leaves the old password, never a new one beside live sessions.
+      revokeSessionsOnPasswordReset: true,
     },
     hooks: {
       before: createPasswordPolicyHook(hibpStatus),
