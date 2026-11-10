@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { AppRoute } from '@adelie/shared';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -34,7 +35,7 @@ describe('completing a password reset', () => {
 
     await submitNewPassword();
 
-    await waitFor(() => expect(goto).toHaveBeenCalledWith('/login'));
+    await waitFor(() => expect(goto).toHaveBeenCalledWith(AppRoute.LOGIN));
     expect(authClient.resetPassword).toHaveBeenCalledWith({ newPassword: NEW_PASSWORD, token: 'link-token' });
   });
 

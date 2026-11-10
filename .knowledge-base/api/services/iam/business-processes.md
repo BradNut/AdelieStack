@@ -74,9 +74,10 @@ Signed in with an already-verified email, the request is a `400 EMAIL_ALREADY_VE
 4. Password updated and every session the account held is ended; "password changed" Security Event email sent
 ```
 
-A successful reset signs the account out everywhere (`revokeSessionsOnPasswordReset`), including the
-browser that made the reset, which then signs in at `/login`. A failed reset (bad token, rejected
-password) ends no session.
+A successful reset signs the account out everywhere (`revokeSessionsOnPasswordReset`). The reset page
+redirects a signed-in browser to `/` before its form renders, so the browser making the reset normally
+has no session to lose; on success it is sent to `/login`. A failed reset (bad token, rejected password)
+ends no session.
 
 ## Password Change (`POST /change-password`)
 

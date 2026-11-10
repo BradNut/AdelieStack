@@ -3,8 +3,8 @@ import { hashPassword } from 'better-auth/crypto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Auth } from '#lib/server/api/auth/auth.config';
 import { createHibpHealth } from '#lib/server/api/auth/auth.hibp-status';
-import { type AuthRequest, cookiesFrom, signUpWithEmail, TEST_USER } from '../../../../../test/auth-http';
-import { createTestAuth, TEST_ORIGIN } from '../../../../../test/auth-instance';
+import { type AuthRequest, cookiesFrom, resetToken, signUpWithEmail, TEST_USER } from '../../../../../test/auth-http';
+import { createTestAuth } from '../../../../../test/auth-instance';
 import { HIBP_HOST, mockHibp, sha1 } from '../../../../../test/mocks/hibp.mock';
 
 const COMPLIANT_PASSWORD = 'correct horse battery';
@@ -84,16 +84,10 @@ async function signInCookie(password: string) {
   return cookiesFrom(res);
 }
 
-async function resetToken() {
-  await post('/request-password-reset', { email: EMAIL, redirectTo: `${TEST_ORIGIN}/reset` });
-  const row = db.verification.find((v) => String(v.identifier).startsWith('reset-password:'));
-  return String(row?.identifier).slice('reset-password:'.length);
-}
-
 describe('password policy hook: reset-password', () => {
   it('rejects a weak new password with the stable code and rules', async () => {
     await seedUser(COMPLIANT_PASSWORD);
-    const token = await resetToken();
+    const token = await resetToken(request, db);
 
     const res = await post('/reset-password', { newPassword: WEAK, token });
 
@@ -105,7 +99,7 @@ describe('password policy hook: reset-password', () => {
 
   it('accepts a compliant new password', async () => {
     await seedUser(COMPLIANT_PASSWORD);
-    const token = await resetToken();
+    const token = await resetToken(request, db);
 
     const res = await post('/reset-password', { newPassword: OTHER_PASSWORD, token });
 
@@ -305,7 +299,7 @@ describe('breached password screening (haveIBeenPwned, mocked)', () => {
 
   it('rejects a breached new password on reset-password', async () => {
     await seedUser(COMPLIANT_PASSWORD);
-    const token = await resetToken();
+    const token = await resetToken(request, db);
     mockHibp([PWNED_PASSWORD]);
 
     const res = await post('/reset-password', { newPassword: PWNED_PASSWORD, token });
@@ -316,7 +310,7 @@ describe('breached password screening (haveIBeenPwned, mocked)', () => {
 
   it('keeps the reset link usable after rejecting a breached password', async () => {
     await seedUser(COMPLIANT_PASSWORD);
-    const token = await resetToken();
+    const token = await resetToken(request, db);
     mockHibp([PWNED_PASSWORD]);
 
     const rejected = await post('/reset-password', { newPassword: PWNED_PASSWORD, token });
@@ -329,7 +323,7 @@ describe('breached password screening (haveIBeenPwned, mocked)', () => {
 
   it('keeps the reset link usable after an HIBP outage rejects the request', async () => {
     await seedUser(COMPLIANT_PASSWORD);
-    const token = await resetToken();
+    const token = await resetToken(request, db);
     mockHibp([], 503);
 
     const rejected = await post('/reset-password', { newPassword: OTHER_PASSWORD, token });
@@ -343,7 +337,7 @@ describe('breached password screening (haveIBeenPwned, mocked)', () => {
   it('does not call HIBP on reset-password when the switch is off', async () => {
     buildAuth(false);
     await seedUser(COMPLIANT_PASSWORD);
-    const token = await resetToken();
+    const token = await resetToken(request, db);
     const fetchMock = mockHibp([PWNED_PASSWORD]);
 
     const res = await post('/reset-password', { newPassword: PWNED_PASSWORD, token });

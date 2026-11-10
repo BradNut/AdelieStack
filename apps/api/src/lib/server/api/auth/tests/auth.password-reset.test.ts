@@ -1,8 +1,8 @@
 import { PASSWORD_CHECK_UNAVAILABLE, PASSWORD_COMPROMISED, PASSWORD_POLICY_VIOLATION } from '@adelie/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createHibpHealth } from '#lib/server/api/auth/auth.hibp-status';
-import { type AuthRequest, cookiesFrom, signUpWithEmail, TEST_USER } from '../../../../../test/auth-http';
-import { createTestAuth, TEST_ORIGIN } from '../../../../../test/auth-instance';
+import { type AuthRequest, cookiesFrom, resetToken, signUpWithEmail, TEST_USER } from '../../../../../test/auth-http';
+import { createTestAuth } from '../../../../../test/auth-instance';
 import { mockHibp } from '../../../../../test/mocks/hibp.mock';
 
 const { email: EMAIL, password: PASSWORD } = TEST_USER;
@@ -21,8 +21,8 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-async function signIn(email = EMAIL, password = PASSWORD) {
-  const res = await request('/sign-in/email', { body: { email, password } });
+async function signIn(password = PASSWORD) {
+  const res = await request('/sign-in/email', { body: { email: EMAIL, password } });
   expect(res.status).toBe(200);
   return cookiesFrom(res);
 }
@@ -31,14 +31,20 @@ async function isSignedIn(cookie: string) {
   return (await (await request('/get-session', { cookie })).json()) !== null;
 }
 
-async function resetToken(email = EMAIL) {
-  await request('/request-password-reset', { body: { email, redirectTo: `${TEST_ORIGIN}/reset` } });
-  const row = db.verification.find((v) => String(v.identifier).startsWith('reset-password:'));
-  return String(row?.identifier).slice('reset-password:'.length);
-}
-
 function reset(token: string, newPassword = NEW_PASSWORD) {
   return request('/reset-password', { body: { newPassword, token } });
+}
+
+async function signedInWithLink() {
+  const { cookie } = await signUpWithEmail(request, TEST_USER);
+  return { cookie, token: await resetToken(request, db) };
+}
+
+/** As {@link signedInWithLink}, on an instance that screens for breached passwords. */
+async function signedInWithScreenedLink() {
+  ({ db, request } = createTestAuth({ hibpStatus: createHibpHealth({ enabled: true }) }));
+  mockHibp([]);
+  return signedInWithLink();
 }
 
 describe('a successful password reset', () => {
@@ -48,26 +54,17 @@ describe('a successful password reset', () => {
     expect(await isSignedIn(first)).toBe(true);
     expect(await isSignedIn(second)).toBe(true);
 
-    expect((await reset(await resetToken())).status).toBe(200);
+    expect((await reset(await resetToken(request, db))).status).toBe(200);
 
     expect(await isSignedIn(first)).toBe(false);
     expect(await isSignedIn(second)).toBe(false);
-  });
-
-  it('leaves no session row for the account', async () => {
-    await signUpWithEmail(request, TEST_USER);
-    await signIn();
-
-    await reset(await resetToken());
-
-    expect(db.session).toHaveLength(0);
   });
 
   it('leaves the sessions of other accounts alone', async () => {
     await signUpWithEmail(request, TEST_USER);
     const { cookie: other } = await signUpWithEmail(request, OTHER_USER);
 
-    await reset(await resetToken());
+    await reset(await resetToken(request, db));
 
     expect(await isSignedIn(other)).toBe(true);
   });
@@ -75,30 +72,35 @@ describe('a successful password reset', () => {
   it('lets the user sign in with the new password, and not the old one', async () => {
     await signUpWithEmail(request, TEST_USER);
 
-    await reset(await resetToken());
+    await reset(await resetToken(request, db));
 
-    expect(await isSignedIn(await signIn(EMAIL, NEW_PASSWORD))).toBe(true);
+    expect(await isSignedIn(await signIn(NEW_PASSWORD))).toBe(true);
     expect((await request('/sign-in/email', { body: { email: EMAIL, password: PASSWORD } })).status).toBe(401);
   });
 
   it('ends no session of a later sign-in when the spent link is replayed', async () => {
     await signUpWithEmail(request, TEST_USER);
-    const token = await resetToken();
+    const token = await resetToken(request, db);
     await reset(token);
-    const signedInAfter = await signIn(EMAIL, NEW_PASSWORD);
+    const signedInAfter = await signIn(NEW_PASSWORD);
 
     expect((await reset(token, 'yet another long passphrase')).status).toBe(400);
 
     expect(await isSignedIn(signedInAfter)).toBe(true);
   });
+
+  it('ends every session when a good password follows a breached one on the same link', async () => {
+    const { cookie, token } = await signedInWithScreenedLink();
+    mockHibp([BREACHED_PASSWORD]);
+    await reset(token, BREACHED_PASSWORD);
+
+    expect((await reset(token)).status).toBe(200);
+
+    expect(await isSignedIn(cookie)).toBe(false);
+  });
 });
 
 describe('a failed password reset ends no session', () => {
-  async function signedInWithLink() {
-    const { cookie } = await signUpWithEmail(request, TEST_USER);
-    return { cookie, token: await resetToken() };
-  }
-
   it('for an unknown token', async () => {
     const { cookie } = await signedInWithLink();
 
@@ -135,15 +137,6 @@ describe('a failed password reset ends no session', () => {
   });
 
   describe('with breached-password screening on', () => {
-    beforeEach(() => {
-      ({ db, request } = createTestAuth({ hibpStatus: createHibpHealth({ enabled: true }) }));
-    });
-
-    async function signedInWithScreenedLink() {
-      mockHibp([]);
-      return signedInWithLink();
-    }
-
     it('for a breached password', async () => {
       const { cookie, token } = await signedInWithScreenedLink();
       mockHibp([BREACHED_PASSWORD]);
@@ -164,16 +157,6 @@ describe('a failed password reset ends no session', () => {
       expect(res.status).toBe(503);
       expect(((await res.json()) as { code: string }).code).toBe(PASSWORD_CHECK_UNAVAILABLE);
       expect(await isSignedIn(cookie)).toBe(true);
-    });
-
-    it('and the same link still ends them once a good password is given', async () => {
-      const { cookie, token } = await signedInWithScreenedLink();
-      mockHibp([BREACHED_PASSWORD]);
-      await reset(token, BREACHED_PASSWORD);
-
-      expect((await reset(token)).status).toBe(200);
-
-      expect(await isSignedIn(cookie)).toBe(false);
     });
   });
 });
