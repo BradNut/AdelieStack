@@ -236,7 +236,7 @@ describe('routes/api/[...slug]/+server', () => {
     });
   });
 
-  describe('provider-only routes', () => {
+  describe('internal-only routes', () => {
     it.each([
       ['POST', POST],
       ['GET', GET],
@@ -268,6 +268,18 @@ describe('routes/api/[...slug]/+server', () => {
 
       expect(fetchMock).not.toHaveBeenCalled();
       expect(response.status).toBe(StatusCodes.NOT_FOUND);
+    });
+
+    it.each([
+      ['/api/storage/webhook', '/api/storage/webhook'],
+      ['/API/Storage/WEBHOOK', '/API/Storage/WEBHOOK'],
+      ['/api/storage/%77ebhook', '/api/storage/webhook'],
+      ['/api/storage/webhook?x=1', '/api/storage/webhook'],
+    ])('answers %s with the same JSON body the API gives an unknown route', async (path, echoedPath) => {
+      const response = await POST(createEvent(new Request(`http://localhost:5173${path}`, { method: 'POST', body: '{}' })));
+
+      expect(response.headers.get('content-type')).toBe('application/json');
+      expect(await response.json()).toEqual({ message: `Not Found - ${echoedPath}` });
     });
 
     it.each(['/api/storage', '/api/storage/webhooks', '/api/storage/webhook-status', '/api/users/storage/webhook'])(

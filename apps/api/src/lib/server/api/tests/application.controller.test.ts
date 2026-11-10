@@ -1,4 +1,13 @@
-import { AppEnv, AUTH_CLIENT_IP_HEADER, DeployEnvironment, NodeEnv, RoleName, STORAGE_WEBHOOK_ROUTE, StatusCodes } from '@adelie/shared';
+import {
+  AppEnv,
+  AUTH_CLIENT_IP_HEADER,
+  DeployEnvironment,
+  NodeEnv,
+  notFoundMessage,
+  RoleName,
+  STORAGE_WEBHOOK_ROUTE,
+  StatusCodes,
+} from '@adelie/shared';
 import { Hono } from 'hono';
 import { TrieRouter } from 'hono/router/trie-router';
 import pino from 'pino';
@@ -273,12 +282,24 @@ describe('auth handler mount', () => {
 });
 
 describe('storage webhook mount', () => {
-  // The storage provider is configured with this URL and calls the API directly; the web proxy refuses it.
+  // Literal on purpose: pins the URL the storage provider is configured with (see STORAGE_WEBHOOK_PATH).
   it('serves the webhook at /api/storage/webhook', async () => {
     const res = await buildApp().request('/api/storage/webhook', { method: 'POST' });
 
     expect(res.status).toBe(StatusCodes.OK);
     expect(await res.text()).toBe('from-storage-webhook');
+  });
+});
+
+describe('unknown route', () => {
+  // The web proxy builds its refusals from notFoundMessage, so this pins it to what the API really sends.
+  it('answers with notFoundMessage JSON', async () => {
+    const res = await buildApp().request('/api/no-such-route', { method: 'POST' });
+
+    expect(res.status).toBe(StatusCodes.NOT_FOUND);
+    expect(res.headers.get('content-type')).toBe('application/json');
+    expect(await res.json()).toEqual({ message: notFoundMessage('/api/no-such-route') });
+    expect(notFoundMessage('/api/no-such-route')).toBe('Not Found - /api/no-such-route');
   });
 });
 

@@ -61,3 +61,9 @@ export const StatusCodes = {
 } as const;
 
 export type StatusCodes = (typeof StatusCodes)[keyof typeof StatusCodes];
+
+/**
+ * Message the API's not-found handler (stoker's `notFound`) answers an unknown route with, as `{ message }` JSON.
+ * Anything that must pass for an API 404, such as the web proxy refusing a route, builds its body from this.
+ */
+export const notFoundMessage = (path: string) => `Not Found - ${path}`;

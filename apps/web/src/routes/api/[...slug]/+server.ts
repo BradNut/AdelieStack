@@ -1,5 +1,6 @@
-import { STORAGE_WEBHOOK_PATH, StatusCodes } from '@adelie/shared';
+import { notFoundMessage, STORAGE_WEBHOOK_PATH, StatusCodes } from '@adelie/shared';
 import type { RequestEvent, RequestHandler } from '@sveltejs/kit';
+import { getPath } from 'hono/utils/url';
 import { API_PROXY_BASE_URL } from '$app/env/private';
 
 const DEFAULT_API_PROXY_BASE_URL = 'http://127.0.0.1:3001';
@@ -45,12 +46,12 @@ function normalizePath(path: string): string {
   return `/${segments.join('/')}`;
 }
 
-// Routes only an internal caller uses; the storage provider reaches the webhook on the API directly.
-const PROVIDER_ONLY_PATHS = [normalizePath(STORAGE_WEBHOOK_PATH)];
+// Not forwarded; see STORAGE_WEBHOOK_PATH.
+const INTERNAL_ONLY_PATHS = [normalizePath(STORAGE_WEBHOOK_PATH)];
 
-function isProviderOnlyPath(requestUrl: URL): boolean {
+function isInternalOnlyPath(requestUrl: URL): boolean {
   const path = normalizePath(requestUrl.pathname);
-  return PROVIDER_ONLY_PATHS.some((blocked) => path === blocked || path.startsWith(`${blocked}/`));
+  return INTERNAL_ONLY_PATHS.some((blocked) => path === blocked || path.startsWith(`${blocked}/`));
 }
 
 function getUpstreamUrl(requestUrl: URL): URL {
@@ -108,9 +109,9 @@ function toDownstreamResponse(upstream: Response): Response {
 async function proxyApi(event: RequestEvent): Promise<Response> {
   const { request } = event;
   const requestUrl = new URL(request.url);
-  // 404 rather than 403, so the proxy does not confirm the route exists.
-  if (isProviderOnlyPath(requestUrl)) {
-    return new Response('Not Found', { status: StatusCodes.NOT_FOUND });
+  // Answered as the API answers an unknown route (path as its router sees it), so the block is indistinguishable.
+  if (isInternalOnlyPath(requestUrl)) {
+    return Response.json({ message: notFoundMessage(getPath(request)) }, { status: StatusCodes.NOT_FOUND });
   }
 
   const body = METHODS_WITHOUT_BODY.has(request.method) ? undefined : await request.arrayBuffer();
