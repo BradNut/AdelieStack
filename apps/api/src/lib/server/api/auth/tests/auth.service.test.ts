@@ -43,7 +43,7 @@ describe('AuthService', () => {
     });
 
     it('has no reference route in production', async () => {
-      const { service } = buildService({ ENV: 'prod', TRUST_PROXY: 'true' });
+      const { service } = buildService({ ENV: 'prod', TRUST_PROXY: 'true', STORAGE_WEBHOOK_SECRET: 'webhook-secret' });
 
       expect((await reference(service)).status).toBe(404);
     });

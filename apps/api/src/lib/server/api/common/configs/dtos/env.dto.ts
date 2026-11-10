@@ -86,8 +86,8 @@ const baseEnvsDto = z.object({
   STORAGE_SSL: z.stringbool().default(false),
   STORAGE_URL: z.string(),
   PUBLIC_IMAGE_URI: z.string(),
-  // Shared secret for authenticating storage object-created webhooks (Bearer token).
-  STORAGE_WEBHOOK_SECRET: z.string().optional(),
+  // Shared secret for authenticating storage object-created webhooks (Bearer token). Required in production.
+  STORAGE_WEBHOOK_SECRET: z.preprocess(emptyAsUndefined, z.string().optional()),
   // Antivirus: scan uploads against a ClamAV (clamd) daemon before persisting.
   ANTIVIRUS_ENABLED: z.stringbool().default(false),
   CLAMAV_HOST: z.string().default('localhost'),
@@ -141,6 +141,13 @@ export const envsDto = baseEnvsDto.superRefine((envs, ctx) => {
       code: 'custom',
       path: ['TRUST_PROXY'],
       message: `${SHARED_RATE_LIMIT_BUCKET_MESSAGE} (refused in production)`,
+    });
+  }
+  if (isProdEnv(envs.ENV) && envs.STORAGE_WEBHOOK_SECRET === undefined) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['STORAGE_WEBHOOK_SECRET'],
+      message: 'STORAGE_WEBHOOK_SECRET is required in production: without it anyone can drive the storage webhook',
     });
   }
   for (const { id: idName, secret: secretName } of Object.values(SOCIAL_PROVIDER_ENV_NAMES)) {
