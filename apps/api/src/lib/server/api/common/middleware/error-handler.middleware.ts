@@ -4,7 +4,7 @@ import type { ErrorHandler } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import type { Logger } from 'pino';
 import { m } from '#lib/server/api/common/i18n/index';
-import { REDACTED } from './request-logger.middleware';
+import { REDACTED } from '#lib/server/api/common/utils/log-redaction';
 
 /** Fixed, so the entry's `msg` never repeats the error's free text. */
 const UNEXPECTED_ERROR_MESSAGE = 'Unexpected error';

@@ -78,7 +78,7 @@ opens no connection.
 - Better Auth answers its own errors (status plus a `code` such as `INVALID_EMAIL_OR_PASSWORD`,
   `PASSWORD_COMPROMISED`, `PASSWORD_CHECK_UNAVAILABLE`); a throttled request is `429` with `X-Retry-After`.
 - Our routes throw `Unauthorized` / `Forbidden` from `common/utils/exceptions.ts`, handled by the
-  app's `errorHandler` (`common/middleware/error-handler.ts`), which keeps their status and message.
+  app's `errorHandler` (`common/middleware/error-handler.middleware.ts`), which keeps their status and message.
 
 ## Related Documentation
 

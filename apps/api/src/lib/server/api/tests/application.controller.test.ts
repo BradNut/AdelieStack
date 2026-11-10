@@ -1,5 +1,4 @@
 import { AUTH_CLIENT_IP_HEADER, RoleName } from '@adelie/shared';
-import { DrizzleQueryError } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { TrieRouter } from 'hono/router/trie-router';
 import pino from 'pino';
@@ -79,6 +78,18 @@ function captureLog() {
     output: () => lines.join(''),
     entries: () => lines.map((line) => JSON.parse(line) as RequestLogEntry),
   };
+}
+
+type LogEntry = Record<string, unknown>;
+
+/** The request logger's entries: the ones that carry the request. */
+function requestEntries(entries: RequestLogEntry[]): RequestLogEntry[] {
+  return entries.filter((entry) => 'req' in entry);
+}
+
+/** Every other entry, such as the error handler's `Unexpected error`. */
+function errorEntries(entries: RequestLogEntry[]): LogEntry[] {
+  return entries.filter((entry) => !('req' in entry)) as unknown as LogEntry[];
 }
 
 /** Asserts the request produced exactly one entry, and that it holds nothing beyond the allow-list. */
@@ -228,10 +239,10 @@ describe('request logging', () => {
     expect(res.status).toBe(500);
     expect(output()).not.toContain('cookie-secret');
     // The error itself is logged in its own entry (see "error responses"); the request entry keeps to the allow-list.
-    const requestEntries = entries().filter((entry) => 'req' in entry);
-    expect(JSON.stringify(requestEntries)).not.toContain('error-message-secret');
-    expectSingleAllowListedEntry(requestEntries, res, { method: 'POST', url: '/api/auth/sign-in/email' });
-    expect(requestEntries[0].msg).toBe('Request failed');
+    const logged = requestEntries(entries());
+    expect(JSON.stringify(logged)).not.toContain('error-message-secret');
+    expectSingleAllowListedEntry(logged, res, { method: 'POST', url: '/api/auth/sign-in/email' });
+    expect(logged[0].msg).toBe('Request failed');
   });
 
   it('logs an unmatched route with its 404 status', async () => {
@@ -410,32 +421,21 @@ describe('GET /api/users/me', () => {
   });
 });
 
+// The handler's own behaviour (environment gating, redaction, cause chain) is tested in error-handler.middleware.test.ts;
+// these check it is the app's handler, behind the request id, locale and logger.
 describe('error responses', () => {
   const failure = () => new Error('connect ECONNREFUSED db.internal:5432 for SELECT * FROM users');
 
-  it.each([
-    ['production', 'prod'],
-    ['an unrecognised environment', 'test'],
-    ['a missing environment', undefined],
-  ])('answers an unexpected error in %s with a generic message and the request id', async (_case, env) => {
+  it('answers an unexpected error in a route with a generic message and the request id', async () => {
     getSession.mockRejectedValue(failure());
 
-    const res = await buildApp({ ENV: env }).request('/api/users/me');
+    const res = await buildApp({ ENV: 'prod' }).request('/api/users/me');
 
     expect(res.status).toBe(500);
-    const body = await res.json();
-    expect(body).toEqual({ message: 'Something went wrong on our side. Please try again later.', requestId: res.headers.get('x-request-id') });
-    expect(JSON.stringify(body)).not.toMatch(/ECONNREFUSED|db\.internal|SELECT|at /);
-  });
-
-  it('shows the error text and stack only in explicit local development', async () => {
-    const error = failure();
-    getSession.mockRejectedValue(error);
-
-    const res = await buildApp({ ENV: 'dev' }).request('/api/users/me');
-
-    expect(res.status).toBe(500);
-    expect(await res.json()).toEqual({ message: error.message, stack: error.stack, requestId: res.headers.get('x-request-id') });
+    expect(await res.json()).toEqual({
+      message: 'Something went wrong on our side. Please try again later.',
+      requestId: res.headers.get('x-request-id'),
+    });
   });
 
   it('localises the generic message to the request language', async () => {
@@ -447,82 +447,26 @@ describe('error responses', () => {
     expect(((await res.json()) as { message: string }).message).toBe('Bei uns ist ein Fehler aufgetreten. Bitte versuchen Sie es später erneut.');
   });
 
-  it.each([
-    ['production', 'prod'],
-    ['local development', 'dev'],
-  ])('keeps the status and message of a deliberate client error in %s', async (_case, env) => {
-    handler.mockRejectedValue(Forbidden('You may not do that'));
-
-    const res = await buildApp({ ENV: env }).request('/api/auth/sign-in/email', { method: 'POST' });
-
-    expect(res.status).toBe(403);
-    expect(await res.json()).toEqual({ message: 'You may not do that', requestId: res.headers.get('x-request-id') });
-  });
-
-  it('does not log a deliberate client error as a failure', async () => {
+  it('keeps the status and message of a deliberate client error from the auth mount', async () => {
     const { log, entries } = captureLog();
     handler.mockRejectedValue(Forbidden('You may not do that'));
 
-    await buildApp({ ENV: 'prod' }, log).request('/api/auth/sign-in/email', { method: 'POST' });
+    const res = await buildApp({ ENV: 'prod' }, log).request('/api/auth/sign-in/email', { method: 'POST' });
 
-    expect(entries().filter((entry) => !('req' in entry))).toEqual([]);
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({ message: 'You may not do that', requestId: res.headers.get('x-request-id') });
+    expect(errorEntries(entries())).toEqual([]);
   });
 
-  describe('logged detail', () => {
-    interface ErrorLogEntry {
-      level: number;
-      msg: string;
-      reqId: string;
-      error: { type: string; message: string; stack: string; cause?: ErrorLogEntry['error'] };
-    }
+  it('logs an unexpected error to the app logger against the request id', async () => {
+    const { log, entries } = captureLog();
+    getSession.mockRejectedValue(failure());
 
-    async function failWith(error: Error) {
-      const { log, output, entries } = captureLog();
-      getSession.mockRejectedValue(error);
-      const res = await buildApp({ ENV: 'prod' }, log).request('/api/users/me', {
-        headers: { Cookie: 'better-auth.session_token=cookie-secret', Authorization: 'Bearer bearer-secret' },
-      });
-      const errorEntries = entries().filter((entry) => !('req' in entry)) as unknown as ErrorLogEntry[];
-      expect(errorEntries).toHaveLength(1);
-      return { res, output: output(), entry: errorEntries[0] };
-    }
+    const res = await buildApp({ ENV: 'prod' }, log).request('/api/users/me');
 
-    it('logs the full error with its stack against the request id', async () => {
-      const error = failure();
-
-      const { res, entry } = await failWith(error);
-
-      expect(entry.level).toBe(50);
-      expect(entry.msg).toBe('Unexpected error');
-      expect(entry.reqId).toBe(res.headers.get('x-request-id'));
-      expect(entry.error).toEqual({ type: 'Error', message: error.message, stack: error.stack });
-    });
-
-    it('keeps the request headers out of the logged error', async () => {
-      const { output } = await failWith(failure());
-
-      expect(output).not.toContain('cookie-secret');
-      expect(output).not.toContain('bearer-secret');
-    });
-
-    it('redacts the password in a connection string', async () => {
-      const { output, entry } = await failWith(new Error('could not connect to postgres://app:db-password-secret@db.internal:5432/app'));
-
-      expect(output).not.toContain('db-password-secret');
-      expect(entry.error.message).toBe('could not connect to postgres://[REDACTED]@db.internal:5432/app');
-    });
-
-    it('logs a failed query and its cause without the query parameters', async () => {
-      const cause = new Error('relation "sessions" does not exist');
-      const error = new DrizzleQueryError('select * from "sessions" where "token" = $1', ['session-token-secret'], cause);
-
-      const { output, entry } = await failWith(error);
-
-      expect(output).not.toContain('session-token-secret');
-      expect(entry.error.message).toBe('Failed query: select * from "sessions" where "token" = $1\nparams: [REDACTED]');
-      expect(entry.error.stack).toContain('select * from "sessions"');
-      expect(entry.error.cause).toEqual({ type: 'Error', message: cause.message, stack: cause.stack });
-    });
+    const logged = errorEntries(entries());
+    expect(logged).toHaveLength(1);
+    expect(logged[0]).toMatchObject({ msg: 'Unexpected error', reqId: res.headers.get('x-request-id') });
   });
 });
 

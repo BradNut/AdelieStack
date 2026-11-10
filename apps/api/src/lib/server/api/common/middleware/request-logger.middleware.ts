@@ -2,9 +2,7 @@ import type { MiddlewareHandler } from 'hono';
 import { type Env, pinoLogger } from 'hono-pino';
 import type { Logger } from 'pino';
 import { AuthEndpoint } from '#lib/server/api/auth/auth.endpoints';
-
-/** What stands in for a credential in a log entry: the request path here, and an error's text in the error handler. */
-export const REDACTED = '[REDACTED]';
+import { REDACTED } from '#lib/server/api/common/utils/log-redaction';
 
 /** Fixed response messages: the library default on failure is `c.error.message`, free text that can hold anything. */
 const REQUEST_COMPLETED_MESSAGE = 'Request completed';

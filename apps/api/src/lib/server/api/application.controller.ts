@@ -9,7 +9,7 @@ import { authSession } from './auth/auth-session.middleware';
 import { ConfigService } from './common/configs/config.service';
 import { RootController } from './common/factories/controllers.factory';
 import { browserSessions } from './common/middleware/browser-session.middleware';
-import { errorHandler } from './common/middleware/error-handler';
+import { errorHandler } from './common/middleware/error-handler.middleware';
 import { requestLocale } from './common/middleware/locale.middleware';
 import { otelInstrumentation } from './common/middleware/otel.middleware';
 import { requestLogger } from './common/middleware/request-logger.middleware';
