@@ -35,5 +35,6 @@
   "storage_upload_type_not_accepted": "File rejected: this file type is not accepted.",
   "storage_upload_unrecognized": "File rejected: its type could not be recognised.",
   "storage_image_too_many_pixels": "File rejected: the image has too many pixels.",
-  "storage_image_output_too_large": "The requested image size is too large."
+  "storage_image_output_too_large": "The requested image size is too large.",
+  "server_unexpected_error": "Something went wrong on our side. Please try again later."
 }

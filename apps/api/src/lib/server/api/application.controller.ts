@@ -2,13 +2,14 @@ import { API_BASE_PATH, AUTH_ROUTE } from '@adelie/shared';
 import { inject, injectable } from '@needle-di/core';
 import { contextStorage } from 'hono/context-storage';
 import { requestId } from 'hono/request-id';
-import { notFound, onError, serveEmojiFavicon } from 'stoker/middlewares';
+import { notFound, serveEmojiFavicon } from 'stoker/middlewares';
 import { AdminExampleController } from './admin/admin-example.controller';
 import { AuthService } from './auth/auth.service';
 import { authSession } from './auth/auth-session.middleware';
 import { ConfigService } from './common/configs/config.service';
 import { RootController } from './common/factories/controllers.factory';
 import { browserSessions } from './common/middleware/browser-session.middleware';
+import { errorHandler } from './common/middleware/error-handler';
 import { requestLocale } from './common/middleware/locale.middleware';
 import { otelInstrumentation } from './common/middleware/otel.middleware';
 import { requestLogger } from './common/middleware/request-logger.middleware';
@@ -77,7 +78,7 @@ export class ApplicationController extends RootController {
       .route('/users', this.usersController.routes())
       .route('/admin', this.adminExampleController.routes())
       .route('/storage', this.storageWebhookController.routes())
-      .onError(onError)
+      .onError(errorHandler({ env: this.configService.envs.ENV, logger: this.loggerService.log }))
       .notFound(notFound);
 
     configureOpenAPI(app);

@@ -1,4 +1,5 @@
 import { AUTH_CLIENT_IP_HEADER, RoleName } from '@adelie/shared';
+import { DrizzleQueryError } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { TrieRouter } from 'hono/router/trie-router';
 import pino from 'pino';
@@ -14,6 +15,7 @@ import { requestLogger } from '#lib/server/api/common/middleware/request-logger.
 import type { LoggerService } from '#lib/server/api/common/services/logger.service';
 import { buildAuthSession, buildAuthUser } from '#lib/server/api/common/testing/factories';
 import { MISSING_CLIENT_ADDRESS_WARNING_INTERVAL_MS } from '#lib/server/api/common/utils/client-address-warning';
+import { Forbidden } from '#lib/server/api/common/utils/exceptions';
 import { ConfigController } from '#lib/server/api/config/config.controller';
 import type { StorageWebhookController } from '#lib/server/api/storage/storage-webhook.controller';
 import { UsersController } from '#lib/server/api/users/users.controller';
@@ -225,9 +227,11 @@ describe('request logging', () => {
 
     expect(res.status).toBe(500);
     expect(output()).not.toContain('cookie-secret');
-    expect(output()).not.toContain('error-message-secret');
-    expectSingleAllowListedEntry(entries(), res, { method: 'POST', url: '/api/auth/sign-in/email' });
-    expect(entries()[0].msg).toBe('Request failed');
+    // The error itself is logged in its own entry (see "error responses"); the request entry keeps to the allow-list.
+    const requestEntries = entries().filter((entry) => 'req' in entry);
+    expect(JSON.stringify(requestEntries)).not.toContain('error-message-secret');
+    expectSingleAllowListedEntry(requestEntries, res, { method: 'POST', url: '/api/auth/sign-in/email' });
+    expect(requestEntries[0].msg).toBe('Request failed');
   });
 
   it('logs an unmatched route with its 404 status', async () => {
@@ -403,6 +407,122 @@ describe('GET /api/users/me', () => {
 
     expect(res.status).toBe(200);
     expect(await res.json()).toBeNull();
+  });
+});
+
+describe('error responses', () => {
+  const failure = () => new Error('connect ECONNREFUSED db.internal:5432 for SELECT * FROM users');
+
+  it.each([
+    ['production', 'prod'],
+    ['an unrecognised environment', 'test'],
+    ['a missing environment', undefined],
+  ])('answers an unexpected error in %s with a generic message and the request id', async (_case, env) => {
+    getSession.mockRejectedValue(failure());
+
+    const res = await buildApp({ ENV: env }).request('/api/users/me');
+
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body).toEqual({ message: 'Something went wrong on our side. Please try again later.', requestId: res.headers.get('x-request-id') });
+    expect(JSON.stringify(body)).not.toMatch(/ECONNREFUSED|db\.internal|SELECT|at /);
+  });
+
+  it('shows the error text and stack only in explicit local development', async () => {
+    const error = failure();
+    getSession.mockRejectedValue(error);
+
+    const res = await buildApp({ ENV: 'dev' }).request('/api/users/me');
+
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ message: error.message, stack: error.stack, requestId: res.headers.get('x-request-id') });
+  });
+
+  it('localises the generic message to the request language', async () => {
+    getSession.mockRejectedValue(failure());
+
+    const res = await buildApp({ ENV: 'prod' }).request('/api/users/me', { headers: { 'Accept-Language': 'de' } });
+
+    expect(res.status).toBe(500);
+    expect(((await res.json()) as { message: string }).message).toBe('Bei uns ist ein Fehler aufgetreten. Bitte versuchen Sie es später erneut.');
+  });
+
+  it.each([
+    ['production', 'prod'],
+    ['local development', 'dev'],
+  ])('keeps the status and message of a deliberate client error in %s', async (_case, env) => {
+    handler.mockRejectedValue(Forbidden('You may not do that'));
+
+    const res = await buildApp({ ENV: env }).request('/api/auth/sign-in/email', { method: 'POST' });
+
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({ message: 'You may not do that', requestId: res.headers.get('x-request-id') });
+  });
+
+  it('does not log a deliberate client error as a failure', async () => {
+    const { log, entries } = captureLog();
+    handler.mockRejectedValue(Forbidden('You may not do that'));
+
+    await buildApp({ ENV: 'prod' }, log).request('/api/auth/sign-in/email', { method: 'POST' });
+
+    expect(entries().filter((entry) => !('req' in entry))).toEqual([]);
+  });
+
+  describe('logged detail', () => {
+    interface ErrorLogEntry {
+      level: number;
+      msg: string;
+      reqId: string;
+      error: { type: string; message: string; stack: string; cause?: ErrorLogEntry['error'] };
+    }
+
+    async function failWith(error: Error) {
+      const { log, output, entries } = captureLog();
+      getSession.mockRejectedValue(error);
+      const res = await buildApp({ ENV: 'prod' }, log).request('/api/users/me', {
+        headers: { Cookie: 'better-auth.session_token=cookie-secret', Authorization: 'Bearer bearer-secret' },
+      });
+      const errorEntries = entries().filter((entry) => !('req' in entry)) as unknown as ErrorLogEntry[];
+      expect(errorEntries).toHaveLength(1);
+      return { res, output: output(), entry: errorEntries[0] };
+    }
+
+    it('logs the full error with its stack against the request id', async () => {
+      const error = failure();
+
+      const { res, entry } = await failWith(error);
+
+      expect(entry.level).toBe(50);
+      expect(entry.msg).toBe('Unexpected error');
+      expect(entry.reqId).toBe(res.headers.get('x-request-id'));
+      expect(entry.error).toEqual({ type: 'Error', message: error.message, stack: error.stack });
+    });
+
+    it('keeps the request headers out of the logged error', async () => {
+      const { output } = await failWith(failure());
+
+      expect(output).not.toContain('cookie-secret');
+      expect(output).not.toContain('bearer-secret');
+    });
+
+    it('redacts the password in a connection string', async () => {
+      const { output, entry } = await failWith(new Error('could not connect to postgres://app:db-password-secret@db.internal:5432/app'));
+
+      expect(output).not.toContain('db-password-secret');
+      expect(entry.error.message).toBe('could not connect to postgres://[REDACTED]@db.internal:5432/app');
+    });
+
+    it('logs a failed query and its cause without the query parameters', async () => {
+      const cause = new Error('relation "sessions" does not exist');
+      const error = new DrizzleQueryError('select * from "sessions" where "token" = $1', ['session-token-secret'], cause);
+
+      const { output, entry } = await failWith(error);
+
+      expect(output).not.toContain('session-token-secret');
+      expect(entry.error.message).toBe('Failed query: select * from "sessions" where "token" = $1\nparams: [REDACTED]');
+      expect(entry.error.stack).toContain('select * from "sessions"');
+      expect(entry.error.cause).toEqual({ type: 'Error', message: cause.message, stack: cause.stack });
+    });
   });
 });
 

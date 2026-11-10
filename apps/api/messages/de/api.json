@@ -35,5 +35,6 @@
   "storage_upload_type_not_accepted": "Datei abgelehnt: Dieser Dateityp wird nicht akzeptiert.",
   "storage_upload_unrecognized": "Datei abgelehnt: Ihr Typ konnte nicht erkannt werden.",
   "storage_image_too_many_pixels": "Datei abgelehnt: Das Bild hat zu viele Pixel.",
-  "storage_image_output_too_large": "Die angeforderte Bildgröße ist zu groß."
+  "storage_image_output_too_large": "Die angeforderte Bildgröße ist zu groß.",
+  "server_unexpected_error": "Bei uns ist ein Fehler aufgetreten. Bitte versuchen Sie es später erneut."
 }
