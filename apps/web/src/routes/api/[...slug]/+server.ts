@@ -1,4 +1,4 @@
-import { StatusCodes } from '@adelie/shared';
+import { STORAGE_WEBHOOK_PATH, StatusCodes } from '@adelie/shared';
 import type { RequestEvent, RequestHandler } from '@sveltejs/kit';
 import { API_PROXY_BASE_URL } from '$app/env/private';
 
@@ -19,6 +19,39 @@ const HOP_BY_HOP_REQUEST_HEADERS = [
 ] as const;
 
 const METHODS_WITHOUT_BODY = new Set(['GET', 'HEAD']);
+
+/** Decodes each run of percent-escapes on its own, so one malformed escape cannot shield the rest from decoding. */
+function decodePath(path: string): string {
+  return path.replace(/(?:%[0-9A-Fa-f]{2})+/g, (escapes) => {
+    try {
+      return decodeURIComponent(escapes);
+    } catch {
+      return escapes;
+    }
+  });
+}
+
+/**
+ * Reduces a path to the segments a router could match: decoded (encoded slashes included), case-folded, with empty and
+ * dot segments resolved. This folds together more spellings than the API router does, so no variant slips past.
+ */
+function normalizePath(path: string): string {
+  const segments: string[] = [];
+  for (const segment of decodePath(path).toLowerCase().split('/')) {
+    if (segment === '' || segment === '.') continue;
+    if (segment === '..') segments.pop();
+    else segments.push(segment);
+  }
+  return `/${segments.join('/')}`;
+}
+
+// Routes only an internal caller uses; the storage provider reaches the webhook on the API directly.
+const PROVIDER_ONLY_PATHS = [normalizePath(STORAGE_WEBHOOK_PATH)];
+
+function isProviderOnlyPath(requestUrl: URL): boolean {
+  const path = normalizePath(requestUrl.pathname);
+  return PROVIDER_ONLY_PATHS.some((blocked) => path === blocked || path.startsWith(`${blocked}/`));
+}
 
 function getUpstreamUrl(requestUrl: URL): URL {
   const upstreamBase = new URL(API_PROXY_BASE_URL || DEFAULT_API_PROXY_BASE_URL);
@@ -74,11 +107,17 @@ function toDownstreamResponse(upstream: Response): Response {
 
 async function proxyApi(event: RequestEvent): Promise<Response> {
   const { request } = event;
+  const requestUrl = new URL(request.url);
+  // 404 rather than 403, so the proxy does not confirm the route exists.
+  if (isProviderOnlyPath(requestUrl)) {
+    return new Response('Not Found', { status: StatusCodes.NOT_FOUND });
+  }
+
   const body = METHODS_WITHOUT_BODY.has(request.method) ? undefined : await request.arrayBuffer();
 
   let upstream: Response;
   try {
-    upstream = await fetch(getUpstreamUrl(new URL(request.url)), {
+    upstream = await fetch(getUpstreamUrl(requestUrl), {
       method: request.method,
       headers: getUpstreamHeaders(event),
       body,

@@ -1,3 +1,4 @@
+import { STORAGE_ROUTE } from '@adelie/shared';
 import { Container } from '@needle-di/core';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConfigService } from '#lib/server/api/common/configs/config.service';
@@ -26,7 +27,7 @@ const buildApp = (opts: { secret?: string; handleScanJobs?: () => Promise<void> 
   container.bind({ provide: LoggerService, useValue: loggerStub });
   container.bind({ provide: FileScannerWorker, useValue: { handleScanJobs } as unknown as FileScannerWorker });
   const controller = container.get(StorageWebhookController);
-  const app = buildRouteApp(controller.routes() as AppOpenAPI, '/storage');
+  const app = buildRouteApp(controller.routes() as AppOpenAPI, STORAGE_ROUTE);
   return { app, handleScanJobs };
 };
 

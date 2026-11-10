@@ -1,4 +1,4 @@
-import { API_BASE_PATH, AUTH_ROUTE } from '@adelie/shared';
+import { API_BASE_PATH, AUTH_ROUTE, STORAGE_ROUTE } from '@adelie/shared';
 import { inject, injectable } from '@needle-di/core';
 import { contextStorage } from 'hono/context-storage';
 import { requestId } from 'hono/request-id';
@@ -77,7 +77,7 @@ export class ApplicationController extends RootController {
       .route('/config', this.configController.routes())
       .route('/users', this.usersController.routes())
       .route('/admin', this.adminExampleController.routes())
-      .route('/storage', this.storageWebhookController.routes())
+      .route(STORAGE_ROUTE, this.storageWebhookController.routes())
       .onError(errorHandler({ envs: this.configService.envs, logger: this.loggerService.log }))
       .notFound(notFound);
 

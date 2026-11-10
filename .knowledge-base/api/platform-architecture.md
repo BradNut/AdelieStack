@@ -69,7 +69,10 @@
   those files are stored and tagged clean
 - **Webhook re-scan**: as defense-in-depth, objects are re-scanned after they land when the storage
   provider is configured to send object-created notifications to the storage webhook
-  (`storage/file-scanner.worker.ts`); nothing in the local stack sets that up. Infected objects are
+  (`storage/file-scanner.worker.ts`); nothing in the local stack sets that up. The webhook lives at
+  `STORAGE_WEBHOOK_PATH` (`/api/storage/webhook`, `@adelie/shared`), and the provider must call the
+  API directly on the internal network: the web app's `/api` proxy refuses that path with 404 so it
+  is not reachable from the public internet. Infected objects are
   deleted; a scanner error only tags the object `error` and leaves it in place. The webhook requires
   the `STORAGE_WEBHOOK_SECRET` bearer token (outside local development the API refuses to start
   without it; a blank value counts as unset), ignores events for buckets other than the project's
