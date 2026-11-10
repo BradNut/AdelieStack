@@ -1,6 +1,7 @@
 import {
   APP_ENVS,
   APP_NAME,
+  AppEnv,
   CAPTCHA_PROVIDERS,
   DEPLOY_ENVIRONMENTS,
   DeployEnvironment,
@@ -11,6 +12,7 @@ import {
   SocialProvider,
 } from '@adelie/shared';
 import { z } from 'zod/v4';
+import { DevelopmentDefault } from '#lib/server/api/common/configs/development-defaults.constant';
 import { findInvalidTrustedProxies } from '#lib/server/api/common/utils/ip';
 import { MailerTransport } from '#lib/server/api/mail/mailer-transport.constant';
 
@@ -147,7 +149,45 @@ function runsWithoutWebhookSecret(envs: Pick<z.infer<typeof baseEnvsDto>, 'ENV' 
   return !isProdEnv(envs.ENV) && isLocalDevEnv(envs);
 }
 
+/**
+ * Whether any setting declares production: `ENV=prod`, or a deploy's `NODE_ENV` or `ENVIRONMENT` set to production.
+ * The image sets only `NODE_ENV=production` while `ENV` defaults to `dev`, so `ENV` alone would miss it.
+ */
+function declaresProduction(envs: Pick<z.infer<typeof baseEnvsDto>, 'ENV' | 'ENVIRONMENT' | 'NODE_ENV'>): boolean {
+  return isProdEnv(envs.ENV) || envs.NODE_ENV === NodeEnv.PRODUCTION || envs.ENVIRONMENT === DeployEnvironment.PRODUCTION;
+}
+
+/**
+ * Refuses production on settings only fit for local development: a credential this repo publishes, the local mail
+ * inbox, or auth served without TLS. Messages name the variable and never print its value.
+ */
+function refuseDevelopmentDefaults(envs: z.infer<typeof baseEnvsDto>, ctx: z.RefinementCtx) {
+  if (!isProdEnv(envs.ENV)) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['ENV'],
+      message: `ENV must be ${AppEnv.PROD} when NODE_ENV or ENVIRONMENT is production: ${AppEnv.DEV} turns off the production protections`,
+    });
+  }
+  for (const [name, developmentValue] of Object.entries(DevelopmentDefault) as [keyof typeof DevelopmentDefault, string][]) {
+    if (envs[name] === developmentValue) {
+      ctx.addIssue({ code: 'custom', path: [name], message: `${name} still holds its public development default (refused in production)` });
+    }
+  }
+  if (envs.MAILER_TRANSPORT === MailerTransport.MAILPIT) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['MAILER_TRANSPORT'],
+      message: `MAILER_TRANSPORT ${MailerTransport.MAILPIT} is the local inbox (refused in production); use ${MailerTransport.UNSEND}`,
+    });
+  }
+  if (new URL(envs.BETTER_AUTH_URL).protocol !== 'https:') {
+    ctx.addIssue({ code: 'custom', path: ['BETTER_AUTH_URL'], message: 'BETTER_AUTH_URL must use https (refused in production)' });
+  }
+}
+
 export const envsDto = baseEnvsDto.superRefine((envs, ctx) => {
+  if (declaresProduction(envs)) refuseDevelopmentDefaults(envs, ctx);
   if (isProdEnv(envs.ENV) && sharesOneRateLimitBucket(envs)) {
     ctx.addIssue({
       code: 'custom',

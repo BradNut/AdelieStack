@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { DevelopmentDefault } from '#lib/server/api/common/configs/development-defaults.constant';
 
 const repoRoot = resolve(import.meta.dirname, '../../../../../../../../..');
 const read = (path: string) => readFileSync(resolve(repoRoot, path), 'utf8');
@@ -42,6 +43,14 @@ describe('local storage credentials', () => {
       expect(envValue(file, 'STORAGE_ACCESS_KEY')).toBe(admin?.accessKey);
       expect(envValue(file, 'STORAGE_SECRET_KEY')).toBe(admin?.secretKey);
     }
+  });
+
+  it.each(Object.entries(DevelopmentDefault))('production refuses the published %s default', (key, value) => {
+    expect(envValue(credentialSource, key)).toBe(value);
+  });
+
+  it('production refuses the Postgres password docker compose publishes', () => {
+    expect(read('docker-compose.yaml')).toContain(`POSTGRES_PASSWORD: ${DevelopmentDefault.DATABASE_PASSWORD}\n`);
   });
 
   it('match the setup script defaults', () => {

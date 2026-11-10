@@ -4,7 +4,7 @@ import { AuthRateLimitRepository } from '#lib/server/api/auth/auth.rate-limit.re
 import { AuthService } from '#lib/server/api/auth/auth.service';
 import type { ConfigService } from '#lib/server/api/common/configs/config.service';
 import { envsDto } from '#lib/server/api/common/configs/dtos/env.dto';
-import { validEnvs } from '#lib/server/api/common/configs/tests/env-fixtures';
+import { productionEnvOverrides, validEnvs } from '#lib/server/api/common/configs/tests/env-fixtures';
 import type { LoggerService } from '#lib/server/api/common/services/logger.service';
 import type { DrizzleService } from '#lib/server/api/databases/postgres/drizzle.service';
 import * as drizzleSchema from '#lib/server/api/databases/postgres/drizzle-schema';
@@ -43,7 +43,7 @@ describe('AuthService', () => {
     });
 
     it('has no reference route in production', async () => {
-      const { service } = buildService({ ENV: 'prod', TRUST_PROXY: 'true', STORAGE_WEBHOOK_SECRET: 'webhook-secret' });
+      const { service } = buildService(productionEnvOverrides);
 
       expect((await reference(service)).status).toBe(404);
     });

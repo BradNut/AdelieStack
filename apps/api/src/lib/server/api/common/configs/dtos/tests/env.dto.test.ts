@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { envsDto } from '#lib/server/api/common/configs/dtos/env.dto';
+import { productionEnvOverrides, validEnvs } from '#lib/server/api/common/configs/tests/env-fixtures';
 
 const validEnv = {
   DATABASE_USER: 'postgres',
@@ -107,7 +108,7 @@ describe('envsDto trusted proxies', () => {
 });
 
 describe('envsDto auth rate-limit bucket', () => {
-  const prod = { ...validEnv, ENV: 'prod', STORAGE_WEBHOOK_SECRET: 'webhook-secret' };
+  const prod = { ...validEnvs, ...productionEnvOverrides, TRUST_PROXY: 'false' };
 
   it('refuses production with rate limiting on and no trusted proxy', () => {
     const result = envsDto.safeParse(prod);
@@ -129,7 +130,7 @@ describe('envsDto auth rate-limit bucket', () => {
 });
 
 describe('envsDto storage webhook secret', () => {
-  const prod = { ...validEnv, ENV: 'prod', TRUST_PROXY: 'true' };
+  const { STORAGE_WEBHOOK_SECRET: _secret, ...prod } = { ...validEnvs, ...productionEnvOverrides };
 
   it('refuses production without a storage webhook secret', () => {
     const result = envsDto.safeParse(prod);
@@ -163,8 +164,8 @@ describe('envsDto storage webhook secret', () => {
     expect(result.error?.issues.map((i) => i.path[0])).toContain('STORAGE_WEBHOOK_SECRET');
   });
 
-  it('accepts a deployed ENV=dev with a storage webhook secret', () => {
-    const deployed = { ...validEnv, ENV: 'dev', ENVIRONMENT: 'production', NODE_ENV: 'production', STORAGE_WEBHOOK_SECRET: 'webhook-secret' };
+  it('accepts a staging deploy on ENV=dev with a storage webhook secret', () => {
+    const deployed = { ...validEnv, ENV: 'dev', ENVIRONMENT: 'staging', STORAGE_WEBHOOK_SECRET: 'webhook-secret' };
     expect(envsDto.safeParse(deployed).success).toBe(true);
   });
 
@@ -172,6 +173,98 @@ describe('envsDto storage webhook secret', () => {
     const result = envsDto.safeParse({ ...validEnv, ENV: 'dev', STORAGE_WEBHOOK_SECRET: '' });
     expect(result.success).toBe(true);
     expect(result.data?.STORAGE_WEBHOOK_SECRET).toBeUndefined();
+  });
+});
+
+describe('envsDto production refuses development defaults', () => {
+  const production = { ...validEnvs, ...productionEnvOverrides };
+  const parseProduction = (overrides: Record<string, string>) => envsDto.safeParse({ ...production, ...overrides });
+  const refusedPaths = (overrides: Record<string, string>) => parseProduction(overrides).error?.issues.map((issue) => issue.path[0]);
+
+  it('accepts a production configuration without development defaults', () => {
+    expect(envsDto.safeParse(production).success).toBe(true);
+  });
+
+  // The values published in apps/api/.env.schema, docker-compose.yaml and docker/seaweedfs/s3-config.json.
+  const developmentDefaults = [
+    ['DATABASE_PASSWORD', 'postgres'],
+    ['STORAGE_ACCESS_KEY', 'adelie-local-access-key'],
+    ['STORAGE_SECRET_KEY', 'adelie-local-secret-key'],
+  ] as const;
+
+  it.each(developmentDefaults)('refuses the development default of %s and names it', (name, value) => {
+    expect(refusedPaths({ [name]: value })).toEqual([name]);
+  });
+
+  it.each(developmentDefaults)('never prints the development default of %s', (name, value) => {
+    const messages = parseProduction({ [name]: value }).error?.issues.map((issue) => issue.message) ?? [];
+    expect(messages.join('\n')).toContain(name);
+    expect(messages.join('\n')).not.toContain(value);
+  });
+
+  it('refuses the mailpit transport and names it', () => {
+    expect(refusedPaths({ MAILER_TRANSPORT: 'mailpit' })).toEqual(['MAILER_TRANSPORT']);
+  });
+
+  it('refuses the mailpit transport when MAILER_TRANSPORT is left at its default', () => {
+    const { MAILER_TRANSPORT: _transport, ...withoutTransport } = production;
+    expect(envsDto.safeParse(withoutTransport).error?.issues.map((issue) => issue.path[0])).toEqual(['MAILER_TRANSPORT']);
+  });
+
+  it.each(['http://app.example.com', 'http://localhost:5173'])('refuses a non-https BETTER_AUTH_URL (%s) without printing it', (url) => {
+    const result = parseProduction({ BETTER_AUTH_URL: url });
+    expect(result.error?.issues.map((issue) => issue.path[0])).toEqual(['BETTER_AUTH_URL']);
+    expect(result.error?.issues[0].message).not.toContain(url);
+  });
+
+  it('names every development default at once', () => {
+    expect(
+      refusedPaths({
+        DATABASE_PASSWORD: 'postgres',
+        STORAGE_ACCESS_KEY: 'adelie-local-access-key',
+        STORAGE_SECRET_KEY: 'adelie-local-secret-key',
+        MAILER_TRANSPORT: 'mailpit',
+        BETTER_AUTH_URL: 'http://localhost:5173',
+      }),
+    ).toEqual(expect.arrayContaining(['DATABASE_PASSWORD', 'STORAGE_ACCESS_KEY', 'STORAGE_SECRET_KEY', 'MAILER_TRANSPORT', 'BETTER_AUTH_URL']));
+  });
+
+  it.each([
+    ['NODE_ENV', 'production'],
+    ['ENVIRONMENT', 'production'],
+  ])('refuses %s=%s with ENV=dev and names ENV', (name, value) => {
+    const result = envsDto.safeParse({ ...production, ENV: 'dev', ENVIRONMENT: 'staging', NODE_ENV: 'development', [name]: value });
+    expect(result.error?.issues.map((issue) => issue.path[0])).toEqual(['ENV']);
+  });
+
+  it('refuses development defaults when only NODE_ENV declares production', () => {
+    const deployed = { ...validEnvs, NODE_ENV: 'production', STORAGE_WEBHOOK_SECRET: 'webhook-secret' };
+    expect(envsDto.safeParse(deployed).error?.issues.map((issue) => issue.path[0])).toEqual(
+      expect.arrayContaining(['ENV', 'DATABASE_PASSWORD', 'MAILER_TRANSPORT', 'BETTER_AUTH_URL']),
+    );
+  });
+
+  it('accepts a production ENV with a staging ENVIRONMENT', () => {
+    expect(parseProduction({ ENVIRONMENT: 'staging' }).success).toBe(true);
+  });
+});
+
+describe('envsDto development and test configurations', () => {
+  it('accepts every development default, mailpit and an http BETTER_AUTH_URL', () => {
+    const local = {
+      ...validEnvs,
+      DATABASE_PASSWORD: 'postgres',
+      STORAGE_ACCESS_KEY: 'adelie-local-access-key',
+      STORAGE_SECRET_KEY: 'adelie-local-secret-key',
+      MAILER_TRANSPORT: 'mailpit',
+      BETTER_AUTH_URL: 'http://localhost:5173',
+    };
+    expect(envsDto.safeParse(local).success).toBe(true);
+  });
+
+  it('accepts a staging deploy on ENV=dev with development defaults', () => {
+    const staging = { ...validEnvs, ENVIRONMENT: 'staging', DATABASE_PASSWORD: 'postgres', STORAGE_WEBHOOK_SECRET: 'webhook-secret' };
+    expect(envsDto.safeParse(staging).success).toBe(true);
   });
 });
 
