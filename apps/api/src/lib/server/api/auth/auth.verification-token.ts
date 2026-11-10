@@ -21,3 +21,9 @@ export function readVerificationToken(token: string | undefined): VerificationTo
     return null;
   }
 }
+
+/** {@link readVerificationToken} for the token in a request's query, under the same restriction. */
+export function readVerificationTokenOfRequest(request: Request | undefined): VerificationTokenPayload | null {
+  const token = request && new URL(request.url).searchParams.get('token');
+  return readVerificationToken(token ?? undefined);
+}

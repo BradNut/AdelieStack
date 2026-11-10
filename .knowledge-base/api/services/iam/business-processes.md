@@ -2,8 +2,8 @@
 
 Better Auth implements these flows; the paths are below `/api/auth`. Every request first passes
 Better Auth's rate limiter, then the captcha check on protected paths when captcha is on, then our
-before-hooks (password policy, role guard). Our after-hooks send Security Event emails
-(`auth/auth.mail.ts`) and end the Replaced Session on sign-in (`auth/auth.replaced-session.ts`).
+before-hooks (password policy, role guard). Our after-hooks send most Security Event emails
+(`auth/auth.mail.ts`; the email-change notice instead uses `emailVerification.afterEmailVerification`) and end the Replaced Session on sign-in (`auth/auth.replaced-session.ts`).
 
 ## Sign-up (`POST /sign-up/email`)
 

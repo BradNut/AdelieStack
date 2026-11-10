@@ -66,7 +66,7 @@ The rules for which roles a user may hold and how a stored role value becomes th
 Whether the most recent call to an external screening provider (the Captcha Provider, Have I Been Pwned) reached it: disabled, unknown (no call since start), available or unavailable. Tracked inside the API and never reported on a public endpoint; operators find an outage from the failure log entries.
 
 **Security Event**
-An account change the user is told about by email: password changed, Recovery Code used, Recovery Codes regenerated, and email address changed (sent to the old address). Sent from the after-hook in `auth/auth.mail.ts`.
+An account change the user is told about by email: password changed, Recovery Code used, Recovery Codes regenerated, and email address changed (sent to the old address). Sent from `auth/auth.mail.ts`: by the after-hook for a password change and Recovery Codes, by `onPasswordReset` for a completed reset, and by `afterEmailVerification` for an email change.
 _Avoid_: Alert, notification
 
 **Link Email**

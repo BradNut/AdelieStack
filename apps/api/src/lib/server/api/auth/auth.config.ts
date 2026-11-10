@@ -176,10 +176,11 @@ export function createAuth({
     emailVerification: {
       sendOnSignUp: true,
       sendVerificationEmail: authMail.sendVerificationEmail,
+      afterEmailVerification: authMail.notifyEmailChanged,
     },
     user: {
       // The confirmation link goes to the new address (through `sendVerificationEmail`); the old
-      // address is told afterwards by the `/verify-email` after hook.
+      // address is told afterwards by `emailVerification.afterEmailVerification`.
       changeEmail: { enabled: true },
       // Needs the account password (or a fresh session). Sessions, accounts, two-factor and passkey
       // rows go with the user: the foreign keys cascade (see auth.delete-user.test.ts).
