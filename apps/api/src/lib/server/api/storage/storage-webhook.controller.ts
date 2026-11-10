@@ -7,14 +7,15 @@ import { Controller } from '#lib/server/api/common/factories/controllers.factory
 import { LoggerService } from '#lib/server/api/common/services/logger.service';
 import type { HonoEnv } from '#lib/server/api/common/utils/hono';
 import { FileScannerWorker, type StorageScanJob } from './file-scanner.worker';
-import { BucketVisibility, buildBucketName } from './storage.buckets';
+import { isProjectBucket } from './storage.buckets';
 
 // S3-compatible providers emit object-created events whose name starts with this.
 const S3_OBJECT_CREATED_PREFIX = 's3:ObjectCreated:';
 // SeaweedFS filer notifications key objects under this path prefix.
 const SEAWEEDFS_BUCKET_PREFIX = '/buckets/';
 // A provider sends one record per object; a larger batch is cut here so one request cannot queue unbounded scans.
-const MAX_RECORDS_PER_REQUEST = 10;
+// Only records that become scan jobs count, so ignored or foreign records cannot crowd out the project's own.
+export const MAX_RECORDS_PER_REQUEST = 10;
 const BEARER_PREFIX = 'Bearer ';
 
 /** Hashing both sides first gives equal-length buffers, so the comparison takes the same time whatever the input. */
@@ -59,30 +60,42 @@ function parseSeaweedFsKey(key: string): StorageScanJob | null {
   return { bucket, key: objectKey };
 }
 
+type S3Record = NonNullable<S3WebhookEvent['Records']>[number];
+
+function parseS3Record(record: S3Record | null | undefined): StorageScanJob | null {
+  if (!record?.eventName?.startsWith(S3_OBJECT_CREATED_PREFIX)) return null;
+  const bucket = record.s3?.bucket?.name;
+  const rawKey = record.s3?.object?.key;
+  if (!bucket || !rawKey) return null;
+  const key = decodeObjectKey(rawKey);
+  return key ? { bucket, key } : null;
+}
+
 /**
  * Converts a raw storage notification (S3-style or SeaweedFS-style) into the set of
- * objects that should be scanned. Returns an empty array for events we ignore.
+ * objects that should be scanned: object-created events in a bucket `isWantedBucket` accepts,
+ * at most {@link MAX_RECORDS_PER_REQUEST} of them. Returns an empty array for events we ignore.
  */
-export function extractScanJobs(event: unknown): StorageScanJob[] {
+export function extractScanJobs(event: unknown, isWantedBucket: (bucket: string) => boolean): StorageScanJob[] {
   if (typeof event !== 'object' || event === null) return [];
 
   const s3Event = event as S3WebhookEvent;
   if (Array.isArray(s3Event.Records)) {
-    return s3Event.Records.slice(0, MAX_RECORDS_PER_REQUEST).flatMap((record) => {
-      if (!record?.eventName?.startsWith(S3_OBJECT_CREATED_PREFIX)) return [];
-      const bucket = record.s3?.bucket?.name;
-      const rawKey = record.s3?.object?.key;
-      if (!bucket || !rawKey) return [];
-      const key = decodeObjectKey(rawKey);
-      return key ? [{ bucket, key }] : [];
-    });
+    const jobs: StorageScanJob[] = [];
+    for (const record of s3Event.Records) {
+      const job = parseS3Record(record);
+      if (!job || !isWantedBucket(job.bucket)) continue;
+      jobs.push(job);
+      if (jobs.length === MAX_RECORDS_PER_REQUEST) break;
+    }
+    return jobs;
   }
 
   const seaweed = event as SeaweedFsWebhookEvent;
   if (typeof seaweed.key === 'string' && seaweed.event_type === 'create') {
     if (seaweed.message?.new_entry?.is_directory) return [];
     const job = parseSeaweedFsKey(seaweed.key);
-    return job ? [job] : [];
+    return job && isWantedBucket(job.bucket) ? [job] : [];
   }
 
   return [];
@@ -91,7 +104,7 @@ export function extractScanJobs(event: unknown): StorageScanJob[] {
 /**
  * Receives storage object-created notifications and dispatches virus scans. The
  * endpoint acknowledges immediately and scans asynchronously so the storage provider
- * is never kept waiting. A bearer secret (`STORAGE_WEBHOOK_SECRET`, required in production) guards it,
+ * is never kept waiting. A bearer secret (`STORAGE_WEBHOOK_SECRET`, required outside local development) guards it,
  * and only the project's own buckets are scanned.
  */
 @injectable()
@@ -106,15 +119,15 @@ export class StorageWebhookController extends Controller {
 
   private isAuthorized(c: Context<HonoEnv>): boolean {
     const secret = this.configService.envs.STORAGE_WEBHOOK_SECRET;
-    // Only local development runs without a secret; production refuses to start without one.
+    // Only local development runs without a secret; anywhere else the API refuses to start without one.
     if (!secret) return true;
     return safeEqual(c.req.header('authorization') ?? '', `${BEARER_PREFIX}${secret}`);
   }
 
-  private isProjectBucket(bucket: string): boolean {
+  private isProjectBucket = (bucket: string): boolean => {
     const { PROJECT_NAME, ENVIRONMENT } = this.configService.envs;
-    return Object.values(BucketVisibility).some((visibility) => buildBucketName(PROJECT_NAME, ENVIRONMENT, visibility) === bucket);
-  }
+    return isProjectBucket(PROJECT_NAME, ENVIRONMENT, bucket);
+  };
 
   routes() {
     return this.controller
@@ -132,7 +145,7 @@ export class StorageWebhookController extends Controller {
           return c.json({ error: 'Invalid payload' }, StatusCodes.BAD_REQUEST);
         }
 
-        const jobs = extractScanJobs(rawEvent).filter((job) => this.isProjectBucket(job.bucket));
+        const jobs = extractScanJobs(rawEvent, this.isProjectBucket);
         if (jobs.length === 0) {
           this.loggerService.log.debug('Storage webhook payload produced no scan jobs');
           return c.json({ success: true, scanned: 0 }, StatusCodes.OK);
