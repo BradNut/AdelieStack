@@ -1,41 +1,44 @@
 import { AUTH_CLIENT_IP_HEADER } from '@adelie/shared';
 import { Hono } from 'hono';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { MISSING_CLIENT_ADDRESS_WARNING_INTERVAL_MS, warnIfClientAddressMissing } from '#lib/server/api/common/utils/client-address-warning';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  createClientAddressResolver,
+  createMissingClientAddressWarning,
+  MISSING_CLIENT_ADDRESS_WARNING_INTERVAL_MS,
+  type MissingClientAddressWarning,
+} from '#lib/server/api/common/utils/client-address-warning';
 import type { ClientIpOptions } from '#lib/server/api/common/utils/ip';
 
 const TRUSTING: ClientIpOptions = { trustProxy: true, trustedProxies: [] };
 const CLIENT_SUPPLIED = '198.51.100.66-attacker-controlled';
 
-let clock = Date.UTC(2026, 0, 1);
-
-describe('warnIfClientAddressMissing', () => {
+describe('createClientAddressResolver', () => {
   const warn = vi.fn();
   const getLog = vi.fn(() => ({ warn }));
+  let clock: number;
+  let warning: MissingClientAddressWarning;
 
-  async function send(headers: Record<string, string>, options = TRUSTING) {
-    const app = new Hono().get('/', (c) => {
-      warnIfClientAddressMissing(c, options, getLog);
-      return c.text('ok');
-    });
-    await app.request('/', { headers });
+  /** Sends a real request through a resolver over this test's own throttle, returning the address it resolved. */
+  async function send(headers: Record<string, string>, options = TRUSTING): Promise<string> {
+    const resolve = createClientAddressResolver(options, getLog, warning);
+    const app = new Hono().get('/', (c) => c.text(String(resolve(c))));
+    return (await app.request('/', { headers })).text();
   }
 
   const advance = (milliseconds: number) => {
     clock += milliseconds;
-    vi.setSystemTime(clock);
   };
 
   beforeEach(() => {
-    vi.useFakeTimers({ toFake: ['Date'] });
-    // The throttle lives for the process, so each test starts one full interval after the last.
-    advance(MISSING_CLIENT_ADDRESS_WARNING_INTERVAL_MS);
+    clock = Date.UTC(2026, 0, 1);
+    warning = createMissingClientAddressWarning(() => clock);
     warn.mockClear();
     getLog.mockClear();
   });
 
-  afterEach(() => {
-    vi.useRealTimers();
+  it('returns the resolved address, or null when there is none', async () => {
+    expect(await send({ [AUTH_CLIENT_IP_HEADER]: '203.0.113.1' })).toBe('203.0.113.1');
+    expect(await send({})).toBe('null');
   });
 
   it('names the expected header when the header is absent', async () => {
@@ -98,8 +101,9 @@ describe('warnIfClientAddressMissing', () => {
   it('does not warn with TRUST_PROXY off, and reads no header', async () => {
     const header = vi.fn();
 
-    warnIfClientAddressMissing({ req: { header } } as never, { trustProxy: false, trustedProxies: [] }, getLog);
+    const address = createClientAddressResolver({ trustProxy: false, trustedProxies: [] }, getLog, warning)({ req: { header } } as never);
 
+    expect(address).toBeNull();
     expect(warn).not.toHaveBeenCalled();
     expect(header).not.toHaveBeenCalled();
   });
@@ -127,5 +131,19 @@ describe('warnIfClientAddressMissing', () => {
     await send({ [AUTH_CLIENT_IP_HEADER]: '203.0.113.1' });
 
     expect(getLog).not.toHaveBeenCalled();
+  });
+});
+
+describe('createMissingClientAddressWarning', () => {
+  it('keeps its throttle to itself, so a fresh one warns at once', () => {
+    const warn = vi.fn();
+    const first = createMissingClientAddressWarning(() => 0);
+    const second = createMissingClientAddressWarning(() => 0);
+
+    first(() => ({ warn }));
+    first(() => ({ warn }));
+    second(() => ({ warn }));
+
+    expect(warn).toHaveBeenCalledTimes(2);
   });
 });

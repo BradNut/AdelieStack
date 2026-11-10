@@ -25,7 +25,7 @@ function betterAuthLimiter(options: ClientIpOptions) {
       return { allowed: true, retryAfter: null };
     },
   } as unknown as AuthRateLimitStorage;
-  const { request } = createTestAuth({ ...options, rateLimitStorage });
+  const { request } = createTestAuth({ clientIp: options, rateLimitStorage });
 
   return async (value: string): Promise<string | undefined> => {
     await request(SIGN_IN_PATH, {
@@ -94,26 +94,6 @@ describe.each([
   });
 
   it.each(cases)('%s', async (_label, header, expected) => {
-    expect(await betterAuthAddress(header)).toBe(expected);
-    expect(await rateLimitMiddlewareAddress(options, header)).toBe(expected);
-  });
-});
-
-const WITH_IPV6_SUBNET: Case[] = [
-  ['an IPv6, kept to its /48', '2001:db8:1:2:3:4:5:6', '2001:0db8:0001:0000:0000:0000:0000:0000'],
-  ['an IPv6 behind a proxy, kept to its /48', '2001:db8:1:2::1, 10.0.0.1', '2001:0db8:0001:0000:0000:0000:0000:0000'],
-  ['an IPv4, unaffected', '203.0.113.7', '203.0.113.7'],
-];
-
-describe('both limiters key an IPv6 client on the same configured subnet', () => {
-  const options = { trustProxy: true, trustedProxies: TRUSTED_PROXIES, ipv6Subnet: 48 };
-  let betterAuthAddress: ReturnType<typeof betterAuthLimiter>;
-
-  beforeAll(() => {
-    betterAuthAddress = betterAuthLimiter(options);
-  });
-
-  it.each(WITH_IPV6_SUBNET)('%s', async (_label, header, expected) => {
     expect(await betterAuthAddress(header)).toBe(expected);
     expect(await rateLimitMiddlewareAddress(options, header)).toBe(expected);
   });

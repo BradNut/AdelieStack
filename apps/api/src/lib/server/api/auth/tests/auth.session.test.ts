@@ -84,7 +84,7 @@ describe('revocation', () => {
 
 describe('client IP', () => {
   async function seenIp(trustProxy: boolean, headers: Record<string, string>) {
-    const { request, db } = createTestAuth({ trustProxy });
+    const { request, db } = createTestAuth({ clientIp: { trustProxy, trustedProxies: [] } });
     await signUpWithEmail(request, TEST_USER);
     for (const s of db.session) s.ipAddress = undefined;
     await request('/sign-in/email', { body: { email: EMAIL, password: PASSWORD }, headers });

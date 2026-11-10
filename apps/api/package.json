@@ -68,7 +68,7 @@
     "@pilcrowjs/object-parser": "^0.0.4",
     "@scalar/hono-api-reference": "^0.12.13",
     "@sentry/node": "^11.8.0",
-    "better-auth": "^1.7.13",
+    "better-auth": "1.7.13",
     "bullmq": "^6.3.16",
     "clamscan": "^2.4.0",
     "dayjs": "^1.11.23",

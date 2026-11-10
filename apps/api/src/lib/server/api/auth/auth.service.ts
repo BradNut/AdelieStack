@@ -3,6 +3,7 @@ import { inject, injectable } from '@needle-di/core';
 import { ConfigService } from '#lib/server/api/common/configs/config.service';
 import { SHARED_RATE_LIMIT_BUCKET_MESSAGE, sharesOneRateLimitBucket } from '#lib/server/api/common/configs/dtos/env.dto';
 import { LoggerService } from '#lib/server/api/common/services/logger.service';
+import { clientIpOptionsFromEnvs } from '#lib/server/api/common/utils/ip';
 import { DrizzleService } from '#lib/server/api/databases/postgres/drizzle.service';
 import { MailerService } from '#lib/server/api/mail/mailer.service';
 import { type CaptchaConfig, captchaConfigFromEnvs, createCaptchaHealth } from './auth.captcha';
@@ -74,8 +75,7 @@ export class AuthService {
       hibpStatus: this.hibpStatus,
       captcha: this.captchaConfig,
       captchaStatus: this.captchaStatus,
-      trustProxy: this.configService.envs.TRUST_PROXY,
-      trustedProxies: this.configService.envs.TRUSTED_PROXIES,
+      clientIp: clientIpOptionsFromEnvs(this.configService.envs),
       socialProviders: this.socialCredentials,
       // The Redis connection opens on the first limited request, not here.
       rateLimitStorage: this.configService.envs.DISABLE_RATE_LIMIT ? undefined : this.rateLimitRepository,
