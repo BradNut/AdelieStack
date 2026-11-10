@@ -5,17 +5,20 @@ type RateLimitContainerMocks = {
   callMock: Mock;
   disableRateLimitMock: { value: boolean };
   trustProxyMock: { value: boolean };
+  trustedProxiesMock: { value: string[] };
 };
 
 const callMock = vi.fn();
 const rateLimiterMock = vi.fn();
 const disableRateLimitMock = { value: false };
 const trustProxyMock = { value: false };
+const trustedProxiesMock: { value: string[] } = { value: [] };
 
 function resetRateLimitMocks() {
   vi.clearAllMocks();
   disableRateLimitMock.value = false;
   trustProxyMock.value = false;
+  trustedProxiesMock.value = [];
   rateLimiterMock.mockReturnValue('middleware');
 }
 
@@ -34,6 +37,9 @@ function createRateLimitContainerClass(mocks: RateLimitContainerMocks) {
             },
             get TRUST_PROXY() {
               return mocks.trustProxyMock.value;
+            },
+            get TRUSTED_PROXIES() {
+              return mocks.trustedProxiesMock.value;
             },
           },
         };
@@ -54,7 +60,7 @@ async function createNeedleDiMock(importOriginal: <T>() => Promise<T>) {
   const actual = await importOriginal<typeof import('@needle-di/core')>();
   return {
     ...actual,
-    Container: createRateLimitContainerClass({ callMock, disableRateLimitMock, trustProxyMock }),
+    Container: createRateLimitContainerClass({ callMock, disableRateLimitMock, trustProxyMock, trustedProxiesMock }),
   };
 }
 
@@ -63,6 +69,7 @@ export const rateLimitTestMocks = {
   rateLimiterMock,
   disableRateLimitMock,
   trustProxyMock,
+  trustedProxiesMock,
   resetRateLimitMocks,
   createHonoRateLimiterMock,
   createNeedleDiMock,

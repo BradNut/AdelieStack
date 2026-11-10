@@ -71,6 +71,41 @@ describe('envsDto security switches', () => {
   });
 });
 
+describe('envsDto trusted proxies', () => {
+  const parse = (TRUSTED_PROXIES: string) => envsDto.safeParse({ ...validEnv, TRUSTED_PROXIES });
+
+  it('declares none by default', () => {
+    expect(envsDto.parse({ ...validEnv }).TRUSTED_PROXIES).toEqual([]);
+  });
+
+  it('treats an empty value as none', () => {
+    expect(parse('').data?.TRUSTED_PROXIES).toEqual([]);
+  });
+
+  it('accepts IPs and CIDR ranges of both families, ignoring spaces and stray commas', () => {
+    expect(parse(' 10.0.0.0/8, 192.0.2.10,,2001:db8::/32,2001:db8::1,').data?.TRUSTED_PROXIES).toEqual([
+      '10.0.0.0/8',
+      '192.0.2.10',
+      '2001:db8::/32',
+      '2001:db8::1',
+    ]);
+  });
+
+  it.each(['nope', '10.0.0.0/33', '10.0.0.1/', '10.0.0.1/a', '10.0.0.1/-1', '2001:db8::/129', '/8', '10.0.0.0/8,nope'])('refuses %j', (value) => {
+    const result = parse(value);
+
+    expect(result.success).toBe(false);
+    expect(result.error?.issues.map((i) => i.path[0])).toContain('TRUSTED_PROXIES');
+  });
+
+  it('names only the invalid entries', () => {
+    const message = parse('10.0.0.0/8,nope').error?.issues[0].message;
+
+    expect(message).toContain('nope');
+    expect(message).not.toContain('10.0.0.0/8');
+  });
+});
+
 describe('envsDto auth rate-limit bucket', () => {
   const prod = { ...validEnv, ENV: 'prod' };
 

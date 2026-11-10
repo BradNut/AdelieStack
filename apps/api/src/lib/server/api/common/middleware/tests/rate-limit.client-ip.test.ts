@@ -51,9 +51,28 @@ describe('rate-limit key client IP', () => {
     it.each(IGNORED_CLIENT_IP_HEADERS)('does not let %s choose a bucket when X-Forwarded-For is absent', async (header) => {
       expect(await rateLimitKey({ [header]: SPOOFED_IP })).toBe(SHARED_BUCKET_KEY);
     });
+
+    it('does not take the leftmost address of a chain when no trusted proxy is declared', async () => {
+      expect(await rateLimitKey({ [AUTH_CLIENT_IP_HEADER]: `${SPOOFED_IP}, 203.0.113.1` })).toBe(SHARED_BUCKET_KEY);
+    });
+
+    describe('behind a declared trusted proxy', () => {
+      beforeEach(() => {
+        rateLimitTestMocks.trustedProxiesMock.value = ['10.0.0.0/8'];
+      });
+
+      it('keys on the address the proxy saw', async () => {
+        expect(await rateLimitKey({ [AUTH_CLIENT_IP_HEADER]: '203.0.113.1, 10.0.0.1' })).toBe(`203.0.113.1_${PATH}`);
+      });
+
+      it.each([SPOOFED_IP, '198.51.100.67', 'not-an-ip'])('does not let a client-supplied leading %s change the bucket', async (spoofed) => {
+        expect(await rateLimitKey({ [AUTH_CLIENT_IP_HEADER]: `${spoofed}, 203.0.113.1, 10.0.0.1` })).toBe(`203.0.113.1_${PATH}`);
+      });
+    });
   });
 
-  it('reads no IP header with TRUST_PROXY off', async () => {
+  it('reads no IP header with TRUST_PROXY off, even with trusted proxies declared', async () => {
+    rateLimitTestMocks.trustedProxiesMock.value = ['10.0.0.0/8'];
     const key = await rateLimitKey({
       [AUTH_CLIENT_IP_HEADER]: '203.0.113.1',
       'x-real-ip': SPOOFED_IP,

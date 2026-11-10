@@ -96,6 +96,12 @@ export interface CreateAuthOptions {
   trustProxy?: boolean;
 
   /**
+   * Proxies (IPs or CIDR ranges, `TRUSTED_PROXIES`) that append to {@link AUTH_CLIENT_IP_HEADER}. The chain is stripped
+   * from the right to the first untrusted hop, as `rateLimit()` does. Defaults to none: only a single address counts.
+   */
+  trustedProxies?: string[];
+
+  /**
    * Social login providers, already filtered to the configured ones. Omit for none: nothing is registered.
    * The sign-up gate is applied here, so a provider sign-in for an unknown email follows `signUpEnabled`.
    */
@@ -142,6 +148,7 @@ export function createAuth({
   rateLimitStorage,
   openApiReference = false,
   trustProxy = false,
+  trustedProxies = [],
   socialProviders = {},
 }: CreateAuthOptions) {
   const authMail = createAuthMail(mailer, mailLog);
@@ -244,7 +251,7 @@ export function createAuth({
       socialTwoFactorRedirect(),
     ],
     advanced: {
-      ipAddress: { ipAddressHeaders: trustProxy ? [AUTH_CLIENT_IP_HEADER] : [] },
+      ipAddress: { ipAddressHeaders: trustProxy ? [AUTH_CLIENT_IP_HEADER] : [], trustedProxies },
       useSecureCookies: isSecureCookies(baseURL),
       defaultCookieAttributes: { ...DEFAULT_COOKIE_ATTRIBUTES },
       database: {

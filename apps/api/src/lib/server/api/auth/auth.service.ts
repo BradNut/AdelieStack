@@ -75,6 +75,7 @@ export class AuthService {
       captcha: this.captchaConfig,
       captchaStatus: this.captchaStatus,
       trustProxy: this.configService.envs.TRUST_PROXY,
+      trustedProxies: this.configService.envs.TRUSTED_PROXIES,
       socialProviders: this.socialCredentials,
       // The Redis connection opens on the first limited request, not here.
       rateLimitStorage: this.configService.envs.DISABLE_RATE_LIMIT ? undefined : this.rateLimitRepository,

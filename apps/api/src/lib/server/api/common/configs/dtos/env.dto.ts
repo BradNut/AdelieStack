@@ -1,9 +1,17 @@
 import { APP_ENVS, APP_NAME, CAPTCHA_PROVIDERS, isProdEnv, SocialProvider } from '@adelie/shared';
 import { z } from 'zod/v4';
+import { findInvalidTrustedProxies } from '#lib/server/api/common/utils/ip';
 import { MailerTransport } from '#lib/server/api/mail/mailer-transport.constant';
 
 /** An env file declares optional variables as `NAME=`; treat that empty string as unset. */
 const emptyAsUndefined = (value: unknown) => (value === '' ? undefined : value);
+
+/** Splits a comma-separated variable, dropping the blanks a stray comma leaves. */
+const commaSeparated = (value: string) =>
+  value
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean);
 
 const baseEnvsDto = z.object({
   DATABASE_USER: z.string(),
@@ -80,6 +88,15 @@ const baseEnvsDto = z.object({
   SITE_VERSION: z.string().optional(),
   // Security: trusted-proxy handling and the rate-limit kill switch (see rate-limit middleware).
   TRUST_PROXY: z.stringbool().default(false),
+  // Proxies (IPs or CIDR ranges) that append to X-Forwarded-For; both rate limiters strip them from the right.
+  TRUSTED_PROXIES: z
+    .string()
+    .default('')
+    .transform(commaSeparated)
+    .superRefine((entries, ctx) => {
+      const invalid = findInvalidTrustedProxies(entries);
+      if (invalid.length > 0) ctx.addIssue({ code: 'custom', message: `Not an IP address or CIDR range: ${invalid.join(', ')}` });
+    }),
   DISABLE_RATE_LIMIT: z.stringbool().default(false),
   // Observability: Sentry + OpenTelemetry.
   SENTRY_BACKEND_URL: z.union([z.url(), z.literal('')]).optional(),

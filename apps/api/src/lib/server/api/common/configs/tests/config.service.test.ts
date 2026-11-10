@@ -41,6 +41,12 @@ describe('ConfigService', () => {
     expect(service.validateEnvs()).toMatchObject(parsedEnvs);
   });
 
+  it('refuses to start on an invalid trusted proxy', async () => {
+    setProcessEnvs({ ...validEnvs, TRUSTED_PROXIES: 'not-a-proxy' });
+
+    await expect(createConfigService()).rejects.toThrow('TRUSTED_PROXIES');
+  });
+
   it('leaves the script-only flags out of the validated env', async () => {
     setProcessEnvs({ ...validEnvs, DB_MIGRATING: 'true', DB_SEEDING: 'true' });
     const { envs } = await createConfigService();

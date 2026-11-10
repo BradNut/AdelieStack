@@ -33,7 +33,8 @@ export function rateLimit({ limit, minutes, key = '' }: { limit: number; minutes
     standardHeaders: 'draft-6', // draft-6: `RateLimit-*` headers; draft-7: combined `RateLimit` header
     keyGenerator: (c: Context<HonoEnv>) => {
       // Prefer the authenticated user; otherwise a trusted client IP that a client cannot spoof.
-      const clientKey = c.var.session?.userId || getClientIp(c, configService.envs.TRUST_PROXY);
+      const clientKey =
+        c.var.session?.userId || getClientIp(c, { trustProxy: configService.envs.TRUST_PROXY, trustedProxies: configService.envs.TRUSTED_PROXIES });
       const pathKey = key || c.req.path;
       return `${clientKey}_${pathKey}`;
     },

@@ -49,6 +49,14 @@ describe('AuthService', () => {
     });
   });
 
+  describe('trusted proxies', () => {
+    it('passes the declared proxies to Better Auth', () => {
+      const { service } = buildService({ TRUST_PROXY: 'true', TRUSTED_PROXIES: '10.0.0.0/8,192.0.2.10' });
+
+      expect(service.auth.options.advanced?.ipAddress?.trustedProxies).toEqual(['10.0.0.0/8', '192.0.2.10']);
+    });
+  });
+
   describe('shared rate-limit bucket', () => {
     it('warns at startup when rate limiting is on without a trusted proxy', () => {
       const warn = vi.fn();
