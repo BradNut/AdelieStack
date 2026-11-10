@@ -12,9 +12,6 @@ import { RecoveryCodesUsedEmail } from '#lib/server/api/mail/templates/recovery-
 import { AuthEndpoint } from './auth.endpoints';
 import { CHANGE_EMAIL_REQUEST_TYPE, readVerificationToken } from './auth.verification-token';
 
-/** What an `hooks.after` handler receives. */
-type AfterHookContext = Parameters<Parameters<typeof createAuthMiddleware>[0]>[0];
-
 interface AuthMailUser {
   id: string;
   email: string;
@@ -56,27 +53,6 @@ export function createAuthMail(mailer: Mailer, log?: AuthMailLogger) {
     }
   }
 
-  /**
-   * After a followed email-change link: tells the old address the change happened. The token is
-   * only trusted once the old address is gone and the new one exists, so a failed, forged or
-   * repeated link sends nothing.
-   */
-  async function notifyOldAddress(ctx: AfterHookContext) {
-    const claims = readVerificationToken(ctx.query?.token);
-    if (claims?.requestType !== CHANGE_EMAIL_REQUEST_TYPE || !claims.email || !claims.updateTo) return;
-    const { internalAdapter } = ctx.context;
-    const [oldAccount, newAccount] = await Promise.all([
-      internalAdapter.findUserByEmail(claims.email),
-      internalAdapter.findUserByEmail(claims.updateTo),
-    ]);
-    if (oldAccount || !newAccount) return;
-    await sendAndLogFailure(
-      { email: claims.email, userId: newAccount.user.id },
-      new EmailChangeNoticeEmail(claims.updateTo, getRequestLocale()),
-      SECURITY_EVENT_EMAIL_FAILED_LOG,
-    );
-  }
-
   return {
     /** Sign-up and resend verification, and (to the new address) the confirmation of an email change. */
     async sendVerificationEmail({ user, url, token }: { user: AuthMailUser; url: string; token?: string }) {
@@ -90,6 +66,23 @@ export function createAuthMail(mailer: Mailer, log?: AuthMailLogger) {
       void sendAndLogFailure(toMailRecipient(user), new PasswordResetLinkEmail(url, getRequestLocale()), AUTH_LINK_EMAIL_FAILED_LOG);
     },
 
+    /**
+     * `emailVerification.afterEmailVerification`: tells the old address an email change happened. Better Auth calls this
+     * only once it has accepted the link and written the change, which is what makes the old address in the token safe to
+     * use: a forged, expired or repeated link never gets here. `hooks.after` cannot tell, because it also runs for
+     * rejected links and sees the redirect ending a successful one as an error.
+     */
+    async notifyEmailChanged(user: AuthMailUser, request?: Request) {
+      const token = request ? new URL(request.url).searchParams.get('token') : null;
+      const claims = readVerificationToken(token ?? undefined);
+      if (claims?.requestType !== CHANGE_EMAIL_REQUEST_TYPE || !claims.email) return;
+      await sendAndLogFailure(
+        { email: claims.email, userId: user.id },
+        new EmailChangeNoticeEmail(user.email, getRequestLocale()),
+        SECURITY_EVENT_EMAIL_FAILED_LOG,
+      );
+    },
+
     /** Reset-by-link completion (`emailAndPassword.onPasswordReset`). */
     async notifyPasswordChanged({ user }: { user: AuthMailUser }) {
       await sendAndLogFailure(toMailRecipient(user), new PasswordChangedEmail(getRequestLocale()), SECURITY_EVENT_EMAIL_FAILED_LOG);
@@ -101,8 +94,6 @@ export function createAuthMail(mailer: Mailer, log?: AuthMailLogger) {
      * skipped, so one successful call sends exactly one email.
      */
     afterHook: createAuthMiddleware(async (ctx) => {
-      // Consumes an emailed verification token; an email-change link also ends up here.
-      if (ctx.path === AuthEndpoint.VERIFY_EMAIL) return notifyOldAddress(ctx);
       if (isAPIError(ctx.context.returned)) return;
       const user = ctx.context.newSession?.user ?? ctx.context.session?.user;
       if (!user) return;

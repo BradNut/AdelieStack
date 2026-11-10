@@ -1,6 +1,8 @@
+import { createHmac } from 'node:crypto';
 import { AUTH_BASE_PATH } from '@adelie/shared';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AUTH_LINK_EMAIL_FAILED_LOG, SECURITY_EVENT_EMAIL_FAILED_LOG } from '#lib/server/api/auth/auth.mail';
+import { CHANGE_EMAIL_REQUEST_TYPE } from '#lib/server/api/auth/auth.verification-token';
 import type { EmailTemplate } from '#lib/server/api/mail/interfaces/email-template.interface';
 import type { SendProps } from '#lib/server/api/mail/interfaces/mailer.interface';
 import { EmailChangeNoticeEmail } from '#lib/server/api/mail/templates/email-change-notice.template';
@@ -314,14 +316,227 @@ describe('email change', () => {
     expect(sent[1].template.html()).toContain(NEW_EMAIL);
   });
 
+  /** Asks for the change and returns the path of the link emailed to the new address, ready for `request`. */
+  async function requestChangeLink(cookie: string, callbackURL?: string) {
+    await request('/change-email', { cookie, body: { newEmail: NEW_EMAIL, callbackURL } });
+    return linkPath(sent.at(-1));
+  }
+
+  function linkPath(mail: SendProps | undefined) {
+    return emailedLink(mail).replace(TEST_ORIGIN, '').replace(AUTH_BASE_PATH, '');
+  }
+
+  function notices() {
+    return sentTemplates().filter((t) => t instanceof EmailChangeNoticeEmail);
+  }
+
   it('sends the notice only once if the link is followed again', async () => {
     const cookie = await signUp();
-    await request('/change-email', { cookie, body: { newEmail: NEW_EMAIL, callbackURL: '/email-verified' } });
+    const link = await requestChangeLink(cookie, '/email-verified');
 
-    await followLastLink(cookie);
-    await followLastLink(cookie);
+    await request(link, { cookie });
+    await request(link, { cookie });
 
-    expect(sentTemplates().filter((t) => t instanceof EmailChangeNoticeEmail)).toHaveLength(1);
+    expect(notices()).toHaveLength(1);
+  });
+
+  describe('a genuine link', () => {
+    it('notifies the old address once when it ends in a redirect', async () => {
+      const cookie = await signUp();
+      const link = await requestChangeLink(cookie, '/email-verified');
+      clearSent();
+
+      const res = await request(link, { cookie });
+
+      expect(res.status).toBe(302);
+      expect(res.headers.get('location')).toBe('/email-verified');
+      expect(sent).toHaveLength(1);
+      expect(sent[0].to).toMatchObject({ email: EMAIL });
+      expect(sent[0].template).toBeInstanceOf(EmailChangeNoticeEmail);
+    });
+
+    it('notifies the old address once when it answers without a redirect', async () => {
+      const cookie = await signUp();
+      const link = await requestChangeLink(cookie);
+      clearSent();
+
+      const res = await request(link.replace(/&callbackURL=.*$/, ''), { cookie });
+
+      expect(res.status).toBe(200);
+      expect(sent).toHaveLength(1);
+      expect(sent[0].to).toMatchObject({ email: EMAIL });
+      expect(sent[0].template).toBeInstanceOf(EmailChangeNoticeEmail);
+    });
+
+    it('notifies the old address when followed signed out', async () => {
+      const cookie = await signUp();
+      const link = await requestChangeLink(cookie, '/email-verified');
+      clearSent();
+
+      const res = await request(link);
+
+      expect(res.status).toBe(302);
+      expect(sent).toHaveLength(1);
+      expect(sent[0].to).toMatchObject({ email: EMAIL });
+    });
+
+    it('sends nothing when followed by a different signed-in account', async () => {
+      const cookie = await signUp();
+      const link = await requestChangeLink(cookie);
+      const { cookie: otherCookie } = await signUpWithEmail(request, { ...TEST_USER, email: 'other@example.com' });
+      clearSent();
+
+      await request(link, { cookie: otherCookie });
+
+      expect(sent).toHaveLength(0);
+      expect(await currentEmail(cookie)).toBe(EMAIL);
+    });
+
+    it('sends no notice for a plain verification link', async () => {
+      await signUpWithEmail(request, TEST_USER);
+      const link = linkPath(sent.at(-1));
+      clearSent();
+
+      const res = await request(link);
+
+      expect(res.status).toBe(302);
+      expect(res.headers.get('location')).toBe('/');
+      expect(sent).toHaveLength(0);
+    });
+  });
+
+  describe('an expired link', () => {
+    const PAST_EXPIRY_MS = 3601 * 1000;
+
+    function passExpiry() {
+      vi.useFakeTimers({ toFake: ['Date'], now: Date.now() + PAST_EXPIRY_MS });
+    }
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('sends nothing and leaves the address alone', async () => {
+      const cookie = await signUp();
+      const link = await requestChangeLink(cookie);
+      clearSent();
+      passExpiry();
+
+      const res = await request(link);
+
+      expect(res.status).toBe(302);
+      expect(res.headers.get('location')).toBe('/?error=TOKEN_EXPIRED');
+      expect(sent).toHaveLength(0);
+      expect(await currentEmail(cookie)).toBe(EMAIL);
+    });
+
+    it('sends no second notice for a link that was already accepted', async () => {
+      const cookie = await signUp();
+      const link = await requestChangeLink(cookie);
+      await request(link, { cookie });
+      clearSent();
+      passExpiry();
+
+      const res = await request(link);
+
+      expect(res.status).toBe(302);
+      expect(res.headers.get('location')).toBe('/?error=TOKEN_EXPIRED');
+      expect(sent).toHaveLength(0);
+    });
+  });
+
+  describe('a link whose signature does not verify', () => {
+    const ATTACKER_EMAIL = 'attacker@example.com';
+    const WRONG_KEY = 'a-key-the-server-has-never-seen-before';
+    /** Rejected for its signature, so the same answer is due whichever address it names. */
+    const REJECTED = { status: 401, code: 'INVALID_TOKEN' };
+
+    function base64url(value: object) {
+      return Buffer.from(JSON.stringify(value)).toString('base64url');
+    }
+
+    function hs256(body: string, key: string) {
+      return createHmac('sha256', key).update(body).digest('base64url');
+    }
+
+    function wrongKeyToken(claims: object) {
+      const body = `${base64url({ alg: 'HS256' })}.${base64url(claims)}`;
+      return `${body}.${hs256(body, WRONG_KEY)}`;
+    }
+
+    function unsignedToken(claims: object) {
+      return `${base64url({ alg: 'none' })}.${base64url(claims)}.`;
+    }
+
+    /** Exactly what the notice used to go out on: a vacant old address, and a new one that may have an account. */
+    function changeClaims(updateTo: string) {
+      return { email: ATTACKER_EMAIL, updateTo, requestType: CHANGE_EMAIL_REQUEST_TYPE, exp: Math.floor(Date.now() / 1000) + 3600 };
+    }
+
+    describe.each([
+      ['signed with the wrong key', wrongKeyToken],
+      ['carrying no signature', unsignedToken],
+    ])('%s', (_name, forge) => {
+      it('answers the same and sends nothing, whether it names a registered or an unregistered address', async () => {
+        await signUp();
+
+        const registered = await request(`/verify-email?token=${forge(changeClaims(EMAIL))}`);
+        const unregistered = await request(`/verify-email?token=${forge(changeClaims(UNKNOWN_EMAIL))}`);
+
+        expect(registered.status).toBe(REJECTED.status);
+        expect(unregistered.status).toBe(REJECTED.status);
+        const registeredBody = await registered.json();
+        expect(registeredBody).toMatchObject({ code: REJECTED.code });
+        expect(await unregistered.json()).toEqual(registeredBody);
+        expect(sent).toHaveLength(0);
+      });
+
+      it('redirects the same and sends nothing when it carries a callback', async () => {
+        await signUp();
+        const path = (updateTo: string) => `/verify-email?token=${forge(changeClaims(updateTo))}&callbackURL=/email-verified`;
+
+        const registered = await request(path(EMAIL));
+        const unregistered = await request(path(UNKNOWN_EMAIL));
+
+        expect(registered.status).toBe(302);
+        expect(registered.headers.get('location')).toBe(`/email-verified?error=${REJECTED.code}`);
+        expect(unregistered.status).toBe(302);
+        expect(unregistered.headers.get('location')).toBe(registered.headers.get('location'));
+        expect(sent).toHaveLength(0);
+      });
+    });
+
+    it('sends nothing when the claims of a genuine link are swapped', async () => {
+      const cookie = await signUp();
+      const link = await requestChangeLink(cookie);
+      const [, query] = link.split('?');
+      const token = new URLSearchParams(query).get('token') ?? '';
+      const [header, , signature] = token.split('.');
+      clearSent();
+
+      const res = await request(`/verify-email?token=${header}.${base64url(changeClaims(EMAIL))}.${signature}`);
+
+      expect(res.status).toBe(REJECTED.status);
+      expect(sent).toHaveLength(0);
+      expect(await currentEmail(cookie)).toBe(EMAIL);
+    });
+
+    it.each([
+      ['first', (genuine: string, forged: string) => `token=${forged}&token=${genuine}`],
+      ['last', (genuine: string, forged: string) => `token=${genuine}&token=${forged}`],
+    ])('sends nothing when a forged token comes %s beside a genuine one', async (_position, query) => {
+      const cookie = await signUp();
+      const link = await requestChangeLink(cookie);
+      const genuine = new URLSearchParams(link.split('?')[1]).get('token') ?? '';
+      const forged = wrongKeyToken(changeClaims(NEW_EMAIL));
+      clearSent();
+
+      const res = await request(`/verify-email?${query(genuine, forged)}`);
+
+      expect(res.status).toBe(400);
+      expect(sent).toHaveLength(0);
+      expect(await currentEmail(cookie)).toBe(EMAIL);
+    });
   });
 
   it('rejects an invalid address and sends nothing', async () => {
