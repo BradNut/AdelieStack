@@ -32,7 +32,7 @@ const authService = {
   captchaPublicConfig,
 } as unknown as AuthService;
 
-function buildApp() {
+function buildApp(log = pino({ enabled: false })) {
   return new ApplicationController(
     authService,
     new UsersController(rolesService),
@@ -42,7 +42,7 @@ function buildApp() {
     new ConfigController({ envs: { SIGN_UP_ENABLED: true } } as unknown as ConfigService, authService),
     new AdminExampleController(authService, rolesService),
     { envs: { SIGNING_SECRET: 'test-signing-secret', ENV: 'test' } } as unknown as ConfigService,
-    { log: pino({ enabled: false }) } as unknown as LoggerService,
+    { log } as unknown as LoggerService,
   ).registerControllers();
 }
 
@@ -52,6 +52,154 @@ beforeEach(() => {
   getSession.mockReset().mockResolvedValue(null);
   hibpStatus.health = ProviderHealthState.UNKNOWN;
   captchaStatus.health = ProviderHealthState.DISABLED;
+});
+
+interface RequestLogEntry {
+  level: number;
+  msg: string;
+  reqId: string;
+  responseTime: number;
+  req: unknown;
+  res: unknown;
+}
+
+/** A real pino logger writing to memory, so assertions see exactly what would reach the log output. */
+function captureLog() {
+  const lines: string[] = [];
+  const log = pino({ level: 'info' }, { write: (line: string) => lines.push(line) });
+  return {
+    log,
+    output: () => lines.join(''),
+    entries: () => lines.map((line) => JSON.parse(line) as RequestLogEntry),
+  };
+}
+
+describe('request logging', () => {
+  it('logs only the allow-listed fields of a request, with no header values', async () => {
+    const { log, output, entries } = captureLog();
+
+    const res = await buildApp(log).request('/api/users/me', {
+      headers: {
+        Cookie: 'better-auth.session_token=cookie-secret',
+        Authorization: 'Bearer bearer-secret',
+        'X-Custom-Header': 'custom-header-secret',
+      },
+    });
+
+    expect(res.status).toBe(200);
+    expect(output()).not.toContain('cookie-secret');
+    expect(output()).not.toContain('bearer-secret');
+    expect(output()).not.toContain('custom-header-secret');
+
+    const [entry] = entries();
+    expect(entries()).toHaveLength(1);
+    expect(entry.req).toEqual({ method: 'GET', url: '/api/users/me' });
+    expect(entry.res).toEqual({ status: 200 });
+    expect(entry.reqId).toBe(res.headers.get('x-request-id'));
+    expect(entry.responseTime).toEqual(expect.any(Number));
+  });
+
+  it('keeps a password-reset token out of the logged path', async () => {
+    const { log, output, entries } = captureLog();
+
+    await buildApp(log).request('/api/auth/reset-password/reset-token-secret?callbackURL=/reset');
+
+    expect(output()).not.toContain('reset-token-secret');
+    expect(entries()[0].req).toEqual({ method: 'GET', url: '/api/auth/reset-password/[REDACTED]' });
+  });
+
+  it.each([
+    ['extra segments after the token', '/api/auth/reset-password/reset-token-secret/extra', '/api/auth/reset-password/[REDACTED]'],
+    ['a different letter case', '/api/auth/RESET-PASSWORD/reset-token-secret', '/api/auth/RESET-PASSWORD/[REDACTED]'],
+    ['a doubled slash', '/api/auth//reset-password//reset-token-secret', '/api/auth//reset-password//[REDACTED]'],
+    ['a percent-encoded route name', '/api/auth/reset%2Dpassword/reset-token-secret', '/api/auth/reset-password/[REDACTED]'],
+  ])('redacts a reset token with %s', async (_case, path, logged) => {
+    const { log, output, entries } = captureLog();
+
+    await buildApp(log).request(path);
+
+    expect(output()).not.toContain('reset-token-secret');
+    expect((entries()[0].req as { url: string }).url).toBe(logged);
+  });
+
+  it.each([
+    ['verification token', '/api/auth/verify-email?token=verify-token-secret', '/api/auth/verify-email'],
+    ['reset token', '/api/auth/reset-password?token=reset-token-secret', '/api/auth/reset-password'],
+    ['OAuth code', '/api/auth/callback/google?code=oauth-code-secret&state=oauth-state-secret', '/api/auth/callback/google'],
+  ])('keeps a %s in the query string out of the log', async (_case, url, logged) => {
+    const { log, output, entries } = captureLog();
+
+    await buildApp(log).request(url);
+
+    expect(output()).not.toMatch(/-secret/);
+    expect((entries()[0].req as { url: string }).url).toBe(logged);
+  });
+
+  it.each([
+    ['the reset-password endpoint without a token', '/api/auth/reset-password'],
+    ['a route that only starts with the reset-password name', '/api/auth/reset-password-help/topic'],
+    ['an ordinary route', '/api/users/me'],
+  ])('logs %s unchanged', async (_case, path) => {
+    const { log, entries } = captureLog();
+
+    await buildApp(log).request(path);
+
+    expect((entries()[0].req as { url: string }).url).toBe(path);
+  });
+
+  it('keeps the storage webhook secret out of the log', async () => {
+    const { log, output, entries } = captureLog();
+
+    await buildApp(log).request('/api/storage/webhook', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer webhook-secret' },
+    });
+
+    expect(output()).not.toContain('webhook-secret');
+    expect(entries()[0].req).toEqual({ method: 'POST', url: '/api/storage/webhook' });
+  });
+
+  it('logs a response without its Set-Cookie value', async () => {
+    const { log, output, entries } = captureLog();
+    handler.mockImplementation(
+      async () => new Response('signed-in', { headers: { 'Set-Cookie': 'better-auth.session_token=set-cookie-secret; HttpOnly' } }),
+    );
+
+    const res = await buildApp(log).request('/api/auth/sign-in/email', { method: 'POST' });
+
+    expect(res.headers.get('set-cookie')).toContain('set-cookie-secret');
+    expect(output()).not.toContain('set-cookie-secret');
+    expect(entries()[0].res).toEqual({ status: 200 });
+  });
+
+  it('logs a failed request with the same allow-list', async () => {
+    const { log, output, entries } = captureLog();
+    handler.mockRejectedValue(new Error('auth handler failed'));
+
+    const res = await buildApp(log).request('/api/auth/sign-in/email', {
+      method: 'POST',
+      headers: { Cookie: 'better-auth.session_token=cookie-secret' },
+    });
+
+    expect(res.status).toBe(500);
+    expect(output()).not.toContain('cookie-secret');
+
+    const [entry] = entries();
+    expect(entries()).toHaveLength(1);
+    expect(entry.req).toEqual({ method: 'POST', url: '/api/auth/sign-in/email' });
+    expect(entry.res).toEqual({ status: 500 });
+    expect(entry.reqId).toBe(res.headers.get('x-request-id'));
+    expect(entry.responseTime).toEqual(expect.any(Number));
+  });
+
+  it('logs an unmatched route with its 404 status', async () => {
+    const { log, entries } = captureLog();
+
+    await buildApp(log).request('/api/does-not-exist');
+
+    expect(entries()[0].req).toEqual({ method: 'GET', url: '/api/does-not-exist' });
+    expect(entries()[0].res).toEqual({ status: 404 });
+  });
 });
 
 describe('auth handler mount', () => {

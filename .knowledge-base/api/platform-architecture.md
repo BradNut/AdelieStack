@@ -151,7 +151,7 @@
 
 ### Logging
 - Structured JSON logs
-- Request/response logging
+- Request/response logging: request id, method, path (reset tokens redacted, no query), status and duration only; never headers
 - Error stack traces
 - Performance metrics
 
