@@ -1,9 +1,12 @@
 import {
   APP_ENVS,
   APP_NAME,
+  AppEnv,
   CAPTCHA_PROVIDERS,
   DEPLOY_ENVIRONMENTS,
   DeployEnvironment,
+  declaresProduction,
+  type EnvironmentSettings,
   isLocalDevEnv,
   isProdEnv,
   NODE_ENVS,
@@ -11,6 +14,7 @@ import {
   SocialProvider,
 } from '@adelie/shared';
 import { z } from 'zod/v4';
+import { DEVELOPMENT_DEFAULT_NAMES, DevelopmentDefault } from '#lib/server/api/common/configs/development-defaults.constant';
 import { findInvalidTrustedProxies } from '#lib/server/api/common/utils/ip';
 import { MailerTransport } from '#lib/server/api/mail/mailer-transport.constant';
 
@@ -127,6 +131,9 @@ export const SOCIAL_PROVIDER_ENV_NAMES = {
   [SocialProvider.GOOGLE]: { id: 'GOOGLE_CLIENT_ID', secret: 'GOOGLE_CLIENT_SECRET' },
 } as const satisfies Record<SocialProvider, { id: keyof z.infer<typeof baseEnvsDto>; secret: keyof z.infer<typeof baseEnvsDto> }>;
 
+/** Suffix of every message refusing a setting that only local development may use. */
+const REFUSED_IN_PRODUCTION = '(refused in production)';
+
 export const SHARED_RATE_LIMIT_BUCKET_MESSAGE =
   'Auth rate limiting is on but TRUST_PROXY is off: every client shares one rate-limit bucket per auth path, so a few requests lock everyone out. Set TRUST_PROXY=true behind a trusted proxy, or DISABLE_RATE_LIMIT=true.';
 
@@ -143,16 +150,46 @@ export function sharesOneRateLimitBucket(envs: Pick<z.infer<typeof baseEnvsDto>,
  * Only a developer's own machine may run the storage webhook unauthenticated. `ENV` defaults to `dev` and a deploy may
  * set only `NODE_ENV=production`, so the deploy settings ({@link isLocalDevEnv}) decide, and `ENV=prod` always requires it.
  */
-function runsWithoutWebhookSecret(envs: Pick<z.infer<typeof baseEnvsDto>, 'ENV' | 'ENVIRONMENT' | 'NODE_ENV'>): boolean {
+function runsWithoutWebhookSecret(envs: EnvironmentSettings): boolean {
   return !isProdEnv(envs.ENV) && isLocalDevEnv(envs);
 }
 
+/**
+ * Refuses production on settings only fit for local development: a credential this repo publishes, the local mail
+ * inbox, or auth served without TLS. Messages name the variable and never print its value.
+ */
+function refuseDevelopmentDefaults(envs: z.infer<typeof baseEnvsDto>, ctx: z.RefinementCtx): void {
+  if (!isProdEnv(envs.ENV)) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['ENV'],
+      message: `ENV must be ${AppEnv.PROD} when NODE_ENV or ENVIRONMENT is production: ${AppEnv.DEV} turns off the production protections`,
+    });
+  }
+  for (const name of DEVELOPMENT_DEFAULT_NAMES) {
+    if (envs[name] === DevelopmentDefault[name]) {
+      ctx.addIssue({ code: 'custom', path: [name], message: `${name} still holds its public development default ${REFUSED_IN_PRODUCTION}` });
+    }
+  }
+  if (envs.MAILER_TRANSPORT === MailerTransport.MAILPIT) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['MAILER_TRANSPORT'],
+      message: `MAILER_TRANSPORT ${MailerTransport.MAILPIT} is the local inbox ${REFUSED_IN_PRODUCTION}; use ${MailerTransport.UNSEND}`,
+    });
+  }
+  if (new URL(envs.BETTER_AUTH_URL).protocol !== 'https:') {
+    ctx.addIssue({ code: 'custom', path: ['BETTER_AUTH_URL'], message: `BETTER_AUTH_URL must use https ${REFUSED_IN_PRODUCTION}` });
+  }
+}
+
 export const envsDto = baseEnvsDto.superRefine((envs, ctx) => {
+  if (declaresProduction(envs)) refuseDevelopmentDefaults(envs, ctx);
   if (isProdEnv(envs.ENV) && sharesOneRateLimitBucket(envs)) {
     ctx.addIssue({
       code: 'custom',
       path: ['TRUST_PROXY'],
-      message: `${SHARED_RATE_LIMIT_BUCKET_MESSAGE} (refused in production)`,
+      message: `${SHARED_RATE_LIMIT_BUCKET_MESSAGE} ${REFUSED_IN_PRODUCTION}`,
     });
   }
   if (!runsWithoutWebhookSecret(envs) && envs.STORAGE_WEBHOOK_SECRET === undefined) {

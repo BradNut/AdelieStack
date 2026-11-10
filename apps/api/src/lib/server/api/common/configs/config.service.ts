@@ -24,7 +24,7 @@ export class ConfigService {
         const errorMessage = Object.entries(fieldErrors)
           .map(([field, errors]) => (errors ? `${field}: ${errors.join(', ')}` : field))
           .join('\n  ');
-        throw new Error(`Missing environment variables:\n  ${errorMessage}`);
+        throw new Error(`Invalid environment variables:\n  ${errorMessage}`);
       }
 
       throw err;

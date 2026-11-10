@@ -46,3 +46,16 @@ export interface LocalDevEnvs {
 export function isLocalDevEnv({ ENVIRONMENT, NODE_ENV }: LocalDevEnvs): boolean {
   return ENVIRONMENT === DeployEnvironment.DEVELOPMENT && NODE_ENV === NodeEnv.DEVELOPMENT;
 }
+
+/** The three settings that between them say which environment the app runs in. */
+export interface EnvironmentSettings extends LocalDevEnvs {
+  ENV: AppEnv;
+}
+
+/**
+ * Whether any setting declares production: `ENV=prod`, or a deploy's `NODE_ENV` or `ENVIRONMENT` set to production.
+ * The image sets only `NODE_ENV=production` while `ENV` defaults to `dev`, so {@link isProdEnv} alone would miss it.
+ */
+export function declaresProduction({ ENV, ENVIRONMENT, NODE_ENV }: EnvironmentSettings): boolean {
+  return isProdEnv(ENV) || NODE_ENV === NodeEnv.PRODUCTION || ENVIRONMENT === DeployEnvironment.PRODUCTION;
+}

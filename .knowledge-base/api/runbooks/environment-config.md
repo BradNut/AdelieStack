@@ -11,6 +11,7 @@ procedures.
 - `ENVIRONMENT` (`development`, `staging`, `production`) also suffixes the storage bucket names.
   `ENV` (`dev` or `prod`, `AppEnv` in `@adelie/shared`) is a legacy short-form flag several services still read; it controls the
   session cookie's `secure` flag, pretty logs, SQL logging and Better Auth's API reference (`/api/auth/reference`, off in prod). The app's own `/api/reference` is mounted regardless of `ENV`.
+  A production deploy must set `ENV=prod` explicitly: `ENV` defaults to `dev`, and the API refuses to start when `NODE_ENV` or `ENVIRONMENT` says production but `ENV` does not (see [Production refusals](#production-refusals)).
 - `ORIGIN` is the allowed CORS / session origin; `DOMAIN` (hostname only) is the session cookie
   domain.
 - `DB_MIGRATING` and `DB_SEEDING` are for the `db:migrate` and `db:seed` scripts only: each script
@@ -22,6 +23,21 @@ procedures.
 - `SIGNING_SECRET` is required and sensitive; generate it with `openssl rand -hex 32`.
 - Local setup: `cp apps/api/.env.schema apps/api/.env`, fill `DATABASE_*`, `REDIS_URL`,
   `SIGNING_SECRET` and `STORAGE_*`, then `pnpm --filter @adelie/api dev`.
+
+## Production refusals
+
+The schema's defaults make a fresh clone run locally, and every one of them is public in this repo. So when any setting declares production (`ENV=prod`, `NODE_ENV=production` or `ENVIRONMENT=production`; the image sets `NODE_ENV=production`), the API refuses to start on the development values below. The error names each variable and never prints its value; it lists every refusal at once. Development, staging on `ENV=dev`, tests and the e2e suite are unaffected. The checks live in `envsDto` (`apps/api/src/lib/server/api/common/configs/dtos/env.dto.ts`); the refused credentials are `DevelopmentDefault` in `common/configs/development-defaults.constant.ts`, which a test keeps in sync with `.env.schema`.
+
+| Variable | Refused in production | Fix |
+|---|---|---|
+| `ENV` | `dev` while `NODE_ENV` or `ENVIRONMENT` is `production` | Set `ENV=prod`. On `dev` the other production protections (secure cookie, rate-limit check, no auth API reference) stay off. |
+| `DATABASE_PASSWORD` | `postgres`, the local Postgres password | Set the real database password. |
+| `STORAGE_ACCESS_KEY` | `adelie-local-access-key`, the local SeaweedFS key | Set the provider's access key. |
+| `STORAGE_SECRET_KEY` | `adelie-local-secret-key`, the local SeaweedFS secret | Set the provider's secret key. |
+| `MAILER_TRANSPORT` | `mailpit`, also as the default when unset | Set `unsend` with `USESEND_API_KEY` and `MAIL_FROM` (see [Email](#email)). |
+| `BETTER_AUTH_URL` | Any URL not on `https` | Serve the web origin over TLS and set its `https://` URL. |
+
+Two more production checks have their own sections: `TRUST_PROXY` with rate limiting on (`ENV=prod` only, see [Auth rate limiting](#auth-rate-limiting)) and a missing `STORAGE_WEBHOOK_SECRET` (everywhere but local development, see `.env.schema`).
 
 ## Email
 
