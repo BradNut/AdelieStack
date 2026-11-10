@@ -11,6 +11,7 @@ export const AuthEndpoint = {
   PASSKEY_VERIFY_AUTHENTICATION: '/passkey/verify-authentication',
   PASSKEY_VERIFY_REGISTRATION: '/passkey/verify-registration',
   CHANGE_PASSWORD: '/change-password',
+  CHANGE_EMAIL: '/change-email',
   RESET_PASSWORD: '/reset-password',
   VERIFY_EMAIL: '/verify-email',
   VERIFY_BACKUP_CODE: '/two-factor/verify-backup-code',
