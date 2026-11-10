@@ -24,6 +24,7 @@ import type * as drizzleSchema from '#lib/server/api/databases/postgres/drizzle-
 import type { Mailer } from '#lib/server/api/mail/interfaces/mailer.interface';
 import { TwoFactorOtpEmail } from '#lib/server/api/mail/templates/two-factor-otp.template';
 import { type CaptchaConfig, captchaPlugin, createCaptchaHealth } from './auth.captcha';
+import { freshSessionGuard } from './auth.fresh-session';
 import { createHibpHealth } from './auth.hibp-status';
 import { type AuthMailLogger, createAuthMail, toMailRecipient } from './auth.mail';
 import { passwordAccountGuard } from './auth.password-account-guard';
@@ -182,7 +183,8 @@ export function createAuth({
     },
     user: {
       // The confirmation link goes to the new address (through `sendVerificationEmail`); the old
-      // address is told afterwards by `emailVerification.afterEmailVerification`.
+      // address is told afterwards by `emailVerification.afterEmailVerification`. Starting a change
+      // needs a fresh session (`freshSessionGuard`).
       changeEmail: { enabled: true },
       // Needs the account password (or a fresh session). Sessions, accounts, two-factor and passkey
       // rows go with the user: the foreign keys cascade (see auth.delete-user.test.ts).
@@ -244,6 +246,7 @@ export function createAuth({
       ...(openApiReference ? [openAPI()] : []),
       roleGuard(allowMultipleRoles),
       passwordAccountGuard(),
+      freshSessionGuard(),
       // Per-plugin after-hook, since the top-level `hooks.after` slot is taken by the mail hook. Must come after twoFactor.
       replacedSession(),
       // Must come after replacedSession, which reads the two-factor plugin's JSON answer that this replaces with a redirect.

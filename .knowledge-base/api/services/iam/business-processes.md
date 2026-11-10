@@ -100,7 +100,9 @@ sessions; admins can list and revoke anyone's (`/admin/list-user-sessions`, `/ad
 ## Fresh Session Gate
 
 Sensitive actions (delete user, change email, unlink an account, list sessions, ...) refuse a session
-older than `AUTH_SESSION_FRESH_AGE` (5 minutes). The web re-authenticates in a dialog and retries;
+older than `AUTH_SESSION_FRESH_AGE` (5 minutes) with `403 SESSION_NOT_FRESH`. Better Auth only accepts
+any live session for change email, so `freshSessionGuard` (`auth.fresh-session.ts`) adds the check before
+the confirmation is sent. The web re-authenticates in a dialog and retries;
 see ADRs [0007](../../../../docs/adr/0007-social-reauthentication-replays-a-persisted-action.md) and
 [0008](../../../../docs/adr/0008-two-factor-reauthentication-requires-every-factor.md).
 
