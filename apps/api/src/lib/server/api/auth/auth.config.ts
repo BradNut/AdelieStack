@@ -249,6 +249,11 @@ export function createAuth({
       // Must come after replacedSession, which reads the two-factor plugin's JSON answer that this replaces with a redirect.
       socialTwoFactorRedirect(),
     ],
+    // An unexpected error leaves the handler for the app's errorHandler, which answers with the generic message and logs
+    // it redacted against the request id. Otherwise Better Auth's router prints it raw to the console (a query error
+    // there carries its parameters, such as a session token) and answers an empty 500. An APIError is still answered
+    // by Better Auth, with its own status and body.
+    onAPIError: { throw: true },
     advanced: {
       ipAddress: { ipAddressHeaders: clientIp.trustProxy ? [AUTH_CLIENT_IP_HEADER] : [], trustedProxies: clientIp.trustedProxies },
       useSecureCookies: isSecureCookies(baseURL),
