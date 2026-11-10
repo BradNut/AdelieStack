@@ -1,6 +1,6 @@
 import { AUTH_CLIENT_IP_HEADER, AUTH_SESSION_EXPIRES_IN, AUTH_SESSION_FRESH_AGE, AUTH_SESSION_UPDATE_AGE } from '@adelie/shared';
 import { describe, expect, it } from 'vitest';
-import { type AuthRequest, cookiesFrom, signUpWithEmail, TEST_USER } from '../../../../../test/auth-http';
+import { type AuthRequest, ageSessions, cookiesFrom, signUpWithEmail, TEST_USER } from '../../../../../test/auth-http';
 import { createTestAuth } from '../../../../../test/auth-instance';
 
 const { email: EMAIL, password: PASSWORD } = TEST_USER;
@@ -48,7 +48,7 @@ describe('fresh vs stale sessions', () => {
   it('refuses a stale session, then succeeds after re-authentication', async () => {
     const { request, db } = createTestAuth();
     const { cookie } = await signUpWithEmail(request, TEST_USER);
-    for (const s of db.session) s.createdAt = new Date(Date.now() - (AUTH_SESSION_FRESH_AGE + 60) * 1000);
+    ageSessions(db, AUTH_SESSION_FRESH_AGE + 60);
 
     const refused = await deleteUser(request, cookie);
     expect(refused.status).toBe(400);

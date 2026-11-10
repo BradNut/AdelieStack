@@ -77,6 +77,13 @@ export function emailedLink(mail: SendProps | undefined): string {
   return mail?.template.text().match(/https?:\/\/\S+/)?.[0] ?? '';
 }
 
+const MS_PER_SECOND = 1000;
+
+/** Backdates every session's sign-in in `db` by `ageSeconds`, e.g. past `AUTH_SESSION_FRESH_AGE` to make it stale. */
+export function ageSessions(db: ReturnType<typeof createTestDatabase>['db'], ageSeconds: number): void {
+  for (const s of db.session) s.createdAt = new Date(Date.now() - ageSeconds * MS_PER_SECOND);
+}
+
 /** Signs up with email and password. A rejected sign-up does not throw: check `res`. */
 export async function signUpWithEmail(request: AuthRequest, { name, email, password }: SignUpCredentials): Promise<EmailSignUp> {
   const res = await request('/sign-up/email', { body: { name, email, password } });

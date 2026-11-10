@@ -2,7 +2,7 @@ import { AUTH_SESSION_FRESH_AGE, AuthErrorCode, CREDENTIAL_PROVIDER_ID, SocialPr
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { Auth } from '#lib/server/api/auth/auth.config';
 import { AuthEndpoint } from '#lib/server/api/auth/auth.endpoints';
-import { type AuthRequest, cookiesFrom, signUpWithEmail, signUpWithTotp, TEST_USER } from '../../../../../test/auth-http';
+import { type AuthRequest, ageSessions, cookiesFrom, signUpWithEmail, signUpWithTotp, TEST_USER } from '../../../../../test/auth-http';
 import { createTestAuth } from '../../../../../test/auth-instance';
 
 const { email: EMAIL, password: PASSWORD } = TEST_USER;
@@ -77,7 +77,7 @@ describe('unlinking the Password Account', () => {
 
   it('refuses a two-factor user with a stale session straight away, without asking for re-authentication', async () => {
     const user = await userWithGithub({ twoFactor: true });
-    for (const s of db.session) s.createdAt = new Date(Date.now() - (AUTH_SESSION_FRESH_AGE + 60) * 1000);
+    ageSessions(db, AUTH_SESSION_FRESH_AGE + 60);
 
     const res = await unlink(user.cookie, await accountIdOf(user.id, CREDENTIAL_PROVIDER_ID));
 

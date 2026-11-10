@@ -1,15 +1,16 @@
-import { AUTH_SESSION_FRESH_AGE, AuthErrorCode } from '@adelie/shared';
+import { AUTH_SESSION_FRESH_AGE, AuthCallbackPath, AuthErrorCode } from '@adelie/shared';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { AuthEndpoint } from '#lib/server/api/auth/auth.endpoints';
 import type { SendProps } from '#lib/server/api/mail/interfaces/mailer.interface';
 import { EmailChangeRequestEmail } from '#lib/server/api/mail/templates/email-change-request.template';
-import { type AuthRequest, cookiesFrom, signUpWithEmail, TEST_USER } from '../../../../../test/auth-http';
+import { type AuthRequest, ageSessions, cookiesFrom, signUpWithEmail, TEST_USER } from '../../../../../test/auth-http';
 import { createTestAuth } from '../../../../../test/auth-instance';
 
 const { email: EMAIL, password: PASSWORD } = TEST_USER;
 const NEW_EMAIL = 'emperor@example.com';
 const TAKEN_EMAIL = 'taken@example.com';
-const MS_PER_SECOND = 1000;
+/** A session age just past the fresh age, so the session is stale. */
+const STALE_AGE = AUTH_SESSION_FRESH_AGE + 60;
 
 let db: ReturnType<typeof createTestAuth>['db'];
 let request: AuthRequest;
@@ -30,13 +31,12 @@ async function signUp(credentials = TEST_USER) {
   return cookie;
 }
 
-/** Backdates every session's sign-in by `ageSeconds`. */
-function ageSessions(ageSeconds: number) {
-  for (const s of db.session) s.createdAt = new Date(Date.now() - ageSeconds * MS_PER_SECOND);
-}
-
 const changeEmail = (cookie: string | undefined, newEmail = NEW_EMAIL) =>
-  request(AuthEndpoint.CHANGE_EMAIL, { cookie, body: { newEmail, callbackURL: '/email-changed' } });
+  request(AuthEndpoint.CHANGE_EMAIL, { cookie, body: { newEmail, callbackURL: AuthCallbackPath.EMAIL_CHANGED } });
+
+async function errorCode(res: Response) {
+  return ((await res.json()) as { code: string }).code;
+}
 
 function currentEmail() {
   return db.user.find((u) => u.name === TEST_USER.name)?.email;
@@ -57,7 +57,7 @@ describe('starting an email change', () => {
 
   it('still starts the change from a session just inside the fresh age', async () => {
     const cookie = await signUp();
-    ageSessions(AUTH_SESSION_FRESH_AGE - 60);
+    ageSessions(db, AUTH_SESSION_FRESH_AGE - 60);
 
     const res = await changeEmail(cookie);
 
@@ -67,12 +67,12 @@ describe('starting an email change', () => {
 
   it('refuses a session older than the fresh age with SESSION_NOT_FRESH and sends nothing', async () => {
     const cookie = await signUp();
-    ageSessions(AUTH_SESSION_FRESH_AGE + 60);
+    ageSessions(db, STALE_AGE);
 
     const res = await changeEmail(cookie);
 
     expect(res.status).toBe(403);
-    expect(((await res.json()) as { code: string }).code).toBe(AuthErrorCode.SESSION_NOT_FRESH);
+    expect(await errorCode(res)).toBe(AuthErrorCode.SESSION_NOT_FRESH);
     expect(sent).toHaveLength(0);
     expect(currentEmail()).toBe(EMAIL);
   });
@@ -80,19 +80,19 @@ describe('starting an email change', () => {
   it('refuses a stale session the same way when the new address is already taken, so it reveals nothing', async () => {
     await signUp({ ...TEST_USER, name: 'Other', email: TAKEN_EMAIL });
     const cookie = await signUp();
-    ageSessions(AUTH_SESSION_FRESH_AGE + 60);
+    ageSessions(db, STALE_AGE);
 
     const res = await changeEmail(cookie, TAKEN_EMAIL);
 
     expect(res.status).toBe(403);
-    expect(((await res.json()) as { code: string }).code).toBe(AuthErrorCode.SESSION_NOT_FRESH);
+    expect(await errorCode(res)).toBe(AuthErrorCode.SESSION_NOT_FRESH);
     expect(sent).toHaveLength(0);
   });
 
   it('starts the change after a stale session signs in again', async () => {
     await signUp();
-    ageSessions(AUTH_SESSION_FRESH_AGE + 60);
-    const signedIn = await request('/sign-in/email', { body: { email: EMAIL, password: PASSWORD } });
+    ageSessions(db, STALE_AGE);
+    const signedIn = await request(AuthEndpoint.SIGN_IN_EMAIL, { body: { email: EMAIL, password: PASSWORD } });
     expect(signedIn.status).toBe(200);
 
     const res = await changeEmail(cookiesFrom(signedIn));
@@ -107,7 +107,7 @@ describe('starting an email change', () => {
     const res = await changeEmail(undefined);
 
     expect(res.status).toBe(401);
-    expect(((await res.json()) as { code: string }).code).toBe('UNAUTHORIZED');
+    expect(await errorCode(res)).toBe('UNAUTHORIZED');
     expect(sent).toHaveLength(0);
   });
 });
