@@ -101,6 +101,9 @@ export interface CreateAuthOptions {
    */
   trustedProxies?: string[];
 
+  /** The prefix an IPv6 client is keyed on (Better Auth's `ipv6Subnet`). Omit for Better Auth's default, /64. */
+  ipv6Subnet?: number;
+
   /**
    * Social login providers, already filtered to the configured ones. Omit for none: nothing is registered.
    * The sign-up gate is applied here, so a provider sign-in for an unknown email follows `signUpEnabled`.
@@ -149,6 +152,7 @@ export function createAuth({
   openApiReference = false,
   trustProxy = false,
   trustedProxies = [],
+  ipv6Subnet,
   socialProviders = {},
 }: CreateAuthOptions) {
   const authMail = createAuthMail(mailer, mailLog);
@@ -251,7 +255,7 @@ export function createAuth({
       socialTwoFactorRedirect(),
     ],
     advanced: {
-      ipAddress: { ipAddressHeaders: trustProxy ? [AUTH_CLIENT_IP_HEADER] : [], trustedProxies },
+      ipAddress: { ipAddressHeaders: trustProxy ? [AUTH_CLIENT_IP_HEADER] : [], trustedProxies, ipv6Subnet },
       useSecureCookies: isSecureCookies(baseURL),
       defaultCookieAttributes: { ...DEFAULT_COOKIE_ATTRIBUTES },
       database: {

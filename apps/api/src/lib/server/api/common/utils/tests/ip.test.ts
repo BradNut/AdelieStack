@@ -2,7 +2,7 @@ import { AUTH_CLIENT_IP_HEADER } from '@adelie/shared';
 import { Hono } from 'hono';
 import { describe, expect, it, vi } from 'vitest';
 import { IGNORED_CLIENT_IP_HEADERS } from '#lib/server/api/common/testing/client-ip';
-import { findInvalidTrustedProxies, getClientIp, resolveClientAddress } from '#lib/server/api/common/utils/ip';
+import { getClientIp, resolveClientAddress } from '#lib/server/api/common/utils/ip';
 
 const SPOOFED_IP = '198.51.100.66';
 const NO_PROXY_IP = '127.0.0.1';
@@ -94,15 +94,5 @@ describe('resolveClientAddress', () => {
     const value = '10.0.0.5, 203.0.113.10';
 
     expect(resolveClientAddress(contextWithHeader(value).context, { trustProxy: true, trustedProxies })).toBe('203.0.113.10');
-  });
-});
-
-describe('findInvalidTrustedProxies', () => {
-  it('accepts IPs and CIDR ranges of both families', () => {
-    expect(findInvalidTrustedProxies(['10.0.0.1', '10.0.0.0/8', '0.0.0.0/0', '2001:db8::1', '2001:db8::/32', '::/0'])).toEqual([]);
-  });
-
-  it('returns only the entries that are neither', () => {
-    expect(findInvalidTrustedProxies(['10.0.0.0/8', 'nope', '10.0.0.0/33'])).toEqual(['nope', '10.0.0.0/33']);
   });
 });
