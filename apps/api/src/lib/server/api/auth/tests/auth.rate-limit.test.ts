@@ -85,7 +85,10 @@ function build({
   trustProxy?: boolean;
 } = {}) {
   const { redis, repository } = createRepository();
-  const { auth, db, mailer, request } = createTestAuth({ trustProxy, ...(withRateLimit ? { rateLimitStorage: override ?? repository } : {}) });
+  const { auth, db, mailer, request } = createTestAuth({
+    clientIp: { trustProxy, trustedProxies: [] },
+    ...(withRateLimit ? { rateLimitStorage: override ?? repository } : {}),
+  });
   /** Every request comes from one client unless the test says otherwise. */
   const fromClient: AuthRequest = (path, options = {}) =>
     request(path, { ...options, headers: { 'x-forwarded-for': CLIENT_IP, ...options.headers } });

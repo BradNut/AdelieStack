@@ -1,8 +1,8 @@
-import { RoleName } from '@adelie/shared';
+import { AUTH_CLIENT_IP_HEADER, RoleName } from '@adelie/shared';
 import { Hono } from 'hono';
 import { TrieRouter } from 'hono/router/trie-router';
 import pino from 'pino';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AdminExampleController } from '#lib/server/api/admin/admin-example.controller';
 import { ApplicationController } from '#lib/server/api/application.controller';
 import { ProviderHealthState, type ProviderHealthStateName } from '#lib/server/api/auth/auth.provider-health';
@@ -13,6 +13,7 @@ import { validEnvs } from '#lib/server/api/common/configs/tests/env-fixtures';
 import { requestLogger } from '#lib/server/api/common/middleware/request-logger.middleware';
 import type { LoggerService } from '#lib/server/api/common/services/logger.service';
 import { buildAuthSession, buildAuthUser } from '#lib/server/api/common/testing/factories';
+import { MISSING_CLIENT_ADDRESS_WARNING_INTERVAL_MS } from '#lib/server/api/common/utils/client-address-warning';
 import { ConfigController } from '#lib/server/api/config/config.controller';
 import type { StorageWebhookController } from '#lib/server/api/storage/storage-webhook.controller';
 import { UsersController } from '#lib/server/api/users/users.controller';
@@ -34,7 +35,7 @@ const authService = {
   captchaPublicConfig,
 } as unknown as AuthService;
 
-function buildApp(log = pino({ enabled: false })) {
+function buildApp(envs: Record<string, unknown> = {}, log = pino({ enabled: false })) {
   return new ApplicationController(
     authService,
     new UsersController(rolesService),
@@ -43,7 +44,7 @@ function buildApp(log = pino({ enabled: false })) {
     } as unknown as StorageWebhookController,
     new ConfigController({ envs: { SIGN_UP_ENABLED: true } } as unknown as ConfigService, authService),
     new AdminExampleController(authService, rolesService),
-    { envs: { SIGNING_SECRET: 'test-signing-secret', ENV: 'test' } } as unknown as ConfigService,
+    { envs: { SIGNING_SECRET: 'test-signing-secret', ENV: 'test', ...envs } } as unknown as ConfigService,
     { log } as unknown as LoggerService,
   ).registerControllers();
 }
@@ -93,7 +94,7 @@ describe('request logging', () => {
   it('logs only the allow-listed fields of a request, with no header values', async () => {
     const { log, output, entries } = captureLog();
 
-    const res = await buildApp(log).request('/api/users/me', {
+    const res = await buildApp({}, log).request('/api/users/me', {
       headers: {
         Cookie: 'better-auth.session_token=cookie-secret',
         Authorization: 'Bearer bearer-secret',
@@ -113,7 +114,7 @@ describe('request logging', () => {
   it('keeps a password-reset token out of the logged path', async () => {
     const { log, output, entries } = captureLog();
 
-    await buildApp(log).request('/api/auth/reset-password/reset-token-secret?callbackURL=/reset');
+    await buildApp({}, log).request('/api/auth/reset-password/reset-token-secret?callbackURL=/reset');
 
     expect(output()).not.toContain('reset-token-secret');
     expect(entries()[0].req).toEqual({ method: 'GET', url: '/api/auth/reset-password/[REDACTED]' });
@@ -135,7 +136,7 @@ describe('request logging', () => {
   ])('redacts a reset token with %s', async (_case, path, logged) => {
     const { log, output, entries } = captureLog();
 
-    await buildApp(log).request(path);
+    await buildApp({}, log).request(path);
 
     expect(output()).not.toContain('reset-token-secret');
     expect(entries()[0].req.url).toBe(logged);
@@ -166,7 +167,7 @@ describe('request logging', () => {
   ])('keeps a %s in the query string out of the log', async (_case, url, logged) => {
     const { log, output, entries } = captureLog();
 
-    await buildApp(log).request(url);
+    await buildApp({}, log).request(url);
 
     expect(output()).not.toMatch(/-secret/);
     expect(entries()[0].req.url).toBe(logged);
@@ -183,7 +184,7 @@ describe('request logging', () => {
   ])('logs %s unchanged', async (_case, path) => {
     const { log, entries } = captureLog();
 
-    await buildApp(log).request(path);
+    await buildApp({}, log).request(path);
 
     expect(entries()[0].req.url).toBe(path);
   });
@@ -191,7 +192,7 @@ describe('request logging', () => {
   it('keeps the storage webhook secret out of the log', async () => {
     const { log, output, entries } = captureLog();
 
-    await buildApp(log).request('/api/storage/webhook', {
+    await buildApp({}, log).request('/api/storage/webhook', {
       method: 'POST',
       headers: { Authorization: 'Bearer webhook-secret' },
     });
@@ -206,7 +207,7 @@ describe('request logging', () => {
       async () => new Response('signed-in', { headers: { 'Set-Cookie': 'better-auth.session_token=set-cookie-secret; HttpOnly' } }),
     );
 
-    const res = await buildApp(log).request('/api/auth/sign-in/email', { method: 'POST' });
+    const res = await buildApp({}, log).request('/api/auth/sign-in/email', { method: 'POST' });
 
     expect(res.headers.get('set-cookie')).toContain('set-cookie-secret');
     expect(output()).not.toContain('set-cookie-secret');
@@ -217,7 +218,7 @@ describe('request logging', () => {
     const { log, output, entries } = captureLog();
     handler.mockRejectedValue(new Error('auth handler failed for error-message-secret'));
 
-    const res = await buildApp(log).request('/api/auth/sign-in/email', {
+    const res = await buildApp({}, log).request('/api/auth/sign-in/email', {
       method: 'POST',
       headers: { Cookie: 'better-auth.session_token=cookie-secret' },
     });
@@ -232,7 +233,7 @@ describe('request logging', () => {
   it('logs an unmatched route with its 404 status', async () => {
     const { log, entries } = captureLog();
 
-    await buildApp(log).request('/api/does-not-exist');
+    await buildApp({}, log).request('/api/does-not-exist');
 
     expect(entries()[0].req).toEqual({ method: 'GET', url: '/api/does-not-exist' });
     expect(entries()[0].res).toEqual({ status: 404 });
@@ -253,6 +254,66 @@ describe('auth handler mount', () => {
 
     expect(getSession).toHaveBeenCalledOnce();
     expect(handler).not.toHaveBeenCalled();
+  });
+});
+
+describe('missing client address warning', () => {
+  const logged: string[] = [];
+  const log = pino({ level: 'warn' }, { write: (line: string) => void logged.push(line) });
+  const trusting = { TRUST_PROXY: true, TRUSTED_PROXIES: [], DISABLE_RATE_LIMIT: false };
+  const signIn = (app: ReturnType<typeof buildApp>, headers: Record<string, string> = {}) =>
+    app.request('/api/auth/sign-in/email', { method: 'POST', headers });
+  let clock = Date.UTC(2026, 0, 1);
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    // The throttle lives for the process, so each test starts one full interval after the last.
+    clock += MISSING_CLIENT_ADDRESS_WARNING_INTERVAL_MS;
+    vi.setSystemTime(clock);
+    logged.length = 0;
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('warns on an auth request with no usable address, and answers it as usual', async () => {
+    const res = await signIn(buildApp(trusting, log));
+
+    expect(await res.text()).toBe('from-better-auth');
+    expect(logged).toHaveLength(1);
+    expect(logged[0]).toContain(AUTH_CLIENT_IP_HEADER);
+  });
+
+  it('does not warn on an auth request with a usable address', async () => {
+    await signIn(buildApp(trusting, log), { [AUTH_CLIENT_IP_HEADER]: '203.0.113.1' });
+
+    expect(logged).toEqual([]);
+  });
+
+  it('honours the declared trusted proxies', async () => {
+    await signIn(buildApp({ ...trusting, TRUSTED_PROXIES: ['10.0.0.0/8'] }, log), { [AUTH_CLIENT_IP_HEADER]: '203.0.113.1, 10.0.0.1' });
+
+    expect(logged).toEqual([]);
+  });
+
+  it('does not warn with TRUST_PROXY off', async () => {
+    await signIn(buildApp({ ...trusting, TRUST_PROXY: false }, log));
+
+    expect(logged).toEqual([]);
+  });
+
+  it('does not warn with rate limiting off, when no bucket is shared', async () => {
+    await signIn(buildApp({ ...trusting, DISABLE_RATE_LIMIT: true }, log));
+
+    expect(logged).toEqual([]);
+  });
+
+  it('keeps the warning out of /healthz: a health check sent straight to the API sets no header', async () => {
+    const res = await buildApp(trusting, log).request('/api/healthz');
+
+    expect(await res.json()).toEqual({ status: 'ok' });
+    expect(logged).toEqual([]);
   });
 });
 

@@ -3,12 +3,13 @@ import { expectRateLimitBypassed, getRateLimitOptions } from './rate-limit-test.
 import { rateLimitTestMocks } from './rate-limit-test.mocks';
 import './rate-limit-test.setup';
 
-const { getClientIpMock } = vi.hoisted(() => ({
-  getClientIpMock: vi.fn(),
+const { resolveClientAddressMock } = vi.hoisted(() => ({
+  resolveClientAddressMock: vi.fn(),
 }));
 
-vi.mock('#lib/server/api/common/utils/ip', () => ({
-  getClientIp: getClientIpMock,
+vi.mock('#lib/server/api/common/utils/ip', async (original) => ({
+  ...(await original<typeof import('#lib/server/api/common/utils/ip')>()),
+  resolveClientAddress: resolveClientAddressMock,
 }));
 
 import { rateLimit } from '#lib/server/api/common/middleware/rate-limit.middleware';
@@ -16,7 +17,7 @@ import { rateLimit } from '#lib/server/api/common/middleware/rate-limit.middlewa
 describe('rate-limit.middleware', () => {
   beforeEach(() => {
     rateLimitTestMocks.resetRateLimitMocks();
-    getClientIpMock.mockReturnValue('127.0.0.1');
+    resolveClientAddressMock.mockReturnValue(null);
   });
 
   it('bypasses limiter when DISABLE_RATE_LIMIT is enabled', async () => {
@@ -38,7 +39,7 @@ describe('rate-limit.middleware', () => {
     });
 
     expect(key).toBe('user-1_login');
-    expect(getClientIpMock).not.toHaveBeenCalled();
+    expect(resolveClientAddressMock).not.toHaveBeenCalled();
     expect(options.windowMs).toBe(900000);
     expect(options.limit).toBe(10);
   });
@@ -51,12 +52,12 @@ describe('rate-limit.middleware', () => {
       req: { path: '/api/resource' },
     });
 
-    expect(getClientIpMock).toHaveBeenCalled();
+    expect(resolveClientAddressMock).toHaveBeenCalled();
     expect(key).toBe('127.0.0.1_/api/resource');
   });
 
-  it('propagates errors from getClientIp', () => {
-    getClientIpMock.mockImplementation(() => {
+  it('propagates errors from resolveClientAddress', () => {
+    resolveClientAddressMock.mockImplementation(() => {
       throw new Error('ip failure');
     });
 

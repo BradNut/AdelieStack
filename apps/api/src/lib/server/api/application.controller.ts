@@ -13,7 +13,9 @@ import { requestLocale } from './common/middleware/locale.middleware';
 import { otelInstrumentation } from './common/middleware/otel.middleware';
 import { requestLogger } from './common/middleware/request-logger.middleware';
 import { LoggerService } from './common/services/logger.service';
+import { createClientAddressResolver } from './common/utils/client-address-warning';
 import { publicId } from './common/utils/crypto';
+import { clientIpOptionsFromEnvs } from './common/utils/ip';
 import { ConfigController } from './config/config.controller';
 import configureOpenAPI from './configure-open-api';
 import { StorageWebhookController } from './storage/storage-webhook.controller';
@@ -58,7 +60,15 @@ export class ApplicationController extends RootController {
     // Better Auth owns /api/auth/* with its own request/response shapes. It is registered
     // before the session middleware and every other route, and kept out of the returned
     // chain so it stays outside the api-contract RPC types.
-    api.on(['GET', 'POST'], `${AUTH_ROUTE}/*`, (c) => this.authService.auth.handler(c.req.raw));
+    // Better Auth's limiter keys on the client IP, and with none every client shares one bucket per path. Resolved here
+    // only for that warning; with rate limiting off no bucket is shared, so there is nothing to resolve.
+    const resolveClientAddress = this.configService.envs.DISABLE_RATE_LIMIT
+      ? undefined
+      : createClientAddressResolver(clientIpOptionsFromEnvs(this.configService.envs), () => this.loggerService.log);
+    api.on(['GET', 'POST'], `${AUTH_ROUTE}/*`, (c) => {
+      resolveClientAddress?.(c);
+      return this.authService.auth.handler(c.req.raw);
+    });
 
     const app = api
       .use(authSession(this.authService))

@@ -19,6 +19,7 @@ import { admin, lastLoginMethod, openAPI, twoFactor } from 'better-auth/plugins'
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { getRequestLocale } from '#lib/server/api/common/i18n/index';
 import { uuidv7 } from '#lib/server/api/common/utils/crypto';
+import type { ClientIpOptions } from '#lib/server/api/common/utils/ip';
 import type * as drizzleSchema from '#lib/server/api/databases/postgres/drizzle-schema';
 import type { Mailer } from '#lib/server/api/mail/interfaces/mailer.interface';
 import { TwoFactorOtpEmail } from '#lib/server/api/mail/templates/two-factor-otp.template';
@@ -90,10 +91,11 @@ export interface CreateAuthOptions {
   openApiReference?: boolean;
 
   /**
-   * Whether the API sits behind a trusted reverse proxy (`TRUST_PROXY`). Only then is the client IP
-   * read, from {@link AUTH_CLIENT_IP_HEADER}; otherwise no request header is trusted. Defaults to off.
+   * How the client IP is read, the same value `rateLimit()` uses (see `clientIpOptionsFromEnvs`). Only with `trustProxy`
+   * is it read, from {@link AUTH_CLIENT_IP_HEADER}; otherwise no request header is trusted. Defaults to off, with no
+   * trusted proxies: only a single address counts.
    */
-  trustProxy?: boolean;
+  clientIp?: ClientIpOptions;
 
   /**
    * Social login providers, already filtered to the configured ones. Omit for none: nothing is registered.
@@ -141,7 +143,7 @@ export function createAuth({
   captchaStatus = createCaptchaHealth({ enabled: Boolean(captchaConfig) }),
   rateLimitStorage,
   openApiReference = false,
-  trustProxy = false,
+  clientIp = { trustProxy: false, trustedProxies: [] },
   socialProviders = {},
 }: CreateAuthOptions) {
   const authMail = createAuthMail(mailer, mailLog);
@@ -248,7 +250,7 @@ export function createAuth({
       socialTwoFactorRedirect(),
     ],
     advanced: {
-      ipAddress: { ipAddressHeaders: trustProxy ? [AUTH_CLIENT_IP_HEADER] : [] },
+      ipAddress: { ipAddressHeaders: clientIp.trustProxy ? [AUTH_CLIENT_IP_HEADER] : [], trustedProxies: clientIp.trustedProxies },
       useSecureCookies: isSecureCookies(baseURL),
       defaultCookieAttributes: { ...DEFAULT_COOKIE_ATTRIBUTES },
       database: {
