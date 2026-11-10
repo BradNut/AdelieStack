@@ -192,6 +192,8 @@ export function createAuth({
       maxPasswordLength: MAX_PASSWORD_LENGTH,
       sendResetPassword: authMail.sendResetPassword,
       onPasswordReset: authMail.notifyPasswordChanged,
+      // A stolen session must not outlive the reset. Revoked in the same transaction as the password write.
+      revokeSessionsOnPasswordReset: true,
     },
     hooks: {
       before: createPasswordPolicyHook(hibpStatus),
