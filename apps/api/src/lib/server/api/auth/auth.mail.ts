@@ -10,7 +10,7 @@ import { PasswordResetLinkEmail } from '#lib/server/api/mail/templates/password-
 import { RecoveryCodesRegeneratedEmail } from '#lib/server/api/mail/templates/recovery-codes-regenerated.template';
 import { RecoveryCodesUsedEmail } from '#lib/server/api/mail/templates/recovery-codes-used.template';
 import { AuthEndpoint } from './auth.endpoints';
-import { CHANGE_EMAIL_REQUEST_TYPE, readVerificationToken } from './auth.verification-token';
+import { CHANGE_EMAIL_REQUEST_TYPE, readVerificationToken, readVerificationTokenOfRequest } from './auth.verification-token';
 
 interface AuthMailUser {
   id: string;
@@ -71,11 +71,13 @@ export function createAuthMail(mailer: Mailer, log?: AuthMailLogger) {
      * only once it has accepted the link and written the change, which is what makes the old address in the token safe to
      * use: a forged, expired or repeated link never gets here. `hooks.after` cannot tell, because it also runs for
      * rejected links and sees the redirect ending a successful one as an error.
+     *
+     * `user` is null, whatever Better Auth's type says, for the later of two concurrent clicks: both pass the token check,
+     * but its update finds no row left under the old address. The earlier click sends the notice.
      */
-    async notifyEmailChanged(user: AuthMailUser, request?: Request) {
-      const token = request ? new URL(request.url).searchParams.get('token') : null;
-      const claims = readVerificationToken(token ?? undefined);
-      if (claims?.requestType !== CHANGE_EMAIL_REQUEST_TYPE || !claims.email) return;
+    async notifyEmailChanged(user: AuthMailUser | null, request?: Request): Promise<void> {
+      const claims = readVerificationTokenOfRequest(request);
+      if (!user || claims?.requestType !== CHANGE_EMAIL_REQUEST_TYPE || !claims.email) return;
       await sendAndLogFailure(
         { email: claims.email, userId: user.id },
         new EmailChangeNoticeEmail(user.email, getRequestLocale()),
