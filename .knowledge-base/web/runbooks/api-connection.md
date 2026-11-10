@@ -6,7 +6,9 @@ Web proxies all API calls through `src/routes/api/[...slug]/+server.ts` → `API
 
 - 502 / 504 on any `/api/*` route
 - Auth endpoints return errors in web but API is up
-- Webhook calls fail (`/api/[...slug]`)
+- Storage webhook calls get 404 through the web app: expected. The proxy refuses `STORAGE_WEBHOOK_PATH`
+  (`/api/storage/webhook`, `@adelie/shared`) so the provider-only route is not public; point the storage
+  provider at the API directly (`http://api:3001/api/storage/webhook` on the internal network)
 
 ## Diagnosis
 
@@ -31,7 +33,9 @@ If timeout: network/DNS issue between containers. Check Coolify service networki
 `src/routes/api/[...slug]/+server.ts` — forwards all methods. Inspect for recent changes. This is
 the **only** route under `apps/web/src/routes/api/` (plus its `tests/` folder) — there are no
 separate per-feature proxy routes (e.g. no webauthn or check-password handlers); every `/api/*`
-request goes through this single catch-all.
+request goes through this single catch-all. The one exception is the storage webhook, which it answers
+with 404 without calling the API (any spelling of the path: case, percent-encoding, extra or trailing
+slashes, dot segments).
 
 ## Common Fixes
 

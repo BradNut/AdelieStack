@@ -1,4 +1,13 @@
-import { AppEnv, AUTH_CLIENT_IP_HEADER, DeployEnvironment, NodeEnv, RoleName } from '@adelie/shared';
+import {
+  AppEnv,
+  AUTH_CLIENT_IP_HEADER,
+  DeployEnvironment,
+  NodeEnv,
+  notFoundMessage,
+  RoleName,
+  STORAGE_WEBHOOK_ROUTE,
+  StatusCodes,
+} from '@adelie/shared';
 import { Hono } from 'hono';
 import { TrieRouter } from 'hono/router/trie-router';
 import pino from 'pino';
@@ -41,7 +50,7 @@ function buildApp(envs: Record<string, unknown> = {}, log = pino({ enabled: fals
     authService,
     new UsersController(rolesService),
     {
-      routes: () => new Hono(),
+      routes: () => new Hono().post(STORAGE_WEBHOOK_ROUTE, (c) => c.text('from-storage-webhook')),
     } as unknown as StorageWebhookController,
     new ConfigController({ envs: { SIGN_UP_ENABLED: true } } as unknown as ConfigService, authService),
     new AdminExampleController(authService, rolesService),
@@ -269,6 +278,28 @@ describe('auth handler mount', () => {
 
     expect(getSession).toHaveBeenCalledOnce();
     expect(handler).not.toHaveBeenCalled();
+  });
+});
+
+describe('storage webhook mount', () => {
+  // Literal on purpose: pins the URL the storage provider is configured with (see STORAGE_WEBHOOK_PATH).
+  it('serves the webhook at /api/storage/webhook', async () => {
+    const res = await buildApp().request('/api/storage/webhook', { method: 'POST' });
+
+    expect(res.status).toBe(StatusCodes.OK);
+    expect(await res.text()).toBe('from-storage-webhook');
+  });
+});
+
+describe('unknown route', () => {
+  // The web proxy builds its refusals from notFoundMessage, so this pins it to what the API really sends.
+  it('answers with notFoundMessage JSON', async () => {
+    const res = await buildApp().request('/api/no-such-route', { method: 'POST' });
+
+    expect(res.status).toBe(StatusCodes.NOT_FOUND);
+    expect(res.headers.get('content-type')).toBe('application/json');
+    expect(await res.json()).toEqual({ message: notFoundMessage('/api/no-such-route') });
+    expect(notFoundMessage('/api/no-such-route')).toBe('Not Found - /api/no-such-route');
   });
 });
 

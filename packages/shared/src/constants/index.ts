@@ -17,4 +17,5 @@ export * from './pagination';
 export * from './reauth';
 export * from './social-providers';
 export * from './status-codes';
+export * from './storage-paths';
 export * from './validation-messages';

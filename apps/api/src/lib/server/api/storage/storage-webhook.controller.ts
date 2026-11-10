@@ -1,5 +1,5 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
-import { StatusCodes } from '@adelie/shared';
+import { STORAGE_WEBHOOK_ROUTE, StatusCodes } from '@adelie/shared';
 import { inject, injectable } from '@needle-di/core';
 import type { Context } from 'hono';
 import { ConfigService } from '#lib/server/api/common/configs/config.service';
@@ -131,8 +131,8 @@ export class StorageWebhookController extends Controller {
 
   routes() {
     return this.controller
-      .get('/webhook', (c) => c.json({ status: 'ok' }, StatusCodes.OK))
-      .post('/webhook', async (c) => {
+      .get(STORAGE_WEBHOOK_ROUTE, (c) => c.json({ status: 'ok' }, StatusCodes.OK))
+      .post(STORAGE_WEBHOOK_ROUTE, async (c) => {
         if (!this.isAuthorized(c)) {
           this.loggerService.log.warn('Unauthorized storage webhook request');
           return c.json({ error: 'Unauthorized' }, StatusCodes.UNAUTHORIZED);

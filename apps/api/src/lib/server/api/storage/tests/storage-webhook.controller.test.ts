@@ -1,3 +1,4 @@
+import { STORAGE_ROUTE, STORAGE_WEBHOOK_ROUTE } from '@adelie/shared';
 import { Container } from '@needle-di/core';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConfigService } from '#lib/server/api/common/configs/config.service';
@@ -26,12 +27,12 @@ const buildApp = (opts: { secret?: string; handleScanJobs?: () => Promise<void> 
   container.bind({ provide: LoggerService, useValue: loggerStub });
   container.bind({ provide: FileScannerWorker, useValue: { handleScanJobs } as unknown as FileScannerWorker });
   const controller = container.get(StorageWebhookController);
-  const app = buildRouteApp(controller.routes() as AppOpenAPI, '/storage');
+  const app = buildRouteApp(controller.routes() as AppOpenAPI, STORAGE_ROUTE);
   return { app, handleScanJobs };
 };
 
 const postEvent = (app: ReturnType<typeof buildApp>['app'], event: unknown, headers: Record<string, string> = {}) =>
-  app.request('/storage/webhook', {
+  app.request(`${STORAGE_ROUTE}${STORAGE_WEBHOOK_ROUTE}`, {
     method: 'POST',
     headers: { 'content-type': 'application/json', ...headers },
     body: JSON.stringify(event),
@@ -181,7 +182,11 @@ describe('StorageWebhookController', () => {
   it('returns 400 for a malformed JSON body', async () => {
     const { app } = buildApp();
 
-    const res = await app.request('/storage/webhook', { method: 'POST', headers: { 'content-type': 'application/json' }, body: 'not-json' });
+    const res = await app.request(`${STORAGE_ROUTE}${STORAGE_WEBHOOK_ROUTE}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: 'not-json',
+    });
 
     expect(res.status).toBe(400);
   });
