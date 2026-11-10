@@ -2,7 +2,6 @@ import { API_BASE_PATH, AUTH_ROUTE } from '@adelie/shared';
 import { inject, injectable } from '@needle-di/core';
 import { contextStorage } from 'hono/context-storage';
 import { requestId } from 'hono/request-id';
-import { pinoLogger } from 'hono-pino';
 import { notFound, onError, serveEmojiFavicon } from 'stoker/middlewares';
 import { AdminExampleController } from './admin/admin-example.controller';
 import { AuthService } from './auth/auth.service';
@@ -12,6 +11,7 @@ import { RootController } from './common/factories/controllers.factory';
 import { browserSessions } from './common/middleware/browser-session.middleware';
 import { requestLocale } from './common/middleware/locale.middleware';
 import { otelInstrumentation } from './common/middleware/otel.middleware';
+import { requestLogger } from './common/middleware/request-logger.middleware';
 import { LoggerService } from './common/services/logger.service';
 import { createClientAddressResolver } from './common/utils/client-address-warning';
 import { publicId } from './common/utils/crypto';
@@ -55,7 +55,7 @@ export class ApplicationController extends RootController {
       .use(requestLocale)
       .use(browserSessions(this.configService.envs))
       .use(serveEmojiFavicon('📝'))
-      .use(pinoLogger({ pino: this.loggerService.log }));
+      .use(requestLogger(this.loggerService.log));
 
     // Better Auth owns /api/auth/* with its own request/response shapes. It is registered
     // before the session middleware and every other route, and kept out of the returned

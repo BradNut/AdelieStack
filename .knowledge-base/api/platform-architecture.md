@@ -151,7 +151,7 @@
 
 ### Logging
 - Structured JSON logs
-- Request/response logging
+- Request/response logging: pino's standard fields (`level`, `time`, `pid`, `hostname`) plus request id, method, path (reset tokens redacted, no query), status, duration and a fixed `msg` (`Request completed`, or `Request failed` at `error` level when a handler threw) only; never headers or error messages
 - Error stack traces
 - Performance metrics
 

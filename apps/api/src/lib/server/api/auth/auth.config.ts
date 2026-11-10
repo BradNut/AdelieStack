@@ -178,10 +178,11 @@ export function createAuth({
     emailVerification: {
       sendOnSignUp: true,
       sendVerificationEmail: authMail.sendVerificationEmail,
+      afterEmailVerification: authMail.notifyEmailChanged,
     },
     user: {
       // The confirmation link goes to the new address (through `sendVerificationEmail`); the old
-      // address is told afterwards by the `/verify-email` after hook.
+      // address is told afterwards by `emailVerification.afterEmailVerification`.
       changeEmail: { enabled: true },
       // Needs the account password (or a fresh session). Sessions, accounts, two-factor and passkey
       // rows go with the user: the foreign keys cascade (see auth.delete-user.test.ts).
@@ -194,6 +195,9 @@ export function createAuth({
       maxPasswordLength: MAX_PASSWORD_LENGTH,
       sendResetPassword: authMail.sendResetPassword,
       onPasswordReset: authMail.notifyPasswordChanged,
+      // A stolen session must not outlive the reset. The adapter runs without transactions, so sessions
+      // go first: a failed password write then leaves the old password, never a new one beside live sessions.
+      revokeSessionsOnPasswordReset: true,
     },
     hooks: {
       before: createPasswordPolicyHook(hibpStatus),

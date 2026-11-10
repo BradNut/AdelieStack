@@ -2,8 +2,8 @@
 
 Better Auth implements these flows; the paths are below `/api/auth`. Every request first passes
 Better Auth's rate limiter, then the captcha check on protected paths when captcha is on, then our
-before-hooks (password policy, role guard). Our after-hooks send Security Event emails
-(`auth/auth.mail.ts`) and end the Replaced Session on sign-in (`auth/auth.replaced-session.ts`).
+before-hooks (password policy, role guard). Our after-hooks send most Security Event emails
+(`auth/auth.mail.ts`; the email-change notice instead uses `emailVerification.afterEmailVerification`) and end the Replaced Session on sign-in (`auth/auth.replaced-session.ts`).
 
 ## Sign-up (`POST /sign-up/email`)
 
@@ -71,10 +71,13 @@ Signed in with an already-verified email, the request is a `400 EMAIL_ALREADY_VE
    ↓
 3. POST /reset-password { token, newPassword }  (own rate limit, password policy)
    ↓
-4. Password updated; "password changed" Security Event email sent
+4. Password updated and every session the account held is ended; "password changed" Security Event email sent
 ```
 
-Existing sessions are **not** revoked by a reset (`revokeSessionsOnPasswordReset` is not set).
+A successful reset signs the account out everywhere (`revokeSessionsOnPasswordReset`). The reset page
+redirects a signed-in browser to `/` before its form renders, so the browser making the reset normally
+has no session to lose; on success it is sent to `/login`. A failed reset (bad token, rejected password)
+ends no session.
 
 ## Password Change (`POST /change-password`)
 
