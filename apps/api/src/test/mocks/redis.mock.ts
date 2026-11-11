@@ -20,12 +20,18 @@ export function createRedisServiceMock() {
     store.set(`${prefix}:${key}`, { value: String(count), expiry });
     return { count, ttl: expiry };
   });
+  // The mock does not tick: a key keeps the expiry it was last written with.
+  const ttl = vi.fn<RedisService['ttl']>(async ({ prefix, key }) => {
+    const entry = store.get(`${prefix}:${key}`);
+    if (!entry) return -2;
+    return entry.expiry ?? -1;
+  });
   const scan = vi.fn<RedisService['scan']>(async () => []);
   // Raw client for code that talks to ioredis directly (hono-rate-limiter's RedisStore sends every command
   // through `call`); commands resolve to null and never open a connection.
   const redis = { call: vi.fn(async (..._args: (string | number)[]): Promise<unknown> => null) };
 
-  return { get, set, setWithExpiry, delete: del, incrementWithExpiry, scan, redis, store };
+  return { get, set, setWithExpiry, delete: del, incrementWithExpiry, ttl, scan, redis, store };
 }
 
 export type RedisServiceMock = ReturnType<typeof createRedisServiceMock>;

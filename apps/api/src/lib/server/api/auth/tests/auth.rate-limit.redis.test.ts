@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { AUTH_RATE_LIMIT_REDIS_PREFIX, AuthRateLimitRepository } from '#lib/server/api/auth/auth.rate-limit.repository';
+import { AUTH_RATE_LIMIT_REDIS_PREFIX, AuthRateLimitRepository, accountLockoutKey } from '#lib/server/api/auth/auth.rate-limit.repository';
 import type { ConfigService } from '#lib/server/api/common/configs/config.service';
 import { RedisService } from '#lib/server/api/databases/redis/redis.service';
 
@@ -108,5 +108,49 @@ describe('AuthRateLimitRepository against real Redis', () => {
     expect(later.retryAfter).toBe(await ttlOf(key));
     expect(later.retryAfter).toBeLessThanOrEqual(2);
     expect(later.retryAfter).toBeGreaterThan(0);
+  });
+});
+
+describe('account lockout counts against real Redis', () => {
+  /** An address no other test or run shares; its key is removed afterwards. */
+  function uniqueEmail() {
+    const email = `test-${randomUUID()}@example.com`;
+    createdKeys.push(accountLockoutKey(email));
+    return email;
+  }
+
+  it('locks an address once it reaches the maximum, with the time left in the window', async () => {
+    const email = uniqueEmail();
+    const rule = { window: 30, max: 2 };
+
+    await repository.recordFailure(email, rule);
+    expect(await repository.lockedFor(email, rule)).toBeNull();
+    await repository.recordFailure(email, rule);
+
+    const retryAfter = await repository.lockedFor(email, rule);
+    expect(retryAfter).toBeGreaterThan(0);
+    expect(retryAfter).toBeLessThanOrEqual(rule.window);
+  });
+
+  it('clears the count', async () => {
+    const email = uniqueEmail();
+    const rule = { window: 30, max: 1 };
+
+    await repository.recordFailure(email, rule);
+    await repository.clearFailures(email);
+
+    expect(await repository.lockedFor(email, rule)).toBeNull();
+  });
+
+  it('unlocks when the window ends', async () => {
+    const email = uniqueEmail();
+    const rule = { window: 1, max: 1 };
+
+    await repository.recordFailure(email, rule);
+    expect(await repository.lockedFor(email, rule)).not.toBeNull();
+
+    await sleep(1500);
+
+    expect(await repository.lockedFor(email, rule)).toBeNull();
   });
 });

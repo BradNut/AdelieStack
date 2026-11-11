@@ -13,6 +13,7 @@ The trigger: `/api/auth/*` is handed straight to `auth.handler`, so our Hono mid
 - Auth endpoints are never wrapped in `rateLimit()` from `common/middleware`; that middleware stays for our own routes.
 - Limits and windows are shared constants, not literals in `auth.config.ts`.
 - Rate-limit storage is the only thing Better Auth keeps in Redis; sessions and verification tokens stay in Postgres.
+- Better Auth's limiter counts per client IP and path only, so a distributed attacker is never slowed by it. Failed password sign-ins are also counted per email address, across clients, by our `account-lockout` plugin (`auth/auth.account-lockout.ts`), in the same Redis prefix under hashed keys (`AUTH_ACCOUNT_SIGN_IN_FAILURES`). Second-factor codes are counted per account by Better Auth's own two-factor lockout, pinned to `TWO_FACTOR_ACCOUNT_LOCKOUT` and kept on the two-factor row in Postgres. `DISABLE_RATE_LIMIT` turns the sign-in count off too, but not the two-factor lockout.
 - Redis is now required for correct auth rate limiting in multi-instance deployments.
 
 ## Considered options

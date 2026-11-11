@@ -66,5 +66,20 @@ export const AUTH_RATE_LIMIT_RULES = {
  */
 export const AUTH_RATE_LIMIT_DEFAULT_PATHS = ['/sign-in/social', '/two-factor/enable'] as const;
 
+/**
+ * Failed password sign-ins per account, counted across every client address; NIST SP 800-63B allows at most 100
+ * consecutive failures. The window starts at the first failure. Once `max` failures are counted, password sign-in
+ * for that email address is refused until the window ends, so an attacker cannot lock a user out for good. Counted by
+ * email address whether or not an account has it, so the refusal reveals nothing. A correct password clears it.
+ */
+export const AUTH_ACCOUNT_SIGN_IN_FAILURES: AuthRateLimitRule = { window: 15 * SECONDS_PER_MINUTE, max: 100 };
+
+/**
+ * Better Auth's two-factor account lockout: wrong codes per account, across challenges, factors and client addresses,
+ * before verification is locked for `durationSeconds`. A successful verification clears the count. Kept on the
+ * two-factor row in Postgres by Better Auth itself.
+ */
+export const TWO_FACTOR_ACCOUNT_LOCKOUT = { maxFailedAttempts: 10, durationSeconds: 15 * SECONDS_PER_MINUTE } as const;
+
 /** Response header Better Auth sets on a throttled (429) request: seconds until the client may retry. */
 export const RETRY_AFTER_HEADER = 'x-retry-after';

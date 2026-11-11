@@ -92,6 +92,18 @@ describe('AuthService', () => {
       expect(redis.incrementWithExpiry).not.toHaveBeenCalled();
     });
 
+    it('counts failed password sign-ins per account in Redis', () => {
+      const { service } = buildService();
+
+      expect(service.auth.options.plugins?.map((plugin) => plugin.id)).toContain('account-lockout');
+    });
+
+    it('leaves the account count off when DISABLE_RATE_LIMIT is on', () => {
+      const { service } = buildService({ DISABLE_RATE_LIMIT: 'true' });
+
+      expect(service.auth.options.plugins?.map((plugin) => plugin.id)).not.toContain('account-lockout');
+    });
+
     it('does not count or touch Redis when DISABLE_RATE_LIMIT is on', async () => {
       const { service, redis } = buildService({ DISABLE_RATE_LIMIT: 'true' });
 

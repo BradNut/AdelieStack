@@ -79,6 +79,7 @@ export class AuthService {
       socialProviders: this.socialCredentials,
       // The Redis connection opens on the first limited request, not here.
       rateLimitStorage: this.configService.envs.DISABLE_RATE_LIMIT ? undefined : this.rateLimitRepository,
+      accountLockoutStorage: this.configService.envs.DISABLE_RATE_LIMIT ? undefined : this.rateLimitRepository,
       // Non-production only, like logging and pretty output, so production does not advertise the auth surface. (The app's own /api/reference is on in every environment.)
       openApiReference: !isProdEnv(this.configService.envs.ENV),
     });

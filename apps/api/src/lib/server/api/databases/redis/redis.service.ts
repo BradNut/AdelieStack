@@ -48,6 +48,11 @@ export class RedisService {
     return { count, ttl };
   }
 
+  /** Seconds until `prefix:key` expires: -1 when it has no expiry, -2 when it does not exist. */
+  async ttl(data: { prefix: string; key: string }): Promise<number> {
+    return this.redis.ttl(`${data.prefix}:${data.key}`);
+  }
+
   async scan(data: { prefix: string; pattern: string }): Promise<string[]> {
     const keys: string[] = [];
     const scanPattern = `${data.prefix}:${data.pattern}`;
