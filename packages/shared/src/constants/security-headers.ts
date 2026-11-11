@@ -44,14 +44,34 @@ export const STRICT_TRANSPORT_SECURITY = 'max-age=31536000';
 /** The header a reverse proxy sets to the scheme the client used; the API reads it only with TRUST_PROXY. */
 export const FORWARDED_PROTO_HEADER = 'x-forwarded-proto';
 
+export type SecurityHeaderOptions = {
+  /** Whether the client reached us over https; HSTS is sent only then. */
+  overHttps: boolean;
+};
+
 /**
  * Sets the security headers on `headers`: the baseline always, HSTS only when the client reached us over https. Over http
  * an HSTS header already present (from the upstream API) is removed: the caller knows the scheme the browser used.
  */
-export function applySecurityHeaders(headers: Headers, { https }: { https: boolean }): void {
+function applySecurityHeaders(headers: Headers, { overHttps }: SecurityHeaderOptions): void {
   for (const [name, value] of Object.entries(BASELINE_SECURITY_HEADERS)) {
     headers.set(name, value);
   }
-  if (https) headers.set(SecurityHeader.STRICT_TRANSPORT_SECURITY, STRICT_TRANSPORT_SECURITY);
+  if (overHttps) headers.set(SecurityHeader.STRICT_TRANSPORT_SECURITY, STRICT_TRANSPORT_SECURITY);
   else headers.delete(SecurityHeader.STRICT_TRANSPORT_SECURITY);
+}
+
+/**
+ * Returns `response` with the security headers set (see {@link applySecurityHeaders}). A response with immutable headers
+ * (one passed straight through from `fetch`) is copied, status, headers and body kept, so it can carry them too.
+ */
+export function withSecurityHeaders(response: Response, options: SecurityHeaderOptions): Response {
+  try {
+    applySecurityHeaders(response.headers, options);
+    return response;
+  } catch {
+    const copy = new Response(response.body, response);
+    applySecurityHeaders(copy.headers, options);
+    return copy;
+  }
 }

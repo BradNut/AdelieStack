@@ -1,4 +1,4 @@
-import { applySecurityHeaders, StatusCodes } from '@adelie/shared/constants';
+import { StatusCodes, withSecurityHeaders } from '@adelie/shared/constants';
 import { getDevOnlySentryOptions } from '@adelie/shared/sentry';
 import * as Sentry from '@sentry/sveltekit';
 import { sentryHandle } from '@sentry/sveltekit';
@@ -36,16 +36,7 @@ const clientAddressWarning: Handle = ({ event, resolve }) => {
  */
 const securityHeaders: Handle = async ({ event, resolve }) => {
   const response = await resolve(event);
-  const https = event.url.protocol === 'https:';
-  try {
-    applySecurityHeaders(response.headers, { https });
-    return response;
-  } catch {
-    // A response straight from `fetch` has immutable headers; copy it to set them.
-    const copy = new Response(response.body, response);
-    applySecurityHeaders(copy.headers, { https });
-    return copy;
-  }
+  return withSecurityHeaders(response, { overHttps: event.url.protocol === 'https:' });
 };
 
 const apiClient: Handle = async ({ event, resolve }) => {

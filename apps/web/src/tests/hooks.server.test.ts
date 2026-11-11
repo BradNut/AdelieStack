@@ -102,8 +102,13 @@ describe('hooks.server handle: client address warning', () => {
 });
 
 describe('hooks.server handle: security headers', () => {
-  const PERMISSIONS_POLICY =
-    'camera=(), microphone=(), geolocation=(), payment=(), usb=(), serial=(), hid=(), bluetooth=(), midi=(), display-capture=(), accelerometer=(), gyroscope=(), magnetometer=()';
+  // Literal on purpose: a change to the policy should have to change this test too.
+  const EXPECTED_BASELINE = {
+    'x-content-type-options': 'nosniff',
+    'referrer-policy': 'strict-origin-when-cross-origin',
+    'permissions-policy':
+      'camera=(), microphone=(), geolocation=(), payment=(), usb=(), serial=(), hid=(), bluetooth=(), midi=(), display-capture=(), accelerometer=(), gyroscope=(), magnetometer=()',
+  };
   const HSTS = 'max-age=31536000';
 
   async function sendTo(url: string, response: Response = new Response('ok', { headers: { 'content-type': 'text/html' } })) {
@@ -121,28 +126,26 @@ describe('hooks.server handle: security headers', () => {
     return handle({ event, resolve: async () => response });
   }
 
-  it('sets the baseline headers on a page', async () => {
-    const response = await sendTo('https://example.com/');
+  function expectBaseline(response: Response) {
+    for (const [name, value] of Object.entries(EXPECTED_BASELINE)) {
+      expect(response.headers.get(name)).toBe(value);
+    }
+  }
 
-    expect(response.headers.get('x-content-type-options')).toBe('nosniff');
-    expect(response.headers.get('referrer-policy')).toBe('strict-origin-when-cross-origin');
-    expect(response.headers.get('permissions-policy')).toBe(PERMISSIONS_POLICY);
-    expect(response.headers.get('strict-transport-security')).toBe(HSTS);
-  });
+  it.each([
+    ['a page', 'https://example.com/', () => new Response('ok', { headers: { 'content-type': 'text/html' } })],
+    ['a proxied API response', 'https://example.com/api/users/me', () => Response.json({ ok: true })],
+  ])('sets the baseline headers and HSTS on %s', async (_case, url, response) => {
+    const sent = await sendTo(url, response());
 
-  it('sets the baseline headers on a proxied API response', async () => {
-    const response = await sendTo('https://example.com/api/users/me', Response.json({ ok: true }));
-
-    expect(response.headers.get('x-content-type-options')).toBe('nosniff');
-    expect(response.headers.get('referrer-policy')).toBe('strict-origin-when-cross-origin');
-    expect(response.headers.get('permissions-policy')).toBe(PERMISSIONS_POLICY);
-    expect(response.headers.get('strict-transport-security')).toBe(HSTS);
+    expectBaseline(sent);
+    expect(sent.headers.get('strict-transport-security')).toBe(HSTS);
   });
 
   it('sends no HSTS over http', async () => {
     const response = await sendTo('http://localhost/');
 
-    expect(response.headers.get('x-content-type-options')).toBe('nosniff');
+    expectBaseline(response);
     expect(response.headers.has('strict-transport-security')).toBe(false);
   });
 
@@ -182,7 +185,7 @@ describe('hooks.server handle: security headers', () => {
 
     const response = await sendTo('https://example.com/', immutable);
 
-    expect(response.headers.get('x-content-type-options')).toBe('nosniff');
+    expectBaseline(response);
     expect(await response.text()).toBe('ok');
   });
 });

@@ -143,7 +143,7 @@ function validateCsrf(req: Request) {
 ### Security Headers
 `securityHeaders()` (`common/middleware/security-headers.middleware.ts`) runs on every `/api` response, Better Auth's,
 404s and errors included, and the web app's `hooks.server.ts` sets the same headers on pages. Both use
-`applySecurityHeaders` from `@adelie/shared`, so the values live in one place:
+`withSecurityHeaders` from `@adelie/shared`, so the values live in one place:
 
 - `X-Content-Type-Options: nosniff`
 - `Referrer-Policy: strict-origin-when-cross-origin`: captcha frames and OAuth providers still see the origin
