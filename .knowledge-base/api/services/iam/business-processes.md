@@ -129,6 +129,9 @@ Admin removes a factor
   ├─ /two-factor/disable with no passkey → 400 LAST_SECOND_FACTOR, two-factor stays on
   ├─ /passkey/delete-passkey of the only passkey with two-factor off → 400 LAST_SECOND_FACTOR, passkey kept
   └─ Otherwise → Better Auth (other roles are never refused)
+
+/admin/create-user or /admin/update-user whose data sets twoFactorEnabled (any caller, any value)
+  └─ 400 SECOND_FACTOR_NOT_WRITABLE, nothing written (only the owner enrols or removes a factor)
 ```
 
 `/users/me` answers `needsSecondFactor`; the web app sends such an admin to `/settings/two-factor`

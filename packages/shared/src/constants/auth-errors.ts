@@ -23,6 +23,8 @@ export const AuthErrorCode = {
   SECOND_FACTOR_REQUIRED: 'SECOND_FACTOR_REQUIRED',
   /** Our own code: removing this would leave an account that needs a Second Factor without one (ADR 0014). */
   LAST_SECOND_FACTOR: 'LAST_SECOND_FACTOR',
+  /** Our own code: an admin create or update tried to set a Second Factor field, which only its owner enrols (ADR 0014). */
+  SECOND_FACTOR_NOT_WRITABLE: 'SECOND_FACTOR_NOT_WRITABLE',
 } as const;
 export type AuthErrorCode = (typeof AuthErrorCode)[keyof typeof AuthErrorCode];
 

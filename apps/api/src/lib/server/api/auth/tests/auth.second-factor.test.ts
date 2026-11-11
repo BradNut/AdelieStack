@@ -108,6 +108,64 @@ describe('admin plugin endpoints', () => {
   });
 });
 
+describe('writing a Second Factor through the admin plugin', () => {
+  const updateUser = (cookie: string, userId: string, data: Record<string, unknown>) =>
+    request('/admin/update-user', { cookie, body: { userId, data } });
+
+  it("refuses an admin marking another admin's two-factor enabled, so that admin stays refused", async () => {
+    const enrolled = await signedInAs(RoleName.ADMIN, { passkeys: 1 });
+    const { cookie: targetCookie } = await signUpWithEmail(request, { ...TEST_USER, email: 'target@example.com' });
+    const targetId = await signedInUserId(targetCookie);
+    await setRole(targetId, RoleName.ADMIN);
+
+    const res = await updateUser(enrolled.cookie, targetId, { twoFactorEnabled: true });
+
+    expect(res.status).toBe(400);
+    expect(await codeOf(res)).toBe(AuthErrorCode.SECOND_FACTOR_NOT_WRITABLE);
+    expect(db.user.find((u) => u.id === targetId)?.twoFactorEnabled).not.toBe(true);
+    expect(await codeOf(await listUsers(targetCookie))).toBe(AuthErrorCode.SECOND_FACTOR_REQUIRED);
+  });
+
+  it('refuses an admin marking their own two-factor enabled, so their only passkey stays undeletable', async () => {
+    const admin = await signedInAs(RoleName.ADMIN, { passkeys: 1 });
+
+    expect((await updateUser(admin.cookie, admin.id, { twoFactorEnabled: true })).status).toBe(400);
+    const res = await request('/passkey/delete-passkey', { cookie: admin.cookie, body: { id: admin.passkeyIds[0] } });
+    expect(await codeOf(res)).toBe(AuthErrorCode.LAST_SECOND_FACTOR);
+  });
+
+  it("refuses an admin clearing another admin's two-factor, leaving it enabled", async () => {
+    const enrolled = await signedInAs(RoleName.ADMIN, { passkeys: 1 });
+    const { cookie: targetCookie } = await signUpWithTotp(request, { ...TEST_USER, email: 'target@example.com' });
+    const targetId = await signedInUserId(targetCookie);
+    await setRole(targetId, RoleName.ADMIN);
+
+    const res = await updateUser(enrolled.cookie, targetId, { twoFactorEnabled: false });
+
+    expect(res.status).toBe(400);
+    expect(await codeOf(res)).toBe(AuthErrorCode.SECOND_FACTOR_NOT_WRITABLE);
+    expect(db.user.find((u) => u.id === targetId)?.twoFactorEnabled).toBe(true);
+    expect((await listUsers(targetCookie)).status).toBe(200);
+  });
+
+  it('refuses creating a user marked as having two-factor enabled', async () => {
+    const enrolled = await signedInAs(RoleName.ADMIN, { passkeys: 1 });
+    const body = { email: 'new@example.com', password: PASSWORD, name: 'New', role: RoleName.ADMIN, data: { twoFactorEnabled: true } };
+
+    const res = await request('/admin/create-user', { cookie: enrolled.cookie, body });
+
+    expect(res.status).toBe(400);
+    expect(await codeOf(res)).toBe(AuthErrorCode.SECOND_FACTOR_NOT_WRITABLE);
+    expect(db.user.find((u) => u.email === 'new@example.com')).toBeUndefined();
+  });
+
+  it('still lets an admin update other fields of a user', async () => {
+    const enrolled = await signedInAs(RoleName.ADMIN, { passkeys: 1 });
+
+    expect((await updateUser(enrolled.cookie, enrolled.id, { name: 'Renamed' })).status).toBe(200);
+  });
+});
+
 describe('enrolment by an admin without a Second Factor', () => {
   it('can read its session and start two-factor enrolment', async () => {
     const admin = await signedInAs(RoleName.ADMIN);
