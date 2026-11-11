@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { changePasswordDto } from '@adelie/shared';
+	import { changePasswordDto, MIN_PASSWORD_LENGTH } from '@adelie/shared';
 	import { toast } from 'svelte-sonner';
 	import { defaults, setError, superForm } from 'sveltekit-superforms';
 	import { zod4, zod4Client } from 'sveltekit-superforms/adapters';
@@ -56,7 +56,7 @@
 				<Form.Control>
 					{#snippet children({ props })}
 						<Form.Label>New password</Form.Label>
-						<Input {...props} type="password" autocomplete="new-password" bind:value={$passwordForm.new_password} />
+						<Input {...props} type="password" autocomplete="new-password" minlength={MIN_PASSWORD_LENGTH} bind:value={$passwordForm.new_password} />
 					{/snippet}
 				</Form.Control>
 				<PasswordFieldErrors />
@@ -65,7 +65,7 @@
 				<Form.Control>
 					{#snippet children({ props })}
 						<Form.Label>Confirm new password</Form.Label>
-						<Input {...props} type="password" autocomplete="new-password" bind:value={$passwordForm.confirm_password} />
+						<Input {...props} type="password" autocomplete="new-password" minlength={MIN_PASSWORD_LENGTH} bind:value={$passwordForm.confirm_password} />
 					{/snippet}
 				</Form.Control>
 				<Form.FieldErrors />
