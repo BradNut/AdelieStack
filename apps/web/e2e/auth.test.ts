@@ -1,3 +1,4 @@
+import { MIN_PASSWORD_LENGTH } from '@adelie/shared';
 import { NEW_PASSWORD, newUser, PASSWORD, signIn, signOut, signUp } from './support/auth';
 import { countEmails, firstLink, waitForEmail } from './support/mailbox';
 import { expect, test } from './support/test';
@@ -43,7 +44,7 @@ test.describe('sign up, sign in, sign out', () => {
     await page.getByLabel('Confirm Password').fill('weak');
     await page.getByRole('button', { name: 'Signup' }).click();
 
-    await expect(page.getByText(/at least 8 characters/)).toBeVisible();
+    await expect(page.getByText(`at least ${MIN_PASSWORD_LENGTH} characters`)).toBeVisible();
     await expect(page).toHaveURL(/\/signup$/);
   });
 

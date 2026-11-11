@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { MIN_PASSWORD_LENGTH } from '../../constants';
 import { signinDto } from '../login/signin.dto';
 import { recoveryCodeDto, twoFactorCodeDto } from '../login/two-factor-code.dto';
 import { resetPasswordNewPasswordDto } from '../reset-password/reset-password-new-password.dto';
@@ -8,9 +9,9 @@ import { changePasswordDto } from '../settings/password/change-password.dto';
 import { signupDto } from '../signup/signup.dto';
 
 const STRONG = 'correct horse battery';
-/** One under and exactly at the 15-character minimum. */
-const FOURTEEN = 'fourteen chars';
-const FIFTEEN = 'fifteen chars!!';
+/** One under and exactly at the new-password minimum. */
+const UNDER_MIN = 'x'.repeat(MIN_PASSWORD_LENGTH - 1);
+const AT_MIN = 'x'.repeat(MIN_PASSWORD_LENGTH);
 
 function issuePaths(result: { success: boolean; error?: { issues: { path: PropertyKey[] }[] } }) {
   return result.error?.issues.map((i) => i.path.join('.')) ?? [];
@@ -26,7 +27,7 @@ describe('signinDto', () => {
   });
 
   it('does not enforce the new-password minimum, so existing shorter passwords still sign in', () => {
-    expect(signinDto.safeParse({ email: 'a@example.com', password: FOURTEEN }).success).toBe(true);
+    expect(signinDto.safeParse({ email: 'a@example.com', password: UNDER_MIN }).success).toBe(true);
     expect(signinDto.safeParse({ email: 'a@example.com', password: 'weakpass' }).success).toBe(true);
   });
 
@@ -87,7 +88,7 @@ describe('password policy rule issues', () => {
   });
 });
 
-describe('15-character minimum on every password-setting dto', () => {
+describe('minimum length on every password-setting dto', () => {
   const signup = (password: string) => signupDto.safeParse({ name: 'P', email: 'p@example.com', password, confirm_password: password });
   const reset = (password: string) => resetPasswordNewPasswordDto.safeParse({ password, confirm_password: password });
   const change = (password: string) => changePasswordDto.safeParse({ current_password: 'old', new_password: password, confirm_password: password });
@@ -98,9 +99,9 @@ describe('15-character minimum on every password-setting dto', () => {
     ['signup', signup, 'password'],
     ['reset password', reset, 'password'],
     ['change password', change, 'new_password'],
-  ] as const)('%s rejects 14 characters and accepts 15', (_name, parse, field) => {
-    expect(messagesAt(parse(FOURTEEN), field)).toEqual(['MIN_LENGTH']);
-    expect(parse(FIFTEEN).success).toBe(true);
+  ] as const)('%s rejects one under the minimum and accepts exactly the minimum', (_name, parse, field) => {
+    expect(messagesAt(parse(UNDER_MIN), field)).toEqual(['MIN_LENGTH']);
+    expect(parse(AT_MIN).success).toBe(true);
   });
 });
 

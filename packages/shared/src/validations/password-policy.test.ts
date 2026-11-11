@@ -20,13 +20,13 @@ describe('validatePasswordPolicy', () => {
     expect(PASSWORD_COMPROMISED).toBe('PASSWORD_COMPROMISED');
   });
 
-  it('rejects 14 characters and accepts 15 (NIST SP 800-63B-4 single-factor minimum)', () => {
-    expect(validatePasswordPolicy('a'.repeat(14))).toEqual([PASSWORD_POLICY_RULES.MIN_LENGTH]);
-    expect(validatePasswordPolicy('a'.repeat(15))).toEqual([]);
+  // Pinned on purpose: 15 is the NIST SP 800-63B-4 single-factor minimum, so lowering it must fail a test.
+  it('pins the minimum at 15 characters', () => {
+    expect(MIN_PASSWORD_LENGTH).toBe(15);
   });
 
-  it('allows passwords of at least 64 characters', () => {
-    expect(validatePasswordPolicy('a'.repeat(64))).toEqual([]);
+  it('accepts exactly 64 characters', () => {
+    expect(validatePasswordPolicy(padded(64))).toEqual([]);
   });
 
   it('returns no codes for a valid password', () => {

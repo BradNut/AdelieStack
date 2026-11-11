@@ -22,10 +22,10 @@ describe('passwordPolicyMessages', () => {
   });
 
   it.each([
-    ['en', 'Password must be at least 15 characters'],
-    ['es', 'La contraseña debe tener al menos 15 caracteres'],
-    ['de', 'Das Passwort muss mindestens 15 Zeichen lang sein'],
-  ] as const)('states the 15-character minimum in %s', (locale, expected) => {
+    ['en', `Password must be at least ${MIN_PASSWORD_LENGTH} characters`],
+    ['es', `La contraseña debe tener al menos ${MIN_PASSWORD_LENGTH} caracteres`],
+    ['de', `Das Passwort muss mindestens ${MIN_PASSWORD_LENGTH} Zeichen lang sein`],
+  ] as const)('states the minimum length in %s', (locale, expected) => {
     expect(passwordPolicyMessages([PASSWORD_POLICY_RULES.MIN_LENGTH], { locale })).toEqual([expected]);
   });
 
