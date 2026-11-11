@@ -92,10 +92,97 @@ describe('hooks.server handle: client address warning', () => {
   it('leaves the response unchanged, so the state is only ever in the logs', async () => {
     const send = await freshRequestSender();
 
+    const plain = await send({});
     const response = await send(FORWARDED);
 
     expect(response.status).toBe(200);
     expect(await response.text()).toBe('ok');
-    expect([...response.headers.keys()].filter((name) => name !== 'content-type')).toEqual([]);
+    expect([...response.headers.entries()]).toEqual([...plain.headers.entries()]);
+  });
+});
+
+describe('hooks.server handle: security headers', () => {
+  const PERMISSIONS_POLICY =
+    'camera=(), microphone=(), geolocation=(), payment=(), usb=(), serial=(), hid=(), bluetooth=(), midi=(), display-capture=(), accelerometer=(), gyroscope=(), magnetometer=()';
+  const HSTS = 'max-age=31536000';
+
+  async function sendTo(url: string, response: Response = new Response('ok', { headers: { 'content-type': 'text/html' } })) {
+    vi.resetModules();
+    const { handle } = await import('../hooks.server');
+    const request = new Request(url);
+    const event = {
+      request,
+      url: new URL(request.url),
+      getClientAddress: () => '10.0.0.2',
+      fetch,
+      locals: {},
+      isSubRequest: false,
+    } as unknown as RequestEvent;
+    return handle({ event, resolve: async () => response });
+  }
+
+  it('sets the baseline headers on a page', async () => {
+    const response = await sendTo('https://example.com/');
+
+    expect(response.headers.get('x-content-type-options')).toBe('nosniff');
+    expect(response.headers.get('referrer-policy')).toBe('strict-origin-when-cross-origin');
+    expect(response.headers.get('permissions-policy')).toBe(PERMISSIONS_POLICY);
+    expect(response.headers.get('strict-transport-security')).toBe(HSTS);
+  });
+
+  it('sets the baseline headers on a proxied API response', async () => {
+    const response = await sendTo('https://example.com/api/users/me', Response.json({ ok: true }));
+
+    expect(response.headers.get('x-content-type-options')).toBe('nosniff');
+    expect(response.headers.get('referrer-policy')).toBe('strict-origin-when-cross-origin');
+    expect(response.headers.get('permissions-policy')).toBe(PERMISSIONS_POLICY);
+    expect(response.headers.get('strict-transport-security')).toBe(HSTS);
+  });
+
+  it('sends no HSTS over http', async () => {
+    const response = await sendTo('http://localhost/');
+
+    expect(response.headers.get('x-content-type-options')).toBe('nosniff');
+    expect(response.headers.has('strict-transport-security')).toBe(false);
+  });
+
+  it('drops an HSTS header the API sent when the browser came over http', async () => {
+    const upstream = Response.json({ ok: true }, { headers: { 'strict-transport-security': HSTS } });
+
+    const response = await sendTo('http://localhost/api/users/me', upstream);
+
+    expect(response.headers.has('strict-transport-security')).toBe(false);
+  });
+
+  it('leaves the page CSP as SvelteKit set it', async () => {
+    const csp = "default-src 'self'; script-src 'self' 'nonce-abc'";
+    const page = new Response('ok', { headers: { 'content-type': 'text/html', 'content-security-policy': csp } });
+
+    const response = await sendTo('https://example.com/', page);
+
+    expect(response.headers.get('content-security-policy')).toBe(csp);
+  });
+
+  it('does not restrict passkeys, captcha or federated sign-in features', async () => {
+    const policy = (await sendTo('https://example.com/')).headers.get('permissions-policy') ?? '';
+
+    for (const feature of [
+      'publickey-credentials-get',
+      'publickey-credentials-create',
+      'identity-credentials-get',
+      'private-state-token-redemption',
+      'private-state-token-issuance',
+    ]) {
+      expect(policy).not.toContain(feature);
+    }
+  });
+
+  it('still adds the headers when the response headers are immutable', async () => {
+    const immutable = await fetch('data:text/plain,ok');
+
+    const response = await sendTo('https://example.com/', immutable);
+
+    expect(response.headers.get('x-content-type-options')).toBe('nosniff');
+    expect(await response.text()).toBe('ok');
   });
 });

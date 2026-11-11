@@ -1,4 +1,4 @@
-import { notFoundMessage, STORAGE_WEBHOOK_PATH, StatusCodes } from '@adelie/shared';
+import { FORWARDED_PROTO_HEADER, notFoundMessage, STORAGE_WEBHOOK_PATH, StatusCodes } from '@adelie/shared';
 import type { RequestEvent, RequestHandler } from '@sveltejs/kit';
 import { getPath } from 'hono/utils/url';
 import { API_PROXY_BASE_URL } from '$app/env/private';
@@ -86,6 +86,8 @@ function getUpstreamHeaders(event: RequestEvent): Headers {
   if (clientAddress) {
     headers.set('x-forwarded-for', clientAddress);
   }
+  // The scheme adapter-node resolved for the browser's request, not a client's claim; the API sends HSTS by it.
+  headers.set(FORWARDED_PROTO_HEADER, new URL(event.request.url).protocol.replace(/:$/, ''));
 
   return headers;
 }

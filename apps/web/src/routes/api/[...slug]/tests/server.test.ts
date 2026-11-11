@@ -193,6 +193,17 @@ describe('routes/api/[...slug]/+server', () => {
       expect(lastUpstreamCall().headers.get('x-forwarded-for')).toBe(CLIENT_ADDRESS);
     });
 
+    it.each([
+      ['https://example.com/api/users', 'https'],
+      ['http://localhost:5173/api/users', 'http'],
+    ])('tells the API the scheme the browser used for %s, over any client-supplied x-forwarded-proto', async (url, proto) => {
+      fetchMock.mockResolvedValue(new Response('ok'));
+
+      await GET(createEvent(new Request(url, { headers: { 'x-forwarded-proto': proto === 'https' ? 'http' : 'https' } })));
+
+      expect(lastUpstreamCall().headers.get('x-forwarded-proto')).toBe(proto);
+    });
+
     it('keeps the existing x-forwarded-for when the client address is unavailable', async () => {
       fetchMock.mockResolvedValue(new Response('ok'));
 
