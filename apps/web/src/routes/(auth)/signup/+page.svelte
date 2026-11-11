@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { AuthCallbackPath, signupDto } from '@adelie/shared';
+	import { AuthCallbackPath, MIN_PASSWORD_LENGTH, signupDto } from '@adelie/shared';
 	import { toast } from 'svelte-sonner';
 	import { defaults, setError, superForm } from 'sveltekit-superforms';
 	import { zod4, zod4Client } from 'sveltekit-superforms/adapters';
@@ -88,7 +88,7 @@
 							{...props}
 							type="password"
 							placeholder="Password"
-							autocomplete="new-password"
+							autocomplete="new-password" minlength={MIN_PASSWORD_LENGTH}
 							bind:value={$signupForm.password}
 						/>
 					{/snippet}
@@ -103,7 +103,7 @@
 							{...props}
 							type="password"
 							placeholder="Confirm Password"
-							autocomplete="new-password"
+							autocomplete="new-password" minlength={MIN_PASSWORD_LENGTH}
 							bind:value={$signupForm.confirm_password}
 						/>
 					{/snippet}

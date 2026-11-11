@@ -26,7 +26,7 @@ import { createTestAuth, TEST_ORIGIN } from '../../../../../test/auth-instance';
 import type { MailerServiceMock } from '../../../../../test/mocks/mailer.mock';
 
 const { email: EMAIL, password: PASSWORD } = TEST_USER;
-const NEW_PASSWORD = 'Another-pass-7';
+const NEW_PASSWORD = 'Another-pass-phrase-7';
 const UNKNOWN_EMAIL = 'nobody@example.com';
 const RESET_REDIRECT = `${TEST_ORIGIN}/reset`;
 const NEW_EMAIL = 'emperor@example.com';
