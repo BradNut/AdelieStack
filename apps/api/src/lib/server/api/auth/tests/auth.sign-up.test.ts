@@ -2,7 +2,15 @@ import { AuthErrorCode, RoleName, SocialProvider } from '@adelie/shared';
 import { describe, expect, it } from 'vitest';
 import { SIGN_UP_ACCEPTED_BODY } from '#lib/server/api/auth/auth.sign-up-response';
 import seedUsers from '#lib/server/api/databases/postgres/seeds/users';
-import { type AuthRequest, cookiesFrom, signUpWithEmail, TEST_USER, verifyEmail } from '../../../../../test/auth-http';
+import {
+  type AuthRequest,
+  cookiesFrom,
+  hasSessionCookie,
+  signUpUnverified,
+  signUpWithEmail,
+  TEST_USER,
+  verifyEmail,
+} from '../../../../../test/auth-http';
 import { createTestAuth } from '../../../../../test/auth-instance';
 
 const { password: PASSWORD } = TEST_USER;
@@ -10,9 +18,10 @@ const VISITOR_EMAIL = 'visitor@example.com';
 const ADMIN_EMAIL = 'admin@example.com';
 const NEW_USER = { name: 'Visitor', email: VISITOR_EMAIL, password: PASSWORD };
 
-const hasSessionCookie = (res: Response) => res.headers.getSetCookie().some((c) => c.includes('session_token'));
 const signIn = (request: AuthRequest, email: string, password = PASSWORD) => request('/sign-in/email', { body: { email, password } });
-const postSignUp = (request: AuthRequest, body: { name: string; email: string; password: string }) => request('/sign-up/email', { body });
+/** Creates an admin at `ADMIN_EMAIL` through the admin plugin, the way the seed does. */
+const createAdmin = (auth: ReturnType<typeof createTestAuth>['auth']) =>
+  auth.api.createUser({ body: { name: 'Admin', email: ADMIN_EMAIL, password: PASSWORD, role: RoleName.ADMIN } });
 
 /** The sign-up endpoints that are gated by `signUpEnabled`. A new one must be gated, then listed here. */
 const GATED_SIGN_UP_PATHS = ['/sign-up/email'];
@@ -53,18 +62,16 @@ describe('sign-up when closed', () => {
   it('lets the server create an admin the way the seed does', async () => {
     const { auth } = createTestAuth({ signUpEnabled: false });
 
-    const { user } = await auth.api.createUser({
-      body: { name: 'Admin', email: 'admin@example.com', password: PASSWORD, role: RoleName.ADMIN },
-    });
+    const { user } = await createAdmin(auth);
 
     expect(user.role).toBe(RoleName.ADMIN);
   });
 
   it('lets that seeded admin sign in', async () => {
     const { auth, request } = createTestAuth({ signUpEnabled: false });
-    await auth.api.createUser({ body: { name: 'Admin', email: 'admin@example.com', password: PASSWORD, role: RoleName.ADMIN } });
+    await createAdmin(auth);
 
-    const res = await request('/sign-in/email', { body: { email: 'admin@example.com', password: PASSWORD } });
+    const res = await request('/sign-in/email', { body: { email: ADMIN_EMAIL, password: PASSWORD } });
 
     expect(res.status).toBe(200);
     expect(res.headers.getSetCookie().length).toBeGreaterThan(0);
@@ -72,8 +79,8 @@ describe('sign-up when closed', () => {
 
   it('lets a signed-in admin create another user over HTTP', async () => {
     const { auth, request } = createTestAuth({ signUpEnabled: false });
-    await auth.api.createUser({ body: { name: 'Admin', email: 'admin@example.com', password: PASSWORD, role: RoleName.ADMIN } });
-    const signIn = await request('/sign-in/email', { body: { email: 'admin@example.com', password: PASSWORD } });
+    await createAdmin(auth);
+    const signIn = await request('/sign-in/email', { body: { email: ADMIN_EMAIL, password: PASSWORD } });
     const cookie = cookiesFrom(signIn);
 
     const res = await request('/admin/create-user', {
@@ -98,7 +105,7 @@ describe('sign-up when open', () => {
   it('creates the unverified user', async () => {
     const { db, request } = createTestAuth({ signUpEnabled: true });
 
-    await postSignUp(request, NEW_USER);
+    await signUpUnverified(request, NEW_USER);
 
     expect(db.user).toEqual([expect.objectContaining({ email: VISITOR_EMAIL, emailVerified: false })]);
   });
@@ -106,7 +113,7 @@ describe('sign-up when open', () => {
   it('gives no session until the email is verified', async () => {
     const { request } = createTestAuth({ signUpEnabled: true });
 
-    const res = await postSignUp(request, NEW_USER);
+    const res = await signUpUnverified(request, NEW_USER);
 
     expect(res.status).toBe(200);
     expect(hasSessionCookie(res)).toBe(false);
@@ -115,7 +122,7 @@ describe('sign-up when open', () => {
   it('sends the verification email', async () => {
     const { request, mailer } = createTestAuth({ signUpEnabled: true });
 
-    await postSignUp(request, NEW_USER);
+    await signUpUnverified(request, NEW_USER);
 
     expect(mailer.sent.map((mail) => mail.to)).toEqual([expect.objectContaining({ email: VISITOR_EMAIL })]);
   });
@@ -124,7 +131,7 @@ describe('sign-up when open', () => {
 describe('password sign-in before the email is verified', () => {
   it('is refused with Better Auth’s not-verified code and no session', async () => {
     const { request } = createTestAuth({ signUpEnabled: true });
-    await postSignUp(request, NEW_USER);
+    await signUpUnverified(request, NEW_USER);
 
     const res = await signIn(request, VISITOR_EMAIL);
 
@@ -135,7 +142,7 @@ describe('password sign-in before the email is verified', () => {
 
   it('still answers a wrong password as a wrong password, so the refusal needs the password', async () => {
     const { request } = createTestAuth({ signUpEnabled: true });
-    await postSignUp(request, NEW_USER);
+    await signUpUnverified(request, NEW_USER);
 
     const res = await signIn(request, VISITOR_EMAIL, 'Wrong-horse-9');
 
@@ -144,7 +151,7 @@ describe('password sign-in before the email is verified', () => {
 
   it('sends no email of its own: the login page offers the resend', async () => {
     const { request, mailer } = createTestAuth({ signUpEnabled: true });
-    await postSignUp(request, NEW_USER);
+    await signUpUnverified(request, NEW_USER);
     mailer.sent.length = 0;
 
     await signIn(request, VISITOR_EMAIL);
@@ -154,7 +161,7 @@ describe('password sign-in before the email is verified', () => {
 
   it('succeeds once the verification link is followed', async () => {
     const { request } = createTestAuth({ signUpEnabled: true });
-    await postSignUp(request, NEW_USER);
+    await signUpUnverified(request, NEW_USER);
 
     await verifyEmail(request, VISITOR_EMAIL);
     const res = await signIn(request, VISITOR_EMAIL);
@@ -165,7 +172,7 @@ describe('password sign-in before the email is verified', () => {
 
   it('lets an unverified address ask for a new verification email', async () => {
     const { request, mailer } = createTestAuth({ signUpEnabled: true });
-    await postSignUp(request, NEW_USER);
+    await signUpUnverified(request, NEW_USER);
     mailer.sent.length = 0;
 
     const res = await request('/send-verification-email', { body: { email: VISITOR_EMAIL } });
@@ -192,8 +199,8 @@ describe('sign-up with a taken address', () => {
   it('answers exactly as a sign-up with a new address does', async () => {
     const { request } = await withTakenAddress();
 
-    const taken = await observable(await postSignUp(request, { ...NEW_USER, password: 'Other-horse-8' }));
-    const fresh = await observable(await postSignUp(request, { ...NEW_USER, email: 'newcomer@example.com' }));
+    const taken = await observable(await signUpUnverified(request, { ...NEW_USER, password: 'Other-horse-8' }));
+    const fresh = await observable(await signUpUnverified(request, { ...NEW_USER, email: 'newcomer@example.com' }));
 
     expect(taken.status).toBe(200);
     expect(taken).toEqual(fresh);
@@ -202,7 +209,7 @@ describe('sign-up with a taken address', () => {
   it('sends no email, and changes nothing about the existing account', async () => {
     const { request, mailer, db } = await withTakenAddress();
 
-    await postSignUp(request, { ...NEW_USER, name: 'Intruder', password: 'Other-horse-8' });
+    await signUpUnverified(request, { ...NEW_USER, name: 'Intruder', password: 'Other-horse-8' });
 
     expect(mailer.sent).toHaveLength(0);
     expect(db.user).toHaveLength(1);
@@ -213,9 +220,9 @@ describe('sign-up with a taken address', () => {
 
   it('answers the same for a taken address that is not verified yet', async () => {
     const { request, db } = createTestAuth({ signUpEnabled: true });
-    await postSignUp(request, NEW_USER);
+    await signUpUnverified(request, NEW_USER);
 
-    const res = await postSignUp(request, NEW_USER);
+    const res = await signUpUnverified(request, NEW_USER);
 
     expect(res.status).toBe(200);
     expect(hasSessionCookie(res)).toBe(false);
@@ -227,7 +234,7 @@ describe('users the admin plugin creates', () => {
   it('start verified and can sign in, while sign-up requires verification', async () => {
     const { auth, request } = createTestAuth({ signUpEnabled: true });
 
-    const { user } = await auth.api.createUser({ body: { name: 'Admin', email: ADMIN_EMAIL, password: PASSWORD, role: RoleName.ADMIN } });
+    const { user } = await createAdmin(auth);
 
     expect(user.emailVerified).toBe(true);
     expect((await signIn(request, ADMIN_EMAIL)).status).toBe(200);
@@ -245,7 +252,7 @@ describe('users the admin plugin creates', () => {
 
   it('include a user an admin creates over HTTP', async () => {
     const { auth, request } = createTestAuth({ signUpEnabled: true });
-    await auth.api.createUser({ body: { name: 'Admin', email: ADMIN_EMAIL, password: PASSWORD, role: RoleName.ADMIN } });
+    await createAdmin(auth);
     const cookie = cookiesFrom(await signIn(request, ADMIN_EMAIL));
 
     await request('/admin/create-user', { cookie, body: { name: 'Invitee', email: 'invitee@example.com', password: PASSWORD } });
@@ -305,6 +312,24 @@ describe('sign-up gate for social sign-in', () => {
     const res = await socialSignIn(request);
 
     expect(res.status).toBe(200);
+  });
+
+  it('still signs in an unknown email the provider reports as unverified while open, as before verification was required', async () => {
+    const unverifiedStranger = {
+      ...STRANGER_PROVIDER,
+      getUserInfo: async () =>
+        ({
+          user: { id: 'sub-1', email: 'stranger@example.com', emailVerified: false, name: 'Stranger' },
+          data: { sub: 'sub-1' },
+        }) as never,
+    };
+    const { db, request } = createTestAuth({ signUpEnabled: true, socialProviders: { google: unverifiedStranger } });
+
+    const res = await socialSignIn(request);
+
+    expect(res.status).toBe(200);
+    expect(hasSessionCookie(res)).toBe(true);
+    expect(db.user).toEqual([expect.objectContaining({ email: 'stranger@example.com', emailVerified: false })]);
   });
 
   it('closes every registered provider, so a provider added later is gated too', async () => {

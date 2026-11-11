@@ -17,6 +17,7 @@ import {
   type AuthRequest,
   cookiesFrom,
   emailedLink,
+  signUpUnverified,
   signUpWithEmail,
   signUpWithTotp,
   startTwoFactorSignIn,
@@ -58,8 +59,8 @@ async function signUp() {
 }
 
 /** Signs up without clicking the verification link, so the account stays unverified; returns its user id. */
-async function signUpUnverified(email = EMAIL) {
-  await request('/sign-up/email', { body: { ...TEST_USER, email } });
+async function signUpUnverifiedUser(email = EMAIL) {
+  await signUpUnverified(request, { ...TEST_USER, email });
   clearSent();
   const found = await (await auth.$context).internalAdapter.findUserByEmail(email);
   return String(found?.user.id);
@@ -242,7 +243,7 @@ describe('every email follows the language of the request that caused it', () =>
   }
 
   it('the verification email', async () => {
-    await signUpUnverified();
+    await signUpUnverifiedUser();
 
     await request('/send-verification-email', { headers: GERMAN, body: { email: EMAIL } });
 
@@ -648,7 +649,7 @@ describe('the user each email is recorded against', () => {
   });
 
   it('is the user for a verification resend', async () => {
-    const userId = await signUpUnverified();
+    const userId = await signUpUnverifiedUser();
 
     await request('/send-verification-email', { body: { email: EMAIL } });
 
@@ -828,7 +829,7 @@ describe('a failed send', () => {
 
   describe('of a Link Email', () => {
     it('answers a verification resend the same for an unverified, a verified and an unknown address', async () => {
-      await signUpUnverified(EMAIL);
+      await signUpUnverifiedUser(EMAIL);
       const { res: signedUp } = await signUpWithEmail(request, { ...TEST_USER, email: VERIFIED_EMAIL });
       expect(signedUp.status).toBe(200);
       failSends();
@@ -850,7 +851,7 @@ describe('a failed send', () => {
     });
 
     it('writes one entry naming the template when a verification resend is given up on', async () => {
-      await signUpUnverified();
+      await signUpUnverifiedUser();
       failSends();
 
       await request('/send-verification-email', { body: { email: EMAIL } });
@@ -935,7 +936,7 @@ describe('a Link Email that goes through', () => {
   useMailLog();
 
   it('answers a verification resend and sends the link', async () => {
-    await signUpUnverified();
+    await signUpUnverifiedUser();
 
     const res = await request('/send-verification-email', { body: { email: EMAIL } });
 

@@ -1,6 +1,6 @@
 import { AUTH_CLIENT_IP_HEADER, AUTH_SESSION_EXPIRES_IN, AUTH_SESSION_FRESH_AGE, AUTH_SESSION_UPDATE_AGE } from '@adelie/shared';
 import { describe, expect, it } from 'vitest';
-import { type AuthRequest, ageSessions, cookiesFrom, signUpWithEmail, TEST_USER } from '../../../../../test/auth-http';
+import { type AuthRequest, ageSessions, cookiesFrom, hasSessionCookie, signUpWithEmail, TEST_USER } from '../../../../../test/auth-http';
 import { createTestAuth } from '../../../../../test/auth-instance';
 
 const { email: EMAIL, password: PASSWORD } = TEST_USER;
@@ -28,7 +28,7 @@ describe('session settings', () => {
     const { request } = createTestAuth();
     const res = await signUpAndSignIn(request);
     const names = res.headers.getSetCookie().map((c) => c.split('=')[0]);
-    expect(names.some((n) => n.endsWith('session_token'))).toBe(true);
+    expect(hasSessionCookie(res)).toBe(true);
     expect(names.some((n) => n.endsWith('session_data'))).toBe(false);
   });
 

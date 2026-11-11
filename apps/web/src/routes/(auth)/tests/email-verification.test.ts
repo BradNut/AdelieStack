@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { AuthErrorCode, StatusCodes } from '@adelie/shared';
+import { AppRoute, AuthErrorCode, StatusCodes } from '@adelie/shared';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { authPath, stubFetch } from '#lib/client/tests/fetch-stub.ts';
@@ -48,7 +48,7 @@ beforeEach(() => {
   network = stubFetch();
   vi.mocked(goto).mockReset();
   vi.mocked(refreshSession).mockReset();
-  page.url = new URL('http://localhost/login');
+  page.url = new URL(`http://localhost${AppRoute.LOGIN}`);
 });
 
 afterEach(() => {
@@ -103,7 +103,7 @@ describe('sign-up page, once sign-up is accepted', () => {
 
     expect(await screen.findByTestId('signup-check-email')).toBeTruthy();
     expect(screen.getByText(m.signup_check_email_body({ email: EMAIL }))).toBeTruthy();
-    expect(screen.getByRole('link', { name: m.signup_check_email_sign_in() }).getAttribute('href')).toBe('/login');
+    expect(screen.getByRole('link', { name: m.signup_check_email_sign_in() }).getAttribute('href')).toBe(AppRoute.LOGIN);
     expect(goto).not.toHaveBeenCalled();
     expect(refreshSession).not.toHaveBeenCalled();
   });

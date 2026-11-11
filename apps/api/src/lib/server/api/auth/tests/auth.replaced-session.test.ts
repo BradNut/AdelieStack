@@ -1,7 +1,7 @@
 import { CAPTCHA_RESPONSE_HEADER, CaptchaProvider, CREDENTIAL_PROVIDER_ID, RoleName, SocialProvider } from '@adelie/shared';
 import { totpCode } from '@adelie/test-utils/totp';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cookiesFrom, signUpWithTotp, verifyEmail } from '../../../../../test/auth-http';
+import { cookiesFrom, hasSessionCookie, signUpWithTotp, verifyEmail } from '../../../../../test/auth-http';
 import { createTestAuth, stubGoogleUserInfo, TEST_ORIGIN } from '../../../../../test/auth-instance';
 import { createPasskeyAuthenticator } from '../../../../../test/passkey-authenticator';
 
@@ -82,7 +82,7 @@ describe('email sign-up on a browser holding a session', () => {
     const res = await t.request('/sign-up/email', { cookie, body: { name: 'Puffin', email: OTHER_EMAIL, password: PASSWORD } });
 
     expect(res.status).toBe(200);
-    expect(res.headers.getSetCookie().some((c) => c.includes('session_token'))).toBe(false);
+    expect(hasSessionCookie(res)).toBe(false);
     expect(await t.isSignedIn(cookie)).toBe(true);
     expect(await t.isSignedIn(otherDevice)).toBe(true);
     expect(t.sessionsOf(EMAIL)).toHaveLength(2);

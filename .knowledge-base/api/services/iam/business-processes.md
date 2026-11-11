@@ -27,6 +27,11 @@ before-hooks (password policy, role guard). Our after-hooks send most Security E
 Both answers are the same body (`auth/auth.sign-up-response.ts`), so sign-up does not reveal which
 addresses have accounts. The account signs in once its email is verified.
 
+- **Timing:** a taken address skips the User and Account row writes, so a small timing difference
+  remains. The password is hashed on both paths and the verification email is sent detached.
+- **Existing sessions:** a session that predates required verification, and passkeys registered
+  from it, keep working for an unverified account.
+
 ## Sign-in (`POST /sign-in/email`)
 
 ```

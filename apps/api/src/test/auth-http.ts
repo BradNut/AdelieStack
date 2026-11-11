@@ -65,6 +65,11 @@ export function cookiesFrom(res: Response, previous = ''): string {
   return [...jar.values()].join('; ');
 }
 
+/** Whether the response sets a session cookie, i.e. signed someone in. */
+export function hasSessionCookie(res: Response): boolean {
+  return res.headers.getSetCookie().some((c) => c.includes('session_token'));
+}
+
 /** The code in a two-factor OTP email, or undefined when `mail` is missing or holds no code. */
 export function emailedOtp(mail: SendProps | undefined): string | undefined {
   return mail?.template.html().match(/token-text'>(\d+)</)?.[1];
@@ -95,11 +100,19 @@ export async function verifyEmail(request: AuthRequest, email: string): Promise<
 }
 
 /**
+ * Sends the email/password sign-up request and nothing else: the email stays unverified, so the account cannot sign
+ * in yet. Returns the sign-up response, with its body still unread.
+ */
+export function signUpUnverified(request: AuthRequest, { name, email, password }: SignUpCredentials): Promise<Response> {
+  return request('/sign-up/email', { body: { name, email, password } });
+}
+
+/**
  * Signs up with email and password, verifies the email, then signs in: sign-up alone gives no session, since an
  * unverified account cannot sign in. A rejected sign-up does not throw and is not followed up: check `res`.
  */
 export async function signUpWithEmail(request: AuthRequest, { name, email, password }: SignUpCredentials): Promise<EmailSignUp> {
-  const res = await request('/sign-up/email', { body: { name, email, password } });
+  const res = await signUpUnverified(request, { name, email, password });
   if (!res.ok) return { res, cookie: '' };
   await verifyEmail(request, email);
   const signIn = await request('/sign-in/email', { body: { email, password } });
