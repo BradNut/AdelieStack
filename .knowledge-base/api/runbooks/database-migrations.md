@@ -40,6 +40,8 @@ DB_MIGRATING=true pnpm --filter @adelie/api db:migrate
 DB_SEEDING=true ADMIN_EMAIL=admin@example.com ADMIN_PASSWORD=<pw> pnpm --filter @adelie/api db:seed
 ```
 
+`ADMIN_PASSWORD` must be at least 15 characters; the password policy rejects a shorter one and the seed fails.
+
 ## Troubleshooting
 
 **Migration fails with "column already exists"**: schema and migration files are out of sync. Do not hand-edit to fix — inspect drift with `pnpm db:studio` and re-generate.

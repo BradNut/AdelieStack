@@ -79,7 +79,8 @@ apps/api/src/lib/server/api/auth/
 
 ## Security Considerations
 
-- Passwords: length rules from `MIN_PASSWORD_LENGTH` / `MAX_PASSWORD_LENGTH`, breached passwords
+- Passwords: every path that sets one (sign-up, reset, change, admin create/set) enforces
+  `MIN_PASSWORD_LENGTH` (15) / `MAX_PASSWORD_LENGTH` (128); sign-in does not. Breached passwords
   rejected through Have I Been Pwned (fails closed when HIBP is unreachable).
 - Rate limits per client IP and path, with strict rules on credential and code checks and an email
   rule on endpoints that send email.
