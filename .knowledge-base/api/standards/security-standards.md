@@ -239,7 +239,7 @@ if (!dbPassword || !apiKey) {
 
 ## Audit Logging
 
-### Security Events to Log
+### Audit Events to Log
 - Authentication attempts (success/failure)
 - Authorization failures
 - Password changes
