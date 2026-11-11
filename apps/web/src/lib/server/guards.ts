@@ -15,7 +15,7 @@ export function requireUser(event: RequestEvent, roles?: readonly RoleName[]): A
     throw redirect(StatusCodes.TEMPORARY_REDIRECT, '/login', notSignedInMessage, event);
   }
   if (access === RouteAccess.ENROL_SECOND_FACTOR) {
-    throw redirect(StatusCodes.SEE_OTHER, AppRoute.SETTINGS_TWO_FACTOR, secondFactorRequiredMessage, event);
+    throw redirect(StatusCodes.TEMPORARY_REDIRECT, AppRoute.SETTINGS_TWO_FACTOR, secondFactorRequiredMessage, event);
   }
   if (access === RouteAccess.FORBIDDEN || !event.locals.user) {
     error(StatusCodes.FORBIDDEN, forbiddenMessage.message);

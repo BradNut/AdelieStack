@@ -1,4 +1,4 @@
-import { AuthErrorCode } from '@adelie/shared';
+import { AuthErrorCode, roleNeedsSecondFactor } from '@adelie/shared';
 import type { MiddlewareHandler } from 'hono';
 import { createMiddleware } from 'hono/factory';
 import { m } from '#lib/server/api/common/i18n/index';
@@ -6,7 +6,6 @@ import { Forbidden } from '#lib/server/api/common/utils/exceptions';
 import type { HonoEnv } from '#lib/server/api/common/utils/hono';
 import { assertSignedIn } from './assert-signed-in';
 import type { ac } from './auth.permissions';
-import { rolesNeedSecondFactor } from './auth.second-factor';
 import type { AuthService } from './auth.service';
 import type { RolesService } from './roles';
 
@@ -37,7 +36,7 @@ export function requirePermission(
       throw Forbidden(m.auth_role_forbidden());
     }
     // A role that grants this without a Second Factor is enough, so no other role is held to the admin rule.
-    const onlySecondFactorRolesGrant = granting.every((role) => rolesNeedSecondFactor([role]));
+    const onlySecondFactorRolesGrant = granting.every(roleNeedsSecondFactor);
     if (onlySecondFactorRolesGrant && !(await authService.hasSecondFactor(user))) {
       throw Forbidden(m.auth_second_factor_required(), AuthErrorCode.SECOND_FACTOR_REQUIRED);
     }

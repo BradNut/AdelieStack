@@ -37,7 +37,8 @@ describe('/admin layout load', () => {
   it('sends an admin without a Second Factor to two-factor enrolment, not an error page', async () => {
     const thrown = await thrownBy(() => load(event(authedUser({ needsSecondFactor: true }))));
 
-    expect(thrown?.status).toBe(303);
+    // The same status as the sign-in redirect beside it.
+    expect(thrown?.status).toBe(307);
     expect(thrown?.location).toBe(AppRoute.SETTINGS_TWO_FACTOR);
   });
 

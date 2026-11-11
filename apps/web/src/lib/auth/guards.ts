@@ -1,4 +1,4 @@
-import { type AuthedUser, type RoleName, SECOND_FACTOR_ROLES } from '@adelie/shared';
+import { type AuthedUser, type RoleName, roleNeedsSecondFactor } from '@adelie/shared';
 
 export const RouteAccess = {
   ALLOWED: 'allowed',
@@ -24,7 +24,7 @@ export function evaluateRouteAccess(user: AuthedUser | null, roles?: readonly Ro
   if (!roles) return RouteAccess.ALLOWED;
   const opening = user.roles.filter((role) => roles.includes(role));
   if (opening.length === 0) return RouteAccess.FORBIDDEN;
-  const onlySecondFactorRolesOpen = opening.every((role) => SECOND_FACTOR_ROLES.includes(role));
+  const onlySecondFactorRolesOpen = opening.every(roleNeedsSecondFactor);
   if (onlySecondFactorRolesOpen && user.needsSecondFactor) return RouteAccess.ENROL_SECOND_FACTOR;
   return RouteAccess.ALLOWED;
 }

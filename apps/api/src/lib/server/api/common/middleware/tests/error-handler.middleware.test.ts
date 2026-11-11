@@ -1,4 +1,4 @@
-import { DeployEnvironment, NodeEnv } from '@adelie/shared';
+import { AuthErrorCode, DeployEnvironment, NodeEnv } from '@adelie/shared';
 import { DrizzleQueryError } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { contextStorage } from 'hono/context-storage';
@@ -81,10 +81,14 @@ describe('errorHandler response', () => {
   });
 
   it('sends the stable code a deliberate client error carries', async () => {
-    const res = await appThrowing(Forbidden('Enrol first', 'SOME_CODE'), PRODUCTION).request('/fail');
+    const res = await appThrowing(Forbidden('Enrol first', AuthErrorCode.SECOND_FACTOR_REQUIRED), PRODUCTION).request('/fail');
 
     expect(res.status).toBe(403);
-    expect(await res.json()).toEqual({ message: 'Enrol first', code: 'SOME_CODE', requestId: res.headers.get('x-request-id') });
+    expect(await res.json()).toEqual({
+      message: 'Enrol first',
+      code: AuthErrorCode.SECOND_FACTOR_REQUIRED,
+      requestId: res.headers.get('x-request-id'),
+    });
   });
 
   it('does not log a deliberate client error', async () => {

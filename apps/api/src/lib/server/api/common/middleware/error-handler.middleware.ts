@@ -1,4 +1,4 @@
-import { isLocalDevEnv, type LocalDevEnvs, StatusCodes } from '@adelie/shared';
+import { type AuthErrorCode, isLocalDevEnv, type LocalDevEnvs, StatusCodes } from '@adelie/shared';
 import { DrizzleQueryError } from 'drizzle-orm';
 import type { ErrorHandler } from 'hono';
 import { HTTPException } from 'hono/http-exception';
@@ -27,8 +27,8 @@ interface ErrorHandlerOptions {
 /** What a client gets for any error: a message and the request id to quote. `stack` is sent only in local development. */
 interface ErrorResponseBody {
   message: string;
-  /** A deliberate error's stable code, for the client to act on (see `CodedHTTPException`). */
-  code?: string;
+  /** A coded deliberate error's stable code, for the client to act on (see `CodedHTTPException`, ADR 0014). */
+  code?: AuthErrorCode;
   requestId: string;
   stack?: string;
 }

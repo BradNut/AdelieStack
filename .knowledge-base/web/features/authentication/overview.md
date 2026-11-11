@@ -102,7 +102,7 @@ is configured). Setup and linking rules: the API
 Admin capabilities need two-factor enabled or a registered passkey; signing in does not
 ([ADR 0014](../../../../docs/adr/0014-admin-capabilities-require-a-second-factor.md)). `/users/me`
 reports `needsSecondFactor`, and `requireUser` (`lib/server/guards.ts`) answers an admin-only route
-for such a user (`RouteAccess.ENROL_SECOND_FACTOR`) with a 303 to `/settings/two-factor` and the
+for such a user (`RouteAccess.ENROL_SECOND_FACTOR`) with a 307 (as for sign-in) to `/settings/two-factor` and the
 `SECOND_FACTOR_REQUIRED_MESSAGE` flash, not a 403 page. A client call refused with
 `SECOND_FACTOR_REQUIRED` goes there too (`sendToSecondFactorEnrolment` in
 `lib/client/second-factor.ts`). Removing an admin's last factor is refused with `LAST_SECOND_FACTOR`,
