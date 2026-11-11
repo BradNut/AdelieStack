@@ -135,7 +135,8 @@ requirePermission(authService, rolesService, { user: ['list'] })
 ## Business Rules
 
 - Sign-up is closed unless `SIGN_UP_ENABLED` is true.
-- Sign-in does not require a verified email.
+- Password sign-in requires a verified email (`requireEmailVerification`); social sign-in follows the provider's verified flag,
+  and users the admin plugin creates start verified.
 - A user has one role unless `ALLOW_MULTIPLE_ROLES` is on; empty or unknown stored roles read as the
   least-privileged role.
 - The last remaining sign-in method cannot be unlinked.
