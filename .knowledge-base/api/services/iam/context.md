@@ -13,7 +13,7 @@
 - Current-user profile route (`GET /api/users/me`): the Users service (`UsersController`), which
   reads `c.var.user`
 - Email delivery: the Mailer service; IAM only chooses templates and recipients (`auth/auth.mail.ts`)
-- Audit trail: the `audit/` module; Better Auth endpoints do not write audit entries
+- Audit trail: the `audit/` module; Better Auth endpoints do not write Audit Events yet (#191)
 
 ## Service Dependencies
 
