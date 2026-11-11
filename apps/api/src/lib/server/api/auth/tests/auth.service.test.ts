@@ -1,5 +1,6 @@
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { describe, expect, it, vi } from 'vitest';
+import { ACCOUNT_LOCKOUT_PLUGIN_ID } from '#lib/server/api/auth/auth.account-lockout';
 import { AuthRateLimitRepository } from '#lib/server/api/auth/auth.rate-limit.repository';
 import { AuthService } from '#lib/server/api/auth/auth.service';
 import type { ConfigService } from '#lib/server/api/common/configs/config.service';
@@ -95,13 +96,13 @@ describe('AuthService', () => {
     it('counts failed password sign-ins per account in Redis', () => {
       const { service } = buildService();
 
-      expect(service.auth.options.plugins?.map((plugin) => plugin.id)).toContain('account-lockout');
+      expect(service.auth.options.plugins?.map((plugin) => plugin.id)).toContain(ACCOUNT_LOCKOUT_PLUGIN_ID);
     });
 
     it('leaves the account count off when DISABLE_RATE_LIMIT is on', () => {
       const { service } = buildService({ DISABLE_RATE_LIMIT: 'true' });
 
-      expect(service.auth.options.plugins?.map((plugin) => plugin.id)).not.toContain('account-lockout');
+      expect(service.auth.options.plugins?.map((plugin) => plugin.id)).not.toContain(ACCOUNT_LOCKOUT_PLUGIN_ID);
     });
 
     it('does not count or touch Redis when DISABLE_RATE_LIMIT is on', async () => {

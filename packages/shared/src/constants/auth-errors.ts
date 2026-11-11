@@ -16,7 +16,7 @@ export const AuthErrorCode = {
   TWO_FACTOR_LOCKED: 'ACCOUNT_TEMPORARILY_LOCKED',
   /**
    * Our own code, not Better Auth's: too many failed password sign-ins for this email address from any client
-   * (`AUTH_ACCOUNT_SIGN_IN_FAILURES`), so password sign-in waits. Answered whether or not an account has the address.
+   * (`AUTH_ACCOUNT_SIGN_IN_LOCKOUT`), so password sign-in waits. Answered whether or not an account has the address.
    */
   SIGN_IN_LOCKED: 'SIGN_IN_TEMPORARILY_LOCKED',
   /** Our own code, not Better Auth's: the Password Account cannot be unlinked while two-factor is enabled (ADR 0008). */

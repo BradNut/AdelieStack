@@ -87,7 +87,7 @@ export interface CreateAuthOptions {
    */
   rateLimitStorage?: AuthRateLimitStorage;
   /**
-   * Where failed password sign-ins are counted per email address, across clients (`AUTH_ACCOUNT_SIGN_IN_FAILURES`).
+   * Where failed password sign-ins are counted per email address, across clients (`AUTH_ACCOUNT_SIGN_IN_LOCKOUT`).
    * Omit to leave that count off, as with `rateLimitStorage`. Second-factor codes are counted per account by Better
    * Auth's two-factor lockout regardless.
    */

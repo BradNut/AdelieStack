@@ -122,7 +122,10 @@ requirePermission(authService, rolesService, { user: ['list'] })
 - A user has one role unless `ALLOW_MULTIPLE_ROLES` is on; empty or unknown stored roles read as the
   least-privileged role.
 - The last remaining sign-in method cannot be unlinked.
-- Password guessing is limited per client IP by the rate limiter; there is no password lockout.
+- Password guessing is limited per client IP by the rate limiter, and per email address across clients:
+  100 consecutive failures (until a correct password) lock password sign-in for that address for 15 minutes
+  from the last one (`429 SIGN_IN_TEMPORARILY_LOCKED`). Refused attempts do not count or extend the lock; the
+  count starts again when it ends. Unknown addresses are counted and refused the same way.
 - Second-factor guessing is also limited per account: 10 failed codes lock verification for 15
   minutes (`429 ACCOUNT_TEMPORARILY_LOCKED`); a correct code resets the count.
 

@@ -1,19 +1,32 @@
-import { AUTH_ACCOUNT_SIGN_IN_FAILURES, AuthErrorCode, RETRY_AFTER_HEADER, TWO_FACTOR_ACCOUNT_LOCKOUT } from '@adelie/shared';
+import {
+  AUTH_ACCOUNT_SIGN_IN_FAILURES_IDLE_EXPIRY,
+  AUTH_ACCOUNT_SIGN_IN_LOCKOUT,
+  AuthErrorCode,
+  RETRY_AFTER_HEADER,
+  TWO_FACTOR_ACCOUNT_LOCKOUT,
+} from '@adelie/shared';
 import { totpCode } from '@adelie/test-utils/totp';
-import { describe, expect, it } from 'vitest';
-import { AUTH_RATE_LIMIT_REDIS_PREFIX, AuthRateLimitRepository, accountLockoutKey } from '#lib/server/api/auth/auth.rate-limit.repository';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { AUTH_RATE_LIMIT_REDIS_PREFIX, AuthRateLimitRepository, accountLockoutKeys } from '#lib/server/api/auth/auth.rate-limit.repository';
 import type { RedisService } from '#lib/server/api/databases/redis/redis.service';
 import { type AuthRequest, signUpWithEmail, signUpWithTotp, startTwoFactorSignIn, TEST_USER } from '../../../../../test/auth-http';
 import { createTestAuth } from '../../../../../test/auth-instance';
 import { createRedisServiceMock } from '../../../../../test/mocks/redis.mock';
 
-const { max: MAX_FAILURES, window: WINDOW } = AUTH_ACCOUNT_SIGN_IN_FAILURES;
+const { maxFailedAttempts: MAX_FAILURES, durationSeconds: LOCK_SECONDS } = AUTH_ACCOUNT_SIGN_IN_LOCKOUT;
 const WRONG_PASSWORD = 'Wrong-password-1';
 const UNKNOWN_EMAIL = 'nobody@example.com';
+const MS_PER_SECOND = 1000;
 
 /** A different client address for every call, so nothing here is held back by a per-IP count. */
 let lastOctet = 0;
 const nextIp = () => `203.0.113.${(lastOctet++ % 250) + 1}`;
+
+/** Freezes the clock (Date only) so a test can move it; the Redis mock's expiries follow it. */
+function freezeClock() {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  return (seconds: number) => vi.setSystemTime(Date.now() + seconds * MS_PER_SECOND);
+}
 
 function build({ withLockout = true } = {}) {
   const redis = createRedisServiceMock();
@@ -25,13 +38,14 @@ function build({ withLockout = true } = {}) {
   });
   /** Every request from a new client address. */
   const request: AuthRequest = (path, options = {}) => send(path, { ...options, headers: { 'x-forwarded-for': nextIp(), ...options.headers } });
-  const storeKey = (email: string) => `${AUTH_RATE_LIMIT_REDIS_PREFIX}:${accountLockoutKey(email)}`;
-  const failures = (email: string) => Number(redis.store.get(storeKey(email))?.value ?? 0);
-  /** Stands in for `count` failures already made, from anywhere, in the current window. */
-  const seedFailures = (email: string, count: number) => redis.store.set(storeKey(email), { value: String(count), expiry: WINDOW });
-  /** The window ending: Redis drops the key. */
-  const expire = (email: string) => redis.store.delete(storeKey(email));
-  return { request, redis, failures, seedFailures, expire };
+  /** The failures counted for the address since its last success or lock. */
+  const failures = async (email: string) =>
+    Number((await redis.get({ prefix: AUTH_RATE_LIMIT_REDIS_PREFIX, key: accountLockoutKeys(email).failures })) ?? 0);
+  /** Stands in for `count` failures already made, from anywhere. */
+  const seedFailures = async (email: string, count: number) => {
+    for (let i = 0; i < count; i++) await repository.recordFailure(email, AUTH_ACCOUNT_SIGN_IN_LOCKOUT);
+  };
+  return { request, redis, failures, seedFailures };
 }
 
 const signIn = (request: AuthRequest, email: string, password: string) => request('/sign-in/email', { body: { email, password } });
@@ -39,44 +53,109 @@ const signIn = (request: AuthRequest, email: string, password: string) => reques
 const setsSession = (res: Response) =>
   res.headers.getSetCookie().some((cookie) => cookie.includes('session_token=') && !cookie.includes('Max-Age=0'));
 
+afterEach(() => {
+  vi.useRealTimers();
+});
+
 describe('account lockout for password sign-in', () => {
   it('stays within NIST SP 800-63B: at most 100 consecutive failures, for a limited time', () => {
     expect(MAX_FAILURES).toBeGreaterThan(0);
     expect(MAX_FAILURES).toBeLessThanOrEqual(100);
-    expect(WINDOW).toBeGreaterThan(0);
+    expect(LOCK_SECONDS).toBeGreaterThan(0);
+    expect(AUTH_ACCOUNT_SIGN_IN_FAILURES_IDLE_EXPIRY).toBeGreaterThan(LOCK_SECONDS);
   });
 
   it('counts failures for one account from many client addresses, then refuses even the right password', async () => {
-    const { request, failures, seedFailures } = build();
+    const { request, seedFailures } = build();
     await signUpWithEmail(request, TEST_USER);
     const fromManyClients = 3;
-    seedFailures(TEST_USER.email, MAX_FAILURES - fromManyClients);
+    await seedFailures(TEST_USER.email, MAX_FAILURES - fromManyClients);
 
     for (let i = 0; i < fromManyClients; i++) expect((await signIn(request, TEST_USER.email, WRONG_PASSWORD)).status).toBe(401);
-    expect(failures(TEST_USER.email)).toBe(MAX_FAILURES);
 
     const res = await signIn(request, TEST_USER.email, TEST_USER.password);
 
     expect(res.status).toBe(429);
-    expect(Number(res.headers.get(RETRY_AFTER_HEADER))).toBeGreaterThan(0);
+    expect(Number(res.headers.get(RETRY_AFTER_HEADER))).toBe(LOCK_SECONDS);
     expect(await res.json()).toMatchObject({ code: AuthErrorCode.SIGN_IN_LOCKED });
     expect(setsSession(res)).toBe(false);
   });
 
-  it('does not count a refused attempt, so the lock ends with the window', async () => {
-    const { request, failures, seedFailures, expire, redis } = build();
+  it('keeps counting without a success, however long the failures take', async () => {
+    const advance = freezeClock();
+    const { request, seedFailures } = build();
     await signUpWithEmail(request, TEST_USER);
-    seedFailures(TEST_USER.email, MAX_FAILURES);
+    await seedFailures(TEST_USER.email, MAX_FAILURES - 1);
 
-    for (let i = 0; i < 3; i++) expect((await signIn(request, TEST_USER.email, WRONG_PASSWORD)).status).toBe(429);
-    expect(failures(TEST_USER.email)).toBe(MAX_FAILURES);
-    expect(redis.incrementWithExpiry).not.toHaveBeenCalled();
+    advance(2 * LOCK_SECONDS);
+    expect((await signIn(request, TEST_USER.email, WRONG_PASSWORD)).status).toBe(401);
 
-    expire(TEST_USER.email);
+    expect((await signIn(request, TEST_USER.email, TEST_USER.password)).status).toBe(429);
+  });
+
+  it('locks for the full duration from the failure that reached the maximum, however late it came', async () => {
+    const advance = freezeClock();
+    const { request, seedFailures } = build();
+    await signUpWithEmail(request, TEST_USER);
+    await seedFailures(TEST_USER.email, MAX_FAILURES - 1);
+    advance(LOCK_SECONDS - 1);
+    expect((await signIn(request, TEST_USER.email, WRONG_PASSWORD)).status).toBe(401);
+
+    advance(LOCK_SECONDS - 1);
+    const stillLocked = await signIn(request, TEST_USER.email, TEST_USER.password);
+    expect(stillLocked.status).toBe(429);
+    expect(Number(stillLocked.headers.get(RETRY_AFTER_HEADER))).toBe(1);
+
+    advance(1);
     const res = await signIn(request, TEST_USER.email, TEST_USER.password);
-
     expect(res.status).toBe(200);
     expect(setsSession(res)).toBe(true);
+  });
+
+  it('does not count a refused attempt, nor extend the lock with it', async () => {
+    const advance = freezeClock();
+    const { request, redis, seedFailures } = build();
+    await signUpWithEmail(request, TEST_USER);
+    await seedFailures(TEST_USER.email, MAX_FAILURES);
+    const countedBefore = redis.incrementWithIdleExpiry.mock.calls.length;
+    const refusedAttempts = 3;
+
+    advance(LOCK_SECONDS / 2);
+    for (let i = 0; i < refusedAttempts; i++) {
+      const res = await signIn(request, TEST_USER.email, WRONG_PASSWORD);
+      expect(res.status).toBe(429);
+      expect(Number(res.headers.get(RETRY_AFTER_HEADER))).toBe(LOCK_SECONDS / 2);
+    }
+    expect(redis.incrementWithIdleExpiry).toHaveBeenCalledTimes(countedBefore);
+
+    advance(LOCK_SECONDS / 2);
+    expect((await signIn(request, TEST_USER.email, TEST_USER.password)).status).toBe(200);
+  });
+
+  it('starts the count again from zero when the lock ends', async () => {
+    const advance = freezeClock();
+    const { request, failures, seedFailures } = build();
+    await signUpWithEmail(request, TEST_USER);
+    await seedFailures(TEST_USER.email, MAX_FAILURES);
+
+    advance(LOCK_SECONDS);
+    expect((await signIn(request, TEST_USER.email, WRONG_PASSWORD)).status).toBe(401);
+
+    expect(await failures(TEST_USER.email)).toBe(1);
+    expect((await signIn(request, TEST_USER.email, TEST_USER.password)).status).toBe(200);
+  });
+
+  it('drops a count left idle for its expiry', async () => {
+    const advance = freezeClock();
+    const { request, failures } = build();
+    await signIn(request, UNKNOWN_EMAIL, WRONG_PASSWORD);
+
+    advance(AUTH_ACCOUNT_SIGN_IN_FAILURES_IDLE_EXPIRY - 1);
+    await signIn(request, UNKNOWN_EMAIL, WRONG_PASSWORD);
+    expect(await failures(UNKNOWN_EMAIL)).toBe(2);
+
+    advance(AUTH_ACCOUNT_SIGN_IN_FAILURES_IDLE_EXPIRY);
+    expect(await failures(UNKNOWN_EMAIL)).toBe(0);
   });
 
   it('clears the count after a successful sign-in', async () => {
@@ -84,13 +163,13 @@ describe('account lockout for password sign-in', () => {
     await signUpWithEmail(request, TEST_USER);
     await signIn(request, TEST_USER.email, WRONG_PASSWORD);
     await signIn(request, TEST_USER.email, WRONG_PASSWORD);
-    expect(failures(TEST_USER.email)).toBe(2);
+    expect(await failures(TEST_USER.email)).toBe(2);
 
     expect((await signIn(request, TEST_USER.email, TEST_USER.password)).status).toBe(200);
-    expect(failures(TEST_USER.email)).toBe(0);
+    expect(await failures(TEST_USER.email)).toBe(0);
 
     await signIn(request, TEST_USER.email, WRONG_PASSWORD);
-    expect(failures(TEST_USER.email)).toBe(1);
+    expect(await failures(TEST_USER.email)).toBe(1);
   });
 
   it('clears the count when the right password leads to a second-factor challenge', async () => {
@@ -101,7 +180,7 @@ describe('account lockout for password sign-in', () => {
     const { twoFactorRedirect } = await startTwoFactorSignIn(request, TEST_USER);
 
     expect(twoFactorRedirect).toBe(true);
-    expect(failures(TEST_USER.email)).toBe(0);
+    expect(await failures(TEST_USER.email)).toBe(0);
   });
 
   it('counts an unknown address the same way, and refuses it with the same answer', async () => {
@@ -109,10 +188,10 @@ describe('account lockout for password sign-in', () => {
     await signUpWithEmail(request, TEST_USER);
 
     await signIn(request, UNKNOWN_EMAIL, WRONG_PASSWORD);
-    expect(failures(UNKNOWN_EMAIL)).toBe(1);
+    expect(await failures(UNKNOWN_EMAIL)).toBe(1);
 
-    seedFailures(TEST_USER.email, MAX_FAILURES);
-    seedFailures(UNKNOWN_EMAIL, MAX_FAILURES);
+    await seedFailures(TEST_USER.email, MAX_FAILURES);
+    await seedFailures(UNKNOWN_EMAIL, MAX_FAILURES - 1);
     const [known, unknown] = [await signIn(request, TEST_USER.email, WRONG_PASSWORD), await signIn(request, UNKNOWN_EMAIL, WRONG_PASSWORD)];
 
     expect(unknown.status).toBe(known.status);
@@ -126,7 +205,8 @@ describe('account lockout for password sign-in', () => {
 
     await signIn(request, TEST_USER.email.toUpperCase(), WRONG_PASSWORD);
 
-    expect(failures(TEST_USER.email)).toBe(1);
+    expect(await failures(TEST_USER.email)).toBe(1);
+    expect(accountLockoutKeys(TEST_USER.email.toUpperCase())).toEqual(accountLockoutKeys(TEST_USER.email));
   });
 
   it('counts only a refused credential, not a malformed request', async () => {
@@ -135,15 +215,26 @@ describe('account lockout for password sign-in', () => {
     expect((await signIn(request, 'not-an-email', WRONG_PASSWORD)).status).toBe(400);
     expect((await request('/sign-in/email', { body: { password: WRONG_PASSWORD } })).status).toBe(400);
 
-    expect(redis.incrementWithExpiry).not.toHaveBeenCalled();
+    expect(redis.incrementWithIdleExpiry).not.toHaveBeenCalled();
+  });
+
+  it('refuses the sign-in, rather than skipping the limit, when the lock cannot be read', async () => {
+    const { request, redis } = build();
+    await signUpWithEmail(request, TEST_USER);
+    redis.ttl.mockRejectedValueOnce(new Error('Redis is unreachable'));
+
+    // Better Auth rethrows it, so the app's error handler answers instead of a session being issued.
+    await expect(signIn(request, TEST_USER.email, TEST_USER.password)).rejects.toThrow('Redis is unreachable');
+    expect(redis.incrementWithIdleExpiry).not.toHaveBeenCalled();
+    expect(redis.delete).not.toHaveBeenCalled();
   });
 
   it('keeps no email address in Redis', async () => {
-    const { request, redis } = build();
+    const { redis, seedFailures } = build();
 
-    await signIn(request, UNKNOWN_EMAIL, WRONG_PASSWORD);
+    await seedFailures(UNKNOWN_EMAIL, MAX_FAILURES);
 
-    expect([...redis.store.keys()]).toHaveLength(1);
+    expect(redis.store.size).toBeGreaterThan(0);
     expect([...redis.store.keys()].join()).not.toContain(UNKNOWN_EMAIL);
   });
 
