@@ -32,6 +32,17 @@ export function resolveRoles(stored: string | null | undefined, { allowMultiple,
   return roles.length > 0 ? roles : [LEAST_PRIVILEGED_ROLE];
 }
 
+/**
+ * Every known role name in the stored value, unnarrowed by `ALLOW_MULTIPLE_ROLES`. Only for checks that must match what
+ * Better Auth's admin plugin authorises with, since it reads the stored value as it is; access decisions use `rolesOf`.
+ */
+export function storedRoleNames(stored: string | null | undefined): RoleName[] {
+  return (stored ?? '')
+    .split(ROLE_SEPARATOR)
+    .map((name) => name.trim())
+    .filter(isRoleName);
+}
+
 /** Resolves roles with the environment's switch and logger, read lazily on each call. */
 @injectable()
 export class RolesService {

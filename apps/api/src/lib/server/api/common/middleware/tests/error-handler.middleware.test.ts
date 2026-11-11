@@ -80,6 +80,13 @@ describe('errorHandler response', () => {
     expect(await res.json()).toEqual({ message: 'You may not do that', requestId: res.headers.get('x-request-id') });
   });
 
+  it('sends the stable code a deliberate client error carries', async () => {
+    const res = await appThrowing(Forbidden('Enrol first', 'SOME_CODE'), PRODUCTION).request('/fail');
+
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({ message: 'Enrol first', code: 'SOME_CODE', requestId: res.headers.get('x-request-id') });
+  });
+
   it('does not log a deliberate client error', async () => {
     const { log, entries } = captureLog();
 

@@ -1,6 +1,6 @@
 import { RoleName, SocialProvider } from '@adelie/shared';
 import { describe, expect, it } from 'vitest';
-import { type AuthRequest, cookiesFrom, signUpWithEmail, TEST_USER } from '../../../../../test/auth-http';
+import { type AuthRequest, cookiesFrom, enrolPasskey, signUpWithEmail, TEST_USER } from '../../../../../test/auth-http';
 import { createTestAuth } from '../../../../../test/auth-instance';
 
 const { password: PASSWORD } = TEST_USER;
@@ -61,9 +61,12 @@ describe('sign-up when closed', () => {
     expect(res.headers.getSetCookie().length).toBeGreaterThan(0);
   });
 
-  it('lets a signed-in admin create another user over HTTP', async () => {
+  it('lets a signed-in admin with a Second Factor create another user over HTTP', async () => {
     const { auth, request } = createTestAuth({ signUpEnabled: false });
-    await auth.api.createUser({ body: { name: 'Admin', email: 'admin@example.com', password: PASSWORD, role: RoleName.ADMIN } });
+    const { user: admin } = await auth.api.createUser({
+      body: { name: 'Admin', email: 'admin@example.com', password: PASSWORD, role: RoleName.ADMIN },
+    });
+    await enrolPasskey(auth, admin.id);
     const signIn = await request('/sign-in/email', { body: { email: 'admin@example.com', password: PASSWORD } });
     const cookie = cookiesFrom(signIn);
 

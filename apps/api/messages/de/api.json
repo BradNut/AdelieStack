@@ -5,6 +5,8 @@
   "auth_role_forbidden": "Sie haben keine Berechtigung, auf diese Ressource zuzugreifen",
   "auth_multiple_roles_disabled": "Das Zuweisen mehrerer Rollen ist deaktiviert (ALLOW_MULTIPLE_ROLES ist aus)",
   "auth_password_required_for_two_factor": "Die Verknüpfung des Passworts kann nicht aufgehoben werden, solange die Zwei-Faktor-Authentifizierung aktiviert ist; deaktivieren Sie diese zuerst",
+  "auth_second_factor_required": "Der Administratorzugang erfordert einen zweiten Faktor. Aktivieren Sie die Zwei-Faktor-Authentifizierung oder fügen Sie einen Passkey hinzu, um fortzufahren.",
+  "auth_last_second_factor": "Administratoren müssen einen zweiten Faktor behalten. Fügen Sie einen Passkey hinzu oder aktivieren Sie die Zwei-Faktor-Authentifizierung, bevor Sie diesen entfernen.",
   "mail_password_changed_title": "Ihr Passwort wurde geändert",
   "mail_password_changed_body": "Das Passwort Ihres Kontos wurde soeben geändert. Falls Sie das nicht waren, setzen Sie Ihr Passwort zurück und überprüfen Sie umgehend die Sicherheit Ihres Kontos.",
   "mail_email_change_notice_title": "Ihre E-Mail-Adresse wurde geändert",

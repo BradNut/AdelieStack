@@ -5,6 +5,8 @@
   "auth_role_forbidden": "You do not have permission to access this resource",
   "auth_multiple_roles_disabled": "Assigning more than one role is disabled (ALLOW_MULTIPLE_ROLES is off)",
   "auth_password_required_for_two_factor": "The password cannot be unlinked while two-factor authentication is enabled; disable two-factor first",
+  "auth_second_factor_required": "Admin access needs a second factor. Turn on two-factor authentication or add a passkey to continue.",
+  "auth_last_second_factor": "Admins must keep a second factor. Add a passkey or turn on two-factor authentication before removing this one.",
   "mail_password_changed_title": "Your password was changed",
   "mail_password_changed_body": "The password for your account was just changed. If this was not you, reset your password and review your account security straight away.",
   "mail_email_change_notice_title": "Your email address was changed",

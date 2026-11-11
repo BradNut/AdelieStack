@@ -16,14 +16,27 @@ export const AuthErrorCode = {
   TWO_FACTOR_LOCKED: 'ACCOUNT_TEMPORARILY_LOCKED',
   /** Our own code, not Better Auth's: the Password Account cannot be unlinked while two-factor is enabled (ADR 0008). */
   PASSWORD_REQUIRED_FOR_TWO_FACTOR: 'PASSWORD_REQUIRED_FOR_TWO_FACTOR',
+  /**
+   * Our own code: the account holds a role whose capabilities need a Second Factor (a passkey or enabled two-factor)
+   * and has none, so the admin capability was refused. Signing in and enrolling still work (ADR 0013).
+   */
+  SECOND_FACTOR_REQUIRED: 'SECOND_FACTOR_REQUIRED',
+  /** Our own code: removing this would leave an account that needs a Second Factor without one (ADR 0013). */
+  LAST_SECOND_FACTOR: 'LAST_SECOND_FACTOR',
 } as const;
 export type AuthErrorCode = (typeof AuthErrorCode)[keyof typeof AuthErrorCode];
 
 export const SIGN_UP_CLOSED_MESSAGE = 'Registration is closed. Ask an administrator to create an account for you.';
 
+export const SECOND_FACTOR_REQUIRED_MESSAGE = 'Admin access needs a second factor. Turn on two-factor or add a passkey to continue.';
+
+export const LAST_SECOND_FACTOR_MESSAGE = 'Admins must keep a second factor. Add a passkey or turn on two-factor before removing this one.';
+
 /** User-facing copy by Better Auth error code, in place of the server's English message. */
 export const AUTH_ERROR_MESSAGES: Readonly<Record<string, string>> = {
   [AuthErrorCode.SIGN_UP_DISABLED]: SIGN_UP_CLOSED_MESSAGE,
+  [AuthErrorCode.SECOND_FACTOR_REQUIRED]: SECOND_FACTOR_REQUIRED_MESSAGE,
+  [AuthErrorCode.LAST_SECOND_FACTOR]: LAST_SECOND_FACTOR_MESSAGE,
 };
 
 /** `providerId` of the account row Better Auth keeps for email and password sign-in. */

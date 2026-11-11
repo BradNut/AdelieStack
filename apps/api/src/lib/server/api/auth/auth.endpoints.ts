@@ -16,9 +16,13 @@ export const AuthEndpoint = {
   VERIFY_EMAIL: '/verify-email',
   VERIFY_BACKUP_CODE: '/two-factor/verify-backup-code',
   GENERATE_BACKUP_CODES: '/two-factor/generate-backup-codes',
+  TWO_FACTOR_DISABLE: '/two-factor/disable',
+  PASSKEY_DELETE: '/passkey/delete-passkey',
   UNLINK_ACCOUNT: '/unlink-account',
   ADMIN_CREATE_USER: '/admin/create-user',
   ADMIN_SET_USER_PASSWORD: '/admin/set-user-password',
   ADMIN_SET_ROLE: '/admin/set-role',
   ADMIN_UPDATE_USER: '/admin/update-user',
+  ADMIN_HAS_PERMISSION: '/admin/has-permission',
+  ADMIN_STOP_IMPERSONATING: '/admin/stop-impersonating',
 } as const;

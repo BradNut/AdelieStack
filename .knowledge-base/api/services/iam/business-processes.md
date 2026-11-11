@@ -112,8 +112,28 @@ see ADRs [0007](../../../../docs/adr/0007-social-reauthentication-replays-a-pers
 requirePermission(authService, rolesService, { user: ['list'] })
   ├─ Signed out → 401
   ├─ No role of the user grants it (auth.api.userHasPermission) → 403
+  ├─ Only admin roles grant it and the account has no Second Factor → 403 SECOND_FACTOR_REQUIRED
   └─ Granted → handler
 ```
+
+## Admin Second Factor ([ADR 0013](../../../../docs/adr/0013-admin-capabilities-require-a-second-factor.md))
+
+An account has a Second Factor when two-factor is enabled or at least one passkey is registered.
+
+```
+/api/auth/admin/* (except has-permission, stop-impersonating), signed in with a stored admin role
+  ├─ Has a Second Factor → Better Auth's own permission check
+  └─ None → 403 SECOND_FACTOR_REQUIRED (sign-in, /get-session, two-factor and passkey enrolment still work)
+
+Admin removes a factor
+  ├─ /two-factor/disable with no passkey → 400 LAST_SECOND_FACTOR, two-factor stays on
+  ├─ /passkey/delete-passkey of the only passkey with two-factor off → 400 LAST_SECOND_FACTOR, passkey kept
+  └─ Otherwise → Better Auth (other roles are never refused)
+```
+
+`/users/me` answers `needsSecondFactor`; the web app sends such an admin to `/settings/two-factor`
+instead of a 403 page. The seeded admin's first run follows this path (see the
+[database migrations runbook](../../runbooks/database-migrations.md#seeding)).
 
 ## Business Rules
 
@@ -122,6 +142,7 @@ requirePermission(authService, rolesService, { user: ['list'] })
 - A user has one role unless `ALLOW_MULTIPLE_ROLES` is on; empty or unknown stored roles read as the
   least-privileged role.
 - The last remaining sign-in method cannot be unlinked.
+- Admin capabilities need a Second Factor; an admin cannot remove their last one.
 - Password guessing is limited per client IP by the rate limiter; there is no password lockout.
 - Second-factor guessing is also limited per account: 10 failed codes lock verification for 15
   minutes (`429 ACCOUNT_TEMPORARILY_LOCKED`); a correct code resets the count.
