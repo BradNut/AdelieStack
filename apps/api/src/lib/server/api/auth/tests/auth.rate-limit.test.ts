@@ -201,12 +201,12 @@ describe('auth rate limiting', () => {
     expect(send).toHaveBeenCalledTimes(AUTH_RATE_LIMIT_SIGN_UP.max);
   });
 
-  it('refuses a sign-up with an existing address without sending an email, and counts it toward the sign-up limit', async () => {
+  it('answers a sign-up with an existing address as a new one, without sending an email, and counts it toward the sign-up limit', async () => {
     const { request, db, send } = build();
     const email = 'taken@example.com';
     expect((await signUp(request, email)).status).toBe(200);
     send.mockClear(); // drop the first sign-up's verification email
-    for (let i = 1; i < AUTH_RATE_LIMIT_SIGN_UP.max; i++) expect((await signUp(request, email)).status).toBe(422);
+    for (let i = 1; i < AUTH_RATE_LIMIT_SIGN_UP.max; i++) expect((await signUp(request, email)).status).toBe(200);
     expect(send).not.toHaveBeenCalled();
 
     const res = await signUp(request, 'fresh@example.com');

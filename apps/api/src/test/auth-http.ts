@@ -1,7 +1,8 @@
 import { totpCode } from '@adelie/test-utils/totp';
+import { createEmailVerificationToken } from 'better-auth/api';
 import { TEST_EMAIL } from '#lib/server/api/common/testing/factories';
 import type { SendProps } from '#lib/server/api/mail/interfaces/mailer.interface';
-import { type createTestDatabase, TEST_ORIGIN } from './auth-instance';
+import { type createTestDatabase, TEST_AUTH_SECRET, TEST_ORIGIN } from './auth-instance';
 
 export interface AuthRequestOptions {
   body?: unknown;
@@ -30,7 +31,7 @@ export const TEST_USER = { name: 'Penguin', email: TEST_EMAIL, password: 'Correc
 export interface EmailSignUp {
   /** The sign-up response, with its body still unread. */
   res: Response;
-  /** The session cookie, or an empty string when the response sets none. */
+  /** The session cookie from signing in once the email is verified, or an empty string when sign-up was rejected. */
   cookie: string;
 }
 
@@ -84,10 +85,25 @@ export function ageSessions(db: ReturnType<typeof createTestDatabase>['db'], age
   for (const s of db.session) s.createdAt = new Date(Date.now() - ageSeconds * MS_PER_SECOND);
 }
 
-/** Signs up with email and password. A rejected sign-up does not throw: check `res`. */
+/**
+ * Clicks the verification link for `email`, as the one in the sign-up email does, over the real `/verify-email`
+ * endpoint. The token is signed with the test auth secret, so this needs no mailer: it works when a test passes its own.
+ */
+export async function verifyEmail(request: AuthRequest, email: string): Promise<Response> {
+  const token = await createEmailVerificationToken(TEST_AUTH_SECRET, email);
+  return request(`/verify-email?token=${encodeURIComponent(token)}`);
+}
+
+/**
+ * Signs up with email and password, verifies the email, then signs in: sign-up alone gives no session, since an
+ * unverified account cannot sign in. A rejected sign-up does not throw and is not followed up: check `res`.
+ */
 export async function signUpWithEmail(request: AuthRequest, { name, email, password }: SignUpCredentials): Promise<EmailSignUp> {
   const res = await request('/sign-up/email', { body: { name, email, password } });
-  return { res, cookie: cookiesFrom(res) };
+  if (!res.ok) return { res, cookie: '' };
+  await verifyEmail(request, email);
+  const signIn = await request('/sign-in/email', { body: { email, password } });
+  return { res, cookie: cookiesFrom(signIn) };
 }
 
 /** Signs up, then enables two-factor and confirms it with a first TOTP code. */

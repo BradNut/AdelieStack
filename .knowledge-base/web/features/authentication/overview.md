@@ -189,7 +189,11 @@ const { error } = await locals.api.iam.password.reset.$post({ json: newPasswordF
   landing page: `/email-verified` or `/email-changed` (`AuthCallbackPath` in `@adelie/shared`). Both render
   `verification-result.svelte`, which shows success or, when Better Auth appended `?error=`, a failure with the
   recovery action (resend, sign in, or request the change again) and reloads the session on success.
-- A signed-in user with an unverified email sees a banner with a resend button (`unverified-email-notice.svelte`).
+- Sign-up gives no session: the page then asks to check the email, with the same wording for a new and a taken address
+  (the API answers both alike). Password sign-in by an unverified account is refused with `EMAIL_NOT_VERIFIED`; the
+  login page then shows a resend button for the address entered.
+- A signed-in user with an unverified email (a social sign-in the provider did not verify, or a session from before
+  sign-in required verification) sees a banner with a resend button (`unverified-email-notice.svelte`).
 - `/settings/email` starts a change. The confirmation goes to the new address, the old address gets a notice once
   it is followed. For an address that belongs to another account the page shows the same pending message and sends
   nothing, so it does not reveal which addresses are registered.

@@ -1,7 +1,7 @@
 import { CAPTCHA_RESPONSE_HEADER, CaptchaProvider, CREDENTIAL_PROVIDER_ID, RoleName, SocialProvider } from '@adelie/shared';
 import { totpCode } from '@adelie/test-utils/totp';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cookiesFrom, signUpWithTotp } from '../../../../../test/auth-http';
+import { cookiesFrom, signUpWithTotp, verifyEmail } from '../../../../../test/auth-http';
 import { createTestAuth, stubGoogleUserInfo, TEST_ORIGIN } from '../../../../../test/auth-instance';
 import { createPasskeyAuthenticator } from '../../../../../test/passkey-authenticator';
 
@@ -12,8 +12,12 @@ const OTHER_EMAIL = 'puffin@example.com';
 function build(overrides: Parameters<typeof createTestAuth>[0] = {}) {
   const testAuth = createTestAuth(overrides);
   const { request, db } = testAuth;
-  const signUp = async (email = EMAIL, cookie?: string) =>
-    request('/sign-up/email', { cookie, body: { name: 'Penguin', email, password: PASSWORD } });
+  /** Signs up and verifies the email, so the account can sign in. Sign-up itself sets no session. */
+  const signUp = async (email = EMAIL, cookie?: string) => {
+    const res = await request('/sign-up/email', { cookie, body: { name: 'Penguin', email, password: PASSWORD } });
+    await verifyEmail(request, email);
+    return res;
+  };
   const signIn = (cookie?: string, email = EMAIL, password = PASSWORD) => request('/sign-in/email', { cookie, body: { email, password } });
   const isSignedIn = async (cookie: string) => (await (await request('/get-session', { cookie })).json()) !== null;
   /** The user's live session rows, one per browser that holds a session. */
@@ -26,7 +30,8 @@ function build(overrides: Parameters<typeof createTestAuth>[0] = {}) {
 
 /** The user signed in on two browsers: this one, holding `cookie`, and another device. */
 async function signedInTwice(t: ReturnType<typeof build>, email = EMAIL) {
-  const cookie = cookiesFrom(await t.signUp(email));
+  await t.signUp(email);
+  const cookie = cookiesFrom(await t.signIn(undefined, email));
   const otherDevice = cookiesFrom(await t.signIn(undefined, email));
   return { cookie, otherDevice };
 }
@@ -70,17 +75,29 @@ describe('email sign-in on a browser holding a session', () => {
 });
 
 describe('email sign-up on a browser holding a session', () => {
-  it('ends the Replaced Session and keeps the old account’s other devices', async () => {
+  it('keeps the session, since sign-up signs no one in until the email is verified', async () => {
     const t = build();
     const { cookie, otherDevice } = await signedInTwice(t);
 
-    const res = await t.signUp(OTHER_EMAIL, cookie);
+    const res = await t.request('/sign-up/email', { cookie, body: { name: 'Puffin', email: OTHER_EMAIL, password: PASSWORD } });
 
     expect(res.status).toBe(200);
-    expect(await t.isSignedIn(cookie)).toBe(false);
-    expect(await t.isSignedIn(cookiesFrom(res, cookie))).toBe(true);
+    expect(res.headers.getSetCookie().some((c) => c.includes('session_token'))).toBe(false);
+    expect(await t.isSignedIn(cookie)).toBe(true);
     expect(await t.isSignedIn(otherDevice)).toBe(true);
-    expect(t.sessionsOf(EMAIL)).toHaveLength(1);
+    expect(t.sessionsOf(EMAIL)).toHaveLength(2);
+    expect(t.sessionsOf(OTHER_EMAIL)).toHaveLength(0);
+  });
+
+  it('keeps the session when sign-up uses a taken email', async () => {
+    const t = build();
+    const { cookie } = await signedInTwice(t);
+
+    const res = await t.request('/sign-up/email', { cookie, body: { name: 'Penguin', email: EMAIL, password: PASSWORD } });
+
+    expect(res.status).toBe(200);
+    expect(await t.isSignedIn(cookie)).toBe(true);
+    expect(t.sessionsOf(EMAIL)).toHaveLength(2);
   });
 });
 
@@ -338,11 +355,16 @@ describe('a failed sign-in ends nothing', () => {
       vi.fn(async () => Response.json({ success: true })),
     );
     const t = build({ captcha: { provider: CaptchaProvider.TURNSTILE, secretKey: 'secret', siteKey: 'site' } });
-    const signUp = await t.request('/sign-up/email', {
+    await t.request('/sign-up/email', {
       body: { name: 'Penguin', email: EMAIL, password: PASSWORD },
       headers: { [CAPTCHA_RESPONSE_HEADER]: 'token' },
     });
-    const cookie = cookiesFrom(signUp);
+    await verifyEmail(t.request, EMAIL);
+    const signIn = await t.request('/sign-in/email', {
+      body: { email: EMAIL, password: PASSWORD },
+      headers: { [CAPTCHA_RESPONSE_HEADER]: 'token' },
+    });
+    const cookie = cookiesFrom(signIn);
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => Response.json({ success: false })),
@@ -369,17 +391,6 @@ describe('a failed sign-in ends nothing', () => {
 
     expect(res.ok).toBe(false);
     expect(await t.isSignedIn(cookie)).toBe(true);
-  });
-
-  it('keeps the session when sign-up is refused for a taken email', async () => {
-    const t = build();
-    const { cookie } = await signedInTwice(t);
-
-    const res = await t.signUp(EMAIL, cookie);
-
-    expect(res.ok).toBe(false);
-    expect(await t.isSignedIn(cookie)).toBe(true);
-    expect(t.sessionsOf(EMAIL)).toHaveLength(2);
   });
 });
 

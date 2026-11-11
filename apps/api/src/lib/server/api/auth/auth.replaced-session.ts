@@ -10,7 +10,6 @@ import { isTwoFactorRedirect } from './auth.two-factor-redirect';
  */
 export const ReplacedSessionPath = {
   EMAIL_SIGN_IN: AuthEndpoint.SIGN_IN_EMAIL,
-  EMAIL_SIGN_UP: AuthEndpoint.SIGN_UP_EMAIL,
   PASSKEY_SIGN_IN: AuthEndpoint.PASSKEY_VERIFY_AUTHENTICATION,
   /** Sets a session only when the client asks for one with the new passkey (`createSession`). */
   PASSKEY_REGISTRATION: AuthEndpoint.PASSKEY_VERIFY_REGISTRATION,
