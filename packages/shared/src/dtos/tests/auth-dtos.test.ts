@@ -8,6 +8,9 @@ import { changePasswordDto } from '../settings/password/change-password.dto';
 import { signupDto } from '../signup/signup.dto';
 
 const STRONG = 'correct horse battery';
+/** One under and exactly at the 15-character minimum. */
+const FOURTEEN = 'fourteen chars';
+const FIFTEEN = 'fifteen chars!!';
 
 function issuePaths(result: { success: boolean; error?: { issues: { path: PropertyKey[] }[] } }) {
   return result.error?.issues.map((i) => i.path.join('.')) ?? [];
@@ -20,6 +23,11 @@ describe('signinDto', () => {
 
   it('trims the email', () => {
     expect(signinDto.parse({ email: '  a@example.com ', password: 'x' }).email).toBe('a@example.com');
+  });
+
+  it('does not enforce the new-password minimum, so existing shorter passwords still sign in', () => {
+    expect(signinDto.safeParse({ email: 'a@example.com', password: FOURTEEN }).success).toBe(true);
+    expect(signinDto.safeParse({ email: 'a@example.com', password: 'weakpass' }).success).toBe(true);
   });
 
   it('rejects a bad email and an empty password', () => {
@@ -76,6 +84,23 @@ describe('password policy rule issues', () => {
   it('keeps the mismatch message on confirm_password', () => {
     const result = resetPasswordNewPasswordDto.safeParse({ password: STRONG, confirm_password: 'x' });
     expect(messagesAt(result, 'confirm_password')).toEqual(['Password and Confirm Password must match']);
+  });
+});
+
+describe('15-character minimum on every password-setting dto', () => {
+  const signup = (password: string) => signupDto.safeParse({ name: 'P', email: 'p@example.com', password, confirm_password: password });
+  const reset = (password: string) => resetPasswordNewPasswordDto.safeParse({ password, confirm_password: password });
+  const change = (password: string) => changePasswordDto.safeParse({ current_password: 'old', new_password: password, confirm_password: password });
+  const messagesAt = (result: { error?: { issues: { path: PropertyKey[]; message: string }[] } }, field: string) =>
+    result.error?.issues.filter((i) => i.path.join('.') === field).map((i) => i.message) ?? [];
+
+  it.each([
+    ['signup', signup, 'password'],
+    ['reset password', reset, 'password'],
+    ['change password', change, 'new_password'],
+  ] as const)('%s rejects 14 characters and accepts 15', (_name, parse, field) => {
+    expect(messagesAt(parse(FOURTEEN), field)).toEqual(['MIN_LENGTH']);
+    expect(parse(FIFTEEN).success).toBe(true);
   });
 });
 

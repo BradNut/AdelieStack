@@ -20,6 +20,15 @@ describe('validatePasswordPolicy', () => {
     expect(PASSWORD_COMPROMISED).toBe('PASSWORD_COMPROMISED');
   });
 
+  it('rejects 14 characters and accepts 15 (NIST SP 800-63B-4 single-factor minimum)', () => {
+    expect(validatePasswordPolicy('a'.repeat(14))).toEqual([PASSWORD_POLICY_RULES.MIN_LENGTH]);
+    expect(validatePasswordPolicy('a'.repeat(15))).toEqual([]);
+  });
+
+  it('allows passwords of at least 64 characters', () => {
+    expect(validatePasswordPolicy('a'.repeat(64))).toEqual([]);
+  });
+
   it('returns no codes for a valid password', () => {
     expect(validatePasswordPolicy(VALID)).toEqual([]);
   });
@@ -31,8 +40,8 @@ describe('validatePasswordPolicy', () => {
   it.each([
     ['too short', 'short', PASSWORD_POLICY_RULES.MIN_LENGTH],
     ['too long', padded(MAX_PASSWORD_LENGTH + 10), PASSWORD_POLICY_RULES.MAX_LENGTH],
-    ['leading space', ' leadingspace', PASSWORD_POLICY_RULES.LEADING_OR_TRAILING_SPACE],
-    ['trailing space', 'trailingspace ', PASSWORD_POLICY_RULES.LEADING_OR_TRAILING_SPACE],
+    ['leading space', ' leading-space-passphrase', PASSWORD_POLICY_RULES.LEADING_OR_TRAILING_SPACE],
+    ['trailing space', 'trailing-space-passphrase ', PASSWORD_POLICY_RULES.LEADING_OR_TRAILING_SPACE],
   ])('returns exactly one code when %s', (_name, password, code) => {
     expect(validatePasswordPolicy(password)).toEqual([code]);
   });
@@ -49,17 +58,25 @@ describe('validatePasswordPolicy', () => {
   });
 
   it('accepts any characters: all lowercase, no digits, unicode, emoji and internal spaces', () => {
-    for (const password of ['alllowercase', '12345678', 'pässwörd-é€¿', 'пароль-пароль', '密码密码密码密码', 'pass 🐧 phrase', 'a b c d e f']) {
+    for (const password of [
+      'alllowercaseonly',
+      '123456789012345',
+      'pässwörd-é€¿-pässwörd',
+      'пароль-пароль-пароль',
+      '密码密码密码密码密码密码密码密码',
+      'pass 🐧 phrase 🐧 tux',
+      'a b c d e f g h',
+    ]) {
       expect(validatePasswordPolicy(password)).toEqual([]);
     }
   });
 
   it('only treats the plain space as leading or trailing whitespace', () => {
-    expect(validatePasswordPolicy('\tpassphrase')).toEqual([]);
+    expect(validatePasswordPolicy('\tlong passphrase')).toEqual([]);
   });
 
   it('rejects a password made only of spaces', () => {
-    expect(validatePasswordPolicy('        ')).toEqual([PASSWORD_POLICY_RULES.LEADING_OR_TRAILING_SPACE]);
+    expect(validatePasswordPolicy(' '.repeat(16))).toEqual([PASSWORD_POLICY_RULES.LEADING_OR_TRAILING_SPACE]);
   });
 });
 

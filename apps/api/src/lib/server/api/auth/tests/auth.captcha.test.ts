@@ -15,7 +15,7 @@ import { createTestAuth, TEST_ORIGIN } from '../../../../../test/auth-instance';
 import { HIBP_HOST } from '../../../../../test/mocks/hibp.mock';
 
 const PASSWORD = 'correct horse battery';
-const PWNED_PASSWORD = 'password12345';
+const PWNED_PASSWORD = 'password1234567890';
 const TURNSTILE_VERIFY = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
 const TOKEN = 'token-from-widget';
 

@@ -7,7 +7,7 @@ import { mockHibp } from '../../../../../test/mocks/hibp.mock';
 
 const { email: EMAIL, password: PASSWORD } = TEST_USER;
 const NEW_PASSWORD = 'another long passphrase';
-const BREACHED_PASSWORD = 'password12345';
+const BREACHED_PASSWORD = 'password1234567890';
 const OTHER_USER = { ...TEST_USER, email: 'other@example.com' };
 
 let db: ReturnType<typeof createTestAuth>['db'];
