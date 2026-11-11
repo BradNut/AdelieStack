@@ -43,7 +43,7 @@ DB_SEEDING=true ADMIN_EMAIL=admin@example.com ADMIN_PASSWORD=<pw> pnpm --filter 
 ### Seeded admin: first run
 
 The seed creates the admin with a password only, and admin capabilities need a Second Factor
-([ADR 0013](../../../docs/adr/0013-admin-capabilities-require-a-second-factor.md)). Until it has one,
+([ADR 0014](../../../docs/adr/0014-admin-capabilities-require-a-second-factor.md)). Until it has one,
 anyone holding `ADMIN_PASSWORD` can enrol a factor and take the account, so use a strong, unshared
 password and enrol straight after seeding:
 

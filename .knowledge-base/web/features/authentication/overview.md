@@ -100,7 +100,7 @@ is configured). Setup and linking rules: the API
 ### Admins without a Second Factor
 
 Admin capabilities need two-factor enabled or a registered passkey; signing in does not
-([ADR 0013](../../../../docs/adr/0013-admin-capabilities-require-a-second-factor.md)). `/users/me`
+([ADR 0014](../../../../docs/adr/0014-admin-capabilities-require-a-second-factor.md)). `/users/me`
 reports `needsSecondFactor`, and `requireUser` (`lib/server/guards.ts`) answers an admin-only route
 for such a user (`RouteAccess.ENROL_SECOND_FACTOR`) with a 303 to `/settings/two-factor` and the
 `SECOND_FACTOR_REQUIRED_MESSAGE` flash, not a 403 page. A client call refused with

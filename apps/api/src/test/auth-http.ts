@@ -88,7 +88,7 @@ export function ageSessions(db: ReturnType<typeof createTestDatabase>['db'], age
 
 /**
  * Stores a passkey for `userId` as registration would have, and returns its id. Gives an admin the Second Factor that
- * admin capabilities need (ADR 0013) without driving a WebAuthn ceremony.
+ * admin capabilities need (ADR 0014) without driving a WebAuthn ceremony.
  */
 export async function enrolPasskey(auth: Pick<Auth, '$context'>, userId: string): Promise<string> {
   const { id: _generated, ...row } = createPasskeyAuthenticator({ rpID: 'localhost', origin: TEST_ORIGIN }).passkeyFor(userId);

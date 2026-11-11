@@ -20,7 +20,7 @@ export class UsersController extends Controller {
       if (!user) return c.json(null);
       const { role: _stored, ...rest } = user;
       const roles = this.rolesService.rolesOf(user);
-      // The web app sends an admin without a Second Factor to enrolment instead of an error page (ADR 0013).
+      // The web app sends an admin without a Second Factor to enrolment instead of an error page (ADR 0014).
       const needsSecondFactor = rolesNeedSecondFactor(roles) && !(await this.authService.hasSecondFactor(user));
       return c.json({ ...rest, roles, needsSecondFactor });
     });

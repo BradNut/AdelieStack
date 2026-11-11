@@ -116,7 +116,7 @@ requirePermission(authService, rolesService, { user: ['list'] })
   └─ Granted → handler
 ```
 
-## Admin Second Factor ([ADR 0013](../../../../docs/adr/0013-admin-capabilities-require-a-second-factor.md))
+## Admin Second Factor ([ADR 0014](../../../../docs/adr/0014-admin-capabilities-require-a-second-factor.md))
 
 An account has a Second Factor when two-factor is enabled or at least one passkey is registered.
 

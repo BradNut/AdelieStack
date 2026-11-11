@@ -79,7 +79,7 @@ test.describe('admin guard', () => {
     await expect(page.getByTestId('footer-user')).toHaveText(ADMIN.email);
 
     // First run against a fresh database: the seeded admin has no Second Factor, so the admin page sends them to
-    // enrolment instead of an error (ADR 0013). The passkey row stays, so later runs on the same database skip this.
+    // enrolment instead of an error (ADR 0014). The passkey row stays, so later runs on the same database skip this.
     await page.goto('/admin');
     if (page.url().endsWith('/settings/two-factor')) {
       await page.goto('/settings/passkeys');

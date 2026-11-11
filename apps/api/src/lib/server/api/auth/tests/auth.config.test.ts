@@ -26,7 +26,7 @@ async function roleOf(cookie: string) {
 async function promote(userId: string, role: RoleName) {
   const adapter = (await auth.$context).internalAdapter;
   await adapter.updateUser(userId, { role });
-  // Admin capabilities need a Second Factor (ADR 0013); auth.second-factor.test.ts covers an admin without one.
+  // Admin capabilities need a Second Factor (ADR 0014); auth.second-factor.test.ts covers an admin without one.
   if (role === RoleName.ADMIN) await enrolPasskey(auth, userId);
 }
 

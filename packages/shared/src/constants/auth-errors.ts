@@ -18,10 +18,10 @@ export const AuthErrorCode = {
   PASSWORD_REQUIRED_FOR_TWO_FACTOR: 'PASSWORD_REQUIRED_FOR_TWO_FACTOR',
   /**
    * Our own code: the account holds a role whose capabilities need a Second Factor (a passkey or enabled two-factor)
-   * and has none, so the admin capability was refused. Signing in and enrolling still work (ADR 0013).
+   * and has none, so the admin capability was refused. Signing in and enrolling still work (ADR 0014).
    */
   SECOND_FACTOR_REQUIRED: 'SECOND_FACTOR_REQUIRED',
-  /** Our own code: removing this would leave an account that needs a Second Factor without one (ADR 0013). */
+  /** Our own code: removing this would leave an account that needs a Second Factor without one (ADR 0014). */
   LAST_SECOND_FACTOR: 'LAST_SECOND_FACTOR',
 } as const;
 export type AuthErrorCode = (typeof AuthErrorCode)[keyof typeof AuthErrorCode];

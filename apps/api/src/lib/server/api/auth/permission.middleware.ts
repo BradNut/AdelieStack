@@ -18,7 +18,7 @@ export type RequiredPermissions = { [Resource in keyof Statements]?: Statements[
 /**
  * Allows the request only when the signed-in user's narrowed roles grant `permissions`; 401 signed
  * out, 403 otherwise. When only roles that need a Second Factor grant `permissions` (an admin capability), the account
- * must also have one, else 403 with `SECOND_FACTOR_REQUIRED` (ADR 0013). Relies on `authSession` having set `c.var.user`. Routes name permissions, never roles: the role-to-permission mapping lives
+ * must also have one, else 403 with `SECOND_FACTOR_REQUIRED` (ADR 0014). Relies on `authSession` having set `c.var.user`. Routes name permissions, never roles: the role-to-permission mapping lives
  * in `auth.permissions.ts`. Better Auth is given only the narrowed roles and no headers, because
  * with a session present it would ignore a supplied role and use the stored (unnarrowed) value.
  */

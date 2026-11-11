@@ -9,6 +9,6 @@ export interface AuthedUser {
   roles: RoleName[];
   emailVerified: boolean;
   twoFactorEnabled: boolean;
-  /** True when one of the user's roles needs a Second Factor and the account has none (ADR 0013). */
+  /** True when one of the user's roles needs a Second Factor and the account has none (ADR 0014). */
   needsSecondFactor: boolean;
 }

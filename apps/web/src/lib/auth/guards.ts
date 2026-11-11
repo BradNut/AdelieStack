@@ -4,7 +4,7 @@ export const RouteAccess = {
   ALLOWED: 'allowed',
   SIGN_IN: 'sign-in',
   FORBIDDEN: 'forbidden',
-  /** Signed in with the role, but the role needs a Second Factor the account has not enrolled (ADR 0013). */
+  /** Signed in with the role, but the role needs a Second Factor the account has not enrolled (ADR 0014). */
   ENROL_SECOND_FACTOR: 'enrol-second-factor',
 } as const;
 

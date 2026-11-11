@@ -37,7 +37,7 @@ pnpm storage:setup
 # Initialize the database. These flags only unlock the two scripts; the API ignores them.
 DB_MIGRATING=true pnpm db:migrate
 DB_SEEDING=true pnpm db:seed
-# The seeded admin must enrol two-factor or a passkey before using admin pages (ADR 0013);
+# The seeded admin must enrol two-factor or a passkey before using admin pages (ADR 0014);
 # signing in and opening /admin takes you there. See .knowledge-base/api/runbooks/database-migrations.md.
 
 # Start both apps

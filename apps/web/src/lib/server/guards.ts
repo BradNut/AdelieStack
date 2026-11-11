@@ -7,7 +7,7 @@ import { forbiddenMessage, notSignedInMessage, secondFactorRequiredMessage } fro
 /**
  * Throws unless the request's user may open the route: a redirect to sign in when signed out,
  * a 403 when signed in without one of `roles`, and a redirect to two-factor enrolment (where passkeys are linked too)
- * when the role needs a Second Factor the account lacks (ADR 0013). Returns the user otherwise.
+ * when the role needs a Second Factor the account lacks (ADR 0014). Returns the user otherwise.
  */
 export function requireUser(event: RequestEvent, roles?: readonly RoleName[]): AuthedUser {
   const access = evaluateRouteAccess(event.locals.user, roles);

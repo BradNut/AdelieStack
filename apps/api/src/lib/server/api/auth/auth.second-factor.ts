@@ -32,7 +32,7 @@ async function passkeyIdsOf(adapter: PasskeyReader, userId: string): Promise<str
   return rows.map((row) => row.id);
 }
 
-/** Whether the account has a Second Factor: enabled two-factor or at least one registered passkey (ADR 0013). */
+/** Whether the account has a Second Factor: enabled two-factor or at least one registered passkey (ADR 0014). */
 export async function hasSecondFactor(adapter: PasskeyReader, user: SecondFactorUser): Promise<boolean> {
   if (user.twoFactorEnabled === true) return true;
   return (await passkeyIdsOf(adapter, user.id)).length > 0;
@@ -62,7 +62,7 @@ function lastSecondFactor(): APIError {
 type SessionUser = SecondFactorUser & { role?: string | null };
 
 /**
- * Admin capabilities need a Second Factor (ADR 0013). Refuses the admin plugin's endpoints to a signed-in admin
+ * Admin capabilities need a Second Factor (ADR 0014). Refuses the admin plugin's endpoints to a signed-in admin
  * without one, with `SECOND_FACTOR_REQUIRED`; signing in and enrolling are untouched. Refuses, with
  * `LAST_SECOND_FACTOR`, disabling two-factor or deleting a passkey when that would leave an admin without one. A call
  * without a session (the seed, server-side checks) and every other role go to Better Auth unchanged. A plugin hook

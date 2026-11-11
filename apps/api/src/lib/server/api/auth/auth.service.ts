@@ -57,7 +57,7 @@ export class AuthService {
   /** Outcome of the most recent breached-password check. */
   readonly hibpStatus: ProviderHealth;
 
-  /** Whether the account has a Second Factor: enabled two-factor or a registered passkey (ADR 0013). */
+  /** Whether the account has a Second Factor: enabled two-factor or a registered passkey (ADR 0014). */
   async hasSecondFactor(user: SecondFactorUser): Promise<boolean> {
     return hasSecondFactor((await this.auth.$context).adapter, user);
   }
