@@ -1,7 +1,7 @@
 import { RoleName } from '@adelie/shared';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { type Auth, generateAuthId } from '#lib/server/api/auth/auth.config';
-import { type AuthRequest, cookiesFrom, enrolPasskey } from '../../../../../test/auth-http';
+import { type AuthRequest, cookiesFrom, enrolPasskey, verifyEmail } from '../../../../../test/auth-http';
 import { createTestAuth } from '../../../../../test/auth-instance';
 
 const PASSWORD = 'Correct-horse-9';
@@ -9,12 +9,15 @@ const PASSWORD = 'Correct-horse-9';
 let auth: Auth;
 let request: AuthRequest;
 
-/** Signs up a user and returns the session cookie for follow-up requests. */
+/** Signs up a user, verifies the email and signs in, returning the session cookie for follow-up requests. */
 async function signUp(email: string, extra: Record<string, unknown> = {}) {
   const res = await request('/sign-up/email', { body: { name: 'Test User', email, password: PASSWORD, ...extra } });
-  const cookie = cookiesFrom(res);
-  const { user } = (await res.json()) as { user: { id: string; role: string } };
-  return { res, cookie, user };
+  // A rejected sign-up has no user to sign in as: its callers only read `res`.
+  if (!res.ok) return { res, cookie: '', user: { id: '', role: '' } };
+  await verifyEmail(request, email);
+  const signIn = await request('/sign-in/email', { body: { email, password: PASSWORD } });
+  const { user } = (await signIn.json()) as { user: { id: string; role: string } };
+  return { res, cookie: cookiesFrom(signIn), user };
 }
 
 async function roleOf(cookie: string) {

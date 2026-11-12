@@ -11,6 +11,9 @@ import { createMailerServiceMock } from './mocks/mailer.mock';
 /** The web origin auth tests send requests from; the test auth instance trusts only this origin. */
 export const TEST_ORIGIN = 'http://localhost:5173';
 
+/** The secret {@link createTestAuth} signs with, so a test can sign a verification token the way an email link carries it. */
+export const TEST_AUTH_SECRET = 'test-secret-that-is-at-least-32-characters';
+
 type Row = Record<string, unknown>;
 
 /** A Google `getUserInfo` answered locally: the profile is `email`, verified. */
@@ -37,7 +40,7 @@ export function createTestAuth(overrides: Partial<Omit<CreateAuthOptions, 'datab
   const { db, database } = createTestDatabase();
   const mailer = createMailerServiceMock();
   const auth = createAuth({
-    secret: 'test-secret-that-is-at-least-32-characters',
+    secret: TEST_AUTH_SECRET,
     baseURL: TEST_ORIGIN,
     trustedOrigins: [TEST_ORIGIN],
     twoFactorIssuer: APP_NAME,

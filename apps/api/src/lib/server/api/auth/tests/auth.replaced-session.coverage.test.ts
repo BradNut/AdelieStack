@@ -65,6 +65,8 @@ const SETS_NO_NEW_SESSION = [
   '/revoke-sessions',
   '/send-verification-email',
   '/sign-out',
+  // An unverified account gets no session (`requireEmailVerification`): it signs in once the email is verified.
+  '/sign-up/email',
   '/two-factor/generate-backup-codes',
   '/two-factor/get-totp-uri',
   '/two-factor/send-otp',

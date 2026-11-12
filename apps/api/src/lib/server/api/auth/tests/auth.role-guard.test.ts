@@ -17,9 +17,9 @@ function setup(allowMultipleRoles: boolean) {
 }
 
 async function signUp(email: string) {
-  const { res, cookie } = await signUpWithEmail(request, { ...TEST_USER, email, password: PASSWORD });
-  const { user } = (await res.json()) as { user: { id: string } };
-  return { cookie, id: user.id };
+  const { cookie } = await signUpWithEmail(request, { ...TEST_USER, email, password: PASSWORD });
+  const user = await (await auth.$context).internalAdapter.findUserByEmail(email);
+  return { cookie, id: String(user?.user.id) };
 }
 
 async function prepare(allowMultipleRoles: boolean) {

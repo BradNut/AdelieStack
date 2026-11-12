@@ -17,6 +17,7 @@ import {
   type AuthRequest,
   cookiesFrom,
   emailedLink,
+  signUpUnverified,
   signUpWithEmail,
   signUpWithTotp,
   startTwoFactorSignIn,
@@ -55,6 +56,14 @@ async function signUp() {
   const { cookie } = await signUpWithEmail(request, TEST_USER);
   clearSent();
   return cookie;
+}
+
+/** Signs up without clicking the verification link, so the account stays unverified; returns its user id. */
+async function signUpUnverifiedUser(email = EMAIL) {
+  await signUpUnverified(request, { ...TEST_USER, email });
+  clearSent();
+  const found = await (await auth.$context).internalAdapter.findUserByEmail(email);
+  return String(found?.user.id);
 }
 
 async function userIdOf(cookie: string) {
@@ -234,7 +243,7 @@ describe('every email follows the language of the request that caused it', () =>
   }
 
   it('the verification email', async () => {
-    await signUp();
+    await signUpUnverifiedUser();
 
     await request('/send-verification-email', { headers: GERMAN, body: { email: EMAIL } });
 
@@ -640,11 +649,11 @@ describe('the user each email is recorded against', () => {
   });
 
   it('is the user for a verification resend', async () => {
-    const cookie = await signUp();
+    const userId = await signUpUnverifiedUser();
 
     await request('/send-verification-email', { body: { email: EMAIL } });
 
-    expectOnlyEmail(EMAIL, await userIdOf(cookie));
+    expectOnlyEmail(EMAIL, userId);
   });
 
   it('is the user for a password reset link and the notice once it completes', async () => {
@@ -820,10 +829,9 @@ describe('a failed send', () => {
 
   describe('of a Link Email', () => {
     it('answers a verification resend the same for an unverified, a verified and an unknown address', async () => {
-      await signUpWithEmail(request, TEST_USER);
+      await signUpUnverifiedUser(EMAIL);
       const { res: signedUp } = await signUpWithEmail(request, { ...TEST_USER, email: VERIFIED_EMAIL });
       expect(signedUp.status).toBe(200);
-      await request(linkPath(sent.at(-1)));
       failSends();
       mailerSend.mockClear();
 
@@ -843,7 +851,7 @@ describe('a failed send', () => {
     });
 
     it('writes one entry naming the template when a verification resend is given up on', async () => {
-      await signUp();
+      await signUpUnverifiedUser();
       failSends();
 
       await request('/send-verification-email', { body: { email: EMAIL } });
@@ -853,6 +861,9 @@ describe('a failed send', () => {
 
     it('answers a signed-in verification resend with success', async () => {
       const cookie = await signUp();
+      // Signed in yet unverified, as a session from before sign-in required a verified email is.
+      const { internalAdapter } = await auth.$context;
+      await internalAdapter.updateUser(await userIdOf(cookie), { emailVerified: false });
       failSends();
 
       const res = await request('/send-verification-email', { cookie, body: { email: EMAIL } });
@@ -925,7 +936,7 @@ describe('a Link Email that goes through', () => {
   useMailLog();
 
   it('answers a verification resend and sends the link', async () => {
-    await signUp();
+    await signUpUnverifiedUser();
 
     const res = await request('/send-verification-email', { body: { email: EMAIL } });
 

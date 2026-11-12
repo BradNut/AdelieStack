@@ -1,8 +1,9 @@
 import { totpCode } from '@adelie/test-utils/totp';
+import { createEmailVerificationToken } from 'better-auth/api';
 import type { Auth } from '#lib/server/api/auth/auth.config';
 import { TEST_EMAIL } from '#lib/server/api/common/testing/factories';
 import type { SendProps } from '#lib/server/api/mail/interfaces/mailer.interface';
-import { type createTestDatabase, TEST_ORIGIN } from './auth-instance';
+import { type createTestDatabase, TEST_AUTH_SECRET, TEST_ORIGIN } from './auth-instance';
 import { createPasskeyAuthenticator } from './passkey-authenticator';
 
 export interface AuthRequestOptions {
@@ -32,7 +33,7 @@ export const TEST_USER = { name: 'Penguin', email: TEST_EMAIL, password: 'Correc
 export interface EmailSignUp {
   /** The sign-up response, with its body still unread. */
   res: Response;
-  /** The session cookie, or an empty string when the response sets none. */
+  /** The session cookie from signing in once the email is verified, or an empty string when sign-up was rejected. */
   cookie: string;
 }
 
@@ -66,6 +67,11 @@ export function cookiesFrom(res: Response, previous = ''): string {
   return [...jar.values()].join('; ');
 }
 
+/** Whether the response sets a session cookie, i.e. signed someone in. */
+export function hasSessionCookie(res: Response): boolean {
+  return res.headers.getSetCookie().some((c) => c.includes('session_token'));
+}
+
 /** The code in a two-factor OTP email, or undefined when `mail` is missing or holds no code. */
 export function emailedOtp(mail: SendProps | undefined): string | undefined {
   return mail?.template.html().match(/token-text'>(\d+)</)?.[1];
@@ -96,10 +102,33 @@ export async function enrolPasskey(auth: Pick<Auth, '$context'>, userId: string)
   return created.id;
 }
 
-/** Signs up with email and password. A rejected sign-up does not throw: check `res`. */
+/**
+ * Clicks the verification link for `email`, as the one in the sign-up email does, over the real `/verify-email`
+ * endpoint. The token is signed with the test auth secret, so this needs no mailer: it works when a test passes its own.
+ */
+export async function verifyEmail(request: AuthRequest, email: string): Promise<Response> {
+  const token = await createEmailVerificationToken(TEST_AUTH_SECRET, email);
+  return request(`/verify-email?token=${encodeURIComponent(token)}`);
+}
+
+/**
+ * Sends the email/password sign-up request and nothing else: the email stays unverified, so the account cannot sign
+ * in yet. Returns the sign-up response, with its body still unread.
+ */
+export function signUpUnverified(request: AuthRequest, { name, email, password }: SignUpCredentials): Promise<Response> {
+  return request('/sign-up/email', { body: { name, email, password } });
+}
+
+/**
+ * Signs up with email and password, verifies the email, then signs in: sign-up alone gives no session, since an
+ * unverified account cannot sign in. A rejected sign-up does not throw and is not followed up: check `res`.
+ */
 export async function signUpWithEmail(request: AuthRequest, { name, email, password }: SignUpCredentials): Promise<EmailSignUp> {
-  const res = await request('/sign-up/email', { body: { name, email, password } });
-  return { res, cookie: cookiesFrom(res) };
+  const res = await signUpUnverified(request, { name, email, password });
+  if (!res.ok) return { res, cookie: '' };
+  await verifyEmail(request, email);
+  const signIn = await request('/sign-in/email', { body: { email, password } });
+  return { res, cookie: cookiesFrom(signIn) };
 }
 
 /** Signs up, then enables two-factor and confirms it with a first TOTP code. */

@@ -1,6 +1,8 @@
 /** Better Auth error codes the web app shows its own copy for. */
 export const AuthErrorCode = {
   SIGN_UP_DISABLED: 'EMAIL_PASSWORD_SIGN_UP_DISABLED',
+  /** Password sign-in by an account whose email is not verified yet (`requireEmailVerification`). Only a correct password gets it. */
+  EMAIL_NOT_VERIFIED: 'EMAIL_NOT_VERIFIED',
   /** A sensitive action (unlink account, list sessions, change email) on a session older than `AUTH_SESSION_FRESH_AGE`. */
   SESSION_NOT_FRESH: 'SESSION_NOT_FRESH',
   /** The Two-factor Challenge cookie is missing, expired or already used, so the challenge cannot be completed. */

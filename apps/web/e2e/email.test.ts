@@ -1,16 +1,28 @@
-import { newUser, PASSWORD, signIn, signUp } from './support/auth';
+import { newUser, PASSWORD, signIn, signUp, submitSignUp, VERIFY_EMAIL_SUBJECT } from './support/auth';
+import { markEmailUnverified } from './support/db';
 import { countEmails, firstLink, waitForEmail } from './support/mailbox';
 import { expect, test } from './support/test';
 
 test.describe('email verification', () => {
   test('the verification link lands on a page that says the email is verified', async ({ page }) => {
     const user = newUser();
-    await signUp(page, user);
-    await expect(page.getByTestId('unverified-email-notice')).toBeVisible();
+    await submitSignUp(page, user);
 
-    await page.goto(firstLink(await waitForEmail(user.email, 'Verify your email')));
+    await page.goto(firstLink(await waitForEmail(user.email, VERIFY_EMAIL_SUBJECT)));
 
     await expect(page).toHaveURL(/\/email-verified$/);
+    await expect(page.getByTestId('verification-success')).toBeVisible();
+  });
+
+  test('a signed-in user who verifies sees the notice go without a reload', async ({ page }) => {
+    const user = newUser();
+    await signUp(page, user);
+    await markEmailUnverified(user.email);
+    await page.reload();
+    await expect(page.getByTestId('unverified-email-notice')).toBeVisible();
+
+    await page.goto(firstLink(await waitForEmail(user.email, VERIFY_EMAIL_SUBJECT)));
+
     await expect(page.getByTestId('verification-success')).toBeVisible();
     // The signed-in layout picks up the verified state without a manual reload.
     await expect(page.getByTestId('unverified-email-notice')).toHaveCount(0);
@@ -19,22 +31,24 @@ test.describe('email verification', () => {
   test('an invalid link shows an error and a signed-in user can resend', async ({ page }) => {
     const user = newUser();
     await signUp(page, user);
+    await markEmailUnverified(user.email);
 
     await page.goto('/api/auth/verify-email?token=not-a-real-token&callbackURL=/email-verified');
 
     await expect(page.getByTestId('verification-failed')).toBeVisible();
     await page.getByTestId('verification-result').getByTestId('resend-verification').click();
-    await expect.poll(() => countEmails(user.email, 'Verify your email')).toBe(2);
+    await expect.poll(() => countEmails(user.email, VERIFY_EMAIL_SUBJECT)).toBe(2);
   });
 
   test('the unverified hint offers a resend that arrives in the mailbox', async ({ page }) => {
     const user = newUser();
     await signUp(page, user);
-    await waitForEmail(user.email, 'Verify your email');
+    await markEmailUnverified(user.email);
+    await page.reload();
 
     await page.getByTestId('unverified-email-notice').getByTestId('resend-verification').click();
 
-    await expect.poll(() => countEmails(user.email, 'Verify your email')).toBe(2);
+    await expect.poll(() => countEmails(user.email, VERIFY_EMAIL_SUBJECT)).toBe(2);
   });
 
   test('a signed-out visitor with a bad link is sent to sign in', async ({ page }) => {

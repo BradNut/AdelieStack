@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { AppRoute, isLoginMethod, LoginMethod, SOCIAL_ERROR_PARAM, signinDto } from '@adelie/shared';
+	import { AppRoute, AuthErrorCode, isLoginMethod, LoginMethod, SOCIAL_ERROR_PARAM, signinDto } from '@adelie/shared';
 	import { onMount } from 'svelte';
 	import { defaults, setError, superForm } from 'sveltekit-superforms';
 	import { zod4, zod4Client } from 'sveltekit-superforms/adapters';
@@ -10,6 +10,7 @@
 	import { socialErrorMessage } from '#lib/client/social-auth.ts';
 	import CaptchaField from '#lib/components/auth/captcha-field.svelte';
 	import LastUsedBadge from '#lib/components/auth/last-used-badge.svelte';
+	import ResendVerificationButton from '#lib/components/auth/resend-verification-button.svelte';
 	import SocialButtons from '#lib/components/auth/social-buttons.svelte';
 	import { Button } from '#lib/components/ui/button/index.ts';
 	import * as Card from '#lib/components/ui/card/index.ts';
@@ -28,6 +29,8 @@
 
 	// The hint lives in a browser cookie, so it is read after mount; the server render shows none.
 	let lastMethod = $state<LoginMethod | null>(null);
+	/** The address of the last sign-in refused for an unverified email: it gets the offer to resend the link. */
+	let unverifiedEmail = $state<string | null>(null);
 	onMount(() => {
 		const used = authClient.getLastUsedLoginMethod();
 		lastMethod = isLoginMethod(used) ? used : null;
@@ -39,6 +42,7 @@
 		resetForm: false,
 		async onUpdate({ form }) {
 			if (!form.valid) return;
+			unverifiedEmail = null;
 			const { data: result, error } = await captcha.attempt((fetchOptions) =>
 				authClient.signIn.email(
 					{
@@ -50,6 +54,11 @@
 			);
 			if (error) {
 				form.data.password = '';
+				// Only a correct password reaches this refusal, so offering the resend reveals nothing about the address.
+				if (error.code === AuthErrorCode.EMAIL_NOT_VERIFIED) {
+					unverifiedEmail = form.data.email;
+					return setError(form, 'email', m.auth_email_not_verified());
+				}
 				return setError(form, 'email', captchaErrorMessage(error) ?? authErrorMessage(error, 'Invalid email or password.'));
 			}
 			// A user with two-factor enabled finishes on the Two-factor Challenge page, which then returns to the same place.
@@ -121,6 +130,11 @@
 				<Button variant="link" class="text-secondary-foreground" href="/password/reset">Forgot Password?</Button>
 			</div>
 		</form>
+		{#if unverifiedEmail}
+			<div class="grid gap-2" data-testid="unverified-email">
+				<ResendVerificationButton email={unverifiedEmail} />
+			</div>
+		{/if}
 		<span class="text-center text-sm text-muted-foreground">{m.auth_or()}</span>
 		<Button variant="outline" class="w-full" onclick={signInWithPasskey}>
 			{m.auth_sign_in_with_passkey()}

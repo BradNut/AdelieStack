@@ -221,6 +221,8 @@ describe('account lockout for password sign-in', () => {
   it('refuses the sign-in, rather than skipping the limit, when the lock cannot be read', async () => {
     const { request, redis } = build();
     await signUpWithEmail(request, TEST_USER);
+    // The helper's own sign-in after verifying cleared the (empty) count; only the refused sign-in below is under test.
+    redis.delete.mockClear();
     redis.ttl.mockRejectedValueOnce(new Error('Redis is unreachable'));
 
     // Better Auth rethrows it, so the app's error handler answers instead of a session being issued.

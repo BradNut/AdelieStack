@@ -16,10 +16,21 @@ before-hooks (password policy, role guard). Our after-hooks send most Security E
    ├─ Breached → 400 PASSWORD_COMPROMISED
    └─ HIBP unreachable → 503 PASSWORD_CHECK_UNAVAILABLE
    ↓
-4. User and Password Account rows inserted (role `user`)
+4. Address already taken?
+   ├─ Yes → nothing written, no email (the password is still hashed, to even out timing)
+   └─ No  → User and Password Account rows inserted (role `user`, email unverified);
+            verification email sent (sendOnSignUp)
    ↓
-5. Verification email sent (sendOnSignUp); session created and cookie set
+5. 200 { status: true } either way, and no session (requireEmailVerification)
 ```
+
+Both answers are the same body (`auth/auth.sign-up-response.ts`), so sign-up does not reveal which
+addresses have accounts. The account signs in once its email is verified.
+
+- **Timing:** a taken address skips the User and Account row writes, so a small timing difference
+  remains. The password is hashed on both paths and the verification email is sent detached.
+- **Existing sessions:** a session that predates required verification, and passkeys registered
+  from it, keep working for an unverified account.
 
 ## Sign-in (`POST /sign-in/email`)
 
@@ -28,14 +39,20 @@ before-hooks (password policy, role guard). Our after-hooks send most Security E
    ↓
 2. Wrong email or password → 401 (same answer for both)
    ↓
-3. Two-factor enabled?
+3. Email not verified → 403 EMAIL_NOT_VERIFIED, no session, no email (the login page offers the resend)
+   ↓
+4. Two-factor enabled?
    ├─ Yes → { twoFactorRedirect: true } and a challenge cookie; no session yet.
    │        Client completes the Two-factor Challenge (/two-factor/verify-totp,
    │        /verify-otp or /verify-backup-code) to get the session.
    └─ No  → session row inserted, cookie set
 ```
 
-A sign-in or sign-up from a browser that already held a session ends that Replaced Session
+Users the admin plugin creates (the seed, `/admin/create-user`) start verified unless the body's `data.emailVerified`
+says otherwise (`auth/auth.admin-created-verified.ts`), so they can sign in straight away. Social sign-in is unaffected:
+it follows the provider's verified flag.
+
+A sign-in from a browser that already held a session ends that Replaced Session
 (`auth/auth.replaced-session.ts`), as soon as a Two-factor Challenge is raised when one follows. A
 failed sign-in ends nothing, and the user's sessions on other devices are untouched.
 
@@ -141,7 +158,8 @@ instead of a 403 page. The seeded admin's first run follows this path (see the
 ## Business Rules
 
 - Sign-up is closed unless `SIGN_UP_ENABLED` is true.
-- Sign-in does not require a verified email.
+- Password sign-in requires a verified email (`requireEmailVerification`); social sign-in follows the provider's verified flag,
+  and users the admin plugin creates start verified.
 - A user has one role unless `ALLOW_MULTIPLE_ROLES` is on; empty or unknown stored roles read as the
   least-privileged role.
 - The last remaining sign-in method cannot be unlinked.

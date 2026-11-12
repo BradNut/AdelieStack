@@ -1,5 +1,5 @@
 import { MIN_PASSWORD_LENGTH } from '@adelie/shared';
-import { NEW_PASSWORD, newUser, PASSWORD, signIn, signOut, signUp } from './support/auth';
+import { NEW_PASSWORD, newUser, PASSWORD, signIn, signOut, signUp, submitSignUp, VERIFY_EMAIL_SUBJECT, verifyEmail } from './support/auth';
 import { countEmails, firstLink, waitForEmail } from './support/mailbox';
 import { expect, test } from './support/test';
 
@@ -16,12 +16,50 @@ test.describe('sign up, sign in, sign out', () => {
     await expect(page.getByTestId('footer-user')).toHaveText(user.email);
   });
 
-  test('sign-up sends a verification email', async ({ page }) => {
+  test('sign-up sends a verification email and signs no one in', async ({ page }) => {
     const user = newUser();
 
-    await signUp(page, user);
+    await submitSignUp(page, user);
 
-    await waitForEmail(user.email, 'Verify your email');
+    await waitForEmail(user.email, VERIFY_EMAIL_SUBJECT);
+    await page.goto('/');
+    await expect(page.getByTestId('footer')).toContainText('You are not signed in');
+  });
+
+  test('an unverified account cannot sign in, and the login page resends the link', async ({ page }) => {
+    const user = newUser();
+    await submitSignUp(page, user);
+    await waitForEmail(user.email, VERIFY_EMAIL_SUBJECT);
+
+    await signIn(page, user.email, user.password);
+
+    await expect(page.getByText('Verify your email address before signing in')).toBeVisible();
+    await expect(page.getByTestId('footer')).toContainText('You are not signed in');
+    await page.getByTestId('unverified-email').getByTestId('resend-verification').click();
+    await expect.poll(() => countEmails(user.email, VERIFY_EMAIL_SUBJECT)).toBe(2);
+  });
+
+  test('once verified, the account signs in', async ({ page }) => {
+    const user = newUser();
+    await submitSignUp(page, user);
+
+    await verifyEmail(page, user);
+    await signIn(page, user.email, user.password);
+
+    await expect(page.getByTestId('footer-user')).toHaveText(user.email);
+  });
+
+  test('sign-up with a taken address looks the same as with a new one, and sends nothing', async ({ page }) => {
+    const owner = newUser();
+    await signUp(page, owner);
+    await signOut(page);
+
+    await submitSignUp(page, { ...owner, name: 'Someone Else' });
+
+    await expect(page.getByText(`We sent a link to ${owner.email}`)).toBeVisible();
+    expect(await countEmails(owner.email, VERIFY_EMAIL_SUBJECT)).toBe(1);
+    await signIn(page, owner.email, owner.password);
+    await expect(page.getByTestId('footer-user')).toHaveText(owner.email);
   });
 
   test('a wrong password is rejected and stays signed out', async ({ page }) => {

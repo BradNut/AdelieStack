@@ -30,7 +30,8 @@ describe('last login method cookie', () => {
   });
 
   it('is readable by the browser and lives beyond the session', async () => {
-    const { res } = await signUpWithEmail(request, TEST_USER);
+    await signUpWithEmail(request, TEST_USER);
+    const res = await request('/sign-in/email', { body: { email: EMAIL, password: PASSWORD } });
 
     const cookie = res.headers.getSetCookie().find((c) => c.startsWith(`${LAST_LOGIN_METHOD_COOKIE}=`));
 

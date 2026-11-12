@@ -49,3 +49,18 @@ export async function linkProviderAccount(email: string, providerId: string): Pr
     await client.end();
   }
 }
+
+/**
+ * Marks the user's email unverified while they stay signed in, as a session from before sign-in required a verified
+ * email is. Password sign-in cannot reach this state any more, so it is the only way to the signed-in unverified views.
+ */
+export async function markEmailUnverified(email: string): Promise<void> {
+  const client = new pg.Client(connectionConfig());
+  await client.connect();
+  try {
+    const result = await client.query('UPDATE users SET email_verified = false WHERE email = $1', [email]);
+    if (result.rowCount === 0) throw new Error(`No user found for ${email}`);
+  } finally {
+    await client.end();
+  }
+}

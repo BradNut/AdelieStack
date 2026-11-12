@@ -25,6 +25,7 @@ import type * as drizzleSchema from '#lib/server/api/databases/postgres/drizzle-
 import type { Mailer } from '#lib/server/api/mail/interfaces/mailer.interface';
 import { TwoFactorOtpEmail } from '#lib/server/api/mail/templates/two-factor-otp.template';
 import { type AccountLockoutStorage, accountLockout } from './auth.account-lockout';
+import { verifyAdminCreatedUser } from './auth.admin-created-verified';
 import { type CaptchaConfig, captchaPlugin, createCaptchaHealth } from './auth.captcha';
 import { freshSessionGuard } from './auth.fresh-session';
 import { createHibpHealth } from './auth.hibp-status';
@@ -37,6 +38,7 @@ import { type AuthRateLimitStorage, authRateLimitOptions } from './auth.rate-lim
 import { replacedSession } from './auth.replaced-session';
 import { roleGuard } from './auth.role-guard';
 import { secondFactorGuard } from './auth.second-factor';
+import { uniformSignUpResponse } from './auth.sign-up-response';
 import { socialProvidersOption } from './auth.social';
 import { socialTwoFactorRedirect, withSocialSignInChallenge } from './auth.social-two-factor';
 
@@ -203,6 +205,12 @@ export function createAuth({
     emailAndPassword: {
       enabled: true,
       disableSignUp: !signUpEnabled,
+      // Password sign-in refuses an unverified email (403 EMAIL_NOT_VERIFIED), so open sign-up gives no session until
+      // the emailed link is clicked. It also makes sign-up with a taken address answer 200 with no session and no email
+      // (hashing the password either way), and `uniformSignUpResponse` gives both the same body, so sign-up does not
+      // reveal which addresses have accounts. Users the admin plugin creates start verified (`verifyAdminCreatedUser`);
+      // social sign-in follows each provider's own setting.
+      requireEmailVerification: true,
       minPasswordLength: MIN_PASSWORD_LENGTH,
       maxPasswordLength: MAX_PASSWORD_LENGTH,
       sendResetPassword: authMail.sendResetPassword,
@@ -210,6 +218,9 @@ export function createAuth({
       // A stolen session must not outlive the reset. The adapter runs without transactions, so sessions
       // go first: a failed password write then leaves the old password, never a new one beside live sessions.
       revokeSessionsOnPasswordReset: true,
+    },
+    databaseHooks: {
+      user: { create: { before: verifyAdminCreatedUser } },
     },
     hooks: {
       before: createPasswordPolicyHook(hibpStatus),
@@ -262,6 +273,7 @@ export function createAuth({
       passwordAccountGuard(),
       ...(accountLockoutStorage ? [accountLockout(accountLockoutStorage)] : []),
       freshSessionGuard(),
+      uniformSignUpResponse(),
       // Per-plugin after-hook, since the top-level `hooks.after` slot is taken by the mail hook. Must come after twoFactor.
       replacedSession(),
       // Must come after replacedSession, which reads the two-factor plugin's JSON answer that this replaces with a redirect.
