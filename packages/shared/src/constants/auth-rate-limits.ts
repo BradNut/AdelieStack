@@ -1,4 +1,4 @@
-import { SECONDS_PER_MINUTE } from './auth-session';
+import { SECONDS_PER_DAY, SECONDS_PER_MINUTE } from './auth-session';
 import { TWO_FACTOR_OTP_PERIOD_MINUTES } from './mfa-limits';
 
 /** A rate-limit rule: at most `max` requests per client and path in a window of `window` seconds. */
@@ -66,5 +66,44 @@ export const AUTH_RATE_LIMIT_RULES = {
  */
 export const AUTH_RATE_LIMIT_DEFAULT_PATHS = ['/sign-in/social', '/two-factor/enable'] as const;
 
-/** Response header Better Auth sets on a throttled (429) request: seconds until the client may retry. */
+/**
+ * An account lockout: once `maxFailedAttempts` consecutive failures are counted, the account is locked for
+ * `durationSeconds` from the failure that reached the maximum. Refused attempts are not counted and never extend the
+ * lock; when it ends the count starts again from zero, so a lockout is never permanent. A success clears the count.
+ */
+export interface AccountLockoutPolicy {
+  maxFailedAttempts: number;
+  durationSeconds: number;
+}
+
+/**
+ * Failed password sign-ins per email address, counted across every client address; NIST SP 800-63B allows at most 100
+ * consecutive failures. Counted until a correct password, not in a window, so waiting does not reset it. Counted by
+ * email address whether or not an account has it, so the refusal reveals nothing.
+ */
+export const AUTH_ACCOUNT_SIGN_IN_LOCKOUT = {
+  maxFailedAttempts: 100,
+  durationSeconds: 15 * SECONDS_PER_MINUTE,
+} as const satisfies AccountLockoutPolicy;
+
+/**
+ * Seconds a failed sign-in count is kept after its latest failure. Only so idle counts are dropped from Redis; it is
+ * far longer than the lock, so a slow guesser is still stopped.
+ */
+export const AUTH_ACCOUNT_SIGN_IN_FAILURES_IDLE_EXPIRY = SECONDS_PER_DAY;
+
+/**
+ * Better Auth's two-factor account lockout: wrong codes per account, across challenges, factors and client addresses,
+ * before verification is locked for `durationSeconds`. A successful verification clears the count. Kept on the
+ * two-factor row in Postgres by Better Auth itself.
+ */
+export const TWO_FACTOR_ACCOUNT_LOCKOUT = {
+  maxFailedAttempts: 10,
+  durationSeconds: 15 * SECONDS_PER_MINUTE,
+} as const satisfies AccountLockoutPolicy;
+
+/**
+ * Response header on a throttled (429) request: seconds until the client may retry. Better Auth's limiter sets it, and
+ * so does our account lockout.
+ */
 export const RETRY_AFTER_HEADER = 'x-retry-after';

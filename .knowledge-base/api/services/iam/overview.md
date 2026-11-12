@@ -88,9 +88,12 @@ apps/api/src/lib/server/api/auth/
   ([ADR 0004](../../../../docs/adr/0004-captcha-via-better-auth-plugin.md)).
 - Sign-up is closed by default ([ADR 0003](../../../../docs/adr/0003-sign-up-closed-by-default.md)).
 - Security Events (password changed, Recovery Codes used or regenerated, email changed) email the user.
-- Password sign-in has no account lockout beyond rate limiting. Second-factor verification locks
-  per account after 10 failed attempts for 15 minutes (Better Auth's `accountLockout` defaults;
-  `two_factors.failed_verification_count`, `locked_until`).
+- Password sign-in locks per email address, across clients, after 100 consecutive failures, for 15
+  minutes from the failure that reached it (`AUTH_ACCOUNT_SIGN_IN_LOCKOUT`; our `account-lockout` plugin,
+  hashed keys in Redis). Second-factor verification locks per account after 10 failed attempts for 15
+  minutes (Better Auth's `accountLockout`, pinned to `TWO_FACTOR_ACCOUNT_LOCKOUT`;
+  `two_factors.failed_verification_count`, `locked_until`). Both counts clear on a success and start
+  again when the lock ends.
 
 Operational details for each of these are in the
 [environment config runbook](../../runbooks/environment-config.md).

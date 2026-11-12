@@ -25,9 +25,9 @@
 - **Fallback**: none
 
 #### Redis (`RedisService`, through `AuthRateLimitRepository`)
-- **Purpose**: auth rate-limit counters only; sessions are not in Redis
+- **Purpose**: auth rate-limit counters only (per client IP and path, and failed password sign-ins per email address, hashed); sessions are not in Redis
 - **Failure Impact**: a request whose limit check cannot reach Redis fails rather than skipping the limit
-- **Fallback**: none; `DISABLE_RATE_LIMIT=true` turns auth rate limiting off
+- **Fallback**: none; `DISABLE_RATE_LIMIT=true` turns auth rate limiting and the sign-in count off
 
 #### Mailer (`MailerService`)
 - **Purpose**: verification links, reset links, emailed two-factor codes, Security Events

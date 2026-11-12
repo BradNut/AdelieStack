@@ -57,7 +57,10 @@ export class AuthService {
   readonly hibpStatus: ProviderHealth;
 
   get auth(): Auth {
-    this.instance ??= createAuth({
+    if (this.instance) return this.instance;
+    // Per-IP limits and the per-address sign-in count; the Redis connection opens on the first limited request, not here.
+    const throttleStorage = this.configService.envs.DISABLE_RATE_LIMIT ? undefined : this.rateLimitRepository;
+    this.instance = createAuth({
       database: drizzleAuthDatabase(this.drizzleService.db),
       secret: this.configService.envs.BETTER_AUTH_SECRET,
       baseURL: this.configService.envs.BETTER_AUTH_URL,
@@ -77,8 +80,8 @@ export class AuthService {
       captchaStatus: this.captchaStatus,
       clientIp: clientIpOptionsFromEnvs(this.configService.envs),
       socialProviders: this.socialCredentials,
-      // The Redis connection opens on the first limited request, not here.
-      rateLimitStorage: this.configService.envs.DISABLE_RATE_LIMIT ? undefined : this.rateLimitRepository,
+      rateLimitStorage: throttleStorage,
+      accountLockoutStorage: throttleStorage,
       // Non-production only, like logging and pretty output, so production does not advertise the auth surface. (The app's own /api/reference is on in every environment.)
       openApiReference: !isProdEnv(this.configService.envs.ENV),
     });

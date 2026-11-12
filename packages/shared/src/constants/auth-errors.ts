@@ -14,6 +14,11 @@ export const AuthErrorCode = {
   TWO_FACTOR_EMAILED_CODE_EXPIRED: 'OTP_HAS_EXPIRED',
   /** Too many wrong codes across challenges; two-factor verification is locked for a while. */
   TWO_FACTOR_LOCKED: 'ACCOUNT_TEMPORARILY_LOCKED',
+  /**
+   * Our own code, not Better Auth's: too many failed password sign-ins for this email address from any client
+   * (`AUTH_ACCOUNT_SIGN_IN_LOCKOUT`), so password sign-in waits. Answered whether or not an account has the address.
+   */
+  SIGN_IN_LOCKED: 'SIGN_IN_TEMPORARILY_LOCKED',
   /** Our own code, not Better Auth's: the Password Account cannot be unlinked while two-factor is enabled (ADR 0008). */
   PASSWORD_REQUIRED_FOR_TWO_FACTOR: 'PASSWORD_REQUIRED_FOR_TWO_FACTOR',
 } as const;
