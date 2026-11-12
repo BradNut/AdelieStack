@@ -31,7 +31,7 @@ _Avoid_: credential account, email account
 A temporary password that changes every 30 seconds, used for multi-factor authentication.
 
 **Second Factor**
-An extra proof of identity asked after the password or a social provider sign-in on an account with two-factor enabled: a TOTP code, an emailed one-time code or a Recovery Code. Asking for it is the Two-factor Challenge (web glossary).
+An extra proof of identity asked after the password or a social provider sign-in on an account with two-factor enabled: a TOTP code, an emailed one-time code or a Recovery Code. Asking for it is the Two-factor Challenge (web glossary). An account *has a Second Factor* when two-factor is enabled or a passkey is registered; admin capabilities need one (ADR 0014).
 _Avoid_: MFA step, 2FA token
 
 **Recovery Code**
@@ -164,8 +164,12 @@ Antivirus engine that scans the final bytes of an upload before they reach stora
 
 ## Monitoring & Operations
 
+**Audit Event**
+A security-relevant action recorded as one entry in the Audit Log: a sign-in, a credential or role change, an admin action against an account. Every Security Event is also an Audit Event; most Audit Events are not emailed.
+_Avoid_: security event (for the wider set), audit entry, log row
+
 **Audit Log**
-Record of security-relevant events for compliance and investigation.
+The append-only record of Audit Events, kept for compliance and investigation.
 
 **Health Check**
 Endpoint that reports service and dependency status.

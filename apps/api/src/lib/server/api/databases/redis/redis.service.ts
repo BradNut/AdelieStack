@@ -48,6 +48,26 @@ export class RedisService {
     return { count, ttl };
   }
 
+  /**
+   * Counts one hit on `prefix:key` and restarts its expiry, so the count lasts until `expiry` seconds pass without a
+   * hit. Both commands run as one transaction, so a crash cannot leave a counter without an expiry. Returns the count.
+   */
+  async incrementWithIdleExpiry(data: { prefix: string; key: string; expiry: number }): Promise<number> {
+    const redisKey = `${data.prefix}:${data.key}`;
+    const replies = await this.redis.multi().incr(redisKey).expire(redisKey, Math.floor(data.expiry)).exec();
+    const failure = replies?.find(([error]) => error)?.[0];
+    if (!replies || failure) throw failure ?? new Error(`Redis transaction for ${redisKey} was discarded`);
+
+    const count = replies[0][1];
+    if (typeof count !== 'number') throw new Error(`Unexpected Redis reply counting ${redisKey}`);
+    return count;
+  }
+
+  /** Seconds until `prefix:key` expires: -1 when it has no expiry, -2 when it does not exist. */
+  async ttl(data: { prefix: string; key: string }): Promise<number> {
+    return this.redis.ttl(`${data.prefix}:${data.key}`);
+  }
+
   async scan(data: { prefix: string; pattern: string }): Promise<string[]> {
     const keys: string[] = [];
     const scanPattern = `${data.prefix}:${data.pattern}`;

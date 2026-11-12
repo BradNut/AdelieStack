@@ -3,11 +3,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createHibpHealth } from '#lib/server/api/auth/auth.hibp-status';
 import { type AuthRequest, cookiesFrom, resetToken, signUpWithEmail, TEST_USER } from '../../../../../test/auth-http';
 import { createTestAuth } from '../../../../../test/auth-instance';
-import { mockHibp } from '../../../../../test/mocks/hibp.mock';
+import { mockHibp, PWNED_PASSWORD } from '../../../../../test/mocks/hibp.mock';
 
 const { email: EMAIL, password: PASSWORD } = TEST_USER;
 const NEW_PASSWORD = 'another long passphrase';
-const BREACHED_PASSWORD = 'password12345';
 const OTHER_USER = { ...TEST_USER, email: 'other@example.com' };
 
 let db: ReturnType<typeof createTestAuth>['db'];
@@ -91,8 +90,8 @@ describe('a successful password reset', () => {
 
   it('ends every session when a good password follows a breached one on the same link', async () => {
     const { cookie, token } = await signedInWithScreenedLink();
-    mockHibp([BREACHED_PASSWORD]);
-    await reset(token, BREACHED_PASSWORD);
+    mockHibp([PWNED_PASSWORD]);
+    await reset(token, PWNED_PASSWORD);
 
     expect((await reset(token)).status).toBe(200);
 
@@ -139,9 +138,9 @@ describe('a failed password reset ends no session', () => {
   describe('with breached-password screening on', () => {
     it('for a breached password', async () => {
       const { cookie, token } = await signedInWithScreenedLink();
-      mockHibp([BREACHED_PASSWORD]);
+      mockHibp([PWNED_PASSWORD]);
 
-      const res = await reset(token, BREACHED_PASSWORD);
+      const res = await reset(token, PWNED_PASSWORD);
 
       expect(res.status).toBe(400);
       expect(((await res.json()) as { code: string }).code).toBe(PASSWORD_COMPROMISED);

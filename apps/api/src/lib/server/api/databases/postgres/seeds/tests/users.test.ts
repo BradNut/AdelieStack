@@ -25,19 +25,19 @@ describe('seed users', () => {
   });
 
   it('seeds the admin first, with the default email and name, when the password is set', async () => {
-    await seed(auth, { adminPassword: 'secret-pass' });
+    await seed(auth, { adminPassword: 'secret seed admin passphrase' });
 
     expect(createUser.mock.calls[0][0].body).toEqual({
       name: DEFAULT_ADMIN_NAME,
       email: DEFAULT_ADMIN_EMAIL,
-      password: 'secret-pass',
+      password: 'secret seed admin passphrase',
       role: RoleName.ADMIN,
     });
     expect(console.warn).not.toHaveBeenCalled();
   });
 
   it('uses ADMIN_EMAIL when provided', async () => {
-    await seed(auth, { adminEmail: 'boss@example.com', adminPassword: 'secret-pass' });
+    await seed(auth, { adminEmail: 'boss@example.com', adminPassword: 'secret seed admin passphrase' });
 
     expect(createdEmails()[0]).toBe('boss@example.com');
   });
@@ -67,7 +67,7 @@ describe('seed users', () => {
     });
 
     it('adds no extra warning when an admin password is set', async () => {
-      await seed(auth, { signUpEnabled: false, adminPassword: 'secret-pass' });
+      await seed(auth, { signUpEnabled: false, adminPassword: 'secret seed admin passphrase' });
 
       expect(console.warn).not.toHaveBeenCalled();
     });

@@ -15,7 +15,9 @@ handler is mounted at `/api/auth/*`, ahead of the session middleware and every o
 
 ### Password Security
 - **Hashing**: handled by Better Auth; application code never hashes or stores passwords itself
-- **Minimum Length**: 8 characters (Better Auth default)
+- **Length**: new passwords are 15 to 128 characters (`MIN_PASSWORD_LENGTH` / `MAX_PASSWORD_LENGTH`
+  in `@adelie/shared`), the NIST SP 800-63B-4 minimum when a password may be the only factor. No
+  composition rules. Sign-in does not enforce the minimum, so existing shorter passwords still work
 - **Storage**: never store plaintext passwords; the hash lives on the `accounts` row
 - **Reset**: time-limited reset tokens, emailed through the mailer
 
@@ -240,7 +242,7 @@ if (!dbPassword || !apiKey) {
 
 ## Audit Logging
 
-### Security Events to Log
+### Audit Events to Log
 - Authentication attempts (success/failure)
 - Authorization failures
 - Password changes

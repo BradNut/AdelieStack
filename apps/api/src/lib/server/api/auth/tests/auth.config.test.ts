@@ -1,7 +1,7 @@
 import { RoleName } from '@adelie/shared';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { type Auth, generateAuthId } from '#lib/server/api/auth/auth.config';
-import { type AuthRequest, cookiesFrom } from '../../../../../test/auth-http';
+import { type AuthRequest, cookiesFrom, enrolPasskey } from '../../../../../test/auth-http';
 import { createTestAuth } from '../../../../../test/auth-instance';
 
 const PASSWORD = 'Correct-horse-9';
@@ -26,6 +26,8 @@ async function roleOf(cookie: string) {
 async function promote(userId: string, role: RoleName) {
   const adapter = (await auth.$context).internalAdapter;
   await adapter.updateUser(userId, { role });
+  // Admin capabilities need a Second Factor (ADR 0014); auth.second-factor.test.ts covers an admin without one.
+  if (role === RoleName.ADMIN) await enrolPasskey(auth, userId);
 }
 
 beforeEach(() => {

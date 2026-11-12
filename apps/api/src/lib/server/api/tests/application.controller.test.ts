@@ -43,12 +43,13 @@ const authService = {
   hibpStatus,
   captchaStatus,
   captchaPublicConfig,
+  hasSecondFactor: async () => true,
 } as unknown as AuthService;
 
 function buildApp(envs: Record<string, unknown> = {}, log = pino({ enabled: false })) {
   return new ApplicationController(
     authService,
-    new UsersController(rolesService),
+    new UsersController(rolesService, authService),
     {
       routes: () => new Hono().post(STORAGE_WEBHOOK_ROUTE, (c) => c.text('from-storage-webhook')),
     } as unknown as StorageWebhookController,

@@ -97,6 +97,18 @@ link and unlink providers at `/settings/connected-accounts` (the nav link appear
 is configured). Setup and linking rules: the API
 [environment runbook](../../../api/runbooks/environment-config.md#social-login-github-google).
 
+### Admins without a Second Factor
+
+Admin capabilities need two-factor enabled or a registered passkey; signing in does not
+([ADR 0014](../../../../docs/adr/0014-admin-capabilities-require-a-second-factor.md)). `/users/me`
+reports `needsSecondFactor`, and `requireUser` (`lib/server/guards.ts`) answers an admin-only route
+for such a user (`RouteAccess.ENROL_SECOND_FACTOR`) with a 307 (as for sign-in) to `/settings/two-factor` and the
+`SECOND_FACTOR_REQUIRED_MESSAGE` flash, not a 403 page. A client call refused with
+`SECOND_FACTOR_REQUIRED` goes there too (`sendToSecondFactorEnrolment` in
+`lib/client/second-factor.ts`). Removing an admin's last factor is refused with `LAST_SECOND_FACTOR`,
+whose copy `authErrorMessage` shows on the two-factor and passkey pages. A route a non-admin role
+also opens is unaffected.
+
 ## Routes
 
 ### `/login` — Login Page

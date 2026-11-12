@@ -18,7 +18,7 @@ procedures.
   refuses to run unless its flag resolves to true (varlock normalizes `TRUE`, `1` and `yes` to
   `true` first), and both default to `false`. Set them on the command rather than in an env file. The running API ignores them and always uses its normal
   connection pool, and neither flag starts a migration or seed by itself.
-- Seeding the admin needs `ADMIN_PASSWORD`. With `SIGN_UP_ENABLED` false and no password set, the
+- Seeding the admin needs `ADMIN_PASSWORD`, at least 15 characters (the seed fails on a shorter one). With `SIGN_UP_ENABLED` false and no password set, the
   seed warns that nobody can sign in.
 - `SIGNING_SECRET` is required and sensitive; generate it with `openssl rand -hex 32`.
 - Local setup: `cp apps/api/.env.schema apps/api/.env`, fill `DATABASE_*`, `REDIS_URL`,

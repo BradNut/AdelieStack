@@ -3,4 +3,4 @@ export { CredentialsType, MfaCredentialsType } from './credentials-type';
 export type { LandingPage as LandingPageValue } from './landing-page';
 export { LandingPage } from './landing-page';
 export type { RoleName as RoleNameValue } from './role-name';
-export { RoleName } from './role-name';
+export { RoleName, roleNeedsSecondFactor, SECOND_FACTOR_ROLES } from './role-name';

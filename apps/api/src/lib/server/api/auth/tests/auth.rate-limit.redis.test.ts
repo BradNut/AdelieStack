@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { setTimeout as sleep } from 'node:timers/promises';
+import { AUTH_ACCOUNT_SIGN_IN_FAILURES_IDLE_EXPIRY } from '@adelie/shared';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { AUTH_RATE_LIMIT_REDIS_PREFIX, AuthRateLimitRepository } from '#lib/server/api/auth/auth.rate-limit.repository';
+import { AUTH_RATE_LIMIT_REDIS_PREFIX, AuthRateLimitRepository, accountLockoutKeys } from '#lib/server/api/auth/auth.rate-limit.repository';
 import type { ConfigService } from '#lib/server/api/common/configs/config.service';
 import { RedisService } from '#lib/server/api/databases/redis/redis.service';
 
@@ -108,5 +109,61 @@ describe('AuthRateLimitRepository against real Redis', () => {
     expect(later.retryAfter).toBe(await ttlOf(key));
     expect(later.retryAfter).toBeLessThanOrEqual(2);
     expect(later.retryAfter).toBeGreaterThan(0);
+  });
+});
+
+describe('account lockout counts against real Redis', () => {
+  /** An address no other test or run shares; its keys are removed afterwards. */
+  function uniqueEmail() {
+    const email = `test-${randomUUID()}@example.com`;
+    const keys = accountLockoutKeys(email);
+    createdKeys.push(keys.failures, keys.lock);
+    return email;
+  }
+
+  it('locks an address once it reaches the maximum, for the full duration', async () => {
+    const email = uniqueEmail();
+    const policy = { maxFailedAttempts: 2, durationSeconds: 30 };
+
+    await repository.recordFailure(email, policy);
+    expect(await repository.lockedFor(email)).toBeNull();
+    await repository.recordFailure(email, policy);
+
+    expect(await repository.lockedFor(email)).toBe(policy.durationSeconds);
+  });
+
+  it('keeps the count with an idle expiry far longer than the lock, refreshed by every failure', async () => {
+    const email = uniqueEmail();
+    const policy = { maxFailedAttempts: 10, durationSeconds: 30 };
+
+    await repository.recordFailure(email, policy);
+    await repository.recordFailure(email, policy);
+
+    expect(await redisService.get({ prefix: AUTH_RATE_LIMIT_REDIS_PREFIX, key: accountLockoutKeys(email).failures })).toBe('2');
+    expect(await ttlOf(accountLockoutKeys(email).failures)).toBe(AUTH_ACCOUNT_SIGN_IN_FAILURES_IDLE_EXPIRY);
+  });
+
+  it('clears the count', async () => {
+    const email = uniqueEmail();
+    const policy = { maxFailedAttempts: 2, durationSeconds: 30 };
+
+    await repository.recordFailure(email, policy);
+    await repository.clearFailures(email);
+    await repository.recordFailure(email, policy);
+
+    expect(await repository.lockedFor(email)).toBeNull();
+  });
+
+  it('unlocks when the lock ends, with the count started again', async () => {
+    const email = uniqueEmail();
+    const policy = { maxFailedAttempts: 1, durationSeconds: 1 };
+
+    await repository.recordFailure(email, policy);
+    expect(await repository.lockedFor(email)).not.toBeNull();
+
+    await sleep(1500);
+
+    expect(await repository.lockedFor(email)).toBeNull();
+    expect(await redisService.get({ prefix: AUTH_RATE_LIMIT_REDIS_PREFIX, key: accountLockoutKeys(email).failures })).toBeNull();
   });
 });

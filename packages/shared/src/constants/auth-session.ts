@@ -1,6 +1,7 @@
 /** Seconds in a minute, for durations Better Auth takes in seconds. */
 export const SECONDS_PER_MINUTE = 60;
-const SECONDS_PER_DAY = 24 * 60 * 60;
+/** Seconds in a day. */
+export const SECONDS_PER_DAY = 24 * 60 * 60;
 
 /** A session lasts this long (seconds) after its last refresh: 7 days. */
 export const AUTH_SESSION_EXPIRES_IN = 7 * SECONDS_PER_DAY;

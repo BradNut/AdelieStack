@@ -15,8 +15,23 @@ The body is always a message and the request id; the same id is in the `X-Reques
 }
 ```
 
-There is no error `code`, `details` or `meta` envelope. A client that needs to branch on a failure branches on the
-status. (Better Auth's own endpoints are the exception; see below.)
+There is no `details` or `meta` envelope, and no error `code` except the one narrow case below. A client that needs
+to branch on a failure branches on the status. (Better Auth's own endpoints are the other exception; see below.)
+
+### Coded errors (`CodedHTTPException`)
+
+One refusal shares a status with others but must be told apart by the client: a permission-guarded route refusing an
+admin without a Second Factor (`403`, like any other forbidden request), which the web app answers by sending the
+admin to enrolment, not to an error page ([ADR 0014](../../../docs/adr/0014-admin-capabilities-require-a-second-factor.md)).
+For that, and only for refusals whose code Better Auth's endpoints also answer, a route throws
+`Forbidden(message, code)` (a `CodedHTTPException`) with an `AuthErrorCode` from `@adelie/shared`, and the body gains
+a `code` beside the message:
+
+```typescript
+{ "message": "...", "code": "SECOND_FACTOR_REQUIRED", "requestId": "..." }
+```
+
+The code is typed `AuthErrorCode`, never a free string. Add a new code here only with an ADR that needs it.
 
 ### Deliberate errors (`HTTPException`)
 

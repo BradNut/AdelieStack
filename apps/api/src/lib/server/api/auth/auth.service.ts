@@ -11,6 +11,7 @@ import { type Auth, createAuth, drizzleAuthDatabase } from './auth.config';
 import { createHibpHealth } from './auth.hibp-status';
 import type { ProviderHealth } from './auth.provider-health';
 import { AuthRateLimitRepository } from './auth.rate-limit.repository';
+import { hasSecondFactor, type SecondFactorUser } from './auth.second-factor';
 import { enabledSocialProviders, type SocialCredentialsByProvider, socialCredentialsFromEnvs } from './auth.social';
 
 /** Owns the single Better Auth instance, created on first use rather than at import time. */
@@ -56,8 +57,16 @@ export class AuthService {
   /** Outcome of the most recent breached-password check. */
   readonly hibpStatus: ProviderHealth;
 
+  /** Whether the account has a Second Factor: enabled two-factor or a registered passkey (ADR 0014). */
+  async hasSecondFactor(user: SecondFactorUser): Promise<boolean> {
+    return hasSecondFactor((await this.auth.$context).adapter, user);
+  }
+
   get auth(): Auth {
-    this.instance ??= createAuth({
+    if (this.instance) return this.instance;
+    // Per-IP limits and the per-address sign-in count; the Redis connection opens on the first limited request, not here.
+    const throttleStorage = this.configService.envs.DISABLE_RATE_LIMIT ? undefined : this.rateLimitRepository;
+    this.instance = createAuth({
       database: drizzleAuthDatabase(this.drizzleService.db),
       secret: this.configService.envs.BETTER_AUTH_SECRET,
       baseURL: this.configService.envs.BETTER_AUTH_URL,
@@ -77,8 +86,8 @@ export class AuthService {
       captchaStatus: this.captchaStatus,
       clientIp: clientIpOptionsFromEnvs(this.configService.envs),
       socialProviders: this.socialCredentials,
-      // The Redis connection opens on the first limited request, not here.
-      rateLimitStorage: this.configService.envs.DISABLE_RATE_LIMIT ? undefined : this.rateLimitRepository,
+      rateLimitStorage: throttleStorage,
+      accountLockoutStorage: throttleStorage,
       // Non-production only, like logging and pretty output, so production does not advertise the auth surface. (The app's own /api/reference is on in every environment.)
       openApiReference: !isProdEnv(this.configService.envs.ENV),
     });

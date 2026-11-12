@@ -1,4 +1,4 @@
-import { AuthErrorCode, SIGN_UP_CLOSED_MESSAGE } from '@adelie/shared';
+import { AuthErrorCode, LAST_SECOND_FACTOR_MESSAGE, SECOND_FACTOR_REQUIRED_MESSAGE, SIGN_UP_CLOSED_MESSAGE } from '@adelie/shared';
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('svelte-sonner', () => ({ toast: { error: vi.fn() } }));
@@ -25,6 +25,13 @@ describe('authErrorMessage', () => {
     const error = { code: AuthErrorCode.SIGN_UP_DISABLED, message: 'Email and password sign up is not enabled' };
 
     expect(authErrorMessage(error)).toBe(SIGN_UP_CLOSED_MESSAGE);
+  });
+
+  it.each([
+    [AuthErrorCode.LAST_SECOND_FACTOR, LAST_SECOND_FACTOR_MESSAGE],
+    [AuthErrorCode.SECOND_FACTOR_REQUIRED, SECOND_FACTOR_REQUIRED_MESSAGE],
+  ])('shows the shared copy for %s', (code, copy) => {
+    expect(authErrorMessage({ code, message: 'server text' })).toBe(copy);
   });
 
   it('keeps the server message for a code it has no copy for', () => {

@@ -1,4 +1,5 @@
-export const MIN_PASSWORD_LENGTH = 8 as const;
+/** NIST SP 800-63B-4: 15 characters when a password may be the only factor. Applies to new passwords only; sign-in does not enforce it. */
+export const MIN_PASSWORD_LENGTH = 15 as const;
 export const MAX_PASSWORD_LENGTH = 128 as const;
 
 export const MAX_EMAIL_LENGTH = 64 as const;
