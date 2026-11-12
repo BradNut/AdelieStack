@@ -8,6 +8,7 @@
   "auth_second_factor_required": "El acceso de administrador requiere un segundo factor. Activa la autenticación de dos factores o añade una passkey para continuar.",
   "auth_last_second_factor": "Los administradores deben conservar un segundo factor. Añade una passkey o activa la autenticación de dos factores antes de quitar este.",
   "auth_second_factor_not_writable": "El segundo factor lo registra su titular y no se puede establecer mediante la API de administración.",
+  "auth_sign_in_locked": "Demasiados intentos fallidos de inicio de sesión. Inténtalo de nuevo más tarde.",
   "mail_password_changed_title": "Tu contraseña se ha cambiado",
   "mail_password_changed_body": "La contraseña de tu cuenta se acaba de cambiar. Si no has sido tú, restablece tu contraseña y revisa la seguridad de tu cuenta de inmediato.",
   "mail_email_change_notice_title": "Tu dirección de correo electrónico se ha cambiado",

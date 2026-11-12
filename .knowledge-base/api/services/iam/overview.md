@@ -82,7 +82,8 @@ apps/api/src/lib/server/api/auth/
 
 ## Security Considerations
 
-- Passwords: length rules from `MIN_PASSWORD_LENGTH` / `MAX_PASSWORD_LENGTH`, breached passwords
+- Passwords: every path that sets one (sign-up, reset, change, admin create/set) enforces
+  `MIN_PASSWORD_LENGTH` (15) / `MAX_PASSWORD_LENGTH` (128); sign-in does not. Breached passwords
   rejected through Have I Been Pwned (fails closed when HIBP is unreachable).
 - Rate limits per client IP and path, with strict rules on credential and code checks and an email
   rule on endpoints that send email.
@@ -92,9 +93,12 @@ apps/api/src/lib/server/api/auth/
 - Admins must have a Second Factor to use admin capabilities, and cannot remove their last one
   ([ADR 0014](../../../../docs/adr/0014-admin-capabilities-require-a-second-factor.md)).
 - Security Events (password changed, Recovery Codes used or regenerated, email changed) email the user.
-- Password sign-in has no account lockout beyond rate limiting. Second-factor verification locks
-  per account after 10 failed attempts for 15 minutes (Better Auth's `accountLockout` defaults;
-  `two_factors.failed_verification_count`, `locked_until`).
+- Password sign-in locks per email address, across clients, after 100 consecutive failures, for 15
+  minutes from the failure that reached it (`AUTH_ACCOUNT_SIGN_IN_LOCKOUT`; our `account-lockout` plugin,
+  hashed keys in Redis). Second-factor verification locks per account after 10 failed attempts for 15
+  minutes (Better Auth's `accountLockout`, pinned to `TWO_FACTOR_ACCOUNT_LOCKOUT`;
+  `two_factors.failed_verification_count`, `locked_until`). Both counts clear on a success and start
+  again when the lock ends.
 
 Operational details for each of these are in the
 [environment config runbook](../../runbooks/environment-config.md).

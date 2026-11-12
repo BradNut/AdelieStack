@@ -160,7 +160,7 @@ describe('createUser', () => {
     const input = { email: 'test@example.com', name: 'Test', password: '123' };
     
     await expect(userService.createUser(input))
-      .rejects.toThrow('Password must be at least 8 characters');
+      .rejects.toThrow('Password must be at least 15 characters');
   });
 });
 ```

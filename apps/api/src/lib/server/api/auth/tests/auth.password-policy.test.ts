@@ -1,15 +1,17 @@
-import { PASSWORD_COMPROMISED, PASSWORD_POLICY_RULES, PASSWORD_POLICY_VIOLATION } from '@adelie/shared';
+import { MIN_PASSWORD_LENGTH, PASSWORD_COMPROMISED, PASSWORD_POLICY_RULES, PASSWORD_POLICY_VIOLATION } from '@adelie/shared';
 import { hashPassword } from 'better-auth/crypto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Auth } from '#lib/server/api/auth/auth.config';
 import { createHibpHealth } from '#lib/server/api/auth/auth.hibp-status';
 import { type AuthRequest, cookiesFrom, enrolPasskey, resetToken, signUpWithEmail, TEST_USER } from '../../../../../test/auth-http';
 import { createTestAuth } from '../../../../../test/auth-instance';
-import { HIBP_HOST, mockHibp, sha1 } from '../../../../../test/mocks/hibp.mock';
+import { HIBP_HOST, mockHibp, PWNED_PASSWORD, sha1 } from '../../../../../test/mocks/hibp.mock';
 
 const COMPLIANT_PASSWORD = 'correct horse battery';
 const OTHER_PASSWORD = 'another long passphrase';
-const PWNED_PASSWORD = 'password12345';
+/** One under and exactly at the new-password minimum. */
+const UNDER_MIN = 'x'.repeat(MIN_PASSWORD_LENGTH - 1);
+const AT_MIN = 'x'.repeat(MIN_PASSWORD_LENGTH);
 const WEAK = ' short';
 const WEAK_RULES = [PASSWORD_POLICY_RULES.MIN_LENGTH, PASSWORD_POLICY_RULES.LEADING_OR_TRAILING_SPACE];
 
@@ -51,6 +53,20 @@ describe('password policy hook: sign-up', () => {
 
   it('accepts a compliant password', async () => {
     const { res } = await signUpWithEmail(request, { ...TEST_USER, password: COMPLIANT_PASSWORD });
+
+    expect(res.status).toBe(200);
+  });
+
+  it('rejects one under the minimum with MIN_LENGTH and creates no user', async () => {
+    const { res } = await signUpWithEmail(request, { ...TEST_USER, password: UNDER_MIN });
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ code: PASSWORD_POLICY_VIOLATION, rules: [PASSWORD_POLICY_RULES.MIN_LENGTH] });
+    expect(await (await auth.$context).internalAdapter.findUserByEmail(EMAIL)).toBeNull();
+  });
+
+  it('accepts exactly the minimum', async () => {
+    const { res } = await signUpWithEmail(request, { ...TEST_USER, password: AT_MIN });
 
     expect(res.status).toBe(200);
   });
@@ -106,6 +122,26 @@ describe('password policy hook: reset-password', () => {
     expect(res.status).toBe(200);
     await signInCookie(OTHER_PASSWORD);
   });
+
+  it('rejects one under the minimum with MIN_LENGTH', async () => {
+    await seedUser(COMPLIANT_PASSWORD);
+    const token = await resetToken(request, db);
+
+    const res = await post('/reset-password', { newPassword: UNDER_MIN, token });
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ code: PASSWORD_POLICY_VIOLATION, rules: [PASSWORD_POLICY_RULES.MIN_LENGTH] });
+  });
+
+  it('accepts exactly the minimum', async () => {
+    await seedUser(COMPLIANT_PASSWORD);
+    const token = await resetToken(request, db);
+
+    const res = await post('/reset-password', { newPassword: AT_MIN, token });
+
+    expect(res.status).toBe(200);
+    await signInCookie(AT_MIN);
+  });
 });
 
 describe('password policy hook: change-password', () => {
@@ -129,6 +165,26 @@ describe('password policy hook: change-password', () => {
 
     expect(res.status).toBe(200);
   });
+
+  it('rejects one under the minimum with MIN_LENGTH and keeps the old password', async () => {
+    await seedUser(COMPLIANT_PASSWORD);
+    const cookie = await signInCookie(COMPLIANT_PASSWORD);
+
+    const res = await post('/change-password', { currentPassword: COMPLIANT_PASSWORD, newPassword: UNDER_MIN }, cookie);
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ code: PASSWORD_POLICY_VIOLATION, rules: [PASSWORD_POLICY_RULES.MIN_LENGTH] });
+    await signInCookie(COMPLIANT_PASSWORD);
+  });
+
+  it('accepts exactly the minimum', async () => {
+    await seedUser(COMPLIANT_PASSWORD);
+    const cookie = await signInCookie(COMPLIANT_PASSWORD);
+
+    const res = await post('/change-password', { currentPassword: COMPLIANT_PASSWORD, newPassword: AT_MIN }, cookie);
+
+    expect(res.status).toBe(200);
+  });
 });
 
 describe('password policy: existing weak passwords', () => {
@@ -136,6 +192,12 @@ describe('password policy: existing weak passwords', () => {
     await seedUser('weakpass');
 
     await signInCookie('weakpass');
+  });
+
+  it('still lets a user with a password one under the minimum sign in', async () => {
+    await seedUser(UNDER_MIN);
+
+    await signInCookie(UNDER_MIN);
   });
 });
 
@@ -166,12 +228,35 @@ describe('password policy hook: admin paths', () => {
     return res.user;
   }
 
-  it('rejects a too-short password on create-user with the stable code', async () => {
-    await expect(adminCreate('short')).rejects.toMatchObject({
+  it('rejects one under the minimum on create-user and leaves no user row', async () => {
+    await expect(adminCreate(UNDER_MIN)).rejects.toMatchObject({
       status: 'BAD_REQUEST',
       body: { code: PASSWORD_POLICY_VIOLATION, rules: [PASSWORD_POLICY_RULES.MIN_LENGTH] },
     });
     expect(await (await auth.$context).internalAdapter.findUserByEmail('admin-created@example.com')).toBeNull();
+  });
+
+  it('accepts exactly the minimum on create-user', async () => {
+    const res = await adminCreate(AT_MIN);
+
+    expect(res.user.email).toBe('admin-created@example.com');
+  });
+
+  it('rejects one under the minimum on set-user-password', async () => {
+    const user = await seedUser();
+
+    await expect(auth.api.setUserPassword({ headers: adminHeaders, body: { userId: user.id, newPassword: UNDER_MIN } })).rejects.toMatchObject({
+      status: 'BAD_REQUEST',
+      body: { code: PASSWORD_POLICY_VIOLATION, rules: [PASSWORD_POLICY_RULES.MIN_LENGTH] },
+    });
+  });
+
+  it('accepts exactly the minimum on set-user-password', async () => {
+    const user = await seedUser();
+
+    const res = await auth.api.setUserPassword({ headers: adminHeaders, body: { userId: user.id, newPassword: AT_MIN } });
+
+    expect(res.status).toBe(true);
   });
 
   it('rejects a weak password on create-user with the violated rules', async () => {
@@ -261,21 +346,24 @@ describe('password policy hook: admin paths', () => {
 });
 
 describe('password policy: no composition rules, no input mutation', () => {
-  it.each(['alllowercase', '12345678', 'pässwörd-密码-🐧', 'internal spaces are fine'])('accepts %s on sign-up', async (password) => {
+  it.each(['alllowercaseonly', '123456789012345', 'pässwörd-密码-🐧-tux', 'internal spaces are fine'])('accepts %s on sign-up', async (password) => {
     const { res } = await signUpWithEmail(request, { ...TEST_USER, password });
 
     expect(res.status).toBe(200);
     await signInCookie(password);
   });
 
-  it.each([' leading-space-pass', 'trailing-space-pass '])('rejects %j with LEADING_OR_TRAILING_SPACE and does not trim it', async (password) => {
-    const { res } = await signUpWithEmail(request, { ...TEST_USER, password });
+  it.each([' leading-space-passphrase', 'trailing-space-passphrase '])(
+    'rejects %j with LEADING_OR_TRAILING_SPACE and does not trim it',
+    async (password) => {
+      const { res } = await signUpWithEmail(request, { ...TEST_USER, password });
 
-    expect(res.status).toBe(400);
-    const body = (await res.json()) as { code: string; rules: string[] };
-    expect(body).toMatchObject({ code: PASSWORD_POLICY_VIOLATION, rules: [PASSWORD_POLICY_RULES.LEADING_OR_TRAILING_SPACE] });
-    expect(await (await auth.$context).internalAdapter.findUserByEmail(EMAIL)).toBeNull();
-  });
+      expect(res.status).toBe(400);
+      const body = (await res.json()) as { code: string; rules: string[] };
+      expect(body).toMatchObject({ code: PASSWORD_POLICY_VIOLATION, rules: [PASSWORD_POLICY_RULES.LEADING_OR_TRAILING_SPACE] });
+      expect(await (await auth.$context).internalAdapter.findUserByEmail(EMAIL)).toBeNull();
+    },
+  );
 });
 
 describe('breached password screening (haveIBeenPwned, mocked)', () => {

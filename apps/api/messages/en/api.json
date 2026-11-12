@@ -8,6 +8,7 @@
   "auth_second_factor_required": "Admin access needs a second factor. Turn on two-factor authentication or add a passkey to continue.",
   "auth_last_second_factor": "Admins must keep a second factor. Add a passkey or turn on two-factor authentication before removing this one.",
   "auth_second_factor_not_writable": "A second factor is enrolled by its owner and cannot be set through the admin API.",
+  "auth_sign_in_locked": "Too many failed sign-in attempts. Try again later.",
   "mail_password_changed_title": "Your password was changed",
   "mail_password_changed_body": "The password for your account was just changed. If this was not you, reset your password and review your account security straight away.",
   "mail_email_change_notice_title": "Your email address was changed",

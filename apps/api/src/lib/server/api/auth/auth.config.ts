@@ -10,6 +10,7 @@ import {
   MAX_PASSWORD_LENGTH,
   MIN_PASSWORD_LENGTH,
   RoleName,
+  TWO_FACTOR_ACCOUNT_LOCKOUT,
   TWO_FACTOR_OTP_PERIOD_MINUTES,
 } from '@adelie/shared';
 import { passkey } from '@better-auth/passkey';
@@ -23,6 +24,7 @@ import type { ClientIpOptions } from '#lib/server/api/common/utils/ip';
 import type * as drizzleSchema from '#lib/server/api/databases/postgres/drizzle-schema';
 import type { Mailer } from '#lib/server/api/mail/interfaces/mailer.interface';
 import { TwoFactorOtpEmail } from '#lib/server/api/mail/templates/two-factor-otp.template';
+import { type AccountLockoutStorage, accountLockout } from './auth.account-lockout';
 import { type CaptchaConfig, captchaPlugin, createCaptchaHealth } from './auth.captcha';
 import { freshSessionGuard } from './auth.fresh-session';
 import { createHibpHealth } from './auth.hibp-status';
@@ -86,6 +88,12 @@ export interface CreateAuthOptions {
    */
   rateLimitStorage?: AuthRateLimitStorage;
   /**
+   * Where failed password sign-ins are counted per email address, across clients (`AUTH_ACCOUNT_SIGN_IN_LOCKOUT`).
+   * Omit to leave that count off, as with `rateLimitStorage`. Second-factor codes are counted per account by Better
+   * Auth's two-factor lockout regardless.
+   */
+  accountLockoutStorage?: AccountLockoutStorage;
+  /**
    * Serves Better Auth's API reference at `${AUTH_BASE_PATH}/reference` (and its schema at `/open-api/generate-schema`).
    * Off by default; callers turn it on outside production. It sits below the auth basePath, so it cannot
    * collide with the app's own `/api/reference`.
@@ -144,6 +152,7 @@ export function createAuth({
   captcha: captchaConfig,
   captchaStatus = createCaptchaHealth({ enabled: Boolean(captchaConfig) }),
   rateLimitStorage,
+  accountLockoutStorage,
   openApiReference = false,
   clientIp = { trustProxy: false, trustedProxies: [] },
   socialProviders = {},
@@ -221,6 +230,8 @@ export function createAuth({
       withSocialSignInChallenge(
         twoFactor({
           issuer: twoFactorIssuer,
+          // Wrong codes per account, from any client; pinned rather than left to the library default.
+          accountLockout: { enabled: true, ...TWO_FACTOR_ACCOUNT_LOCKOUT },
           otpOptions: {
             period: TWO_FACTOR_OTP_PERIOD_MINUTES,
             async sendOTP({ user, otp }) {
@@ -249,6 +260,7 @@ export function createAuth({
       secondFactorGuard(),
       roleGuard(allowMultipleRoles),
       passwordAccountGuard(),
+      ...(accountLockoutStorage ? [accountLockout(accountLockoutStorage)] : []),
       freshSessionGuard(),
       // Per-plugin after-hook, since the top-level `hooks.after` slot is taken by the mail hook. Must come after twoFactor.
       replacedSession(),

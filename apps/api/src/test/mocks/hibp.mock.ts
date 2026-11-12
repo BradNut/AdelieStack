@@ -4,6 +4,9 @@ import { type Mock, vi } from 'vitest';
 /** The Have I Been Pwned range endpoint; a lookup appends the first five characters of the password's SHA-1. */
 export const HIBP_HOST = 'https://api.pwnedpasswords.com/range/';
 
+/** A policy-compliant password fixture for tests to report as breached via `mockHibp([PWNED_PASSWORD])`. */
+export const PWNED_PASSWORD = 'password1234567890';
+
 /** The uppercase hex SHA-1 HIBP indexes passwords by. */
 export const sha1 = (value: string): string => createHash('sha1').update(value).digest('hex').toUpperCase();
 

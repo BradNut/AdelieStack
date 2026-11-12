@@ -35,6 +35,7 @@ docker compose up -d
 pnpm storage:setup
 
 # Initialize the database. These flags only unlock the two scripts; the API ignores them.
+# To seed the admin, set ADMIN_PASSWORD (at least 15 characters) in apps/api/.env.local first.
 DB_MIGRATING=true pnpm db:migrate
 DB_SEEDING=true pnpm db:seed
 # The seeded admin must enrol two-factor or a passkey before using admin pages (ADR 0014);
