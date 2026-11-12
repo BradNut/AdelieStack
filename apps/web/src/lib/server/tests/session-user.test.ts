@@ -11,6 +11,7 @@ const apiUser = {
   roles: [RoleName.ADMIN],
   emailVerified: true,
   twoFactorEnabled: true,
+  needsSecondFactor: false,
   banned: false,
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
@@ -31,7 +32,12 @@ describe('toAuthedUser', () => {
       roles: [RoleName.ADMIN],
       emailVerified: true,
       twoFactorEnabled: true,
+      needsSecondFactor: false,
     });
+  });
+
+  it('passes on that the user needs a Second Factor', () => {
+    expect(toAuthedUser({ ...apiUser, twoFactorEnabled: false, needsSecondFactor: true }).needsSecondFactor).toBe(true);
   });
 
   it('passes the API roles through unchanged', () => {

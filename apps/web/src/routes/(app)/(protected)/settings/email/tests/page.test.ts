@@ -22,6 +22,7 @@ const AUTHED_USER: AuthedUser = {
   roles: [],
   emailVerified: true,
   twoFactorEnabled: false,
+  needsSecondFactor: false,
 };
 
 function mount() {

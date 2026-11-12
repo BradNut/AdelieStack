@@ -46,7 +46,9 @@ Our own routes only read the session: `GET /api/users/me` (Users service) and an
 
 ### Roles
 Stored on `users.role` by the admin plugin (`admin`, `support`, `user`); see the
-[data model](./data-model.md) and the glossary's Role and Role Policy.
+[data model](./data-model.md) and the glossary's Role and Role Policy. Admin capabilities need a
+Second Factor (two-factor enabled or a passkey); signing in and enrolling do not
+([ADR 0014](../../../../docs/adr/0014-admin-capabilities-require-a-second-factor.md)).
 
 ## Technology Stack
 
@@ -68,6 +70,7 @@ apps/api/src/lib/server/api/auth/
 ├── auth.password-policy.ts       # before-hook: password rules and HIBP screening on admin paths
 ├── auth.permissions.ts, roles.ts # permission table and Role Policy
 ├── auth.role-guard.ts            # before-hook: several roles on admin role writes only with ALLOW_MULTIPLE_ROLES
+├── auth.second-factor.ts         # before-hook: admin endpoints need a Second Factor; the last one cannot be removed (ADR 0014)
 ├── auth.replaced-session.ts      # after-hook: a sign-in ends the session the browser held before
 ├── auth.social.ts                # GitHub / Google from env
 ├── auth.social-two-factor.ts     # raises the Two-factor Challenge after a social sign-in (ADR 0012)
@@ -87,6 +90,8 @@ apps/api/src/lib/server/api/auth/
 - Optional captcha on sign-up, sign-in, password reset request and verification email
   ([ADR 0004](../../../../docs/adr/0004-captcha-via-better-auth-plugin.md)).
 - Sign-up is closed by default ([ADR 0003](../../../../docs/adr/0003-sign-up-closed-by-default.md)).
+- Admins must have a Second Factor to use admin capabilities, and cannot remove their last one
+  ([ADR 0014](../../../../docs/adr/0014-admin-capabilities-require-a-second-factor.md)).
 - Security Events (password changed, Recovery Codes used or regenerated, email changed) email the user.
 - Password sign-in locks per email address, across clients, after 100 consecutive failures, for 15
   minutes from the failure that reached it (`AUTH_ACCOUNT_SIGN_IN_LOCKOUT`; our `account-lockout` plugin,

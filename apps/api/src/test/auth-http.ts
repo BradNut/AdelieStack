@@ -1,7 +1,9 @@
 import { totpCode } from '@adelie/test-utils/totp';
+import type { Auth } from '#lib/server/api/auth/auth.config';
 import { TEST_EMAIL } from '#lib/server/api/common/testing/factories';
 import type { SendProps } from '#lib/server/api/mail/interfaces/mailer.interface';
 import { type createTestDatabase, TEST_ORIGIN } from './auth-instance';
+import { createPasskeyAuthenticator } from './passkey-authenticator';
 
 export interface AuthRequestOptions {
   body?: unknown;
@@ -82,6 +84,16 @@ const MS_PER_SECOND = 1000;
 /** Backdates every session's sign-in in `db` by `ageSeconds`, e.g. past `AUTH_SESSION_FRESH_AGE` to make it stale. */
 export function ageSessions(db: ReturnType<typeof createTestDatabase>['db'], ageSeconds: number): void {
   for (const s of db.session) s.createdAt = new Date(Date.now() - ageSeconds * MS_PER_SECOND);
+}
+
+/**
+ * Stores a passkey for `userId` as registration would have, and returns its id. Gives an admin the Second Factor that
+ * admin capabilities need (ADR 0014) without driving a WebAuthn ceremony.
+ */
+export async function enrolPasskey(auth: Pick<Auth, '$context'>, userId: string): Promise<string> {
+  const { id: _generated, ...row } = createPasskeyAuthenticator({ rpID: 'localhost', origin: TEST_ORIGIN }).passkeyFor(userId);
+  const created = await (await auth.$context).adapter.create<typeof row, { id: string }>({ model: 'passkey', data: row });
+  return created.id;
 }
 
 /** Signs up with email and password. A rejected sign-up does not throw: check `res`. */

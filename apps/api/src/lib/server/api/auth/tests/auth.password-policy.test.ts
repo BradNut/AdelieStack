@@ -3,7 +3,7 @@ import { hashPassword } from 'better-auth/crypto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Auth } from '#lib/server/api/auth/auth.config';
 import { createHibpHealth } from '#lib/server/api/auth/auth.hibp-status';
-import { type AuthRequest, cookiesFrom, resetToken, signUpWithEmail, TEST_USER } from '../../../../../test/auth-http';
+import { type AuthRequest, cookiesFrom, enrolPasskey, resetToken, signUpWithEmail, TEST_USER } from '../../../../../test/auth-http';
 import { createTestAuth } from '../../../../../test/auth-instance';
 import { HIBP_HOST, mockHibp, PWNED_PASSWORD, sha1 } from '../../../../../test/mocks/hibp.mock';
 
@@ -210,6 +210,7 @@ describe('password policy hook: admin paths', () => {
     const adminUser = await internalAdapter.findUserByEmail(EMAIL);
     if (!adminUser) throw new Error('admin fixture was not created');
     await internalAdapter.updateUser(adminUser.user.id, { role: 'admin' });
+    await enrolPasskey(auth, adminUser.user.id);
     adminHeaders = new Headers({ cookie });
   });
 
@@ -315,6 +316,7 @@ describe('password policy hook: admin paths', () => {
     const found = await internalAdapter.findUserByEmail(EMAIL);
     if (!found) throw new Error('admin fixture was not created');
     await internalAdapter.updateUser(found.user.id, { role: 'admin' });
+    await enrolPasskey(auth, found.user.id);
     const headers = new Headers({ cookie: await signInCookie(COMPLIANT_PASSWORD) });
 
     const res = await auth.api.createUser({ headers, body: { email: 'off@example.com', name: 'Off', password: PWNED_PASSWORD, role: 'user' } });
@@ -493,6 +495,7 @@ describe('breached password screening switched off', () => {
     const found = await internalAdapter.findUserByEmail(EMAIL);
     if (!found) throw new Error('fixture user missing');
     await internalAdapter.updateUser(found.user.id, { role: 'admin' });
+    await enrolPasskey(auth, found.user.id);
     const headers = new Headers({ cookie: await signInCookie(COMPLIANT_PASSWORD) });
     const fetchMock = mockHibp([PWNED_PASSWORD]);
 

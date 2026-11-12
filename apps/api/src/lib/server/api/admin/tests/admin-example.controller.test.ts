@@ -1,10 +1,11 @@
-import { RoleName } from '@adelie/shared';
-import { onError } from 'stoker/middlewares';
+import { AuthErrorCode, DeployEnvironment, NodeEnv, RoleName } from '@adelie/shared';
+import pino from 'pino';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AdminExampleController } from '#lib/server/api/admin/admin-example.controller';
 import { roles } from '#lib/server/api/auth/auth.permissions';
 import type { AuthService } from '#lib/server/api/auth/auth.service';
 import { type RolesService, resolveRoles } from '#lib/server/api/auth/roles';
+import { errorHandler } from '#lib/server/api/common/middleware/error-handler.middleware';
 import { buildAuthUser } from '#lib/server/api/common/testing/factories';
 import { createHono } from '#lib/server/api/common/utils/hono';
 
@@ -23,7 +24,9 @@ const userHasPermission = vi.fn(async ({ body }: { body: PermissionBody; headers
   success: (body.role ?? '').split(',').some((name) => roles[name as keyof typeof roles]?.authorize(body.permissions).success === true),
   error: null,
 }));
-const authService = { auth: { api: { userHasPermission } } } as unknown as AuthService;
+/** Whether the signed-in account has a Second Factor; the check itself is covered in auth.second-factor.test.ts. */
+const hasSecondFactor = vi.fn(async () => true);
+const authService = { auth: { api: { userHasPermission } }, hasSecondFactor } as unknown as AuthService;
 
 function signIn(role: string | null) {
   currentUser = buildAuthUser({ role });
@@ -37,7 +40,7 @@ function request() {
     await next();
   });
   app.route('/admin', new AdminExampleController(authService, rolesService).routes() as never);
-  app.onError(onError);
+  app.onError(errorHandler({ envs: { ENVIRONMENT: DeployEnvironment.PRODUCTION, NODE_ENV: NodeEnv.PRODUCTION }, logger: pino({ enabled: false }) }));
   return app.request('/admin/example');
 }
 
@@ -45,6 +48,7 @@ describe('admin example route', () => {
   beforeEach(() => {
     currentUser = null;
     userHasPermission.mockClear();
+    hasSecondFactor.mockReset().mockResolvedValue(true);
     roleSwitch.allowMultiple = false;
   });
 
@@ -87,6 +91,35 @@ describe('admin example route', () => {
     signIn(`${RoleName.USER},${RoleName.ADMIN}`);
 
     expect((await request()).status).toBe(403);
+  });
+
+  it('refuses an admin without a Second Factor with SECOND_FACTOR_REQUIRED', async () => {
+    hasSecondFactor.mockResolvedValue(false);
+    signIn(RoleName.ADMIN);
+
+    const res = await request();
+
+    expect(res.status).toBe(403);
+    expect(((await res.json()) as { code?: string }).code).toBe(AuthErrorCode.SECOND_FACTOR_REQUIRED);
+    expect(hasSecondFactor).toHaveBeenCalledWith(currentUser);
+  });
+
+  it.each([RoleName.SUPPORT, RoleName.USER])('answers a %s without a Second Factor with the plain role refusal', async (role) => {
+    hasSecondFactor.mockResolvedValue(false);
+    signIn(role);
+
+    const res = await request();
+
+    expect(res.status).toBe(403);
+    expect(((await res.json()) as { code?: string }).code).toBeUndefined();
+  });
+
+  it('does not look up Second Factors for a request the roles already refuse', async () => {
+    signIn(RoleName.USER);
+
+    await request();
+
+    expect(hasSecondFactor).not.toHaveBeenCalled();
   });
 
   it('passes only the narrowed roles to the permission check, with no headers', async () => {

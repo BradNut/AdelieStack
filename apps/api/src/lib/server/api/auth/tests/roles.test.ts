@@ -1,6 +1,16 @@
 import { RoleName } from '@adelie/shared';
 import { describe, expect, it, vi } from 'vitest';
-import { resolveRoles } from '#lib/server/api/auth/roles';
+import { resolveRoles, storedRoleNames } from '#lib/server/api/auth/roles';
+
+describe('storedRoleNames', () => {
+  it('reads every known role in the stored value, without narrowing', () => {
+    expect(storedRoleNames(`${RoleName.USER}, ${RoleName.ADMIN}`)).toEqual([RoleName.USER, RoleName.ADMIN]);
+  });
+
+  it.each([null, undefined, '', 'superuser'])('reads no role from %j', (stored) => {
+    expect(storedRoleNames(stored)).toEqual([]);
+  });
+});
 
 function setup(allowMultiple: boolean) {
   const logger = { warn: vi.fn() };

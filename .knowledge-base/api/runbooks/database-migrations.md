@@ -42,6 +42,22 @@ DB_SEEDING=true ADMIN_EMAIL=admin@example.com ADMIN_PASSWORD=<pw> pnpm --filter 
 
 `ADMIN_PASSWORD` must be at least 15 characters; the password policy rejects a shorter one and the seed fails.
 
+### Seeded admin: first run
+
+The seed creates the admin with a password only, and admin capabilities need a Second Factor
+([ADR 0014](../../../docs/adr/0014-admin-capabilities-require-a-second-factor.md)). Until it has one,
+anyone holding `ADMIN_PASSWORD` can enrol a factor and take the account, so use a strong, unshared
+password and enrol straight after seeding:
+
+1. Sign in with `ADMIN_EMAIL` / `ADMIN_PASSWORD`. Sign-in works without a Second Factor.
+2. Open `/admin`. The web app sends you to **Settings → Two-factor** with a notice instead of an error.
+3. Turn on two-factor (scan the QR code, confirm a code, keep the Recovery Codes) or add a passkey under
+   **Settings → Passkeys**.
+4. Open `/admin` again; admin endpoints now answer. From now on the admin cannot remove their last
+   Second Factor (`400 LAST_SECOND_FACTOR`); add the other kind first.
+
+Re-seeding truncates every table, so the admin enrols again after each seed.
+
 ## Troubleshooting
 
 **Migration fails with "column already exists"**: schema and migration files are out of sync. Do not hand-edit to fix — inspect drift with `pnpm db:studio` and re-generate.

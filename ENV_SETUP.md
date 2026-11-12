@@ -38,6 +38,8 @@ pnpm storage:setup
 # To seed the admin, set ADMIN_PASSWORD (at least 15 characters) in apps/api/.env.local first.
 DB_MIGRATING=true pnpm db:migrate
 DB_SEEDING=true pnpm db:seed
+# The seeded admin must enrol two-factor or a passkey before using admin pages (ADR 0014);
+# signing in and opening /admin takes you there. See .knowledge-base/api/runbooks/database-migrations.md.
 
 # Start both apps
 pnpm dev

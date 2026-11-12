@@ -11,6 +11,7 @@ import { type Auth, createAuth, drizzleAuthDatabase } from './auth.config';
 import { createHibpHealth } from './auth.hibp-status';
 import type { ProviderHealth } from './auth.provider-health';
 import { AuthRateLimitRepository } from './auth.rate-limit.repository';
+import { hasSecondFactor, type SecondFactorUser } from './auth.second-factor';
 import { enabledSocialProviders, type SocialCredentialsByProvider, socialCredentialsFromEnvs } from './auth.social';
 
 /** Owns the single Better Auth instance, created on first use rather than at import time. */
@@ -55,6 +56,11 @@ export class AuthService {
 
   /** Outcome of the most recent breached-password check. */
   readonly hibpStatus: ProviderHealth;
+
+  /** Whether the account has a Second Factor: enabled two-factor or a registered passkey (ADR 0014). */
+  async hasSecondFactor(user: SecondFactorUser): Promise<boolean> {
+    return hasSecondFactor((await this.auth.$context).adapter, user);
+  }
 
   get auth(): Auth {
     if (this.instance) return this.instance;

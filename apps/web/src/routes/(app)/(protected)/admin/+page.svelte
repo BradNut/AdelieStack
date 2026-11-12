@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { authClient } from '#lib/auth-client.ts';
 	import { toastIfError } from '#lib/client/auth-form.ts';
+	import { sendToSecondFactorEnrolment } from '#lib/client/second-factor.ts';
 	import * as Card from '#lib/components/ui/card/index.ts';
 	import * as Table from '#lib/components/ui/table/index.ts';
 
@@ -18,6 +19,8 @@
 
 	onMount(async () => {
 		const { data, error } = await authClient.admin.listUsers({ query: { limit: USERS_PAGE_SIZE } });
+		// The layout already sends an unenrolled admin away; this covers a Second Factor removed since it loaded.
+		if (await sendToSecondFactorEnrolment(error)) return;
 		if (toastIfError(error, 'Could not load users.')) return;
 		users = data?.users ?? [];
 	});

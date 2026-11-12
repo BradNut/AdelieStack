@@ -36,6 +36,7 @@ import type { ProviderHealth } from './auth.provider-health';
 import { type AuthRateLimitStorage, authRateLimitOptions } from './auth.rate-limit';
 import { replacedSession } from './auth.replaced-session';
 import { roleGuard } from './auth.role-guard';
+import { secondFactorGuard } from './auth.second-factor';
 import { socialProvidersOption } from './auth.social';
 import { socialTwoFactorRedirect, withSocialSignInChallenge } from './auth.social-two-factor';
 
@@ -255,6 +256,8 @@ export function createAuth({
       // Only registered when captcha is on, so off means no behaviour change. Its `onRequest` runs before every hook.
       ...(captchaConfig ? [captchaPlugin(captchaConfig, captchaStatus)] : []),
       ...(openApiReference ? [openAPI()] : []),
+      // Before the role guard, so an admin without a Second Factor is refused the same way on every admin endpoint.
+      secondFactorGuard(),
       roleGuard(allowMultipleRoles),
       passwordAccountGuard(),
       ...(accountLockoutStorage ? [accountLockout(accountLockoutStorage)] : []),
