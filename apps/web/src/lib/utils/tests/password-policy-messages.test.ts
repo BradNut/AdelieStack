@@ -21,6 +21,14 @@ describe('passwordPolicyMessages', () => {
     expect(max).toContain(String(MAX_PASSWORD_LENGTH));
   });
 
+  it.each([
+    ['en', `Password must be at least ${MIN_PASSWORD_LENGTH} characters`],
+    ['es', `La contraseña debe tener al menos ${MIN_PASSWORD_LENGTH} caracteres`],
+    ['de', `Das Passwort muss mindestens ${MIN_PASSWORD_LENGTH} Zeichen lang sein`],
+  ] as const)('states the minimum length in %s', (locale, expected) => {
+    expect(passwordPolicyMessages([PASSWORD_POLICY_RULES.MIN_LENGTH], { locale })).toEqual([expected]);
+  });
+
   it('maps several codes in order', () => {
     const result = passwordPolicyMessages([PASSWORD_POLICY_RULES.LEADING_OR_TRAILING_SPACE, PASSWORD_POLICY_RULES.MIN_LENGTH], { locale: 'en' });
     expect(result).toHaveLength(2);

@@ -1,4 +1,4 @@
-import { SIGN_UP_CLOSED_MESSAGE } from '@adelie/shared';
+import { SECOND_FACTOR_REQUIRED_MESSAGE, SIGN_UP_CLOSED_MESSAGE } from '@adelie/shared';
 
 export const alreadySignedInMessage = {
   type: 'success',
@@ -15,6 +15,10 @@ export const notSignedInMessage = {
 export const forbiddenMessage = {
   type: 'error',
   message: 'You are not allowed to access this',
+} as const;
+export const secondFactorRequiredMessage = {
+  type: 'info',
+  message: SECOND_FACTOR_REQUIRED_MESSAGE,
 } as const;
 export const signedOutMessage = {
   type: 'success',

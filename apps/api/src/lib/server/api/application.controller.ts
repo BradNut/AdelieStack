@@ -13,6 +13,7 @@ import { errorHandler } from './common/middleware/error-handler.middleware';
 import { requestLocale } from './common/middleware/locale.middleware';
 import { otelInstrumentation } from './common/middleware/otel.middleware';
 import { requestLogger } from './common/middleware/request-logger.middleware';
+import { securityHeaders } from './common/middleware/security-headers.middleware';
 import { LoggerService } from './common/services/logger.service';
 import { createClientAddressResolver } from './common/utils/client-address-warning';
 import { publicId } from './common/utils/crypto';
@@ -51,6 +52,7 @@ export class ApplicationController extends RootController {
     const api = this.controller
       .basePath(API_BASE_PATH)
       .use(otelInstrumentation())
+      .use(securityHeaders(clientIpOptionsFromEnvs(this.configService.envs)))
       .use(requestId({ generator: () => publicId() }))
       .use(contextStorage())
       .use(requestLocale)

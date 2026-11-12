@@ -1,7 +1,7 @@
 import { RoleName } from '@adelie/shared';
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { Auth } from '#lib/server/api/auth/auth.config';
-import { type AuthRequest, signUpWithEmail, TEST_USER } from '../../../../../test/auth-http';
+import { type AuthRequest, enrolPasskey, signUpWithEmail, TEST_USER } from '../../../../../test/auth-http';
 import { createTestAuth } from '../../../../../test/auth-instance';
 
 const PASSWORD = 'correct-horse-battery-staple';
@@ -26,6 +26,7 @@ async function prepare(allowMultipleRoles: boolean) {
   setup(allowMultipleRoles);
   const admin = await signUp('admin@example.com');
   await (await auth.$context).internalAdapter.updateUser(admin.id, { role: RoleName.ADMIN });
+  await enrolPasskey(auth, admin.id);
   adminCookie = admin.cookie;
   targetId = (await signUp('target@example.com')).id;
 }

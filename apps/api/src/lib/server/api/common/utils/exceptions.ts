@@ -1,12 +1,27 @@
-import { StatusCodes } from '@adelie/shared';
+import { type AuthErrorCode, StatusCodes } from '@adelie/shared';
 import { HTTPException } from 'hono/http-exception';
 
 export function TooManyRequests(message = 'Too many requests') {
   return new HTTPException(StatusCodes.TOO_MANY_REQUESTS, { message });
 }
 
-export function Forbidden(message = 'Forbidden') {
-  return new HTTPException(StatusCodes.FORBIDDEN, { message });
+/**
+ * A deliberate error with a stable, client-visible code (an `AuthErrorCode` from `@adelie/shared`) next to its
+ * message, so a client can act on it without matching text. The error handler sends the code as `code`.
+ */
+export class CodedHTTPException extends HTTPException {
+  constructor(
+    status: ConstructorParameters<typeof HTTPException>[0],
+    readonly code: AuthErrorCode,
+    message: string,
+  ) {
+    super(status, { message });
+  }
+}
+
+/** 403. With `code`, the response carries it for the client to act on. */
+export function Forbidden(message = 'Forbidden', code?: AuthErrorCode) {
+  return code ? new CodedHTTPException(StatusCodes.FORBIDDEN, code, message) : new HTTPException(StatusCodes.FORBIDDEN, { message });
 }
 
 export function Unauthorized(message = 'Unauthorized') {

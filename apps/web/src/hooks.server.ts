@@ -1,4 +1,4 @@
-import { StatusCodes } from '@adelie/shared/constants';
+import { StatusCodes, withSecurityHeaders } from '@adelie/shared/constants';
 import { getDevOnlySentryOptions } from '@adelie/shared/sentry';
 import * as Sentry from '@sentry/sveltekit';
 import { sentryHandle } from '@sentry/sveltekit';
@@ -30,6 +30,15 @@ const clientAddressWarning: Handle = ({ event, resolve }) => {
   return resolve(event);
 };
 
+/**
+ * Pages and the proxied API alike. `event.url` carries the scheme adapter-node resolved (`PROTOCOL_HEADER` or the pinned
+ * origin behind a proxy), so HSTS follows the scheme the browser used. The CSP is SvelteKit's and is left untouched.
+ */
+const securityHeaders: Handle = async ({ event, resolve }) => {
+  const response = await resolve(event);
+  return withSecurityHeaders(response, { overHttps: event.url.protocol === 'https:' });
+};
+
 const apiClient: Handle = async ({ event, resolve }) => {
   /* ------------------------------ Register api ------------------------------ */
   const api: Api = honoClient({
@@ -54,7 +63,7 @@ const apiClient: Handle = async ({ event, resolve }) => {
   return response;
 };
 
-export const handle: Handle = sequence(sentryHandle(), clientAddressWarning, apiClient, i18n);
+export const handle: Handle = sequence(sentryHandle(), securityHeaders, clientAddressWarning, apiClient, i18n);
 
 export const handleError: HandleServerError = ({ kind, error }) => {
   const errorId = crypto.randomUUID();

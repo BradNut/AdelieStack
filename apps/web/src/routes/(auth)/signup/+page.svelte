@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { AppRoute, AuthCallbackPath, signupDto } from '@adelie/shared';
+	import { AppRoute, AuthCallbackPath, MIN_PASSWORD_LENGTH, signupDto } from '@adelie/shared';
 	import { defaults, setError, superForm } from 'sveltekit-superforms';
 	import { zod4, zod4Client } from 'sveltekit-superforms/adapters';
 	import { authClient } from '#lib/auth-client.ts';
@@ -101,6 +101,7 @@
 								type="password"
 								placeholder="Password"
 								autocomplete="new-password"
+								minlength={MIN_PASSWORD_LENGTH}
 								bind:value={$signupForm.password}
 							/>
 						{/snippet}
@@ -116,6 +117,7 @@
 								type="password"
 								placeholder="Confirm Password"
 								autocomplete="new-password"
+								minlength={MIN_PASSWORD_LENGTH}
 								bind:value={$signupForm.confirm_password}
 							/>
 						{/snippet}

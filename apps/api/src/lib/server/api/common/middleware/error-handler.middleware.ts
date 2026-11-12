@@ -1,9 +1,10 @@
-import { isLocalDevEnv, type LocalDevEnvs, StatusCodes } from '@adelie/shared';
+import { type AuthErrorCode, isLocalDevEnv, type LocalDevEnvs, StatusCodes } from '@adelie/shared';
 import { DrizzleQueryError } from 'drizzle-orm';
 import type { ErrorHandler } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import type { Logger } from 'pino';
 import { m } from '#lib/server/api/common/i18n/index';
+import { CodedHTTPException } from '#lib/server/api/common/utils/exceptions';
 import { REDACTED } from '#lib/server/api/common/utils/log-redaction';
 
 /** Fixed, so the entry's `msg` never repeats the error's free text. */
@@ -26,6 +27,8 @@ interface ErrorHandlerOptions {
 /** What a client gets for any error: a message and the request id to quote. `stack` is sent only in local development. */
 interface ErrorResponseBody {
   message: string;
+  /** A coded deliberate error's stable code, for the client to act on (see `CodedHTTPException`, ADR 0014). */
+  code?: AuthErrorCode;
   requestId: string;
   stack?: string;
 }
@@ -71,6 +74,9 @@ export function errorHandler({ envs, logger }: ErrorHandlerOptions): ErrorHandle
   return (error, c) => {
     const requestId: string = c.get('requestId');
     // A deliberate error chose its status and message for the client, so both go out as thrown.
+    if (error instanceof CodedHTTPException) {
+      return c.json<ErrorResponseBody>({ message: error.message, code: error.code, requestId }, error.status);
+    }
     if (error instanceof HTTPException) return c.json<ErrorResponseBody>({ message: error.message, requestId }, error.status);
 
     logger.error({ reqId: requestId, error: loggedError(error) }, UNEXPECTED_ERROR_MESSAGE);

@@ -69,6 +69,14 @@ Do not reuse `ORIGIN` for this: the API reads `ORIGIN` for CORS and `.env.schema
 
 See [Environment Configuration](./environment-config.md).
 
+## Security Headers
+
+Every page and `/api` response carries `X-Content-Type-Options`, `Referrer-Policy` and `Permissions-Policy` (values in `@adelie/shared`'s `security-headers.ts`), set by `hooks.server.ts` and again by the API itself. `Strict-Transport-Security` follows the scheme of the request origin above: sent when it is `https`, removed otherwise, so the same setup that gets the origin right gets HSTS right. The `/api` proxy passes that scheme to the API as `x-forwarded-proto`, which the API reads only with `TRUST_PROXY=true`. The CSP stays SvelteKit's (`csp-directives.mjs`).
+
+HSTS is only as right as that origin: with a wrong `WEB_ORIGIN` or a missing `PROTOCOL_HEADER` behind a scheme-changing proxy, an https site is taken for http and gets no HSTS. The reverse is harmless: browsers ignore HSTS received over http (RFC 6797).
+
+adapter-node serves built assets (`_app/immutable/*`), `static/` files and prerendered pages itself, before `hooks.server.ts` runs, so those responses do not get these headers from the app. Have the reverse proxy add at least `X-Content-Type-Options: nosniff` to them (or to every response; the app setting the same value again is harmless).
+
 ## Client Address Behind a Proxy
 
 By default adapter-node takes the client address from the socket, which behind a proxy is the proxy itself. Every client then reaches the API with the same address and shares one rate-limit bucket, so clients can lock each other out. Behind a proxy, set these at runtime:

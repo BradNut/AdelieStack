@@ -5,6 +5,7 @@ import seedUsers from '#lib/server/api/databases/postgres/seeds/users';
 import {
   type AuthRequest,
   cookiesFrom,
+  enrolPasskey,
   hasSessionCookie,
   signUpUnverified,
   signUpWithEmail,
@@ -77,9 +78,10 @@ describe('sign-up when closed', () => {
     expect(res.headers.getSetCookie().length).toBeGreaterThan(0);
   });
 
-  it('lets a signed-in admin create another user over HTTP', async () => {
+  it('lets a signed-in admin with a Second Factor create another user over HTTP', async () => {
     const { auth, request } = createTestAuth({ signUpEnabled: false });
-    await createAdmin(auth);
+    const { user: admin } = await createAdmin(auth);
+    await enrolPasskey(auth, admin.id);
     const signIn = await request('/sign-in/email', { body: { email: ADMIN_EMAIL, password: PASSWORD } });
     const cookie = cookiesFrom(signIn);
 
@@ -199,7 +201,7 @@ describe('sign-up with a taken address', () => {
   it('answers exactly as a sign-up with a new address does', async () => {
     const { request } = await withTakenAddress();
 
-    const taken = await observable(await signUpUnverified(request, { ...NEW_USER, password: 'Other-horse-8' }));
+    const taken = await observable(await signUpUnverified(request, { ...NEW_USER, password: 'Other-horse-battery-8' }));
     const fresh = await observable(await signUpUnverified(request, { ...NEW_USER, email: 'newcomer@example.com' }));
 
     expect(taken.status).toBe(200);
@@ -209,13 +211,13 @@ describe('sign-up with a taken address', () => {
   it('sends no email, and changes nothing about the existing account', async () => {
     const { request, mailer, db } = await withTakenAddress();
 
-    await signUpUnverified(request, { ...NEW_USER, name: 'Intruder', password: 'Other-horse-8' });
+    await signUpUnverified(request, { ...NEW_USER, name: 'Intruder', password: 'Other-horse-battery-8' });
 
     expect(mailer.sent).toHaveLength(0);
     expect(db.user).toHaveLength(1);
     expect(db.user[0]).toMatchObject({ name: NEW_USER.name, emailVerified: true });
     expect((await signIn(request, VISITOR_EMAIL)).status).toBe(200);
-    expect((await signIn(request, VISITOR_EMAIL, 'Other-horse-8')).status).toBe(401);
+    expect((await signIn(request, VISITOR_EMAIL, 'Other-horse-battery-8')).status).toBe(401);
   });
 
   it('answers the same for a taken address that is not verified yet', async () => {
@@ -252,7 +254,8 @@ describe('users the admin plugin creates', () => {
 
   it('include a user an admin creates over HTTP', async () => {
     const { auth, request } = createTestAuth({ signUpEnabled: true });
-    await createAdmin(auth);
+    const { user: admin } = await createAdmin(auth);
+    await enrolPasskey(auth, admin.id);
     const cookie = cookiesFrom(await signIn(request, ADMIN_EMAIL));
 
     await request('/admin/create-user', { cookie, body: { name: 'Invitee', email: 'invitee@example.com', password: PASSWORD } });

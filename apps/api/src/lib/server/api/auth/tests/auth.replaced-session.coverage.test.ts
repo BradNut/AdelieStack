@@ -2,7 +2,7 @@ import { AUTH_BASE_PATH, CaptchaProvider, RoleName } from '@adelie/shared';
 import { totpCode } from '@adelie/test-utils/totp';
 import { describe, expect, it } from 'vitest';
 import { ReplacedSessionPath } from '#lib/server/api/auth/auth.replaced-session';
-import { cookiesFrom, emailedLink, signUpWithEmail, signUpWithTotp, TEST_USER } from '../../../../../test/auth-http';
+import { cookiesFrom, emailedLink, enrolPasskey, signUpWithEmail, signUpWithTotp, TEST_USER } from '../../../../../test/auth-http';
 import { createTestAuth, TEST_ORIGIN } from '../../../../../test/auth-instance';
 
 const { email: EMAIL, password: PASSWORD } = TEST_USER;
@@ -112,7 +112,10 @@ describe('endpoints that keep their own session handling', () => {
 
   it('admin impersonation keeps the admin’s session aside, and stopping restores it', async () => {
     const t = build();
-    await t.auth.api.createUser({ body: { name: 'Admin', email: 'admin@example.com', password: PASSWORD, role: RoleName.ADMIN } });
+    const { user: admin } = await t.auth.api.createUser({
+      body: { name: 'Admin', email: 'admin@example.com', password: PASSWORD, role: RoleName.ADMIN },
+    });
+    await enrolPasskey(t.auth, admin.id);
     const { user } = await t.auth.api.createUser({ body: { name: 'Penguin', email: EMAIL, password: PASSWORD, role: RoleName.USER } });
     const adminCookie = await t.signIn('admin@example.com');
 

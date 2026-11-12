@@ -13,7 +13,7 @@
 - Current-user profile route (`GET /api/users/me`): the Users service (`UsersController`), which
   reads `c.var.user`
 - Email delivery: the Mailer service; IAM only chooses templates and recipients (`auth/auth.mail.ts`)
-- Audit trail: the `audit/` module; Better Auth endpoints do not write audit entries
+- Audit trail: the `audit/` module; Better Auth endpoints do not write Audit Events yet (#191)
 
 ## Service Dependencies
 
@@ -25,9 +25,9 @@
 - **Fallback**: none
 
 #### Redis (`RedisService`, through `AuthRateLimitRepository`)
-- **Purpose**: auth rate-limit counters only; sessions are not in Redis
+- **Purpose**: auth rate-limit counters only (per client IP and path, and failed password sign-ins per email address, hashed); sessions are not in Redis
 - **Failure Impact**: a request whose limit check cannot reach Redis fails rather than skipping the limit
-- **Fallback**: none; `DISABLE_RATE_LIMIT=true` turns auth rate limiting off
+- **Fallback**: none; `DISABLE_RATE_LIMIT=true` turns auth rate limiting and the sign-in count off
 
 #### Mailer (`MailerService`)
 - **Purpose**: verification links, reset links, emailed two-factor codes, Security Events

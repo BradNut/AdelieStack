@@ -1,3 +1,4 @@
+import { MIN_PASSWORD_LENGTH } from '@adelie/shared';
 import { NEW_PASSWORD, newUser, PASSWORD, signIn, signOut, signUp, submitSignUp, VERIFY_EMAIL_SUBJECT, verifyEmail } from './support/auth';
 import { countEmails, firstLink, waitForEmail } from './support/mailbox';
 import { expect, test } from './support/test';
@@ -72,16 +73,19 @@ test.describe('sign up, sign in, sign out', () => {
     await expect(page.getByText('Invalid email or password')).toBeVisible();
   });
 
-  test('sign-up rejects a weak password before calling the server', async ({ page }) => {
+  test('sign-up rejects a too-short password in the browser before calling the server', async ({ page }) => {
     const user = newUser();
+    const tooShort = 'x'.repeat(MIN_PASSWORD_LENGTH - 1);
+    const password = page.getByLabel('Password', { exact: true });
     await page.goto('/signup');
     await page.getByLabel('Name').fill(user.name);
     await page.getByLabel('Email').fill(user.email);
-    await page.getByLabel('Password', { exact: true }).fill('weak');
-    await page.getByLabel('Confirm Password').fill('weak');
+    await password.fill(tooShort);
+    await page.getByLabel('Confirm Password').fill(tooShort);
     await page.getByRole('button', { name: 'Signup' }).click();
 
-    await expect(page.getByText(/at least 8 characters/)).toBeVisible();
+    // The native minlength blocks the submit; the translated message is covered by the unit tests.
+    expect(await password.evaluate((input: HTMLInputElement) => input.validity.tooShort)).toBe(true);
     await expect(page).toHaveURL(/\/signup$/);
   });
 

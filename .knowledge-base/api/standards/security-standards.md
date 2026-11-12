@@ -15,7 +15,9 @@ handler is mounted at `/api/auth/*`, ahead of the session middleware and every o
 
 ### Password Security
 - **Hashing**: handled by Better Auth; application code never hashes or stores passwords itself
-- **Minimum Length**: 8 characters (Better Auth default)
+- **Length**: new passwords are 15 to 128 characters (`MIN_PASSWORD_LENGTH` / `MAX_PASSWORD_LENGTH`
+  in `@adelie/shared`), the NIST SP 800-63B-4 minimum when a password may be the only factor. No
+  composition rules. Sign-in does not enforce the minimum, so existing shorter passwords still work
 - **Storage**: never store plaintext passwords; the hash lives on the `accounts` row
 - **Reset**: time-limited reset tokens, emailed through the mailer
 
@@ -141,17 +143,18 @@ function validateCsrf(req: Request) {
 ## Secure Headers
 
 ### Security Headers
-```typescript
-// Helmet.js or manual headers
-app.use((c, next) => {
-  c.header('X-Content-Type-Options', 'nosniff');
-  c.header('X-Frame-Options', 'DENY');
-  c.header('X-XSS-Protection', '1; mode=block');
-  c.header('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
-  c.header('Referrer-Policy', 'strict-origin-when-cross-origin');
-  return next();
-});
-```
+`securityHeaders()` (`common/middleware/security-headers.middleware.ts`) runs on every `/api` response, Better Auth's,
+404s and errors included, and the web app's `hooks.server.ts` sets the same headers on pages. Both use
+`withSecurityHeaders` from `@adelie/shared`, so the values live in one place:
+
+- `X-Content-Type-Options: nosniff`
+- `Referrer-Policy: strict-origin-when-cross-origin`: captcha frames and OAuth providers still see the origin
+- `Permissions-Policy`: denies unused powerful features; passkeys (`publickey-credentials-*`), federated sign-in
+  and the captcha widgets' `private-state-token-*` features are left at their `self` default
+- `Strict-Transport-Security: max-age=31536000`, only over https: the request's own scheme, or the leftmost
+  `x-forwarded-proto` with `TRUST_PROXY=true` (the web app's `/api` proxy sets it)
+
+Pages keep SvelteKit's CSP (`apps/web/csp-directives.mjs`). No endpoint reports which of these are on.
 
 ## Data Protection
 
@@ -239,7 +242,7 @@ if (!dbPassword || !apiKey) {
 
 ## Audit Logging
 
-### Security Events to Log
+### Audit Events to Log
 - Authentication attempts (success/failure)
 - Authorization failures
 - Password changes

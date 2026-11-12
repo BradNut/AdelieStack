@@ -26,13 +26,16 @@ session operations.
 2. If they get `429`:
    - With `X-Retry-After`: a rate limit; the header says how long to wait. Counters are in Redis
      under `auth-rate-limit:`.
+   - With `SIGN_IN_TEMPORARILY_LOCKED` on password sign-in: 100 consecutive wrong passwords for that
+     email address, from any client, locked it for 15 minutes; `X-Retry-After` says how long is left.
+     The lock is a hashed `auth-rate-limit:account-locked:<sha256 of the lowercased address>` key.
    - With `ACCOUNT_TEMPORARILY_LOCKED` on a two-factor step: 10 wrong codes locked their second
      factor for 15 minutes.
      ```sql
      SELECT failed_verification_count, locked_until FROM two_factors WHERE user_id = '<user_id>';
      ```
 
-**Resolution:** A two-factor lock clears itself at `locked_until`; there is no password lockout.
+**Resolution:** A two-factor lock clears itself at `locked_until`, a password lock when its Redis key expires.
 A ban is lifted through the admin endpoint.
 
 ---

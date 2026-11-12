@@ -43,12 +43,13 @@ const authService = {
   hibpStatus,
   captchaStatus,
   captchaPublicConfig,
+  hasSecondFactor: async () => true,
 } as unknown as AuthService;
 
 function buildApp(envs: Record<string, unknown> = {}, log = pino({ enabled: false })) {
   return new ApplicationController(
     authService,
-    new UsersController(rolesService),
+    new UsersController(rolesService, authService),
     {
       routes: () => new Hono().post(STORAGE_WEBHOOK_ROUTE, (c) => c.text('from-storage-webhook')),
     } as unknown as StorageWebhookController,
@@ -518,5 +519,72 @@ describe('GET /api/config', () => {
 
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ signUpEnabled: true, socialProviders: [] });
+  });
+});
+
+describe('security headers', () => {
+  const PERMISSIONS_POLICY =
+    'camera=(), microphone=(), geolocation=(), payment=(), usb=(), serial=(), hid=(), bluetooth=(), midi=(), display-capture=(), accelerometer=(), gyroscope=(), magnetometer=()';
+  const HSTS = 'max-age=31536000';
+
+  function expectBaseline(res: Response) {
+    expect(res.headers.get('x-content-type-options')).toBe('nosniff');
+    expect(res.headers.get('referrer-policy')).toBe('strict-origin-when-cross-origin');
+    expect(res.headers.get('permissions-policy')).toBe(PERMISSIONS_POLICY);
+  }
+
+  it.each([
+    ['an API route', '/api/users/me'],
+    ['a Better Auth endpoint', '/api/auth/get-session'],
+    ['an unknown route', '/api/nope'],
+    ['the health check', '/api/healthz'],
+  ])('sets the baseline on %s', async (_case, path) => {
+    const res = await buildApp().request(path);
+
+    expectBaseline(res);
+  });
+
+  it('sets the baseline on an error response', async () => {
+    getSession.mockRejectedValue(new Error('boom'));
+
+    const res = await buildApp().request('/api/users/me', { headers: { Cookie: 'better-auth.session_token=x' } });
+
+    expect(res.status).toBe(StatusCodes.INTERNAL_SERVER_ERROR);
+    expectBaseline(res);
+  });
+
+  it('sends HSTS when a trusted proxy says the client used https', async () => {
+    const res = await buildApp({ TRUST_PROXY: true }).request('/api/users/me', { headers: { 'x-forwarded-proto': 'https' } });
+
+    expect(res.headers.get('strict-transport-security')).toBe(HSTS);
+  });
+
+  it('reads the client-side scheme from the left of a proxy chain', async () => {
+    const res = await buildApp({ TRUST_PROXY: true }).request('/api/users/me', { headers: { 'x-forwarded-proto': 'HTTPS, http' } });
+
+    expect(res.headers.get('strict-transport-security')).toBe(HSTS);
+  });
+
+  it('sends HSTS when served over https directly', async () => {
+    const res = await buildApp().request('https://api.example.com/api/users/me');
+
+    expect(res.headers.get('strict-transport-security')).toBe(HSTS);
+  });
+
+  it.each([
+    ['over http', {}, {}],
+    ['when a trusted proxy says http', { TRUST_PROXY: true }, { 'x-forwarded-proto': 'http' }],
+    ['when the forwarded scheme comes without TRUST_PROXY', {}, { 'x-forwarded-proto': 'https' }],
+  ])('sends no HSTS %s', async (_case, envs, headers) => {
+    const res = await buildApp(envs).request('/api/users/me', { headers });
+
+    expectBaseline(res);
+    expect(res.headers.has('strict-transport-security')).toBe(false);
+  });
+
+  it('keeps the health check body free of any word on the protections', async () => {
+    const res = await buildApp().request('/api/healthz');
+
+    expect(await res.json()).toEqual({ status: 'ok' });
   });
 });
