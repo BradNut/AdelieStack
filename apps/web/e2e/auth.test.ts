@@ -34,9 +34,12 @@ test.describe('sign up, sign in, sign out', () => {
     await signIn(page, user.email, user.password);
 
     await expect(page.getByText('Verify your email address before signing in')).toBeVisible();
-    await expect(page.getByTestId('footer')).toContainText('You are not signed in');
     await page.getByTestId('unverified-email').getByTestId('resend-verification').click();
     await expect.poll(() => countEmails(user.email, VERIFY_EMAIL_SUBJECT)).toBe(2);
+
+    // The login page uses the (auth) layout, which has no footer; check for a session on an app page.
+    await page.goto('/');
+    await expect(page.getByTestId('footer')).toContainText('You are not signed in');
   });
 
   test('once verified, the account signs in', async ({ page }) => {
