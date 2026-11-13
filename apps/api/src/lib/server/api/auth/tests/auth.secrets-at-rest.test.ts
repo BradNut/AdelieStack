@@ -134,3 +134,42 @@ describe('an emailed two-factor code', () => {
     expect(res.status).toBe(200);
   });
 });
+
+/**
+ * Better Auth stores a hashed identifier as the unpadded base64url SHA-256: always 43 characters. Migration 0008 purges
+ * plaintext `trust-device-` and `2fa-otp-` rows by prefix and length, which relies on this: a hashed row can never match.
+ */
+const HASHED_IDENTIFIER = /^[A-Za-z0-9_-]{43}$/;
+
+function expectEveryIdentifierHashed() {
+  expect(t.db.verification.length).toBeGreaterThan(0);
+  for (const row of t.db.verification) expect(String(row.identifier)).toMatch(HASHED_IDENTIFIER);
+}
+
+describe('a trusted device', () => {
+  it('is stored under a hashed identifier, never its plain trust-device- form', async () => {
+    await signUpWithTotp(request, TEST_USER);
+    const { challengeCookie } = await startTwoFactorSignIn(request, TEST_USER);
+    t.mailer.sent.length = 0;
+    await request('/two-factor/send-otp', { cookie: challengeCookie, body: {} });
+
+    const res = await request('/two-factor/verify-otp', {
+      cookie: challengeCookie,
+      body: { code: emailedOtp(t.mailer.sent[0]), trustDevice: true },
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get('set-cookie')).toContain('trust_device');
+    expectEveryIdentifierHashed();
+    expect(storedVerifications()).not.toContain('trust-device-');
+  });
+});
+
+describe('a password-reset identifier', () => {
+  it('is 43 base64url characters, so it cannot look like a plaintext two-factor row', async () => {
+    await signUpWithEmail(request, TEST_USER);
+    await resetToken(request, t.mailer.sent);
+
+    expectEveryIdentifierHashed();
+  });
+});

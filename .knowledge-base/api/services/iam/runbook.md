@@ -151,6 +151,20 @@ an `AUTH_LINK_EMAIL_FAILED` entry does not prove it was delivered. The user can 
 
 ---
 
+### Trusted Device Asks for Its Second Factor Again
+
+Verification identifiers are stored hashed since #235. Better Auth can still read a row stored under its plain
+identifier, but cannot delete one, so a trusted device recorded before the change could never be revoked. Migration
+`0008_purge_plaintext_two_factor_verifications` deletes those plain `trust-device-` rows (and any plain `2fa-otp-`
+code, which no longer verifies). Every device trusted before the upgrade therefore asks for its second factor once
+more; trusting it again stores a hashed row. The web app never asks to trust a device (ADR 0008), so only a client
+calling `/api/auth/two-factor/verify-*` with `trustDevice` directly is affected. Password-reset links issued before the
+upgrade are kept and still work until they expire.
+
+**Resolution:** none needed; the user completes two-factor once.
+
+---
+
 ## Health Checks
 
 ```bash
