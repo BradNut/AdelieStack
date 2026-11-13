@@ -48,17 +48,36 @@
 - **Integration**: AWS SDK v3
 - **Features**: S3 API on `:8333`; public-read granted via `docker/seaweedfs/s3-config.json`;
   server-side image resizing via `sharp` (`storage/images.service.ts`)
-- **Security**: no antivirus scanning is wired up — see ClamAV note below
+- **Security**: uploads are scanned before they reach storage when `ANTIVIRUS_ENABLED` is on —
+  see ClamAV below
 
 #### Mailpit
 - **Purpose**: Email testing and delivery in development
 - **Integration**: SMTP transport
 - **Use Cases**: Password reset, verification emails, notifications
 
-#### ClamAV (unused dependency)
-- **Status**: `clamscan` is listed as a dependency in `apps/api/package.json` but is not
-  imported or referenced anywhere in `apps/api/src`. There is no antivirus scanning in the
-  upload path today — this is a declared dependency, not a shipped feature.
+#### ClamAV
+- **Purpose**: Virus scanning of uploaded files
+- **Integration**: `clamscan` client talking to a clamd daemon over TCP
+  (`storage/virus-scanner.service.ts`); the connection opens on the first scan
+- **Configuration**: `ANTIVIRUS_ENABLED` (default `false`), `CLAMAV_HOST`, `CLAMAV_PORT`. When
+  disabled, scans report clean without contacting clamd and objects get no scan tags
+- **Failure mode**: the upload path fails closed. If the scanner errors, for example because clamd
+  is unreachable, the upload is refused and nothing is stored
+- **Known gap**: on a clamd read timeout or a reply it cannot parse, `clamscan` resolves with
+  `isInfected: null` instead of erroring. `VirusScannerService.scanStream` counts that as clean, so
+  those files are stored and tagged clean
+- **Webhook re-scan**: as defense-in-depth, objects are re-scanned after they land when the storage
+  provider is configured to send object-created notifications to the storage webhook
+  (`storage/file-scanner.worker.ts`); nothing in the local stack sets that up. The webhook lives at
+  `STORAGE_WEBHOOK_PATH` (`/api/storage/webhook`, `@adelie/shared`), and the provider must call the
+  API directly on the internal network: the web app's `/api` proxy refuses that path with 404 so it
+  is not reachable from the public internet. Infected objects are
+  deleted; a scanner error only tags the object `error` and leaves it in place. The webhook requires
+  the `STORAGE_WEBHOOK_SECRET` bearer token (outside local development the API refuses to start
+  without it; a blank value counts as unset), ignores events for buckets other than the project's
+  own, skips keys it cannot decode, and handles at most 10 object-created records per request,
+  counting only records in the project's buckets
 
 #### Spotlight
 - **Purpose**: Error tracking and application monitoring
@@ -124,18 +143,23 @@
 ### File Upload Flow
 1. Client uploads file via multipart form
 2. API receives and validates file type/size
-3. Upload to the storage bucket (image files may be resized via `sharp` first)
-4. Store metadata in PostgreSQL
-5. Return file URL to client
+3. Resize via `sharp` if the upload requests a width or height
+4. Scan the final bytes with ClamAV, when `ANTIVIRUS_ENABLED` is on, so resized output is what
+   gets checked. Infected files are rejected with 422; if the scanner errors the upload fails
+   closed with 503. Either way nothing reaches storage
+5. Upload to the storage bucket and, when scanning is on, tag the object `scan-status=clean`
+6. Store metadata in PostgreSQL
+7. Return file URL to client
 
-> No virus-scanning step exists in this flow today (see ClamAV note above).
+> `StorageService.upload` implements steps 3-5. The template ships no upload route that calls it, so
+> steps 1, 2, 6 and 7 are what an app's own route adds around it.
 
 ## Monitoring & Observability
 
 ### Logging
 - Structured JSON logs
-- Request/response logging
-- Error stack traces
+- Request/response logging: pino's standard fields (`level`, `time`, `pid`, `hostname`) plus request id, method, path (reset tokens redacted, no query), status, duration and a fixed `msg` (`Request completed`, or `Request failed` at `error` level when a handler threw) only; never headers or error messages
+- Unexpected errors (`common/middleware/error-handler.middleware.ts`): a separate `Unexpected error` entry at `error` level with the request id and the error's type, message, stack and cause chain under `error`; connection-string credentials and query parameters are redacted, and headers stay out. The client gets a generic localised message (`server_unexpected_error`) and the request id; only explicit local development (`ENVIRONMENT=development` and `NODE_ENV=development`, `isLocalDevEnv`) adds the error text and stack. A thrown `HTTPException` is a deliberate client error: it keeps its status and message and is not logged as a failure
 - Performance metrics
 
 ### Error Tracking

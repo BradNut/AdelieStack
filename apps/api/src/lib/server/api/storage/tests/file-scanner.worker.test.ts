@@ -10,7 +10,6 @@ import { type ScanResponse, ScanResult, VirusScannerService } from '#lib/server/
 const loggerStub = { log: { info: vi.fn(), warn: vi.fn(), debug: vi.fn(), error: vi.fn() } } as unknown as LoggerService;
 
 const envs = {
-  ANTIVIRUS_ENABLED: true,
   STORAGE_HOST: 'localhost',
   STORAGE_PORT: 8333,
   STORAGE_SSL: false,
@@ -21,9 +20,9 @@ const envs = {
 const buildWorker = (opts: { enabled?: boolean; scan: ScanResponse }) => {
   const scanBuffer = vi.fn(async () => opts.scan);
   const container = new Container();
-  container.bind({ provide: ConfigService, useValue: { envs: { ...envs, ANTIVIRUS_ENABLED: opts.enabled ?? true } } as unknown as ConfigService });
+  container.bind({ provide: ConfigService, useValue: { envs } as unknown as ConfigService });
   container.bind({ provide: LoggerService, useValue: loggerStub });
-  container.bind({ provide: VirusScannerService, useValue: { scanBuffer } as unknown as VirusScannerService });
+  container.bind({ provide: VirusScannerService, useValue: { isEnabled: opts.enabled ?? true, scanBuffer } as unknown as VirusScannerService });
   return { worker: container.get(FileScannerWorker), scanBuffer };
 };
 

@@ -2,6 +2,10 @@
 
 ## Authentication & Authorization
 
+**Auth Core**
+The part of the system that proves who a person is and what they may do: users, sessions, second factors, passkeys and roles. Better Auth owns it; see [ADR 0009](../../docs/adr/0009-better-auth-owns-the-auth-core.md).
+_Avoid_: IAM, login system
+
 **Authentication**
 The process of verifying a user's identity through credentials (password, passkey, etc.).
 
@@ -11,8 +15,28 @@ The process of determining what actions an authenticated user is allowed to perf
 **Session**
 A temporary authentication state, stored in the `sessions` table through Better Auth's database adapter (not Redis), that identifies an authenticated user.
 
+**Replaced Session**
+The session a browser was holding when it signed in again, whoever signs in. Signing in ends it, including when the sign-in stops at a Two-factor Challenge; the user's sessions on other devices are untouched.
+_Avoid_: old session, previous session, stale session
+
+**Sign-in Account**
+One way a user can sign in, linked to that user: their password or a linked social provider. A user can have several and cannot unlink the last one. Passkeys are not Sign-in Accounts.
+_Avoid_: account (alone), linked account, credential
+
+**Password Account**
+The Sign-in Account that holds the user's password. A user with two-factor enabled cannot unlink it. Better Auth calls it the `credential` account.
+_Avoid_: credential account, email account
+
 **TOTP (Time-based One-Time Password)**
 A temporary password that changes every 30 seconds, used for multi-factor authentication.
+
+**Second Factor**
+An extra proof of identity asked after the password or a social provider sign-in on an account with two-factor enabled: a TOTP code, an emailed one-time code or a Recovery Code. Asking for it is the Two-factor Challenge (web glossary). An account *has a Second Factor* when two-factor is enabled or a passkey is registered; admin capabilities need one (ADR 0014).
+_Avoid_: MFA step, 2FA token
+
+**Recovery Code**
+A single-use code that replaces a Second Factor when the user has lost their authenticator. Better Auth's API calls these backup codes (`/two-factor/verify-backup-code`).
+_Avoid_: Backup code (outside Better Auth paths), reset code
 
 **Passkey**
 A WebAuthn credential that uses public key cryptography for passwordless authentication.
@@ -39,7 +63,15 @@ An action on a resource (for example `user: ban`) that a role grants, defined by
 The rules for which roles a user may hold and how a stored role value becomes the roles a permission check uses: one role per user unless multiple roles are allowed, and the least-privileged role for anything empty or unknown. Applies when roles are written and when they are read.
 
 **Provider Health**
-Whether the most recent call to an external screening provider (the Captcha Provider, Have I Been Pwned) reached it: disabled, unknown (no call since start), available or unavailable. Reported on the health endpoint without calling the provider again.
+Whether the most recent call to an external screening provider (the Captcha Provider, Have I Been Pwned) reached it: disabled, unknown (no call since start), available or unavailable. Tracked inside the API and never reported on a public endpoint; operators find an outage from the failure log entries.
+
+**Security Event**
+An account change the user is told about by email: password changed, Recovery Code used, Recovery Codes regenerated, and email address changed (sent to the old address). Sent from `auth/auth.mail.ts`: by the after-hook for a password change and Recovery Codes, by `onPasswordReset` for a completed reset, and by `afterEmailVerification` for an email change.
+_Avoid_: Alert, notification
+
+**Link Email**
+An email carrying a link the user must follow to finish what they asked for: verify an address, confirm an email change or reset a password. Unlike a Security Event, losing one blocks the user.
+_Avoid_: action email, transactional email
 
 ## Data & Storage
 
@@ -60,6 +92,14 @@ Database table structure definition.
 
 **Repository**
 Data access layer that encapsulates database queries.
+
+**Row Id**
+A record's primary key. Time-ordered, used inside the system, and not a secret. See [ADR 0010](../../docs/adr/0010-auth-ids-stay-text-uuidv7.md).
+_Avoid_: uuid, pk
+
+**Public Id**
+An identifier that leaves the system: in a URL, the UI, a cookie value, an object-storage key or a request id. Random, carries no creation time, and safe to treat as hard to guess. See [ADR 0011](../../docs/adr/0011-public-ids-are-nanoid.md).
+_Avoid_: slug, token, nanoid
 
 ## API Concepts
 
@@ -120,12 +160,16 @@ A random string used for password resets or temporary authentication.
 Temporary URL that grants access to a private S3 object.
 
 **ClamAV**
-Antivirus engine; listed as a dependency (`clamscan`) but not wired into the upload path.
+Antivirus engine that scans the final bytes of an upload before they reach storage, reached through the `clamscan` client. Gated by `ANTIVIRUS_ENABLED`; when on, the upload fails closed if the scanner errors.
 
 ## Monitoring & Operations
 
+**Audit Event**
+A security-relevant action recorded as one entry in the Audit Log: a sign-in, a credential or role change, an admin action against an account. Every Security Event is also an Audit Event; most Audit Events are not emailed.
+_Avoid_: security event (for the wider set), audit entry, log row
+
 **Audit Log**
-Record of security-relevant events for compliance and investigation.
+The append-only record of Audit Events, kept for compliance and investigation.
 
 **Health Check**
 Endpoint that reports service and dependency status.

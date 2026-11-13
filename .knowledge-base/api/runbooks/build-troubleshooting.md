@@ -15,8 +15,8 @@ Errors at startup are runtime errors, not build errors.
 
 `ConfigService` (`apps/api/src/lib/server/api/common/configs/config.service.ts`) validates
 `process.env` against the Zod schema in `apps/api/src/lib/server/api/common/configs/dtos/env.dto.ts`
-on construction. If a required env var is missing, it throws `Failed to parse environment
-variables` / `Missing environment variables: ...` naming the field(s), and the process exits.
+on construction. If a required env var is missing or a value is refused, it throws `Failed to parse environment
+variables` / `Invalid environment variables: ...` naming the field(s), and the process exits.
 
 Fix: set the missing var in Coolify env (or local `.env`) → redeploy/restart. The full required
 var list is `apps/api/.env.schema` — see [Environment Configuration](./environment-config.md).

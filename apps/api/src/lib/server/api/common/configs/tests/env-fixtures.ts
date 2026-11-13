@@ -8,8 +8,6 @@ export const validEnvs: Record<string, string> = {
   DATABASE_HOST: 'localhost',
   DATABASE_PORT: '5432',
   DATABASE_DB: 'postgres',
-  DB_MIGRATING: 'false',
-  DB_SEEDING: 'false',
   LOG_LEVEL: 'info',
   ORIGIN: 'http://localhost:5173',
   DOMAIN: 'localhost',
@@ -33,6 +31,25 @@ export const validEnvs: Record<string, string> = {
   DISABLE_RATE_LIMIT: 'false',
   OTEL_ENABLED: 'false',
   OTEL_EXPORTER_OTLP_ENDPOINT: 'http://localhost:4318/v1/traces',
+};
+
+/**
+ * Overrides that turn {@link validEnvs} into a valid production configuration: every production switch on and none of
+ * the development defaults the API refuses in production.
+ */
+export const productionEnvOverrides: Record<string, string> = {
+  ENV: 'prod',
+  ENVIRONMENT: 'production',
+  NODE_ENV: 'production',
+  TRUST_PROXY: 'true',
+  STORAGE_WEBHOOK_SECRET: 'webhook-secret',
+  DATABASE_PASSWORD: 'production-database-password',
+  STORAGE_ACCESS_KEY: 'production-access-key',
+  STORAGE_SECRET_KEY: 'production-secret-key',
+  MAILER_TRANSPORT: 'unsend',
+  USESEND_API_KEY: 'us_production_key',
+  MAIL_FROM: 'noreply@example.com',
+  BETTER_AUTH_URL: 'https://app.example.com',
 };
 
 const envKeys = new Set(Object.keys(validEnvs));

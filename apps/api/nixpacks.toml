@@ -2,7 +2,7 @@
 # Docs: https://nixpacks.com/docs/configuration/file
 
 [phases.setup]
-nixPkgs = ["nodejs_22"]
+nixPkgs = ["nodejs_24"]
 # libvips: sharp image processing. build-essential + friends: argon2/native module builds.
 aptPkgs = ["libvips-dev", "libvips-tools", "build-essential", "libpng-dev", "libjpeg-dev", "zlib1g-dev"]
 
@@ -19,7 +19,10 @@ cmds = [
 cmds = ["pnpm --filter @adelie/api run paraglide:compile"]
 
 [start]
-cmd = "pnpm --filter @adelie/api start"
+# Not `pnpm --filter ... start`: with pnpm in front, SIGTERM never reaches the app, so
+# the graceful shutdown does not run and the container exits 1. `exec` replaces the
+# shell, making tsx the process that receives the signal.
+cmd = "cd apps/api && exec ./node_modules/.bin/tsx src/server.ts"
 
 [variables]
 NODE_ENV = "production"

@@ -45,5 +45,7 @@
   "connected_accounts_connect": "Connect {provider}",
   "connected_accounts_unlinked": "{provider} unlinked.",
   "connected_accounts_load_failed": "Could not load your connected accounts.",
-  "connected_accounts_unlink_failed": "Could not unlink the account."
+  "connected_accounts_unlink_failed": "Could not unlink the account.",
+  "email_change_started": "If {email} can be used, we're sending a confirmation link there. It can take a few minutes.",
+  "email_change_failed": "Could not start the email change."
 }

@@ -1,8 +1,8 @@
-import { APP_NAME } from '@adelie/shared';
 import { memoryAdapter } from 'better-auth/adapters/memory';
 import { getTableColumns, type Table } from 'drizzle-orm';
 import { describe, expect, it } from 'vitest';
-import { AUTH_PLACEHOLDER, type Auth, createAuth } from '#lib/server/api/auth/auth.config';
+import { type Auth, createOfflineAuth } from '#lib/server/api/auth/auth.config';
+import { createHibpHealth } from '#lib/server/api/auth/auth.hibp-status';
 import * as drizzleSchema from '#lib/server/api/databases/postgres/drizzle-schema';
 
 type AuthTables = Awaited<Auth['$context']>['tables'];
@@ -41,17 +41,11 @@ function missingFromSchema(tables: AuthTables, schema: Record<string, string[]>)
 }
 
 async function configuredTables(): Promise<AuthTables> {
-  const auth = createAuth({
+  const auth = createOfflineAuth({
     database: memoryAdapter({}),
-    secret: AUTH_PLACEHOLDER.secret,
-    baseURL: AUTH_PLACEHOLDER.baseURL,
-    trustedOrigins: [],
-    twoFactorIssuer: APP_NAME,
-    passkey: AUTH_PLACEHOLDER.passkey,
-    mailer: { send: async () => {} },
     signUpEnabled: true,
     // These tests are not about breached passwords: keep them off the network.
-    hibpEnabled: false,
+    hibpStatus: createHibpHealth({ enabled: false }),
   });
   return (await auth.$context).tables;
 }

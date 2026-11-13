@@ -1,0 +1,152 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main, development]
+    paths-ignore:
+      - '**.md'
+      - '.knowledge-base/**'
+      - 'docs/**'
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - '.knowledge-base/**'
+      - 'docs/**'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+# No secrets anywhere in CI, so fork PRs work. Values not set here come from the .env.schema defaults.
+
+jobs:
+  # Repo-wide, not per package: covers the root config, scripts and web files too (#149).
+  lint:
+    name: Lint (Biome)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup
+      - run: pnpm exec biome check .
+
+  check:
+    name: Type check (web + API + shared boundaries)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup
+      - run: pnpm check
+
+  unit:
+    name: Unit tests (web + API)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup
+      - run: pnpm test
+
+  redis:
+    name: API rate-limit tests (Redis)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      REDIS_URL: redis://localhost:6379
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup
+      - run: pnpm --filter @adelie/api test:redis
+
+  e2e:
+    name: End-to-end tests (Chromium)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # Throwaway values that only protect containers living for one run on this runner.
+    # Everything else comes from the defaults in apps/api/.env.schema, which point at the services started below.
+    env:
+      SIGNING_SECRET: ci-only-not-a-secret-signing
+      BETTER_AUTH_SECRET: ci-only-not-a-secret-better-auth-key
+      ADMIN_PASSWORD: ci-only-not-a-secret-admin-password
+      # Playwright turns this off for the servers it starts; the seed runs outside Playwright.
+      HIBP_ENABLED: 'false'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup
+
+      - name: Resolve Playwright version
+        id: playwright
+        run: echo "version=$(pnpm --filter @adelie/web exec node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}-chromium
+
+      - name: Install Playwright browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: pnpm --filter @adelie/web exec playwright install --with-deps chromium
+
+      # The cache holds the browser only; its system libraries still have to be installed.
+      - name: Install Playwright system dependencies
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: pnpm --filter @adelie/web exec playwright install-deps chromium
+
+      - name: Start services
+        run: docker compose up -d postgres redis seaweedfs mailpit
+
+      # Mailpit has to be up before the tests, or Playwright's global setup starts its stand-in instead.
+      - name: Wait for services
+        run: |
+          wait_for() {
+            timeout 60 bash -c "until $2; do sleep 1; done" || { echo "::error::$1 was not ready within 60 seconds"; exit 1; }
+          }
+          wait_for Postgres 'docker compose exec -T postgres pg_isready -h localhost -U postgres -q'
+          wait_for Redis 'docker compose exec -T redis redis-cli ping | grep -q PONG'
+          wait_for Mailpit 'curl -fs -o /dev/null http://localhost:8025/api/v1/info'
+          pnpm storage:setup
+
+      # Turbo's plan for the web app leaves out the API's build task, which compiles these.
+      - name: Generate API Paraglide files
+        run: pnpm --filter @adelie/api paraglide:compile
+
+      - name: Migrate and seed the database
+        run: |
+          DB_MIGRATING=true pnpm db:migrate
+          DB_SEEDING=true pnpm db:seed
+
+      # Only the web app's dependencies: Playwright builds the web app itself.
+      - name: Build workspace dependencies
+        run: pnpm turbo run build --filter=@adelie/web^...
+
+      # Playwright directly: Turbo's strict env mode and the varlock filter in the test:e2e script would both drop the values above.
+      - name: Run tests
+        run: pnpm --filter @adelie/web exec playwright test
+
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ !cancelled() }}
+        with:
+          name: playwright-report
+          path: |
+            apps/web/playwright-report/
+            apps/web/test-results/
+          retention-days: 30

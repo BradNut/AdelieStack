@@ -4,6 +4,7 @@ import type { Mailer, SendProps } from './interfaces/mailer.interface';
 @injectable()
 export class DevMailerService implements Mailer {
   async send({ to, template }: SendProps) {
+    const recipients = Array.isArray(to) ? to : [to];
     const options = {
       method: 'POST',
       headers: {
@@ -14,8 +15,8 @@ export class DevMailerService implements Mailer {
         From: { Email: 'noreply@adelie.local', Name: 'AdelieStack' },
         HTML: template.html(),
         Subject: template.subject(),
-        Text: template.html(),
-        To: Array.isArray(to) ? to.map((to) => ({ Email: to, Name: to })) : [{ Email: to, Name: to }],
+        Text: template.text(),
+        To: recipients.map(({ email }) => ({ Email: email, Name: email })),
       }),
     };
 

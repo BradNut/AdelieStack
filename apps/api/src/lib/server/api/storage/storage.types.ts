@@ -9,14 +9,6 @@ export type StorageClientConfig = {
   secretKey: string;
 };
 
-export type StorageClientEnv = {
-  STORAGE_HOST: string;
-  STORAGE_PORT: number;
-  STORAGE_SSL: boolean;
-  STORAGE_ACCESS_KEY: string;
-  STORAGE_SECRET_KEY: string;
-};
-
 export type StoredObject = {
   body: Buffer;
   contentType: string | undefined;
@@ -43,9 +35,28 @@ export const ScanTag = {
   VIRUSES: 'scan-viruses',
 } as const;
 
+/** The object tags that record a scan outcome as of now. */
+export const scanTags = (status: ScanStatus, viruses?: string[]): Record<string, string> => ({
+  [ScanTag.STATUS]: status,
+  [ScanTag.TIMESTAMP]: new Date().toISOString(),
+  ...(viruses?.length ? { [ScanTag.VIRUSES]: viruses.join(',') } : {}),
+});
+
+/** How large an image may be going into, and coming out of, a resize. */
+export interface ImageLimits {
+  maxInputPixels: number;
+  maxOutputDimension: number;
+}
+
 export type Upload = {
   file: File;
   key?: string;
+  /** Largest file accepted. A larger one is refused before it is read. */
+  maxSizeBytes: number;
+  /** Types accepted, compared with what the file's bytes are. HTML and SVG are refused unless listed. */
+  acceptedTypes: readonly string[];
+  visibility: BucketVisibility;
   resizeOptions?: ResizeOptions;
-  visibility?: BucketVisibility;
+  /** Limits for the resize; `ImagesService` applies its defaults when omitted. */
+  imageLimits?: ImageLimits;
 };

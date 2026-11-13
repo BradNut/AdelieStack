@@ -1,181 +1,175 @@
 # IAM Business Processes
 
-These flows describe the real implementation in
-`apps/api/src/lib/server/api/iam/{login-requests,reset-password-requests,sessions}`.
+Better Auth implements these flows; the paths are below `/api/auth`. Every request first passes
+Better Auth's rate limiter, then the captcha check on protected paths when captcha is on, then our
+before-hooks (password policy, role guard). Our after-hooks send most Security Event emails
+(`auth/auth.mail.ts`; the email-change notice instead uses `emailVerification.afterEmailVerification`) and end the Replaced Session on sign-in (`auth/auth.replaced-session.ts`).
 
-## Password Login (`POST /login`)
-
-```
-1. Client submits { identifier, password }
-   ↓
-2. zValidator validates against signinDto
-   ↓
-3. Rate limit check (3/min, Redis-backed)
-   ↓
-4. UsersRepository.findOneByEmailOrUsername(identifier)
-   ├─ Not found → BadRequest('Invalid credentials')
-   └─ Found → continue
-   ↓
-5. CredentialsRepository.findPasswordCredentialsByUserId(userId)
-   ├─ Not found → BadRequest('Invalid credentials')
-   └─ Found → continue
-   ↓
-6. HashingService.compare(password, credential.secret_data) (Argon2)
-   ├─ Invalid → BadRequest('Invalid credentials')
-   └─ Valid → continue
-   ↓
-7. SessionsService.createSession(userId) — writes session to Redis
-   ↓
-8. Controller sets signed session cookie
-   ↓
-9. Return { message: 'welcome' }
-```
-
-There is no MFA branch, account lockout, or audit-log step in this flow.
-
-## Email-Code Login Request (`POST /login/request`)
+## Sign-up (`POST /sign-up/email`)
 
 ```
-1. Client submits { email }
+1. Client submits { name, email, password }
    ↓
-2. LoginRequestsRepository.delete(email) — clear any prior pending request
+2. SIGN_UP_ENABLED off → refused (every sign-up method honours the same gate)
    ↓
-3. VerificationCodesService generates a 6-char code + Argon2 hash
+3. Password policy: length limits, no leading or trailing space, HIBP screening
+   ├─ Breached → 400 PASSWORD_COMPROMISED
+   └─ HIBP unreachable → 503 PASSWORD_CHECK_UNAVAILABLE
    ↓
-4. LoginRequestsRepository.set({ email, hashedCode }) — stored in Redis
+4. Address already taken?
+   ├─ Yes → nothing written, no email (the password is still hashed, to even out timing)
+   └─ No  → User and Password Account rows inserted (role `user`, email unverified);
+            verification email sent (sendOnSignUp)
    ↓
-5. MailerService.send(LoginVerificationEmail) with the plaintext code
-   ↓
-6. Return { message: 'welcome' }
+5. 200 { status: true } either way, and no session (requireEmailVerification)
 ```
 
-## Email-Code Login Verify (`POST /login/verify`)
+Both answers are the same body (`auth/auth.sign-up-response.ts`), so sign-up does not reveal which
+addresses have accounts. The account signs in once its email is verified.
+
+- **Timing:** a taken address skips the User and Account row writes, so a small timing difference
+  remains. The password is hashed on both paths and the verification email is sent detached.
+- **Existing sessions:** a session that predates required verification, and passkeys registered
+  from it, keep working for an unverified account.
+
+## Sign-in (`POST /sign-in/email`)
 
 ```
-1. Client submits { email, code }
+1. Client submits { email, password }  (strict rate limit)
    ↓
-2. LoginRequestsRepository.get(email)
-   ├─ Not found → BadRequest('Invalid code')
-   └─ Found → continue
+2. Wrong email or password → 401 (same answer for both)
    ↓
-3. VerificationCodesService.verify(code, storedHash) (Argon2 compare)
-   ├─ Invalid → BadRequest('Invalid code')
-   └─ Valid → continue
+3. Email not verified → 403 EMAIL_NOT_VERIFIED, no session, no email (the login page offers the resend)
    ↓
-4. LoginRequestsRepository.delete(email) — burn the one-time request
-   ↓
-5. UsersRepository.findOneByEmail(email)
-   ├─ Found → SessionsService.createSession(existingUser.id)
-   └─ Not found → UsersService.createEmail(email), send WelcomeEmail,
-                  SessionsService.createSession(newUser.id)
-   ↓
-6. Controller sets signed session cookie; return { message: 'welcome' }
+4. Two-factor enabled?
+   ├─ Yes → { twoFactorRedirect: true } and a challenge cookie; no session yet.
+   │        Client completes the Two-factor Challenge (/two-factor/verify-totp,
+   │        /verify-otp or /verify-backup-code) to get the session.
+   └─ No  → session row inserted, cookie set
 ```
 
-## Password Reset Request (`POST /password/reset/request`)
+Users the admin plugin creates (the seed, `/admin/create-user`) start verified unless the body's `data.emailVerified`
+says otherwise (`auth/auth.admin-created-verified.ts`), so they can sign in straight away. Social sign-in is unaffected:
+it follows the provider's verified flag.
+
+A sign-in from a browser that already held a session ends that Replaced Session
+(`auth/auth.replaced-session.ts`), as soon as a Two-factor Challenge is raised when one follows. A
+failed sign-in ends nothing, and the user's sessions on other devices are untouched.
+
+Passkey sign-in (`/passkey/*`) is a complete sign-in: it creates a session with no challenge. Social
+sign-in (`/sign-in/social`, then the provider callback) creates one directly only for a user without
+two-factor. A two-factor user gets the same challenge as after a password (ADR 0012, `auth/auth.social-two-factor.ts`):
+the callback redirects to the Two-factor Challenge page with a challenge cookie and no session, and the
+id-token sign-in answers `{ twoFactorRedirect: true }`. Social sign-in links to an existing account
+only when both sides report the email as verified, and that happens before the challenge, so an
+abandoned challenge can leave a linked Sign-in Account. It gives no session and can be unlinked from settings.
+
+## Email Verification
 
 ```
-1. Client submits { email }
+1. Link emailed on sign-up, or on request (POST /send-verification-email, email rate limit)
    ↓
-2. UsersRepository.findOneByEmail(email)
-   ├─ Not found → return silently (no error, no email — prevents enumeration)
-   └─ Found → continue
+2. GET /verify-email?token=... consumes the token; expired tokens are rejected
    ↓
-3. ResetPasswordRequestsRepository.delete(email) — clear any prior request
-   ↓
-4. VerificationCodesService generates a code + Argon2 hash
-   ↓
-5. ResetPasswordRequestsRepository.set({ email, hashedCode }) — stored in Redis
-   ↓
-6. MailerService.send(ResetPasswordEmail) with the plaintext code
-   ↓
-7. Return { message: 'success' }
+3. users.email_verified = true
 ```
 
-## Password Reset Verify (`POST /password/reset/verify`)
+Signed out, an unknown or already-verified address gets the same success answer and no email.
+Signed in with an already-verified email, the request is a `400 EMAIL_ALREADY_VERIFIED`.
+
+## Password Reset
 
 ```
-1. Client submits { email, code }
+1. POST /request-password-reset { email, redirectTo }  (email rate limit)
+   ├─ Unknown email → same success answer, no email (prevents enumeration)
+   └─ Known → reset link emailed (PasswordResetLinkEmail)
    ↓
-2. ResetPasswordRequestsRepository.get(email)
-   ├─ Not found → BadRequest('Invalid code')
-   └─ Found → continue
+2. Link opens the web reset page with a token
    ↓
-3. VerificationCodesService.verify(code, storedHash)
-   ├─ Invalid → BadRequest('Invalid code')
-   └─ Valid → continue
+3. POST /reset-password { token, newPassword }  (own rate limit, password policy)
    ↓
-4. ResetPasswordRequestsRepository.delete(email)
-   ↓
-5. UsersRepository.findOneByEmail(email)
-   ├─ Not found → BadRequest('Unable to reset password')
-   └─ Found → return true
-   ↓
-6. Return { message: 'success' }
+4. Password updated and every session the account held is ended; "password changed" Security Event email sent
 ```
 
-## Password Reset Completion (`POST /password/reset`)
+A successful reset signs the account out everywhere (`revokeSessionsOnPasswordReset`). The reset page
+redirects a signed-in browser to `/` before its form renders, so the browser making the reset normally
+has no session to lose; on success it is sent to `/login`. A failed reset (bad token, rejected password)
+ends no session.
+
+## Password Change (`POST /change-password`)
+
+Needs the current password. Optionally revokes other sessions (`revokeOtherSessions`). Sends the
+"password changed" Security Event email.
+
+## Sessions
 
 ```
-1. Client submits { email, password, confirm_password }
-   ↓
-2. resetPasswordNewPasswordDto.superRefine checks password === confirm_password
-   ├─ Mismatch → BadRequest('Passwords do not match')
-   └─ Match → continue
-   ↓
-3. UsersRepository.findOneByEmail(email)
-   ├─ Not found → BadRequest('Unable to reset password')
-   └─ Found → continue
-   ↓
-4. UsersService.updatePassword(userId, password) — hashes with Argon2, upserts credential
-   ↓
-5. Return { message: 'welcome' }
+Every request to our own routes:
+  authSession middleware → auth.api.getSession(headers)
+    ├─ No or expired session → c.var.user = c.var.session = null
+    └─ Valid → c.var.user, c.var.session set; Better Auth extends the
+               expiry (at most once a day) and re-sets the cookie
 ```
 
-Note: this handler does not itself re-verify that a reset code was previously confirmed, nor does
-it revoke existing sessions for the user — there is no session-revocation step in this flow.
+Sign-out deletes the session row and clears the cookie. Users can list and revoke their own
+sessions; admins can list and revoke anyone's (`/admin/list-user-sessions`, `/admin/revoke-user-sessions`).
 
-## Logout (`POST /logout`)
+## Fresh Session Gate
 
-```
-1. Client calls POST /logout (no body)
-   ↓
-2. SessionsService.invalidateSession('') — deletes a session by id in Redis
-   ↓
-3. SessionsService.deleteSessionCookie() — clears the cookie regardless
-   ↓
-4. Return { message: 'logout' }
-```
+Sensitive actions (delete user, change email, unlink an account, list sessions, ...) refuse a session
+older than `AUTH_SESSION_FRESH_AGE` (5 minutes) with `403 SESSION_NOT_FRESH`. Better Auth only accepts
+any live session for change email, so `freshSessionGuard` (`auth.fresh-session.ts`) adds the check before
+the confirmation is sent. The web re-authenticates in a dialog and retries;
+see ADRs [0007](../../../../docs/adr/0007-social-reauthentication-replays-a-persisted-action.md) and
+[0008](../../../../docs/adr/0008-two-factor-reauthentication-requires-every-factor.md).
 
-## Session Validation (every request, `sessionManagement` middleware)
+## Authorization (our routes)
 
 ```
-1. Read signed "session" cookie → session id
-   ↓
-2. No cookie → c.set('session', null), continue
-   ↓
-3. SessionsRepository.get(sessionId) via Redis
-   ├─ Not found → deleteSessionCookie(), c.set('session', null)
-   └─ Found → check expiry
-      ├─ Expired → delete from Redis, treat as not found
-      └─ Valid, <15 days remaining → re-persist with new 30-day expiry, re-set cookie ("fresh")
-   ↓
-4. c.set('session', session | null)
-   ↓
-5. Routes using authState('session') throw Unauthorized if session is null;
-   routes using authState('none') throw Unauthorized if session is present
+requirePermission(authService, rolesService, { user: ['list'] })
+  ├─ Signed out → 401
+  ├─ No role of the user grants it (auth.api.userHasPermission) → 403
+  ├─ Only admin roles grant it and the account has no Second Factor → 403 SECOND_FACTOR_REQUIRED
+  └─ Granted → handler
 ```
 
-## Business Rules (as implemented)
+## Admin Second Factor ([ADR 0014](../../../../docs/adr/0014-admin-capabilities-require-a-second-factor.md))
 
-- Password field has no server-side minimum-length or complexity rule beyond "non-empty"
-  (`signinDto`); `resetPasswordNewPasswordDto` only requires non-empty + matching confirmation.
-- Verification codes are 6 characters drawn from a look-alike-free alphabet
-  (`23456789ACDEFGHJKLMNPQRSTUVWXYZ`), hashed with Argon2 before storage.
-- Sessions default to a 30-day expiry and are extended (not rotated) when fewer than 15 days
-  remain.
-- `POST /login` is the only endpoint with a rate limit (3/min); the other IAM endpoints have none.
-- There is no account lockout, no audit logging, and no MFA gate in any of these flows.
+An account has a Second Factor when two-factor is enabled or at least one passkey is registered.
+
+```
+/api/auth/admin/* (except has-permission, stop-impersonating), signed in with a stored admin role
+  ├─ Has a Second Factor → Better Auth's own permission check
+  └─ None → 403 SECOND_FACTOR_REQUIRED (sign-in, /get-session, two-factor and passkey enrolment still work)
+
+Admin removes a factor
+  ├─ /two-factor/disable with no passkey → 400 LAST_SECOND_FACTOR, two-factor stays on
+  ├─ /passkey/delete-passkey of the only passkey with two-factor off → 400 LAST_SECOND_FACTOR, passkey kept
+  └─ Otherwise → Better Auth (other roles are never refused)
+
+/admin/create-user or /admin/update-user whose data sets twoFactorEnabled (any caller, any value)
+  └─ 400 SECOND_FACTOR_NOT_WRITABLE, nothing written (only the owner enrols or removes a factor)
+```
+
+`/users/me` answers `needsSecondFactor`; the web app sends such an admin to `/settings/two-factor`
+instead of a 403 page. The seeded admin's first run follows this path (see the
+[database migrations runbook](../../runbooks/database-migrations.md#seeding)).
+
+## Business Rules
+
+- Sign-up is closed unless `SIGN_UP_ENABLED` is true.
+- Password sign-in requires a verified email (`requireEmailVerification`); social sign-in follows the provider's verified flag,
+  and users the admin plugin creates start verified.
+- A user has one role unless `ALLOW_MULTIPLE_ROLES` is on; empty or unknown stored roles read as the
+  least-privileged role.
+- The last remaining sign-in method cannot be unlinked.
+- Admin capabilities need a Second Factor; an admin cannot remove their last one.
+- Password guessing is limited per client IP by the rate limiter, and per email address across clients:
+  100 consecutive failures (until a correct password) lock password sign-in for that address for 15 minutes
+  from the last one (`429 SIGN_IN_TEMPORARILY_LOCKED`). Refused attempts do not count or extend the lock; the
+  count starts again when it ends. Unknown addresses are counted and refused the same way.
+- Second-factor guessing is also limited per account: 10 failed codes lock verification for 15
+  minutes (`429 ACCOUNT_TEMPORARILY_LOCKED`); a correct code resets the count.
 
 ## Related Documentation
 

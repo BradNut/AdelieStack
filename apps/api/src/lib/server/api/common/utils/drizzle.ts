@@ -1,6 +1,8 @@
+import type { HasDefault, HasRuntimeDefault, IsPrimaryKey, NotNull } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { customType, timestamp } from 'drizzle-orm/pg-core';
+import { type ConvertCustomConfig, customType, type PgCustomColumnBuilder, timestamp } from 'drizzle-orm/pg-core';
 import type * as drizzleSchema from '#lib/server/api/databases/postgres/drizzle-schema';
+import { uuidv7 } from './crypto';
 import { NotFound } from './exceptions';
 
 /* -------------------------------------------------------------------------- */
@@ -30,12 +32,24 @@ export const citext = customType<{ data: string }>({
   },
 });
 
-// custom type for generating an id
+// custom type for id-holding columns (foreign keys, entity ids). Primary keys use `primaryId()`.
 export const id = customType<{ data: string }>({
   dataType() {
     return 'text';
   },
 });
+
+// builder returned by `id()`: an unnamed text column holding a string
+type IdColumnBuilder = PgCustomColumnBuilder<ConvertCustomConfig<'', { data: string }>>;
+
+// `id()` marked as primary key (so not null) with an app-side default
+type PrimaryIdColumnBuilder = HasRuntimeDefault<HasDefault<IsPrimaryKey<NotNull<IdColumnBuilder>>>>;
+
+// primary key for domain tables: a `text` column filled by the app with a uuidv7 (ADR 0010).
+export const primaryId = (): PrimaryIdColumnBuilder =>
+  id()
+    .primaryKey()
+    .$defaultFn(() => uuidv7());
 
 // timestamps for created_at and updated_at
 export const timestamps = {

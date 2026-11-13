@@ -8,13 +8,12 @@
     "test": "vitest --run"
   },
   "dependencies": {
-    "@opentelemetry/auto-instrumentations-node": "0.81.0",
+    "@opentelemetry/auto-instrumentations-node": "0.81.2",
     "@opentelemetry/exporter-trace-otlp-proto": "0.223.0",
     "@opentelemetry/resources": "2.12.0",
     "@opentelemetry/sdk-node": "0.223.0",
     "@opentelemetry/semantic-conventions": "1.43.0",
     "dayjs": "^1.11.23",
-    "nanoid": "^6.0.2",
     "zod": "^4.6.7"
   },
   "exports": {
@@ -25,6 +24,6 @@
   },
   "devDependencies": {
     "@types/node": "^24.10.1",
-    "vitest": "5.0.4"
+    "vitest": "5.0.5"
   }
 }

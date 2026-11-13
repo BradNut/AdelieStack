@@ -1,14 +1,16 @@
 <script lang="ts">
-	import { isLoginMethod, LoginMethod, signinDto } from '@adelie/shared';
+	import { AppRoute, AuthErrorCode, isLoginMethod, LoginMethod, SOCIAL_ERROR_PARAM, signinDto } from '@adelie/shared';
 	import { onMount } from 'svelte';
 	import { defaults, setError, superForm } from 'sveltekit-superforms';
 	import { zod4, zod4Client } from 'sveltekit-superforms/adapters';
 	import { authClient } from '#lib/auth-client.ts';
 	import { authErrorMessage, refreshSession, toastIfError } from '#lib/client/auth-form.ts';
 	import { createCaptchaForm } from '#lib/client/captcha/captcha-form.svelte.ts';
-	import { SOCIAL_ERROR_PARAM, socialErrorMessage } from '#lib/client/social-auth.ts';
+	import { returnPathFrom, withReturnPath } from '#lib/client/return-path.ts';
+	import { socialErrorMessage } from '#lib/client/social-auth.ts';
 	import CaptchaField from '#lib/components/auth/captcha-field.svelte';
 	import LastUsedBadge from '#lib/components/auth/last-used-badge.svelte';
+	import ResendVerificationButton from '#lib/components/auth/resend-verification-button.svelte';
 	import SocialButtons from '#lib/components/auth/social-buttons.svelte';
 	import { Button } from '#lib/components/ui/button/index.ts';
 	import * as Card from '#lib/components/ui/card/index.ts';
@@ -22,9 +24,13 @@
 	let { data } = $props();
 	const captcha = createCaptchaForm();
 	const socialError = $derived(socialErrorMessage(page.url.searchParams.get(SOCIAL_ERROR_PARAM)));
+	/** Where to finish once signed in: the page that sent the user here, else home. */
+	const returnTo = $derived(returnPathFrom(page.url.searchParams));
 
 	// The hint lives in a browser cookie, so it is read after mount; the server render shows none.
 	let lastMethod = $state<LoginMethod | null>(null);
+	/** The address of the last sign-in refused for an unverified email: it gets the offer to resend the link. */
+	let unverifiedEmail = $state<string | null>(null);
 	onMount(() => {
 		const used = authClient.getLastUsedLoginMethod();
 		lastMethod = isLoginMethod(used) ? used : null;
@@ -36,22 +42,32 @@
 		resetForm: false,
 		async onUpdate({ form }) {
 			if (!form.valid) return;
-			const { data: result, error } = await authClient.signIn.email(
-				{
-					email: form.data.email,
-					password: form.data.password,
-				},
-				captcha.fetchOptions(),
+			unverifiedEmail = null;
+			const { data: result, error } = await captcha.attempt((fetchOptions) =>
+				authClient.signIn.email(
+					{
+						email: form.data.email,
+						password: form.data.password,
+					},
+					fetchOptions,
+				),
 			);
-			captcha.afterAttempt();
 			if (error) {
 				form.data.password = '';
+				// Only a correct password reaches this refusal, so offering the resend reveals nothing about the address.
+				if (error.code === AuthErrorCode.EMAIL_NOT_VERIFIED) {
+					unverifiedEmail = form.data.email;
+					return setError(form, 'email', m.auth_email_not_verified());
+				}
 				return setError(form, 'email', captchaErrorMessage(error) ?? authErrorMessage(error, 'Invalid email or password.'));
 			}
-			// A user with two-factor enabled is redirected by the client plugin instead.
-			if (result && 'twoFactorRedirect' in result && result.twoFactorRedirect) return;
+			// A user with two-factor enabled finishes on the Two-factor Challenge page, which then returns to the same place.
+			if (result && 'twoFactorRedirect' in result && result.twoFactorRedirect) {
+				await goto(withReturnPath(AppRoute.LOGIN_TWO_FACTOR, returnTo));
+				return;
+			}
 			await refreshSession();
-			await goto('/');
+			await goto(returnTo);
 		},
 	});
 
@@ -61,7 +77,7 @@
 		const { error } = await authClient.signIn.passkey();
 		if (toastIfError(error, 'Passkey sign-in failed.')) return;
 		await refreshSession();
-		await goto('/');
+		await goto(returnTo);
 	}
 </script>
 
@@ -114,6 +130,11 @@
 				<Button variant="link" class="text-secondary-foreground" href="/password/reset">Forgot Password?</Button>
 			</div>
 		</form>
+		{#if unverifiedEmail}
+			<div class="grid gap-2" data-testid="unverified-email">
+				<ResendVerificationButton email={unverifiedEmail} />
+			</div>
+		{/if}
 		<span class="text-center text-sm text-muted-foreground">{m.auth_or()}</span>
 		<Button variant="outline" class="w-full" onclick={signInWithPasskey}>
 			{m.auth_sign_in_with_passkey()}

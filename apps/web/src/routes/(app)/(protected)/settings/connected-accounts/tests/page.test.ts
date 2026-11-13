@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { SocialProvider } from '@adelie/shared';
+import { AuthErrorCode, SocialProvider } from '@adelie/shared';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -13,6 +13,7 @@ vi.mock('#lib/auth-client.ts', () => ({ authClient }));
 vi.mock('svelte-sonner', () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
 import { toast } from 'svelte-sonner';
+import { freshSession, ReauthOutcome } from '#lib/client/fresh-session.svelte.ts';
 import { socialErrorMessage } from '#lib/client/social-auth.ts';
 import { page } from '$app/state';
 import ConnectedAccountsPage from '../+page.svelte';
@@ -79,6 +80,18 @@ describe('connected accounts page', () => {
 
     expect(authClient.unlinkAccount).toHaveBeenCalledExactlyOnceWith({ accountId: 'acc-gh' });
     await waitFor(() => expect(screen.queryByTestId('connected-account-row')).toBeNull());
+  });
+
+  it('registers the unlink so a provider re-authentication can run it again', async () => {
+    authClient.listAccounts.mockResolvedValue({ data: [CREDENTIAL, GITHUB], error: null });
+    authClient.unlinkAccount.mockResolvedValue({ data: null, error: { code: AuthErrorCode.SESSION_NOT_FRESH } });
+    mount([SocialProvider.GITHUB]);
+
+    await fireEvent.click(await screen.findByRole('button', { name: 'Unlink' }));
+
+    await waitFor(() => expect(freshSession.open).toBe(true));
+    expect(freshSession.replay).toEqual({ key: 'unlink-account', args: { accountId: 'acc-gh' } });
+    freshSession.settle(ReauthOutcome.DISMISSED);
   });
 
   it('cannot unlink the last sign-in method', async () => {

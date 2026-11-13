@@ -1,39 +1,17 @@
-import type { EmailTemplate } from '#lib/server/api/mail/interfaces/email-template.interface';
+import { type Locale, m } from '#lib/server/api/common/i18n/index';
+import { StandardEmail } from '#lib/server/api/mail/email-layout';
 
-export class TwoFactorOtpEmail implements EmailTemplate {
-  constructor(
-    private readonly otp: string,
-    private readonly validForMinutes: number,
-  ) {}
-
-  subject(): string {
-    return 'Your sign-in code';
-  }
-
-  html() {
-    return /*html*/ `
-		<html lang='en'>
-			<head>
-				<meta http-equiv='X-UA-Compatible' content='IE=edge' />
-				<meta name='viewport' content='width=device-width, initial-scale=1.0' />
-				<title>Message</title>
-			</head>
-			<body>
-				<p class='title'>Your sign-in code</p>
-				<p>Enter this code to finish signing in. If you did not try to sign in, you can ignore this message.</p>
-				<div class='center'>
-					<p class='token-title'>Verification Code</p>
-					<p class='token-text'>${this.otp}</p>
-					<p class='token-subtext'>(This code is valid for ${this.validForMinutes} minutes)</p>
-				</div>
-			</body>
-			<style>
-				.title { font-size: 24px; font-weight: 700; } .token-text { font-size: 24px; font-weight: 700;
-				margin-top: 8px; } .token-title { font-size: 18px; font-weight: 700; margin-bottom: 0px; }
-				.center { display: flex; justify-content: center; align-items: center; flex-direction: column;}
-				.token-subtext { font-size: 12px; margin-top: 0px; }
-			</style>
-		</html>
-		`;
+export class TwoFactorOtpEmail extends StandardEmail {
+  constructor(otp: string, validForMinutes: number, locale: Locale) {
+    super({
+      locale,
+      title: m.mail_two_factor_otp_title({}, { locale }),
+      paragraphs: [m.mail_two_factor_otp_body({}, { locale })],
+      code: {
+        label: m.mail_two_factor_otp_code_label({}, { locale }),
+        value: otp,
+        note: m.mail_two_factor_otp_code_note({ minutes: validForMinutes }, { locale }),
+      },
+    });
   }
 }

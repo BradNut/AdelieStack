@@ -1,4 +1,5 @@
 import {
+  AUTH_BASE_PATH,
   CAPTCHA_PROTECTED_PATHS,
   CAPTCHA_RESPONSE_HEADER,
   CAPTCHA_UNAVAILABLE,
@@ -82,7 +83,7 @@ const isProtectedPath = (request: Request, basePath: string): boolean => {
 /**
  * Better Auth's `captcha` plugin over {@link CAPTCHA_PROTECTED_PATHS}, plus outage handling the plugin lacks: it
  * reports an unreachable provider as a generic 500, which is re-thrown here as a 503 `CAPTCHA_UNAVAILABLE`
- * (fail closed), logged, and recorded for the health surface. The plugin runs in `onRequest`, ahead of every
+ * (fail closed), logged, and recorded in Provider Health. The plugin runs in `onRequest`, ahead of every
  * before-hook, so a bad token never reaches the password policy or the breached-password screen.
  */
 export function captchaPlugin(config: CaptchaConfig, status: ProviderHealth): BetterAuthPlugin {
@@ -91,7 +92,7 @@ export function captchaPlugin(config: CaptchaConfig, status: ProviderHealth): Be
     ...inner,
     async onRequest(request, ctx) {
       const result = await inner.onRequest?.(request, ctx);
-      if (!request.headers.has(CAPTCHA_RESPONSE_HEADER) || !isProtectedPath(request, ctx.options.basePath ?? '/api/auth')) return result;
+      if (!request.headers.has(CAPTCHA_RESPONSE_HEADER) || !isProtectedPath(request, ctx.options.basePath ?? AUTH_BASE_PATH)) return result;
       if (await isProviderOutage(result)) {
         status.recordFailure();
         return { response: captchaUnavailable() };

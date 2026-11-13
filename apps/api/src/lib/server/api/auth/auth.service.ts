@@ -3,6 +3,7 @@ import { inject, injectable } from '@needle-di/core';
 import { ConfigService } from '#lib/server/api/common/configs/config.service';
 import { SHARED_RATE_LIMIT_BUCKET_MESSAGE, sharesOneRateLimitBucket } from '#lib/server/api/common/configs/dtos/env.dto';
 import { LoggerService } from '#lib/server/api/common/services/logger.service';
+import { clientIpOptionsFromEnvs } from '#lib/server/api/common/utils/ip';
 import { DrizzleService } from '#lib/server/api/databases/postgres/drizzle.service';
 import { MailerService } from '#lib/server/api/mail/mailer.service';
 import { type CaptchaConfig, captchaConfigFromEnvs, createCaptchaHealth } from './auth.captcha';
@@ -10,6 +11,7 @@ import { type Auth, createAuth, drizzleAuthDatabase } from './auth.config';
 import { createHibpHealth } from './auth.hibp-status';
 import type { ProviderHealth } from './auth.provider-health';
 import { AuthRateLimitRepository } from './auth.rate-limit.repository';
+import { hasSecondFactor, type SecondFactorUser } from './auth.second-factor';
 import { enabledSocialProviders, type SocialCredentialsByProvider, socialCredentialsFromEnvs } from './auth.social';
 
 /** Owns the single Better Auth instance, created on first use rather than at import time. */
@@ -43,7 +45,7 @@ export class AuthService {
     return enabledSocialProviders(this.socialCredentials);
   }
 
-  /** Outcome of the most recent Captcha Token verification, for the health surface. */
+  /** Outcome of the most recent Captcha Token verification. */
   readonly captchaStatus: ProviderHealth;
 
   /** What the web may know about captcha: never the secret. */
@@ -52,11 +54,19 @@ export class AuthService {
     return { enabled: true, provider: this.captchaConfig.provider, siteKey: this.captchaConfig.siteKey };
   }
 
-  /** Outcome of the most recent breached-password check, for the health surface. */
+  /** Outcome of the most recent breached-password check. */
   readonly hibpStatus: ProviderHealth;
 
+  /** Whether the account has a Second Factor: enabled two-factor or a registered passkey (ADR 0014). */
+  async hasSecondFactor(user: SecondFactorUser): Promise<boolean> {
+    return hasSecondFactor((await this.auth.$context).adapter, user);
+  }
+
   get auth(): Auth {
-    this.instance ??= createAuth({
+    if (this.instance) return this.instance;
+    // Per-IP limits and the per-address sign-in count; the Redis connection opens on the first limited request, not here.
+    const throttleStorage = this.configService.envs.DISABLE_RATE_LIMIT ? undefined : this.rateLimitRepository;
+    this.instance = createAuth({
       database: drizzleAuthDatabase(this.drizzleService.db),
       secret: this.configService.envs.BETTER_AUTH_SECRET,
       baseURL: this.configService.envs.BETTER_AUTH_URL,
@@ -68,16 +78,16 @@ export class AuthService {
         origin: this.configService.envs.ORIGIN,
       },
       mailer: this.mailerService,
+      mailLog: this.loggerService.log,
       signUpEnabled: this.configService.envs.SIGN_UP_ENABLED,
-      allowMultipleRoles: () => this.configService.envs.ALLOW_MULTIPLE_ROLES,
-      hibpEnabled: this.configService.envs.HIBP_ENABLED,
+      allowMultipleRoles: this.configService.envs.ALLOW_MULTIPLE_ROLES,
       hibpStatus: this.hibpStatus,
       captcha: this.captchaConfig,
       captchaStatus: this.captchaStatus,
-      trustProxy: this.configService.envs.TRUST_PROXY,
+      clientIp: clientIpOptionsFromEnvs(this.configService.envs),
       socialProviders: this.socialCredentials,
-      // The Redis connection opens on the first limited request, not here.
-      rateLimitStorage: this.configService.envs.DISABLE_RATE_LIMIT ? undefined : this.rateLimitRepository,
+      rateLimitStorage: throttleStorage,
+      accountLockoutStorage: throttleStorage,
       // Non-production only, like logging and pretty output, so production does not advertise the auth surface. (The app's own /api/reference is on in every environment.)
       openApiReference: !isProdEnv(this.configService.envs.ENV),
     });

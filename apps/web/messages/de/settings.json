@@ -45,5 +45,7 @@
   "connected_accounts_connect": "{provider} verknüpfen",
   "connected_accounts_unlinked": "Verknüpfung mit {provider} aufgehoben.",
   "connected_accounts_load_failed": "Deine verknüpften Konten konnten nicht geladen werden.",
-  "connected_accounts_unlink_failed": "Die Verknüpfung konnte nicht aufgehoben werden."
+  "connected_accounts_unlink_failed": "Die Verknüpfung konnte nicht aufgehoben werden.",
+  "email_change_started": "Wenn {email} verwendet werden kann, senden wir dorthin einen Bestätigungslink. Das kann ein paar Minuten dauern.",
+  "email_change_failed": "Die Änderung der E-Mail-Adresse konnte nicht gestartet werden."
 }

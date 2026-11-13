@@ -2,7 +2,7 @@
 # Docs: https://nixpacks.com/docs/configuration/file
 
 [phases.setup]
-nixPkgs = ["nodejs_22"]
+nixPkgs = ["nodejs_24"]
 # libvips: sharp / @sveltejs/enhanced-img image processing at build time.
 aptPkgs = ["libvips-dev", "libvips-tools", "build-essential", "libpng-dev", "libjpeg-dev", "zlib1g-dev"]
 

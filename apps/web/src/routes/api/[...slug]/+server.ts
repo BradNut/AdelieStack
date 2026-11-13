@@ -1,5 +1,6 @@
-import { StatusCodes } from '@adelie/shared';
+import { AUTH_CLIENT_IP_HEADER, FORWARDED_PROTO_HEADER, notFoundMessage, STORAGE_WEBHOOK_PATH, StatusCodes } from '@adelie/shared';
 import type { RequestEvent, RequestHandler } from '@sveltejs/kit';
+import { getPath } from 'hono/utils/url';
 import { API_PROXY_BASE_URL } from '$app/env/private';
 
 const DEFAULT_API_PROXY_BASE_URL = 'http://127.0.0.1:3001';
@@ -19,6 +20,39 @@ const HOP_BY_HOP_REQUEST_HEADERS = [
 ] as const;
 
 const METHODS_WITHOUT_BODY = new Set(['GET', 'HEAD']);
+
+/** Decodes each run of percent-escapes on its own, so one malformed escape cannot shield the rest from decoding. */
+function decodePath(path: string): string {
+  return path.replace(/(?:%[0-9A-Fa-f]{2})+/g, (escapes) => {
+    try {
+      return decodeURIComponent(escapes);
+    } catch {
+      return escapes;
+    }
+  });
+}
+
+/**
+ * Reduces a path to the segments a router could match: decoded (encoded slashes included), case-folded, with empty and
+ * dot segments resolved. This folds together more spellings than the API router does, so no variant slips past.
+ */
+function normalizePath(path: string): string {
+  const segments: string[] = [];
+  for (const segment of decodePath(path).toLowerCase().split('/')) {
+    if (segment === '' || segment === '.') continue;
+    if (segment === '..') segments.pop();
+    else segments.push(segment);
+  }
+  return `/${segments.join('/')}`;
+}
+
+// Not forwarded; see STORAGE_WEBHOOK_PATH.
+const INTERNAL_ONLY_PATHS = [normalizePath(STORAGE_WEBHOOK_PATH)];
+
+function isInternalOnlyPath(requestUrl: URL): boolean {
+  const path = normalizePath(requestUrl.pathname);
+  return INTERNAL_ONLY_PATHS.some((blocked) => path === blocked || path.startsWith(`${blocked}/`));
+}
 
 function getUpstreamUrl(requestUrl: URL): URL {
   const upstreamBase = new URL(API_PROXY_BASE_URL || DEFAULT_API_PROXY_BASE_URL);
@@ -50,8 +84,10 @@ function getUpstreamHeaders(event: RequestEvent): Headers {
   // Overwrite rather than trust any client-supplied value; the API rate limiter keys on it.
   const clientAddress = getClientAddress(event);
   if (clientAddress) {
-    headers.set('x-forwarded-for', clientAddress);
+    headers.set(AUTH_CLIENT_IP_HEADER, clientAddress);
   }
+  // The scheme adapter-node resolved for the browser's request, not a client's claim; the API sends HSTS by it.
+  headers.set(FORWARDED_PROTO_HEADER, new URL(event.request.url).protocol.replace(/:$/, ''));
 
   return headers;
 }
@@ -74,11 +110,17 @@ function toDownstreamResponse(upstream: Response): Response {
 
 async function proxyApi(event: RequestEvent): Promise<Response> {
   const { request } = event;
+  const requestUrl = new URL(request.url);
+  // Answered as the API answers an unknown route (path as its router sees it), so the block is indistinguishable.
+  if (isInternalOnlyPath(requestUrl)) {
+    return Response.json({ message: notFoundMessage(getPath(request)) }, { status: StatusCodes.NOT_FOUND });
+  }
+
   const body = METHODS_WITHOUT_BODY.has(request.method) ? undefined : await request.arrayBuffer();
 
   let upstream: Response;
   try {
-    upstream = await fetch(getUpstreamUrl(new URL(request.url)), {
+    upstream = await fetch(getUpstreamUrl(requestUrl), {
       method: request.method,
       headers: getUpstreamHeaders(event),
       body,

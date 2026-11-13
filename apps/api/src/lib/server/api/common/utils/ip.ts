@@ -1,30 +1,48 @@
+import { AUTH_CLIENT_IP_HEADER } from '@adelie/shared';
+import { getIPFromHeader } from '@better-auth/core/utils/ip';
 import type { Context } from 'hono';
 
+export { findInvalidTrustedProxies } from '@better-auth/core/utils/ip';
+
+const NO_CLIENT_ADDRESS_FALLBACK = '127.0.0.1';
+
 /**
- * Extracts the client IP address from the request.
- * Only trusts proxy headers when TRUST_PROXY is enabled, so a client cannot spoof its IP
- * by sending `x-forwarded-for` when the API is not actually behind a trusted proxy.
- * Falls back to localhost for local development.
+ * How the API learns who a client is, shared by both limiters (`rateLimit()` and Better Auth's) so they cannot diverge.
+ * Without `trustProxy`, {@link AUTH_CLIENT_IP_HEADER} is not read at all.
  */
-export function getClientIp(c: Context, trustProxy: boolean): string {
-  if (trustProxy) {
-    // Check multiple proxy headers in order of preference
-    const forwarded = c.req.header('x-forwarded-for');
-    if (forwarded) {
-      return forwarded.split(',')[0].trim();
-    }
+export interface ClientIpOptions {
+  trustProxy: boolean;
+  /** Proxies (IPs or CIDR ranges) known to append to the header, stripped from its right end. */
+  trustedProxies: string[];
+}
 
-    const realIp = c.req.header('x-real-ip');
-    if (realIp) {
-      return realIp.trim();
-    }
+/** The client IP settings from the validated environment. The one place a new setting is mapped. */
+export function clientIpOptionsFromEnvs(envs: { TRUST_PROXY: boolean; TRUSTED_PROXIES: string[] }): ClientIpOptions {
+  return { trustProxy: envs.TRUST_PROXY, trustedProxies: envs.TRUSTED_PROXIES };
+}
 
-    const cfConnectingIp = c.req.header('cf-connecting-ip');
-    if (cfConnectingIp) {
-      return cfConnectingIp.trim();
-    }
-  }
+/**
+ * The address of the client, from the one header Better Auth also trusts ({@link AUTH_CLIENT_IP_HEADER}), resolved and
+ * normalised by Better Auth's own `getIPFromHeader` so both limiters agree on a client. Null when TRUST_PROXY is off (no
+ * header is read) or the header gives no trustworthy address. No other header is read: a proxy may set only that one, so
+ * a client could send any other.
+ */
+export function resolveClientAddress(c: Context, { trustProxy, trustedProxies }: ClientIpOptions): string | null {
+  if (!trustProxy) return null;
 
-  // In local development without a proxy, default to localhost
-  return '127.0.0.1';
+  const value = c.req.header(AUTH_CLIENT_IP_HEADER);
+  return value === undefined ? null : getIPFromHeader(value, { trustedProxies });
+}
+
+/**
+ * {@link resolveClientAddress}, with one shared address when there is none. That applies in production too, where those
+ * clients share one rate-limit bucket.
+ */
+export function getClientIp(c: Context, options: ClientIpOptions): string {
+  return clientIpOrFallback(resolveClientAddress(c, options));
+}
+
+/** An address already resolved by {@link resolveClientAddress}, or the shared one when there is none. */
+export function clientIpOrFallback(address: string | null): string {
+  return address ?? NO_CLIENT_ADDRESS_FALLBACK;
 }

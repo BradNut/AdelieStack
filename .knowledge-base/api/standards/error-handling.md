@@ -1,476 +1,100 @@
 # API Error Handling Standards
 
+Every error that leaves a route goes through one handler, `errorHandler` in
+`apps/api/src/lib/server/api/common/middleware/error-handler.middleware.ts`, registered with `.onError` in
+`application.controller.ts`. It decides what the client sees and what is logged.
+
 ## Error Response Format
 
-### Standard Error Response
+The body is always a message and the request id; the same id is in the `X-Request-Id` response header and in the log.
+
 ```typescript
 {
-  "error": {
-    "code": "ERROR_CODE",
-    "message": "Human-readable error message",
-    "details": [] // Optional additional details
-  },
-  "meta": {
-    "timestamp": "2024-01-01T00:00:00Z",
-    "requestId": "req_123abc"
-  }
+  "message": "Human-readable, localised message",
+  "requestId": "<request id>" // quote it to find the log entry
 }
 ```
 
-## Error Codes
+There is no `details` or `meta` envelope, and no error `code` except the one narrow case below. A client that needs
+to branch on a failure branches on the status. (Better Auth's own endpoints are the other exception; see below.)
 
-### Client Errors (4xx)
+### Coded errors (`CodedHTTPException`)
 
-#### 400 Bad Request
+One refusal shares a status with others but must be told apart by the client: a permission-guarded route refusing an
+admin without a Second Factor (`403`, like any other forbidden request), which the web app answers by sending the
+admin to enrolment, not to an error page ([ADR 0014](../../../docs/adr/0014-admin-capabilities-require-a-second-factor.md)).
+For that, and only for refusals whose code Better Auth's endpoints also answer, a route throws
+`Forbidden(message, code)` (a `CodedHTTPException`) with an `AuthErrorCode` from `@adelie/shared`, and the body gains
+a `code` beside the message:
+
 ```typescript
-{
-  "error": {
-    "code": "BAD_REQUEST",
-    "message": "Invalid request format"
-  }
-}
+{ "message": "...", "code": "SECOND_FACTOR_REQUIRED", "requestId": "..." }
 ```
 
-#### 401 Unauthorized
+The code is typed `AuthErrorCode`, never a free string. Add a new code here only with an ADR that needs it.
+
+### Deliberate errors (`HTTPException`)
+
+A route or service that means to refuse a request throws an `HTTPException`, using the helpers in
+`common/utils/exceptions.ts` (`BadRequest`, `Unauthorized`, `Forbidden`, `NotFound`, `UnprocessableEntity`,
+`TooManyRequests`, ...). The status and message go to the client as thrown, in every environment, and nothing is
+logged as a failure. So the message is written for the client: localise it with `m.*()`, and never put internal
+detail in it.
+
 ```typescript
-{
-  "error": {
-    "code": "UNAUTHORIZED",
-    "message": "Authentication required"
-  }
-}
+if (!allowed) throw Forbidden(m.auth_role_forbidden());
 ```
 
-#### 403 Forbidden
+### Unexpected errors (anything else)
+
+Anything that is not an `HTTPException` (a failed query, a driver or socket error, a bug) is answered `500` with the
+generic localised `server_unexpected_error` message and the request id. The error's text and stack never reach the
+client, since they can hold SQL, parameters or internal hosts.
+
+Only explicit local development, `isLocalDevEnv` from `@adelie/shared` (`ENVIRONMENT=development` and
+`NODE_ENV=development`), adds them back for debugging:
+
 ```typescript
-{
-  "error": {
-    "code": "FORBIDDEN",
-    "message": "Insufficient permissions to access this resource"
-  }
-}
+{ "message": "<the error's message>", "stack": "<the error's stack>", "requestId": "..." }
 ```
 
-#### 404 Not Found
-```typescript
-{
-  "error": {
-    "code": "NOT_FOUND",
-    "message": "Resource not found"
-  }
-}
-```
+`ENV=dev` alone is not enough: it is the schema default, and the images set only `NODE_ENV=production`.
 
-#### 409 Conflict
-```typescript
-{
-  "error": {
-    "code": "CONFLICT",
-    "message": "Email already exists",
-    "details": [
-      {
-        "field": "email",
-        "value": "user@example.com",
-        "constraint": "unique"
-      }
-    ]
-  }
-}
-```
+Do not catch an unexpected error just to rethrow `InternalError(...)` with its text; let it reach the handler. Catch
+only to turn a known condition into a deliberate error (for example a unique-constraint violation into `409`), or to
+record it and degrade gracefully.
 
-#### 422 Unprocessable Entity (Validation)
-```typescript
-{
-  "error": {
-    "code": "VALIDATION_ERROR",
-    "message": "Validation failed",
-    "details": [
-      {
-        "field": "email",
-        "message": "Invalid email format",
-        "value": "invalid-email"
-      },
-      {
-        "field": "password",
-        "message": "Password must be at least 8 characters",
-        "value": "***"
-      }
-    ]
-  }
-}
-```
+### Better Auth (`/api/auth/*`)
 
-#### 429 Too Many Requests
-```typescript
-{
-  "error": {
-    "code": "RATE_LIMIT_EXCEEDED",
-    "message": "Too many requests. Please try again later.",
-    "retryAfter": 60
-  }
-}
-```
-
-### Server Errors (5xx)
-
-#### 500 Internal Server Error
-```typescript
-{
-  "error": {
-    "code": "INTERNAL_SERVER_ERROR",
-    "message": "An unexpected error occurred"
-  }
-}
-```
-
-#### 503 Service Unavailable
-```typescript
-{
-  "error": {
-    "code": "SERVICE_UNAVAILABLE",
-    "message": "Service temporarily unavailable"
-  }
-}
-```
-
-## Custom Error Classes
-
-### Base Error Class
-```typescript
-export class ApiError extends Error {
-  constructor(
-    public statusCode: number,
-    public code: string,
-    message: string,
-    public details?: unknown[]
-  ) {
-    super(message);
-    this.name = this.constructor.name;
-    Error.captureStackTrace(this, this.constructor);
-  }
-}
-```
-
-### Specific Error Classes
-```typescript
-export class NotFoundError extends ApiError {
-  constructor(message = 'Resource not found', details?: unknown[]) {
-    super(404, 'NOT_FOUND', message, details);
-  }
-}
-
-export class ValidationError extends ApiError {
-  constructor(message = 'Validation failed', details?: unknown[]) {
-    super(422, 'VALIDATION_ERROR', message, details);
-  }
-}
-
-export class UnauthorizedError extends ApiError {
-  constructor(message = 'Authentication required', details?: unknown[]) {
-    super(401, 'UNAUTHORIZED', message, details);
-  }
-}
-
-export class ForbiddenError extends ApiError {
-  constructor(message = 'Insufficient permissions', details?: unknown[]) {
-    super(403, 'FORBIDDEN', message, details);
-  }
-}
-
-export class ConflictError extends ApiError {
-  constructor(message = 'Resource conflict', details?: unknown[]) {
-    super(409, 'CONFLICT', message, details);
-  }
-}
-
-export class RateLimitError extends ApiError {
-  constructor(message = 'Rate limit exceeded', retryAfter?: number) {
-    super(429, 'RATE_LIMIT_EXCEEDED', message, [{ retryAfter }]);
-  }
-}
-
-export class InternalServerError extends ApiError {
-  constructor(message = 'Internal server error', details?: unknown[]) {
-    super(500, 'INTERNAL_SERVER_ERROR', message, details);
-  }
-}
-```
-
-## Error Handling Middleware
-
-### Global Error Handler
-```typescript
-import { Context } from 'hono';
-import { ApiError } from './errors';
-
-export async function errorHandler(err: Error, c: Context) {
-  // Log error for monitoring
-  console.error('Error:', {
-    name: err.name,
-    message: err.message,
-    stack: err.stack,
-    requestId: c.get('requestId')
-  });
-  
-  // Send to error tracking service
-  if (process.env.NODE_ENV === 'production') {
-    await errorTracker.captureException(err);
-  }
-  
-  // Handle known API errors
-  if (err instanceof ApiError) {
-    return c.json({
-      error: {
-        code: err.code,
-        message: err.message,
-        details: err.details
-      },
-      meta: {
-        timestamp: new Date().toISOString(),
-        requestId: c.get('requestId')
-      }
-    }, err.statusCode);
-  }
-  
-  // Handle Zod validation errors
-  if (err.name === 'ZodError') {
-    return c.json({
-      error: {
-        code: 'VALIDATION_ERROR',
-        message: 'Validation failed',
-        details: err.errors.map((e: any) => ({
-          field: e.path.join('.'),
-          message: e.message
-        }))
-      }
-    }, 422);
-  }
-  
-  // Handle unknown errors
-  return c.json({
-    error: {
-      code: 'INTERNAL_SERVER_ERROR',
-      message: process.env.NODE_ENV === 'production' 
-        ? 'An unexpected error occurred'
-        : err.message
-    },
-    meta: {
-      timestamp: new Date().toISOString(),
-      requestId: c.get('requestId')
-    }
-  }, 500);
-}
-```
-
-## Error Throwing Best Practices
-
-### Throw Specific Errors
-```typescript
-// ✅ Good: Specific error with context
-async function getUserById(id: string) {
-  const user = await db.query.users.findFirst({
-    where: eq(users.id, id)
-  });
-  
-  if (!user) {
-    throw new NotFoundError(`User with id ${id} not found`);
-  }
-  
-  return user;
-}
-
-// ❌ Bad: Generic error
-async function getUserById(id: string) {
-  const user = await db.query.users.findFirst({
-    where: eq(users.id, id)
-  });
-  
-  if (!user) {
-    throw new Error('Not found');
-  }
-  
-  return user;
-}
-```
-
-### Include Helpful Details
-```typescript
-// ✅ Good: Detailed validation error
-function validateAge(age: number) {
-  if (age < 0 || age > 120) {
-    throw new ValidationError('Invalid age', [
-      {
-        field: 'age',
-        value: age,
-        constraint: 'Age must be between 0 and 120'
-      }
-    ]);
-  }
-}
-```
-
-### Handle Database Errors
-```typescript
-async function createUser(data: CreateUserInput) {
-  try {
-    return await db.insert(users).values(data).returning();
-  } catch (error) {
-    // Handle unique constraint violation
-    if (error.code === '23505') { // PostgreSQL unique violation
-      throw new ConflictError('Email already exists', [
-        {
-          field: 'email',
-          value: data.email,
-          constraint: 'unique'
-        }
-      ]);
-    }
-    
-    // Re-throw unknown errors
-    throw new InternalServerError('Failed to create user');
-  }
-}
-```
-
-## Validation Error Handling
-
-### Zod Schema Validation
-```typescript
-import { z } from 'zod';
-
-const createUserSchema = z.object({
-  email: z.string().email('Invalid email format'),
-  name: z.string().min(1, 'Name is required').max(100, 'Name too long'),
-  age: z.number().int().min(0).max(120)
-});
-
-// In route handler
-try {
-  const validated = createUserSchema.parse(requestData);
-} catch (error) {
-  if (error instanceof z.ZodError) {
-    throw new ValidationError('Validation failed', error.errors.map(e => ({
-      field: e.path.join('.'),
-      message: e.message,
-      value: e.input
-    })));
-  }
-}
-```
+Better Auth answers its own deliberate errors (`APIError`) with its own body: a status plus a `code` such as
+`INVALID_EMAIL_OR_PASSWORD` and a `message`. Anything else thrown inside it is rethrown to `errorHandler`
+(`onAPIError: { throw: true }` in `auth.config.ts`), so it gets the same generic 500 and log entry as any route.
 
 ## Error Logging
 
-### What to Log
-- Error name and message
-- Stack trace
-- Request ID
-- User ID (if authenticated)
-- Request path and method
-- Timestamp
+An unexpected error is logged once, at `error` level, with the fixed message `Unexpected error`:
 
-### What NOT to Log
-- Passwords
-- Session tokens
-- Credit card numbers
-- Personal identifiable information (PII)
-
-### Logging Example
-```typescript
-function logError(error: Error, context: ErrorContext) {
-  const logData = {
-    timestamp: new Date().toISOString(),
-    error: {
-      name: error.name,
-      message: error.message,
-      stack: error.stack
-    },
-    request: {
-      id: context.requestId,
-      method: context.method,
-      path: context.path,
-      userId: context.userId // Sanitized
-    }
-  };
-  
-  if (process.env.NODE_ENV === 'production') {
-    logger.error(logData);
-  } else {
-    console.error(JSON.stringify(logData, null, 2));
-  }
-}
+```json
+{ "level": 50, "msg": "Unexpected error", "reqId": "...", "error": { "type": "DrizzleQueryError", "message": "...", "stack": "...", "cause": { ... } } }
 ```
 
-## Error Recovery
+- The cause chain is followed up to five levels, so a query error shows the driver error under it.
+- Credentials are redacted (`[REDACTED]`, from `common/utils/log-redaction.ts`): the user and password in a connection
+  string, and a `DrizzleQueryError`'s parameters, which can hold tokens and password hashes.
+- The error is serialised by hand under `error`, not through pino's `err` serializer, which copies every own
+  property (such as `params`).
+- No request headers, cookies or bodies are logged. The request logger writes its own allow-listed entry for the same
+  request id.
 
-### Retry Logic
-```typescript
-async function withRetry<T>(
-  fn: () => Promise<T>,
-  maxRetries = 3,
-  delay = 1000
-): Promise<T> {
-  let lastError: Error;
-  
-  for (let i = 0; i < maxRetries; i++) {
-    try {
-      return await fn();
-    } catch (error) {
-      lastError = error as Error;
-      if (i < maxRetries - 1) {
-        await new Promise(resolve => setTimeout(resolve, delay * (i + 1)));
-      }
-    }
-  }
-  
-  throw lastError!;
-}
-
-// Usage
-const result = await withRetry(() => externalApiCall());
-```
-
-### Graceful Degradation
-```typescript
-async function getUserWithFallback(id: string) {
-  try {
-    // Try primary data source
-    return await primaryDb.getUser(id);
-  } catch (error) {
-    logger.warn('Primary DB failed, using cache', { error });
-    
-    // Fallback to cache
-    const cached = await cache.get(`user:${id}`);
-    if (cached) return cached;
-    
-    // No fallback available
-    throw new ServiceUnavailableError('User service temporarily unavailable');
-  }
-}
-```
+Never log passwords, session or reset tokens, secrets, or personal data, in an error or anywhere else.
 
 ## Testing Error Handling
 
-### Test Error Cases
-```typescript
-describe('getUserById', () => {
-  it('should throw NotFoundError for non-existent user', async () => {
-    await expect(getUserById('non-existent-id'))
-      .rejects.toThrow(NotFoundError);
-  });
-  
-  it('should throw ValidationError for invalid ID format', async () => {
-    await expect(getUserById('invalid'))
-      .rejects.toThrow(ValidationError);
-  });
-  
-  it('should handle database connection errors', async () => {
-    vi.spyOn(db, 'query').mockRejectedValue(new Error('Connection failed'));
-    
-    await expect(getUserById('123'))
-      .rejects.toThrow(InternalServerError);
-  });
-});
-```
+- The handler's own behaviour (environment gating, redaction, cause chain) is tested in
+  `common/middleware/tests/error-handler.middleware.test.ts`; its wiring in `tests/application.controller.test.ts`.
+- For a route, test the deliberate errors it throws (status and message) and that an unexpected failure is a generic
+  500, not that a particular log line was written.
+- Use a real pino logger writing to memory to assert what reaches the log, including that a secret does not.
 
 ## Related Documentation
 

@@ -1,12 +1,12 @@
 import { PASSWORD_CHECK_UNAVAILABLE } from '@adelie/shared';
-import { memoryAdapter } from 'better-auth/adapters/memory';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createAuth } from '#lib/server/api/auth/auth.config';
 import { createHibpHealth, HIBP_CHECK_FAILED_LOG } from '#lib/server/api/auth/auth.hibp-status';
 import { ProviderHealthState } from '#lib/server/api/auth/auth.provider-health';
+import { signUpWithEmail, TEST_USER } from '../../../../../test/auth-http';
+import { createTestAuth } from '../../../../../test/auth-instance';
 
-const ORIGIN = 'http://localhost:5173';
 const PASSWORD = 'correct horse battery';
+const USER = { ...TEST_USER, password: PASSWORD };
 
 function mockHibp(status: number) {
   const fetchMock = vi.fn(async () => new Response('0000000000000000000000000000000000A:0', { status }));
@@ -17,27 +17,8 @@ function mockHibp(status: number) {
 function build(enabled: boolean) {
   const log = { error: vi.fn() };
   const hibpStatus = createHibpHealth({ enabled, log });
-  const auth = createAuth({
-    database: memoryAdapter({ user: [], session: [], account: [], verification: [], twoFactor: [] }),
-    secret: 'test-secret-that-is-at-least-32-characters',
-    baseURL: ORIGIN,
-    trustedOrigins: [ORIGIN],
-    twoFactorIssuer: 'AdelieStack',
-    passkey: { rpID: 'localhost', rpName: 'AdelieStack', origin: ORIGIN },
-    mailer: { send: async () => {} },
-    signUpEnabled: true,
-    hibpEnabled: enabled,
-    hibpStatus,
-  });
-  const signUp = (email: string) =>
-    auth.handler(
-      new Request(`${ORIGIN}/api/auth/sign-up/email`, {
-        method: 'POST',
-        headers: new Headers({ origin: ORIGIN, 'content-type': 'application/json' }),
-        body: JSON.stringify({ name: 'Test', email, password: PASSWORD }),
-      }),
-    );
-  return { log, hibpStatus, signUp };
+  const { request } = createTestAuth({ hibpStatus });
+  return { log, hibpStatus, request };
 }
 
 afterEach(() => {
@@ -47,9 +28,9 @@ afterEach(() => {
 describe('HIBP monitoring through Better Auth', () => {
   it('goes unavailable, logs once and answers 503 with the stable code after a failed check', async () => {
     mockHibp(503);
-    const { log, hibpStatus, signUp } = build(true);
+    const { log, hibpStatus, request } = build(true);
 
-    const res = await signUp('a@example.com');
+    const { res } = await signUpWithEmail(request, USER);
 
     expect(res.status).toBe(503);
     expect(((await res.json()) as { code: string }).code).toBe(PASSWORD_CHECK_UNAVAILABLE);
@@ -60,11 +41,11 @@ describe('HIBP monitoring through Better Auth', () => {
 
   it('recovers to available after a successful check', async () => {
     mockHibp(503);
-    const { hibpStatus, signUp } = build(true);
-    await signUp('a@example.com');
+    const { hibpStatus, request } = build(true);
+    await signUpWithEmail(request, USER);
 
     mockHibp(200);
-    const res = await signUp('a@example.com');
+    const { res } = await signUpWithEmail(request, USER);
 
     expect(res.status).toBe(200);
     expect(hibpStatus.health).toBe(ProviderHealthState.AVAILABLE);
@@ -72,8 +53,8 @@ describe('HIBP monitoring through Better Auth', () => {
 
   it('counts a breached-password answer as HIBP being available', async () => {
     mockHibp(503);
-    const { hibpStatus, signUp } = build(true);
-    await signUp('a@example.com');
+    const { hibpStatus, request } = build(true);
+    await signUpWithEmail(request, USER);
     const { createHash } = await import('node:crypto');
     const hash = createHash('sha1').update(PASSWORD).digest('hex').toUpperCase();
     vi.stubGlobal(
@@ -81,7 +62,7 @@ describe('HIBP monitoring through Better Auth', () => {
       vi.fn(async () => new Response(`${hash.slice(5)}:9`, { status: 200 })),
     );
 
-    const res = await signUp('b@example.com');
+    const { res } = await signUpWithEmail(request, { ...USER, email: 'b@example.com' });
 
     expect(res.status).toBe(400);
     expect(hibpStatus.health).toBe(ProviderHealthState.AVAILABLE);
@@ -89,9 +70,9 @@ describe('HIBP monitoring through Better Auth', () => {
 
   it('reports disabled, makes no HIBP request and logs nothing when the switch is off', async () => {
     const fetchMock = mockHibp(503);
-    const { log, hibpStatus, signUp } = build(false);
+    const { log, hibpStatus, request } = build(false);
 
-    const res = await signUp('a@example.com');
+    const { res } = await signUpWithEmail(request, USER);
 
     expect(res.status).toBe(200);
     expect(hibpStatus.health).toBe(ProviderHealthState.DISABLED);

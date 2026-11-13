@@ -1,18 +1,23 @@
+import { API_BASE_PATH, AUTH_ROUTE, STORAGE_ROUTE } from '@adelie/shared';
 import { inject, injectable } from '@needle-di/core';
 import { contextStorage } from 'hono/context-storage';
 import { requestId } from 'hono/request-id';
-import { notFound, onError, serveEmojiFavicon } from 'stoker/middlewares';
+import { notFound, serveEmojiFavicon } from 'stoker/middlewares';
 import { AdminExampleController } from './admin/admin-example.controller';
-import { API_BASE_PATH, AUTH_ROUTE } from './auth/auth.config';
 import { AuthService } from './auth/auth.service';
+import { authSession } from './auth/auth-session.middleware';
+import { ConfigService } from './common/configs/config.service';
 import { RootController } from './common/factories/controllers.factory';
-import { authSession } from './common/middleware/auth-session.middleware';
 import { browserSessions } from './common/middleware/browser-session.middleware';
+import { errorHandler } from './common/middleware/error-handler.middleware';
 import { requestLocale } from './common/middleware/locale.middleware';
 import { otelInstrumentation } from './common/middleware/otel.middleware';
-import { pinoLogger } from './common/middleware/pino-logger.middleware';
-import { rateLimit } from './common/middleware/rate-limit.middleware';
-import { generateId } from './common/utils/crypto';
+import { requestLogger } from './common/middleware/request-logger.middleware';
+import { securityHeaders } from './common/middleware/security-headers.middleware';
+import { LoggerService } from './common/services/logger.service';
+import { createClientAddressResolver } from './common/utils/client-address-warning';
+import { publicId } from './common/utils/crypto';
+import { clientIpOptionsFromEnvs } from './common/utils/ip';
 import { ConfigController } from './config/config.controller';
 import configureOpenAPI from './configure-open-api';
 import { StorageWebhookController } from './storage/storage-webhook.controller';
@@ -26,45 +31,47 @@ export class ApplicationController extends RootController {
     private readonly storageWebhookController = inject(StorageWebhookController),
     private readonly configController = inject(ConfigController),
     private readonly adminExampleController = inject(AdminExampleController),
+    private readonly configService = inject(ConfigService),
+    private readonly loggerService = inject(LoggerService),
   ) {
     super();
   }
 
   routes() {
-    return (
-      this.controller
-        .get('/', (c) => {
-          return c.json({ status: 'ok' });
-        })
-        .get('/healthz', (c) => {
-          // HIBP is reported from the last breached-password check; probes never call it, and an outage
-          // does not fail liveness (sign-in and the rest of the app still work).
-          // Captcha is reported the same way: from the last verification, never by calling the provider.
-          return c.json({ status: 'ok', hibp: this.authService.hibpStatus.health, captcha: this.authService.captchaStatus.health });
-        })
-        // Public: lets the web learn whether to render a captcha widget, and which, without its own env.
-        .get('/config/captcha', (c) => c.json(this.authService.captchaPublicConfig))
-        .get('/rate-limit', rateLimit({ limit: 3, minutes: 1 }), (c) => {
-          return c.json({ message: 'Test!' });
-        })
-    );
+    return this.controller
+      .get('/', (c) => {
+        return c.json({ status: 'ok' });
+      })
+      .get('/healthz', (c) => {
+        // Public, so it answers only that the API is up; provider outages are found in the logs.
+        return c.json({ status: 'ok' });
+      });
   }
 
   registerControllers() {
     const api = this.controller
       .basePath(API_BASE_PATH)
       .use(otelInstrumentation())
-      .use(requestId({ generator: () => generateId() }))
+      .use(securityHeaders(clientIpOptionsFromEnvs(this.configService.envs)))
+      .use(requestId({ generator: () => publicId() }))
       .use(contextStorage())
       .use(requestLocale)
-      .use(browserSessions)
+      .use(browserSessions(this.configService.envs))
       .use(serveEmojiFavicon('📝'))
-      .use(pinoLogger());
+      .use(requestLogger(this.loggerService.log));
 
     // Better Auth owns /api/auth/* with its own request/response shapes. It is registered
     // before the session middleware and every other route, and kept out of the returned
     // chain so it stays outside the api-contract RPC types.
-    api.on(['GET', 'POST'], `${AUTH_ROUTE}/*`, (c) => this.authService.auth.handler(c.req.raw));
+    // Better Auth's limiter keys on the client IP, and with none every client shares one bucket per path. Resolved here
+    // only for that warning; with rate limiting off no bucket is shared, so there is nothing to resolve.
+    const resolveClientAddress = this.configService.envs.DISABLE_RATE_LIMIT
+      ? undefined
+      : createClientAddressResolver(clientIpOptionsFromEnvs(this.configService.envs), () => this.loggerService.log);
+    api.on(['GET', 'POST'], `${AUTH_ROUTE}/*`, (c) => {
+      resolveClientAddress?.(c);
+      return this.authService.auth.handler(c.req.raw);
+    });
 
     const app = api
       .use(authSession(this.authService))
@@ -72,8 +79,8 @@ export class ApplicationController extends RootController {
       .route('/config', this.configController.routes())
       .route('/users', this.usersController.routes())
       .route('/admin', this.adminExampleController.routes())
-      .route('/storage', this.storageWebhookController.routes())
-      .onError(onError)
+      .route(STORAGE_ROUTE, this.storageWebhookController.routes())
+      .onError(errorHandler({ envs: this.configService.envs, logger: this.loggerService.log }))
       .notFound(notFound);
 
     configureOpenAPI(app);

@@ -10,7 +10,7 @@ Push to `main` → Coolify auto-builds → replaces container on success.
 
 ## Nixpacks (`apps/web/nixpacks.toml`)
 
-- Node 22.17 or newer (SvelteKit 3 requirement, enforced by `engines` in `apps/web/package.json`; the Docker image uses 24), apt: `libvips-dev libvips-tools build-essential libpng-dev libjpeg-dev zlib1g-dev`
+- Node 24 or newer (enforced by `engines` in `apps/web/package.json`; the Docker image and `nixpacks.toml` use 24), apt: `libvips-dev libvips-tools build-essential libpng-dev libjpeg-dev zlib1g-dev`
   (sharp / `@sveltejs/enhanced-img` build deps)
 - Install: `corepack enable && corepack prepare pnpm@10.26.0 --activate`, then
   `pnpm install --frozen-lockfile --filter @adelie/web...`
@@ -68,6 +68,34 @@ Symptom of a wrong origin: `Cross-site POST form submissions are forbidden` (403
 Do not reuse `ORIGIN` for this: the API reads `ORIGIN` for CORS and `.env.schema` gives it a localhost default, which would be baked into the build.
 
 See [Environment Configuration](./environment-config.md).
+
+## Security Headers
+
+Every page and `/api` response carries `X-Content-Type-Options`, `Referrer-Policy` and `Permissions-Policy` (values in `@adelie/shared`'s `security-headers.ts`), set by `hooks.server.ts` and again by the API itself. `Strict-Transport-Security` follows the scheme of the request origin above: sent when it is `https`, removed otherwise, so the same setup that gets the origin right gets HSTS right. The `/api` proxy passes that scheme to the API as `x-forwarded-proto`, which the API reads only with `TRUST_PROXY=true`. The CSP stays SvelteKit's (`csp-directives.mjs`).
+
+HSTS is only as right as that origin: with a wrong `WEB_ORIGIN` or a missing `PROTOCOL_HEADER` behind a scheme-changing proxy, an https site is taken for http and gets no HSTS. The reverse is harmless: browsers ignore HSTS received over http (RFC 6797).
+
+adapter-node serves built assets (`_app/immutable/*`), `static/` files and prerendered pages itself, before `hooks.server.ts` runs, so those responses do not get these headers from the app. Have the reverse proxy add at least `X-Content-Type-Options: nosniff` to them (or to every response; the app setting the same value again is harmless).
+
+## Client Address Behind a Proxy
+
+By default adapter-node takes the client address from the socket, which behind a proxy is the proxy itself. Every client then reaches the API with the same address and shares one rate-limit bucket, so clients can lock each other out. Behind a proxy, set these at runtime:
+
+| Proxy | `ADDRESS_HEADER` | `XFF_DEPTH` |
+|---|---|---|
+| Appends to `X-Forwarded-For` (Coolify/Traefik, nginx `$proxy_add_x_forwarded_for`, most load balancers) | `x-forwarded-for` | How many trusted proxies are in front of the web app: `1` for a single proxy such as Coolify/Traefik, `2` when two proxies each append, such as a CDN in front of nginx |
+| Sets `X-Real-IP` | `x-real-ip` | Not read; leave unset |
+| Sets `CF-Connecting-IP` | `cf-connecting-ip` | Not read; leave unset |
+
+Default Traefik strips an `X-Forwarded-For` from peers it does not trust, so a CDN in front of Coolify usually yields one address: `XFF_DEPTH=2` then returns a 500 and `XFF_DEPTH=1` gives the CDN edge address.
+
+**Set these only behind a proxy that controls the header**, since a client could otherwise supply it and choose its own address. For `x-real-ip` and `cf-connecting-ip`, the proxy must overwrite any value the client sent, and the web app must be reachable only through that proxy. For `x-forwarded-for`, `XFF_DEPTH` counts from the right, so addresses a client prepends are ignored as long as every counted hop is yours.
+
+The web tier sends the API this one address in `X-Forwarded-For`, replacing whatever arrived, so the proxy does not need changing for traffic through the web app. The API must have `TRUST_PROXY=true` to read it (see the [API environment runbook](../../api/runbooks/environment-config.md)).
+
+Requests that lack the configured header fail with a 500, because adapter-node throws when asked for the address. So does an `XFF_DEPTH` larger than the number of addresses in the header. That includes a health check sent straight to the container: send it through the proxy, or have it set the header.
+
+**Symptom of it being missing:** clients get 429s they did not earn, and the web logs say `ADDRESS_HEADER is unset`, once per process, when a request carries `X-Forwarded-For`, `X-Real-IP` or `CF-Connecting-IP`. The warning goes to the logs only; no endpoint reports it.
 
 ## Post-Deploy Check
 

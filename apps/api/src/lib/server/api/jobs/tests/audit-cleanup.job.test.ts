@@ -1,65 +1,25 @@
 import type { Processor } from 'bullmq';
 import dayjs from 'dayjs';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AuditRepository } from '#lib/server/api/audit/audit.repository';
-import type { AuditLog } from '#lib/server/api/audit/tables/audit_log.table';
+import { createInMemoryAuditRepository, type InMemoryAuditRepository } from '#lib/server/api/common/testing/in-memory-audit-repository';
 import { createTestContainer, mockProvider } from '#lib/server/api/common/testing/test-container';
-import { generateId } from '#lib/server/api/common/utils/crypto';
 import { AUDIT_CLEANUP_JOB, AUDIT_CLEANUP_QUEUE, AUDIT_RETENTION_DAYS, AuditCleanupJob } from '#lib/server/api/jobs/audit-cleanup.job';
 import { JobsService } from '#lib/server/api/jobs/jobs.service';
-
-/**
- * In-memory stand-in for {@link AuditRepository}. It genuinely stores rows and
- * applies the retention cutoff, so the job's effect (pruning stale rows) is
- * asserted for real rather than through mock calls.
- */
-function createInMemoryAuditRepository() {
-  const rows: AuditLog[] = [];
-
-  function seed(createdAt: Date): string {
-    const id = generateId();
-    rows.push({
-      id,
-      actor_user_id: null,
-      action: 'login_succeeded',
-      entity_type: 'session',
-      entity_id: null,
-      request_id: null,
-      ip: null,
-      user_agent: null,
-      metadata: null,
-      createdAt,
-      updatedAt: createdAt,
-    });
-    return id;
-  }
-
-  const repository = {
-    rows,
-    seed,
-    async deleteOlderThan(cutoff: Date): Promise<number> {
-      const before = rows.length;
-      for (let i = rows.length - 1; i >= 0; i--) {
-        if (rows[i].createdAt < cutoff) rows.splice(i, 1);
-      }
-      return before - rows.length;
-    },
-  };
-
-  return repository;
-}
 
 /**
  * Fake BullMQ seam standing in for a live Redis connection. `createQueue`
  * records every enqueue; `createWorker` captures the processor so the test can
  * invoke it as BullMQ would when a job runs.
  */
-function createFakeJobsService() {
+function createFakeJobsService(upsert?: () => Promise<void>) {
   const added: Array<{ id: string; repeat: unknown; template: unknown }> = [];
+  const closeQueue = vi.fn(async () => {});
   let captured: Processor | null = null;
 
   const jobsService = {
     added,
+    closeQueue,
     get processor() {
       return captured;
     },
@@ -67,8 +27,10 @@ function createFakeJobsService() {
       return {
         name: _name,
         upsertJobScheduler: vi.fn(async (id: string, repeat: unknown, template: unknown) => {
+          await upsert?.();
           added.push({ id, repeat, template });
         }),
+        close: closeQueue,
       };
     },
     createWorker(_queueName: string, processor: Processor) {
@@ -80,16 +42,16 @@ function createFakeJobsService() {
   return jobsService;
 }
 
-function build() {
+function build(upsert?: () => Promise<void>) {
   const repository = createInMemoryAuditRepository();
-  const jobsService = createFakeJobsService();
+  const jobsService = createFakeJobsService(upsert);
   const container = createTestContainer(mockProvider(AuditRepository, repository), mockProvider(JobsService, jobsService));
   return { job: container.get(AuditCleanupJob), repository, jobsService };
 }
 
 describe('AuditCleanupJob', () => {
   let job: AuditCleanupJob;
-  let repository: ReturnType<typeof createInMemoryAuditRepository>;
+  let repository: InMemoryAuditRepository;
   let jobsService: ReturnType<typeof createFakeJobsService>;
 
   beforeEach(() => {
@@ -144,5 +106,124 @@ describe('AuditCleanupJob', () => {
 
   it('uses a dedicated queue name', () => {
     expect(AUDIT_CLEANUP_QUEUE).toBe('audit-cleanup');
+  });
+
+  it('logs how many rows each run deleted', async () => {
+    const info = vi.spyOn(console, 'info').mockImplementation(() => {});
+    repository.seed(
+      dayjs()
+        .subtract(AUDIT_RETENTION_DAYS + 5, 'day')
+        .toDate(),
+    );
+    repository.seed(
+      dayjs()
+        .subtract(AUDIT_RETENTION_DAYS + 6, 'day')
+        .toDate(),
+    );
+
+    await job.process({ name: AUDIT_CLEANUP_JOB });
+
+    expect(info).toHaveBeenCalledWith(expect.stringContaining('deleted 2 '));
+  });
+
+  it('logs a run that deleted nothing', async () => {
+    const info = vi.spyOn(console, 'info').mockImplementation(() => {});
+
+    await job.process({ name: AUDIT_CLEANUP_JOB });
+
+    expect(info).toHaveBeenCalledWith(expect.stringContaining('deleted 0 '));
+  });
+
+  describe('when Redis does not answer during register', () => {
+    /** The real limit from the issue, written out so a changed constant fails here. */
+    const REGISTER_LIMIT_MS = 10_000;
+    /** How long a failed registration waits for its connections to close, written out for the same reason. */
+    const CLOSE_LIMIT_MS = 2_000;
+    let releaseUpsert: () => void;
+    let stalled: ReturnType<typeof build>;
+
+    beforeEach(() => {
+      vi.useFakeTimers();
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      stalled = build(
+        () =>
+          new Promise<void>((resolve) => {
+            releaseUpsert = resolve;
+          }),
+      );
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('is still waiting just before the limit', async () => {
+      const settled = vi.fn();
+      stalled.job.register().then(settled, settled);
+
+      await vi.advanceTimersByTimeAsync(REGISTER_LIMIT_MS - 1);
+
+      expect(settled).not.toHaveBeenCalled();
+      expect(stalled.jobsService.closeQueue).not.toHaveBeenCalled();
+      releaseUpsert();
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    it('closes connections, logs a clear error and fails at the limit', async () => {
+      const registering = stalled.job.register();
+      const failure = expect(registering).rejects.toThrow(/did not finish within 10000ms/);
+
+      await vi.advanceTimersByTimeAsync(REGISTER_LIMIT_MS);
+      await failure;
+
+      expect(stalled.jobsService.closeQueue).toHaveBeenCalledOnce();
+      expect(console.error).toHaveBeenCalledWith(
+        'Background job registration failed',
+        expect.objectContaining({ message: expect.stringMatching(/Redis/) }),
+      );
+      expect(stalled.jobsService.processor).toBeNull();
+    });
+
+    it('logs at the limit and still fails when closing the connections never finishes', async () => {
+      stalled.jobsService.closeQueue.mockImplementation(() => new Promise<void>(() => {}));
+      const settled = vi.fn();
+      const registering = stalled.job.register();
+      registering.catch(settled);
+      const failure = expect(registering).rejects.toThrow(/did not finish within 10000ms/);
+
+      await vi.advanceTimersByTimeAsync(REGISTER_LIMIT_MS);
+      expect(stalled.jobsService.closeQueue).toHaveBeenCalledOnce();
+      expect(console.error).toHaveBeenCalledWith(
+        'Background job registration failed',
+        expect.objectContaining({ message: expect.stringMatching(/Redis/) }),
+      );
+      expect(settled).not.toHaveBeenCalled();
+
+      await vi.advanceTimersByTimeAsync(CLOSE_LIMIT_MS);
+      await failure;
+      expect(stalled.jobsService.processor).toBeNull();
+    });
+
+    it('starts no worker if Redis answers after the limit', async () => {
+      const failure = expect(stalled.job.register()).rejects.toThrow();
+      await vi.advanceTimersByTimeAsync(REGISTER_LIMIT_MS);
+      await failure;
+
+      releaseUpsert();
+      await vi.advanceTimersByTimeAsync(0);
+
+      expect(stalled.jobsService.processor).toBeNull();
+    });
+  });
+
+  it('closes connections and passes on the error when register fails outright', async () => {
+    const failing = build(async () => {
+      throw new Error('WRONGPASS');
+    });
+
+    await expect(failing.job.register()).rejects.toThrow('WRONGPASS');
+
+    expect(failing.jobsService.closeQueue).toHaveBeenCalledOnce();
+    expect(failing.jobsService.processor).toBeNull();
   });
 });

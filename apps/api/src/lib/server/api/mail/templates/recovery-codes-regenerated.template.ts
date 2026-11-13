@@ -1,26 +1,12 @@
-import type { EmailTemplate } from '#lib/server/api/mail/interfaces/email-template.interface';
+import { type Locale, m } from '#lib/server/api/common/i18n/index';
+import { StandardEmail } from '#lib/server/api/mail/email-layout';
 
-export class RecoveryCodesRegeneratedEmail implements EmailTemplate {
-  subject(): string {
-    return 'Your recovery codes were regenerated';
-  }
-
-  html() {
-    return /*html*/ `
-		<html lang='en'>
-			<head>
-				<meta http-equiv='X-UA-Compatible' content='IE=edge' />
-				<meta name='viewport' content='width=device-width, initial-scale=1.0' />
-				<title>Message</title>
-			</head>
-			<body>
-				<p class='title'>Your recovery codes were regenerated</p>
-				<p>New two-factor recovery codes were generated for your account. Your old codes no longer work. If this was not you, secure your account straight away.</p>
-			</body>
-			<style>
-				.title { font-size: 24px; font-weight: 700; }
-			</style>
-		</html>
-		`;
+export class RecoveryCodesRegeneratedEmail extends StandardEmail {
+  constructor(locale: Locale) {
+    super({
+      locale,
+      title: m.mail_recovery_codes_regenerated_title({}, { locale }),
+      paragraphs: [m.mail_recovery_codes_regenerated_body({}, { locale })],
+    });
   }
 }

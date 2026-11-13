@@ -8,8 +8,6 @@ const parsedEnvs = {
   DATABASE_PORT: 5432,
   PORT: 3001,
   STORAGE_PORT: 8333,
-  DB_MIGRATING: false,
-  DB_SEEDING: false,
   STORAGE_SSL: false,
   TRUST_PROXY: false,
   DISABLE_RATE_LIMIT: false,
@@ -43,6 +41,19 @@ describe('ConfigService', () => {
     expect(service.validateEnvs()).toMatchObject(parsedEnvs);
   });
 
+  it('refuses to start on an invalid trusted proxy', async () => {
+    setProcessEnvs({ ...validEnvs, TRUSTED_PROXIES: 'not-a-proxy' });
+
+    await expect(createConfigService()).rejects.toThrow('TRUSTED_PROXIES');
+  });
+
+  it('leaves the script-only flags out of the validated env', async () => {
+    setProcessEnvs({ ...validEnvs, DB_MIGRATING: 'true', DB_SEEDING: 'true' });
+    const { envs } = await createConfigService();
+    expect(envs).not.toHaveProperty('DB_MIGRATING');
+    expect(envs).not.toHaveProperty('DB_SEEDING');
+  });
+
   it('enables multiple roles only when ALLOW_MULTIPLE_ROLES is true', async () => {
     setProcessEnvs({ ...validEnvs, ALLOW_MULTIPLE_ROLES: 'true' });
     expect((await createConfigService()).envs.ALLOW_MULTIPLE_ROLES).toBe(true);
@@ -51,13 +62,13 @@ describe('ConfigService', () => {
   it('throws a wrapped error when a required env is missing', async () => {
     setProcessEnvs({ ...validEnvs, SIGNING_SECRET: undefined });
     const { ConfigService } = await import('#lib/server/api/common/configs/config.service');
-    expect(() => new ConfigService()).toThrowError(/Missing environment variables:/);
+    expect(() => new ConfigService()).toThrowError(/^Invalid environment variables:/);
   });
 
   it('throws a wrapped error when ports are not numbers', async () => {
     setProcessEnvs({ ...validEnvs, DATABASE_PORT: 'nope', PORT: 'nope', STORAGE_PORT: 'nope' });
     const { ConfigService } = await import('#lib/server/api/common/configs/config.service');
-    expect(() => new ConfigService()).toThrowError(/Missing environment variables:/);
+    expect(() => new ConfigService()).toThrowError(/^Invalid environment variables:/);
   });
 
   it('turns HIBP screening off only when HIBP_ENABLED is false', async () => {

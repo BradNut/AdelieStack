@@ -1,29 +1,13 @@
-import type { EmailTemplate } from '#lib/server/api/mail/interfaces/email-template.interface';
+import { type Locale, m } from '#lib/server/api/common/i18n/index';
+import { StandardEmail } from '#lib/server/api/mail/email-layout';
 
-export class EmailVerificationEmail implements EmailTemplate {
-  constructor(private readonly url: string) {}
-
-  subject(): string {
-    return 'Verify your email';
-  }
-
-  html() {
-    return /*html*/ `
-		<html lang='en'>
-			<head>
-				<meta http-equiv='X-UA-Compatible' content='IE=edge' />
-				<meta name='viewport' content='width=device-width, initial-scale=1.0' />
-				<title>Message</title>
-			</head>
-			<body>
-				<p class='title'>Verify your email</p>
-				<p>Confirm this address to finish setting up your account. If you did not create an account, you can ignore this message.</p>
-				<p><a href='${this.url}'>Verify email</a></p>
-			</body>
-			<style>
-				.title { font-size: 24px; font-weight: 700; }
-			</style>
-		</html>
-		`;
+export class EmailVerificationEmail extends StandardEmail {
+  constructor(url: string, locale: Locale) {
+    super({
+      locale,
+      title: m.mail_email_verification_title({}, { locale }),
+      paragraphs: [m.mail_email_verification_body({}, { locale })],
+      action: { label: m.mail_email_verification_action({}, { locale }), url },
+    });
   }
 }

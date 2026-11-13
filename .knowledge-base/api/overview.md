@@ -23,10 +23,7 @@ and role management, and file storage.
 - **SeaweedFS** - S3-compatible object storage for file uploads (any S3 provider in production)
 - **Mailpit** - Email testing and delivery
 - **Spotlight** - Error tracking and monitoring
-
-> **Note:** `clamscan` is listed as a dependency in `apps/api/package.json`, but it is not
-> imported or used anywhere in `apps/api/src`. Antivirus scanning is not a shipped feature —
-> treat ClamAV as an unused/unwired dependency.
+- **ClamAV** - Virus scanning of uploads before they reach storage (gated by `ANTIVIRUS_ENABLED`)
 
 ### Development Tools
 - **Docker Compose** - Local development environment
@@ -54,7 +51,7 @@ and role management, and file storage.
 - **Multi-Factor Authentication** - TOTP-based MFA
 - **Role-Based Access Control** - Roles map to permissions checked through Better Auth (see ADR 0002)
 - **File Upload & Image Processing** - SeaweedFS/S3-compatible storage with server-side image
-  resizing (no virus scanning — see ClamAV note above)
+  resizing and ClamAV virus scanning
 - **Rate Limiting** - Redis-based request throttling
 - **Session Management** - Secure session handling with Redis
 

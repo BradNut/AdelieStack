@@ -1,6 +1,6 @@
 # Infrastructure Troubleshooting
 
-Covers Redis, SeaweedFS / S3 (storage), ClamAV (antivirus, unwired), and email (unwired).
+Covers Redis, SeaweedFS / S3 (storage), ClamAV (antivirus), and email (unwired).
 
 ## Redis
 
@@ -52,46 +52,69 @@ Check both buckets exist and `PROJECT_NAME` / `ENVIRONMENT` match the bucket nam
 | Problem | Fix |
 |---|---|
 | Wrong `STORAGE_*` vars | Verify `STORAGE_HOST`, `STORAGE_PORT`, `STORAGE_ACCESS_KEY`, `STORAGE_SECRET_KEY` |
-| Bucket not found | Run `pnpm storage:setup` (creates `<PROJECT_NAME>-public-<ENVIRONMENT>` and `<PROJECT_NAME>-private-<ENVIRONMENT>`) |
+| API exits at startup with a storage error | Storage is unreachable or the credentials cannot create or read the buckets. The API does not serve until storage answers |
+| Bucket not found | Restart the API, or run `pnpm storage:setup` (either creates `<PROJECT_NAME>-public-<ENVIRONMENT>` and `<PROJECT_NAME>-private-<ENVIRONMENT>`) |
 | Public files return 403 | Grant `Read:<public-bucket>` to the `anonymous` identity in `docker/seaweedfs/s3-config.json`, then restart SeaweedFS |
 | `STORAGE_SSL=false` in prod | If storage is behind HTTPS, set `STORAGE_SSL=true` |
 
 ---
 
-## ClamAV (Antivirus) — dependency present, not wired up
+## ClamAV (Antivirus)
 
-`clamscan` is listed as a dependency in `apps/api/package.json`, but there is no code anywhere in
-`apps/api/src` that imports or calls it. There is no antivirus scanning happening on uploads
-today, and no `ANTIVIRUS_ENABLED`/`CLAMAV_HOST`/`CLAMAV_PORT` env vars exist in
-`apps/api/.env.schema`. Treat this section as "if you're building ClamAV scanning," not as a
-troubleshooting guide for a live feature.
+Uploads are scanned on their final bytes, after any resize and before they reach storage, when
+`ANTIVIRUS_ENABLED` is on (it defaults to `false`). The API talks to a clamd daemon at
+`CLAMAV_HOST`:`CLAMAV_PORT`, and the connection opens on the first scan. Locally, clamd is the
+`clamav` service in `docker-compose.yaml`.
 
-If you wire it up, add the corresponding vars to `apps/api/.env.schema` first (per repo
-convention, every var the API reads must be declared there) before writing the integration.
+The upload path fails closed: while scanning is on, an upload is refused if the scanner errors, so a
+clamd outage stops uploads. See the known gap in
+[Platform Architecture](../platform-architecture.md#clamav) for the one case that does not.
+
+### Symptoms
+
+- Uploads failing with 503 `File could not be scanned for viruses`
+- Uploads failing with 422 `File rejected: virus detected`
+- Stored objects with no `scan-status` tag
+- `Failed to initialize ClamAV scanner` or `Error scanning stream` in logs
+
+### Diagnosis
+
+```bash
+printf 'nPING\n' | nc -w 2 "$CLAMAV_HOST" "$CLAMAV_PORT"
+# Expect: PONG
+```
+
+### Fixes
+
+| Problem | Fix |
+|---|---|
+| 503 on every upload | clamd is down or unreachable. Check `CLAMAV_HOST` / `CLAMAV_PORT` and the clamd container. A freshly started clamd takes a while to load its signatures before it answers |
+| 422 on an upload | Working as intended: clamd flagged the file, and the signature name is in the response and the logs. Nothing was stored |
+| Objects have no `scan-status` tag | `ANTIVIRUS_ENABLED` is off, or was when the object was stored. Set it to `true` and redeploy; objects already stored are not backfilled. Tagging can also fail after the write, which leaves a scanned object untagged |
+| Object tagged `scan-status=error` | The storage webhook re-scan could not reach a verdict. Unlike the upload path, it leaves the object in place, so check clamd and review the object |
 
 ---
 
-## Email — dependency present, not wired up
+## Email — useSend in production, Mailpit locally
 
-`usesend-js` is listed as a dependency in `apps/api/package.json`, but the real production mailer
-(`apps/api/src/lib/server/api/mail/prod-mailer.service.ts`) is a stub:
+`MAILER_TRANSPORT` picks the transport. `mailpit` (the default) posts to the Mailpit inbox in the
+local stack. `unsend` sends through useSend (formerly Unsend) with `usesend-js`, in
+`apps/api/src/lib/server/api/mail/usesend-mailer.service.ts`. Its variables are in
+[Environment Configuration](./environment-config.md#email).
 
-```ts
-async send({ to, template }: SendProps) {
-  console.log(`Sending email to ${to}`);
-  console.log(`Email: ${template}`);
-  return await Promise.resolve();
-}
-```
-
-No outbound email is actually sent in this codebase today — it only logs to the console. There is
-no `API_KEY`/`API_BASE_URL` (or any Unsend-specific) var in `apps/api/.env.schema`. Locally,
-Mailpit is available in the stack for a real SMTP-compatible inbox, but the prod mailer service
-does not currently send to it either.
-
-If you wire up real sending, add the required vars to `apps/api/.env.schema` and replace the
-`console.log` body of `ProdMailerService.send` with an actual `usesend-js` (or other provider)
-call.
+- **One email per recipient**, with a plain-text part alongside the HTML. Both transports send it.
+- **Failures**: `emails.send()` resolves with an `error` when the API refuses a send and throws when
+  the request itself fails; both count as failures. Every failure is retried, up to 3 attempts, after
+  250 ms and then 500 ms. A recipient that exhausts its attempts does not stop the others; once all
+  have been tried, the first failure is re-thrown to the caller. What the caller does with it is in the
+  [IAM runbook](../services/iam/runbook.md).
+- **No duplicates on retry**: every attempt for one message and recipient carries the same
+  `Idempotency-Key`.
+- **Logs**: one entry per attempt, `useSend email sent` (info) or `useSend email failed` (warn), with
+  `userId`, `template`, `attempt` and, on failure, `error` (`code: message`). `userId` is `null` for a
+  recipient with no account. Never the recipient's address, the email body or the API key: anything shaped
+  like an address in `error` reads `[email]`, and so does the error handed to the caller for a refused send.
+  To trace a recipient, see the [IAM runbook](../services/iam/runbook.md).
 
 ## Related
 

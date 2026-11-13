@@ -1,5 +1,6 @@
 import {
   APP_NAME,
+  AUTH_BASE_PATH,
   AUTH_CLIENT_IP_HEADER,
   AUTH_SESSION_EXPIRES_IN,
   AUTH_SESSION_FRESH_AGE,
@@ -9,44 +10,44 @@ import {
   MAX_PASSWORD_LENGTH,
   MIN_PASSWORD_LENGTH,
   RoleName,
+  TWO_FACTOR_ACCOUNT_LOCKOUT,
+  TWO_FACTOR_OTP_PERIOD_MINUTES,
 } from '@adelie/shared';
 import { passkey } from '@better-auth/passkey';
 import { type BetterAuthOptions, betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
-import { admin, haveIBeenPwned, lastLoginMethod, openAPI, twoFactor } from 'better-auth/plugins';
+import { admin, lastLoginMethod, openAPI, twoFactor } from 'better-auth/plugins';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
+import { getRequestLocale } from '#lib/server/api/common/i18n/index';
 import { uuidv7 } from '#lib/server/api/common/utils/crypto';
+import type { ClientIpOptions } from '#lib/server/api/common/utils/ip';
 import type * as drizzleSchema from '#lib/server/api/databases/postgres/drizzle-schema';
 import type { Mailer } from '#lib/server/api/mail/interfaces/mailer.interface';
 import { TwoFactorOtpEmail } from '#lib/server/api/mail/templates/two-factor-otp.template';
+import { type AccountLockoutStorage, accountLockout } from './auth.account-lockout';
+import { verifyAdminCreatedUser } from './auth.admin-created-verified';
 import { type CaptchaConfig, captchaPlugin, createCaptchaHealth } from './auth.captcha';
-import { createHibpHealth, hibpMonitor } from './auth.hibp-status';
-import { createAuthMail } from './auth.mail';
-import { createPasswordPolicyHook, HIBP_PLUGIN_PATHS } from './auth.password-policy';
+import { freshSessionGuard } from './auth.fresh-session';
+import { createHibpHealth } from './auth.hibp-status';
+import { type AuthMailLogger, createAuthMail, toMailRecipient } from './auth.mail';
+import { passwordAccountGuard } from './auth.password-account-guard';
+import { createPasswordPolicyHook, hibpScreening } from './auth.password-policy';
 import { ac, roles } from './auth.permissions';
 import type { ProviderHealth } from './auth.provider-health';
 import { type AuthRateLimitStorage, authRateLimitOptions } from './auth.rate-limit';
-import { createRoleGuard } from './auth.role-guard';
+import { replacedSession } from './auth.replaced-session';
+import { roleGuard } from './auth.role-guard';
+import { secondFactorGuard } from './auth.second-factor';
+import { uniformSignUpResponse } from './auth.sign-up-response';
 import { socialProvidersOption } from './auth.social';
+import { socialTwoFactorRedirect, withSocialSignInChallenge } from './auth.social-two-factor';
 
-/** Prefix of every API route. */
-export const API_BASE_PATH = '/api';
-
-/** Path of the auth handler below {@link API_BASE_PATH}; the Hono app routes `${AUTH_ROUTE}/*` to it. */
-export const AUTH_ROUTE = '/auth';
-
-/** Better Auth mounts its handler here. */
-export const AUTH_BASE_PATH = `${API_BASE_PATH}${AUTH_ROUTE}`;
-
-/** Stand-ins for values the schema generator and the seed never use for real (no connection, no env). */
-export const AUTH_PLACEHOLDER = {
+/** Stand-ins for values {@link createOfflineAuth} callers never use for real (no connection, no env). */
+const AUTH_PLACEHOLDER = {
   secret: 'better-auth-cli-placeholder-secret-0000',
   baseURL: 'http://localhost',
   passkey: { rpID: 'localhost', rpName: APP_NAME, origin: 'http://localhost' },
 } as const;
-
-/** Minutes an emailed two-factor code stays valid. */
-export const TWO_FACTOR_OTP_PERIOD_MINUTES = 5;
 
 /** WebAuthn relying-party settings. `origin` must be the web origin the browser runs on. */
 export interface PasskeyConfig {
@@ -64,27 +65,36 @@ export interface CreateAuthOptions {
   twoFactorIssuer: string;
   passkey: PasskeyConfig;
   mailer: Mailer;
+  /** Where a Security Event email that could not be sent is recorded. */
+  mailLog?: AuthMailLogger;
   /**
    * Whether anyone may register an account. This is the single gate for sign-up: every sign-up
    * method must honor it (auth.sign-up.test.ts fails when an ungated sign-up endpoint appears).
    * Server-side user creation (the seed, the admin plugin) is not sign-up and is never blocked.
    */
   signUpEnabled: boolean;
-  /** Read per request so the env stays lazy. Defaults to off: one role per user. */
-  allowMultipleRoles?: () => boolean;
-  /** Screens new passwords against Have I Been Pwned. Defaults to on; an outage rejects the request while on. */
-  hibpEnabled?: boolean;
-  /** Records each HIBP check's outcome for the health surface and carries the on/off switch; overrides `hibpEnabled`. */
+  /** Defaults to off: one role per user. */
+  allowMultipleRoles?: boolean;
+  /**
+   * Screening new passwords against Have I Been Pwned: carries the on/off switch and records each check's outcome in
+   * Provider Health. Defaults to on; an outage rejects the request while on.
+   */
   hibpStatus?: ProviderHealth;
   /** Requires a Captcha Token on anonymous auth endpoints. Omit to leave captcha off. */
   captcha?: CaptchaConfig;
-  /** Records each verification's outcome for the health surface. */
+  /** Records each verification's outcome in Provider Health. */
   captchaStatus?: ProviderHealth;
   /**
    * Where rate-limit counters live. Omit to turn auth rate limiting off (tests, `DISABLE_RATE_LIMIT`);
    * Better Auth's own default would limit in production only, over per-process memory.
    */
   rateLimitStorage?: AuthRateLimitStorage;
+  /**
+   * Where failed password sign-ins are counted per email address, across clients (`AUTH_ACCOUNT_SIGN_IN_LOCKOUT`).
+   * Omit to leave that count off, as with `rateLimitStorage`. Second-factor codes are counted per account by Better
+   * Auth's two-factor lockout regardless.
+   */
+  accountLockoutStorage?: AccountLockoutStorage;
   /**
    * Serves Better Auth's API reference at `${AUTH_BASE_PATH}/reference` (and its schema at `/open-api/generate-schema`).
    * Off by default; callers turn it on outside production. It sits below the auth basePath, so it cannot
@@ -93,10 +103,11 @@ export interface CreateAuthOptions {
   openApiReference?: boolean;
 
   /**
-   * Whether the API sits behind a trusted reverse proxy (`TRUST_PROXY`). Only then is the client IP
-   * read, from {@link AUTH_CLIENT_IP_HEADER}; otherwise no request header is trusted. Defaults to off.
+   * How the client IP is read, the same value `rateLimit()` uses (see `clientIpOptionsFromEnvs`). Only with `trustProxy`
+   * is it read, from {@link AUTH_CLIENT_IP_HEADER}; otherwise no request header is trusted. Defaults to off, with no
+   * trusted proxies: only a single address counts.
    */
-  trustProxy?: boolean;
+  clientIp?: ClientIpOptions;
 
   /**
    * Social login providers, already filtered to the configured ones. Omit for none: nothing is registered.
@@ -110,7 +121,10 @@ export function drizzleAuthDatabase(db: NodePgDatabase<typeof drizzleSchema>): B
   return drizzleAdapter(db, { provider: 'pg', usePlural: true });
 }
 
-/** Auth tables use `text` ids from our uuidv7 so they sort by creation time like domain ids. */
+/**
+ * Auth tables use `text` ids from our uuidv7 so they sort roughly by creation time. Domain tables
+ * get the same ids from `primaryId()`; ADR 0010 explains why they are not native `uuid`.
+ */
 export function generateAuthId(): string {
   return uuidv7();
 }
@@ -133,18 +147,19 @@ export function createAuth({
   twoFactorIssuer,
   passkey: passkeyConfig,
   mailer,
+  mailLog,
   signUpEnabled,
-  allowMultipleRoles = () => false,
-  hibpEnabled = true,
-  hibpStatus = createHibpHealth({ enabled: hibpEnabled }),
+  allowMultipleRoles = false,
+  hibpStatus = createHibpHealth({ enabled: true }),
   captcha: captchaConfig,
   captchaStatus = createCaptchaHealth({ enabled: Boolean(captchaConfig) }),
   rateLimitStorage,
+  accountLockoutStorage,
   openApiReference = false,
-  trustProxy = false,
+  clientIp = { trustProxy: false, trustedProxies: [] },
   socialProviders = {},
 }: CreateAuthOptions) {
-  const authMail = createAuthMail(mailer);
+  const authMail = createAuthMail(mailer, mailLog);
   return betterAuth({
     appName: APP_NAME,
     secret,
@@ -176,10 +191,12 @@ export function createAuth({
     emailVerification: {
       sendOnSignUp: true,
       sendVerificationEmail: authMail.sendVerificationEmail,
+      afterEmailVerification: authMail.notifyEmailChanged,
     },
     user: {
       // The confirmation link goes to the new address (through `sendVerificationEmail`); the old
-      // address is told afterwards by the `/verify-email` after hook.
+      // address is told afterwards by `emailVerification.afterEmailVerification`. Starting a change
+      // needs a fresh session (`freshSessionGuard`).
       changeEmail: { enabled: true },
       // Needs the account password (or a fresh session). Sessions, accounts, two-factor and passkey
       // rows go with the user: the foreign keys cascade (see auth.delete-user.test.ts).
@@ -188,10 +205,22 @@ export function createAuth({
     emailAndPassword: {
       enabled: true,
       disableSignUp: !signUpEnabled,
+      // Password sign-in refuses an unverified email (403 EMAIL_NOT_VERIFIED), so open sign-up gives no session until
+      // the emailed link is clicked. It also makes sign-up with a taken address answer 200 with no session and no email
+      // (hashing the password either way), and `uniformSignUpResponse` gives both the same body, so sign-up does not
+      // reveal which addresses have accounts. Users the admin plugin creates start verified (`verifyAdminCreatedUser`);
+      // social sign-in follows each provider's own setting.
+      requireEmailVerification: true,
       minPasswordLength: MIN_PASSWORD_LENGTH,
       maxPasswordLength: MAX_PASSWORD_LENGTH,
       sendResetPassword: authMail.sendResetPassword,
       onPasswordReset: authMail.notifyPasswordChanged,
+      // A stolen session must not outlive the reset. The adapter runs without transactions, so sessions
+      // go first: a failed password write then leaves the old password, never a new one beside live sessions.
+      revokeSessionsOnPasswordReset: true,
+    },
+    databaseHooks: {
+      user: { create: { before: verifyAdminCreatedUser } },
     },
     hooks: {
       before: createPasswordPolicyHook(hibpStatus),
@@ -207,48 +236,80 @@ export function createAuth({
         adminRoles: [RoleName.ADMIN],
       }),
       // TOTP, emailed OTP and recovery (backup) codes. TOTP secrets and backup codes are
-      // encrypted with the auth secret. Enrolment is confirmed with a first valid code.
-      twoFactor({
-        issuer: twoFactorIssuer,
-        otpOptions: {
-          period: TWO_FACTOR_OTP_PERIOD_MINUTES,
-          async sendOTP({ user, otp }) {
-            await mailer.send({ to: user.email, template: new TwoFactorOtpEmail(otp, TWO_FACTOR_OTP_PERIOD_MINUTES) });
+      // encrypted with the auth secret. Enrolment is confirmed with a first valid code. The challenge also follows a
+      // social sign-in (ADR 0012).
+      withSocialSignInChallenge(
+        twoFactor({
+          issuer: twoFactorIssuer,
+          // Wrong codes per account, from any client; pinned rather than left to the library default.
+          accountLockout: { enabled: true, ...TWO_FACTOR_ACCOUNT_LOCKOUT },
+          otpOptions: {
+            period: TWO_FACTOR_OTP_PERIOD_MINUTES,
+            async sendOTP({ user, otp }) {
+              await mailer.send({
+                to: toMailRecipient(user),
+                template: new TwoFactorOtpEmail(otp, TWO_FACTOR_OTP_PERIOD_MINUTES, getRequestLocale()),
+              });
+            },
           },
-        },
-      }),
+        }),
+      ),
       // Passkeys and hardware security keys (WebAuthn). The relying party comes from env.
       passkey({
         rpID: passkeyConfig.rpID,
         rpName: passkeyConfig.rpName,
         origin: passkeyConfig.origin,
       }),
-      // Rejects breached passwords (`PASSWORD_COMPROMISED`) while hashing, and fails closed when HIBP is
-      // unreachable. With `enabled: false` it makes no HIBP request on any path. Admin create-user and
-      // reset-password are screened earlier, in the before-hook (see auth.password-policy.ts).
-      haveIBeenPwned({ enabled: hibpStatus.enabled, paths: [...HIBP_PLUGIN_PATHS] }),
-      // Must come after haveIBeenPwned: it wraps that plugin's hashing to record each check's outcome.
-      hibpMonitor(hibpStatus),
+      ...hibpScreening(hibpStatus),
       // Remembers how the user last signed in, in a browser-readable cookie only (no `storeInDatabase`,
       // so no schema change) for the login page's hint. Not a secret and not used for access decisions.
       lastLoginMethod({ cookieName: LAST_LOGIN_METHOD_COOKIE }),
       // Only registered when captcha is on, so off means no behaviour change. Its `onRequest` runs before every hook.
       ...(captchaConfig ? [captchaPlugin(captchaConfig, captchaStatus)] : []),
       ...(openApiReference ? [openAPI()] : []),
-      // Per-plugin before-hook, since the top-level `hooks.before` slot is taken by the password policy.
-      {
-        id: 'role-guard',
-        hooks: { before: [{ matcher: () => true, handler: createRoleGuard(allowMultipleRoles) }] },
-      },
+      // Before the role guard, so an admin without a Second Factor is refused the same way on every admin endpoint.
+      secondFactorGuard(),
+      roleGuard(allowMultipleRoles),
+      passwordAccountGuard(),
+      ...(accountLockoutStorage ? [accountLockout(accountLockoutStorage)] : []),
+      freshSessionGuard(),
+      uniformSignUpResponse(),
+      // Per-plugin after-hook, since the top-level `hooks.after` slot is taken by the mail hook. Must come after twoFactor.
+      replacedSession(),
+      // Must come after replacedSession, which reads the two-factor plugin's JSON answer that this replaces with a redirect.
+      socialTwoFactorRedirect(),
     ],
+    // An unexpected error leaves the handler for the app's errorHandler, which answers with the generic message and logs
+    // it redacted against the request id. Otherwise Better Auth's router prints it raw to the console (a query error
+    // there carries its parameters, such as a session token) and answers an empty 500. An APIError is still answered
+    // by Better Auth, with its own status and body.
+    onAPIError: { throw: true },
     advanced: {
-      ipAddress: { ipAddressHeaders: trustProxy ? [AUTH_CLIENT_IP_HEADER] : [] },
+      ipAddress: { ipAddressHeaders: clientIp.trustProxy ? [AUTH_CLIENT_IP_HEADER] : [], trustedProxies: clientIp.trustedProxies },
       useSecureCookies: isSecureCookies(baseURL),
       defaultCookieAttributes: { ...DEFAULT_COOKIE_ATTRIBUTES },
       database: {
         generateId: generateAuthId,
       },
     },
+  });
+}
+
+/**
+ * A Better Auth instance for tooling that reads the configuration or writes rows directly (the schema generator, the
+ * seed, schema tests): it sends no mail and serves no browser. Server-side user creation is not sign-up, so the closed
+ * sign-up gate never blocks the seed.
+ */
+export function createOfflineAuth(options: Pick<CreateAuthOptions, 'database'> & Partial<CreateAuthOptions>) {
+  return createAuth({
+    secret: AUTH_PLACEHOLDER.secret,
+    baseURL: AUTH_PLACEHOLDER.baseURL,
+    trustedOrigins: [],
+    twoFactorIssuer: APP_NAME,
+    passkey: AUTH_PLACEHOLDER.passkey,
+    mailer: { send: async () => {} },
+    signUpEnabled: false,
+    ...options,
   });
 }
 

@@ -1,70 +1,32 @@
-import { createHash } from 'node:crypto';
-import { PASSWORD_COMPROMISED, PASSWORD_POLICY_RULES, PASSWORD_POLICY_VIOLATION } from '@adelie/shared';
-import { memoryAdapter } from 'better-auth/adapters/memory';
+import { MIN_PASSWORD_LENGTH, PASSWORD_COMPROMISED, PASSWORD_POLICY_RULES, PASSWORD_POLICY_VIOLATION } from '@adelie/shared';
 import { hashPassword } from 'better-auth/crypto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { type Auth, createAuth } from '#lib/server/api/auth/auth.config';
+import type { Auth } from '#lib/server/api/auth/auth.config';
+import { createHibpHealth } from '#lib/server/api/auth/auth.hibp-status';
+import { type AuthRequest, cookiesFrom, enrolPasskey, resetToken, signUpWithEmail, TEST_USER } from '../../../../../test/auth-http';
+import { createTestAuth } from '../../../../../test/auth-instance';
+import { HIBP_HOST, mockHibp, PWNED_PASSWORD, sha1 } from '../../../../../test/mocks/hibp.mock';
 
-const ORIGIN = 'http://localhost:5173';
 const COMPLIANT_PASSWORD = 'correct horse battery';
 const OTHER_PASSWORD = 'another long passphrase';
-const PWNED_PASSWORD = 'password12345';
-const HIBP_HOST = 'https://api.pwnedpasswords.com/range/';
+/** One under and exactly at the new-password minimum. */
+const UNDER_MIN = 'x'.repeat(MIN_PASSWORD_LENGTH - 1);
+const AT_MIN = 'x'.repeat(MIN_PASSWORD_LENGTH);
 const WEAK = ' short';
 const WEAK_RULES = [PASSWORD_POLICY_RULES.MIN_LENGTH, PASSWORD_POLICY_RULES.LEADING_OR_TRAILING_SPACE];
 
-const sha1 = (value: string) => createHash('sha1').update(value).digest('hex').toUpperCase();
-
-/** Mocks the HIBP range API (no real network): `pwned` passwords are reported with a count, everything else is clean. */
-function mockHibp(pwned: string[], failWith?: number) {
-  const fetchMock = vi.fn(async (input: string | URL | Request) => {
-    const url = String(input instanceof Request ? input.url : input);
-    if (!url.startsWith(HIBP_HOST)) throw new Error(`unexpected network call: ${url}`);
-    if (failWith) return new Response('nope', { status: failWith });
-    const prefix = url.slice(HIBP_HOST.length);
-    const lines = pwned
-      .map(sha1)
-      .filter((hash) => hash.startsWith(prefix))
-      .map((hash) => `${hash.slice(5)}:42`);
-    return new Response(['0000000000000000000000000000000000A:0', ...lines].join('\r\n'), { status: 200 });
-  });
-  vi.stubGlobal('fetch', fetchMock);
-  return fetchMock;
-}
-const EMAIL = 'policy@example.com';
-
-type Db = Record<string, Record<string, unknown>[]>;
+const { email: EMAIL } = TEST_USER;
 
 let auth: Auth;
-let db: Db;
-
-async function signUp(password: string) {
-  return auth.handler(
-    new Request(`${ORIGIN}/api/auth/sign-up/email`, {
-      method: 'POST',
-      headers: new Headers({ origin: ORIGIN, 'content-type': 'application/json' }),
-      body: JSON.stringify({ name: 'Test User', email: EMAIL, password }),
-    }),
-  );
-}
+let db: ReturnType<typeof createTestAuth>['db'];
+let request: AuthRequest;
 
 afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function buildAuth(hibpEnabled = true) {
-  db = { user: [], session: [], account: [], verification: [], twoFactor: [] };
-  auth = createAuth({
-    database: memoryAdapter(db),
-    secret: 'test-secret-that-is-at-least-32-characters',
-    baseURL: ORIGIN,
-    trustedOrigins: [ORIGIN],
-    twoFactorIssuer: 'AdelieStack',
-    passkey: { rpID: 'localhost', rpName: 'AdelieStack', origin: ORIGIN },
-    mailer: { send: async () => {} },
-    signUpEnabled: true,
-    hibpEnabled,
-  });
+function buildAuth(enabled = true) {
+  ({ auth, db, request } = createTestAuth({ hibpStatus: createHibpHealth({ enabled }) }));
 }
 
 beforeEach(() => {
@@ -74,7 +36,7 @@ beforeEach(() => {
 
 describe('password policy hook: sign-up', () => {
   it('rejects a weak password with the stable code and the violated rules', async () => {
-    const res = await signUp(WEAK);
+    const { res } = await signUpWithEmail(request, { ...TEST_USER, password: WEAK });
 
     expect(res.status).toBe(400);
     const body = (await res.json()) as { code: string; rules: string[] };
@@ -83,29 +45,41 @@ describe('password policy hook: sign-up', () => {
   });
 
   it('does not create the user when the password is rejected', async () => {
-    await signUp(WEAK);
+    await signUpWithEmail(request, { ...TEST_USER, password: WEAK });
 
     const found = await (await auth.$context).internalAdapter.findUserByEmail(EMAIL);
     expect(found).toBeNull();
   });
 
   it('accepts a compliant password', async () => {
-    const res = await signUp(COMPLIANT_PASSWORD);
+    const { res } = await signUpWithEmail(request, { ...TEST_USER, password: COMPLIANT_PASSWORD });
+
+    expect(res.status).toBe(200);
+  });
+
+  it('rejects one under the minimum with MIN_LENGTH and creates no user', async () => {
+    const { res } = await signUpWithEmail(request, { ...TEST_USER, password: UNDER_MIN });
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ code: PASSWORD_POLICY_VIOLATION, rules: [PASSWORD_POLICY_RULES.MIN_LENGTH] });
+    expect(await (await auth.$context).internalAdapter.findUserByEmail(EMAIL)).toBeNull();
+  });
+
+  it('accepts exactly the minimum', async () => {
+    const { res } = await signUpWithEmail(request, { ...TEST_USER, password: AT_MIN });
 
     expect(res.status).toBe(200);
   });
 
   it('rejects an over-long password', async () => {
-    const res = await signUp(`${COMPLIANT_PASSWORD}${'a'.repeat(200)}`);
+    const { res } = await signUpWithEmail(request, { ...TEST_USER, password: `${COMPLIANT_PASSWORD}${'a'.repeat(200)}` });
 
     expect(res.status).toBe(400);
   });
 });
 
 function post(path: string, body: unknown, cookie?: string) {
-  const headers = new Headers({ origin: ORIGIN, 'content-type': 'application/json' });
-  if (cookie) headers.set('cookie', cookie);
-  return auth.handler(new Request(`${ORIGIN}/api/auth${path}`, { method: 'POST', headers, body: JSON.stringify(body) }));
+  return request(path, { body, cookie });
 }
 
 /** Creates a verified user straight through the adapter, bypassing the policy (a pre-existing account). */
@@ -123,22 +97,13 @@ async function seedUser(password: string) {
 async function signInCookie(password: string) {
   const res = await post('/sign-in/email', { email: EMAIL, password });
   expect(res.status).toBe(200);
-  return res.headers
-    .getSetCookie()
-    .map((c) => c.split(';')[0])
-    .join('; ');
-}
-
-async function resetToken() {
-  await post('/request-password-reset', { email: EMAIL, redirectTo: `${ORIGIN}/reset` });
-  const row = db.verification.find((v) => String(v.identifier).startsWith('reset-password:'));
-  return String(row?.identifier).slice('reset-password:'.length);
+  return cookiesFrom(res);
 }
 
 describe('password policy hook: reset-password', () => {
   it('rejects a weak new password with the stable code and rules', async () => {
     await seedUser(COMPLIANT_PASSWORD);
-    const token = await resetToken();
+    const token = await resetToken(request, db);
 
     const res = await post('/reset-password', { newPassword: WEAK, token });
 
@@ -150,12 +115,32 @@ describe('password policy hook: reset-password', () => {
 
   it('accepts a compliant new password', async () => {
     await seedUser(COMPLIANT_PASSWORD);
-    const token = await resetToken();
+    const token = await resetToken(request, db);
 
     const res = await post('/reset-password', { newPassword: OTHER_PASSWORD, token });
 
     expect(res.status).toBe(200);
     await signInCookie(OTHER_PASSWORD);
+  });
+
+  it('rejects one under the minimum with MIN_LENGTH', async () => {
+    await seedUser(COMPLIANT_PASSWORD);
+    const token = await resetToken(request, db);
+
+    const res = await post('/reset-password', { newPassword: UNDER_MIN, token });
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ code: PASSWORD_POLICY_VIOLATION, rules: [PASSWORD_POLICY_RULES.MIN_LENGTH] });
+  });
+
+  it('accepts exactly the minimum', async () => {
+    await seedUser(COMPLIANT_PASSWORD);
+    const token = await resetToken(request, db);
+
+    const res = await post('/reset-password', { newPassword: AT_MIN, token });
+
+    expect(res.status).toBe(200);
+    await signInCookie(AT_MIN);
   });
 });
 
@@ -180,6 +165,26 @@ describe('password policy hook: change-password', () => {
 
     expect(res.status).toBe(200);
   });
+
+  it('rejects one under the minimum with MIN_LENGTH and keeps the old password', async () => {
+    await seedUser(COMPLIANT_PASSWORD);
+    const cookie = await signInCookie(COMPLIANT_PASSWORD);
+
+    const res = await post('/change-password', { currentPassword: COMPLIANT_PASSWORD, newPassword: UNDER_MIN }, cookie);
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ code: PASSWORD_POLICY_VIOLATION, rules: [PASSWORD_POLICY_RULES.MIN_LENGTH] });
+    await signInCookie(COMPLIANT_PASSWORD);
+  });
+
+  it('accepts exactly the minimum', async () => {
+    await seedUser(COMPLIANT_PASSWORD);
+    const cookie = await signInCookie(COMPLIANT_PASSWORD);
+
+    const res = await post('/change-password', { currentPassword: COMPLIANT_PASSWORD, newPassword: AT_MIN }, cookie);
+
+    expect(res.status).toBe(200);
+  });
 });
 
 describe('password policy: existing weak passwords', () => {
@@ -188,21 +193,24 @@ describe('password policy: existing weak passwords', () => {
 
     await signInCookie('weakpass');
   });
+
+  it('still lets a user with a password one under the minimum sign in', async () => {
+    await seedUser(UNDER_MIN);
+
+    await signInCookie(UNDER_MIN);
+  });
 });
 
 describe('password policy hook: admin paths', () => {
   let adminHeaders: Headers;
 
   beforeEach(async () => {
-    const signUpRes = await signUp(COMPLIANT_PASSWORD);
+    const { cookie } = await signUpWithEmail(request, { ...TEST_USER, password: COMPLIANT_PASSWORD });
     const { internalAdapter } = await auth.$context;
     const adminUser = await internalAdapter.findUserByEmail(EMAIL);
     if (!adminUser) throw new Error('admin fixture was not created');
     await internalAdapter.updateUser(adminUser.user.id, { role: 'admin' });
-    const cookie = signUpRes.headers
-      .getSetCookie()
-      .map((c) => c.split(';')[0])
-      .join('; ');
+    await enrolPasskey(auth, adminUser.user.id);
     adminHeaders = new Headers({ cookie });
   });
 
@@ -220,12 +228,35 @@ describe('password policy hook: admin paths', () => {
     return res.user;
   }
 
-  it('rejects a too-short password on create-user with the stable code', async () => {
-    await expect(adminCreate('short')).rejects.toMatchObject({
+  it('rejects one under the minimum on create-user and leaves no user row', async () => {
+    await expect(adminCreate(UNDER_MIN)).rejects.toMatchObject({
       status: 'BAD_REQUEST',
       body: { code: PASSWORD_POLICY_VIOLATION, rules: [PASSWORD_POLICY_RULES.MIN_LENGTH] },
     });
     expect(await (await auth.$context).internalAdapter.findUserByEmail('admin-created@example.com')).toBeNull();
+  });
+
+  it('accepts exactly the minimum on create-user', async () => {
+    const res = await adminCreate(AT_MIN);
+
+    expect(res.user.email).toBe('admin-created@example.com');
+  });
+
+  it('rejects one under the minimum on set-user-password', async () => {
+    const user = await seedUser();
+
+    await expect(auth.api.setUserPassword({ headers: adminHeaders, body: { userId: user.id, newPassword: UNDER_MIN } })).rejects.toMatchObject({
+      status: 'BAD_REQUEST',
+      body: { code: PASSWORD_POLICY_VIOLATION, rules: [PASSWORD_POLICY_RULES.MIN_LENGTH] },
+    });
+  });
+
+  it('accepts exactly the minimum on set-user-password', async () => {
+    const user = await seedUser();
+
+    const res = await auth.api.setUserPassword({ headers: adminHeaders, body: { userId: user.id, newPassword: AT_MIN } });
+
+    expect(res.status).toBe(true);
   });
 
   it('rejects a weak password on create-user with the violated rules', async () => {
@@ -280,11 +311,12 @@ describe('password policy hook: admin paths', () => {
   it('does not call HIBP on create-user when the switch is off', async () => {
     const fetchMock = mockHibp([PWNED_PASSWORD]);
     buildAuth(false);
-    await signUp(COMPLIANT_PASSWORD);
+    await signUpWithEmail(request, { ...TEST_USER, password: COMPLIANT_PASSWORD });
     const { internalAdapter } = await auth.$context;
     const found = await internalAdapter.findUserByEmail(EMAIL);
     if (!found) throw new Error('admin fixture was not created');
     await internalAdapter.updateUser(found.user.id, { role: 'admin' });
+    await enrolPasskey(auth, found.user.id);
     const headers = new Headers({ cookie: await signInCookie(COMPLIANT_PASSWORD) });
 
     const res = await auth.api.createUser({ headers, body: { email: 'off@example.com', name: 'Off', password: PWNED_PASSWORD, role: 'user' } });
@@ -314,28 +346,31 @@ describe('password policy hook: admin paths', () => {
 });
 
 describe('password policy: no composition rules, no input mutation', () => {
-  it.each(['alllowercase', '12345678', 'pässwörd-密码-🐧', 'internal spaces are fine'])('accepts %s on sign-up', async (password) => {
-    const res = await signUp(password);
+  it.each(['alllowercaseonly', '123456789012345', 'pässwörd-密码-🐧-tux', 'internal spaces are fine'])('accepts %s on sign-up', async (password) => {
+    const { res } = await signUpWithEmail(request, { ...TEST_USER, password });
 
     expect(res.status).toBe(200);
     await signInCookie(password);
   });
 
-  it.each([' leading-space-pass', 'trailing-space-pass '])('rejects %j with LEADING_OR_TRAILING_SPACE and does not trim it', async (password) => {
-    const res = await signUp(password);
+  it.each([' leading-space-passphrase', 'trailing-space-passphrase '])(
+    'rejects %j with LEADING_OR_TRAILING_SPACE and does not trim it',
+    async (password) => {
+      const { res } = await signUpWithEmail(request, { ...TEST_USER, password });
 
-    expect(res.status).toBe(400);
-    const body = (await res.json()) as { code: string; rules: string[] };
-    expect(body).toMatchObject({ code: PASSWORD_POLICY_VIOLATION, rules: [PASSWORD_POLICY_RULES.LEADING_OR_TRAILING_SPACE] });
-    expect(await (await auth.$context).internalAdapter.findUserByEmail(EMAIL)).toBeNull();
-  });
+      expect(res.status).toBe(400);
+      const body = (await res.json()) as { code: string; rules: string[] };
+      expect(body).toMatchObject({ code: PASSWORD_POLICY_VIOLATION, rules: [PASSWORD_POLICY_RULES.LEADING_OR_TRAILING_SPACE] });
+      expect(await (await auth.$context).internalAdapter.findUserByEmail(EMAIL)).toBeNull();
+    },
+  );
 });
 
 describe('breached password screening (haveIBeenPwned, mocked)', () => {
   it('rejects a breached password on sign-up with PASSWORD_COMPROMISED and creates no user', async () => {
     mockHibp([PWNED_PASSWORD]);
 
-    const res = await signUp(PWNED_PASSWORD);
+    const { res } = await signUpWithEmail(request, { ...TEST_USER, password: PWNED_PASSWORD });
 
     expect(res.status).toBe(400);
     expect(((await res.json()) as { code: string }).code).toBe(PASSWORD_COMPROMISED);
@@ -345,7 +380,7 @@ describe('breached password screening (haveIBeenPwned, mocked)', () => {
   it('sends only the five-character hash prefix (k-anonymity)', async () => {
     const fetchMock = mockHibp([]);
 
-    await signUp(COMPLIANT_PASSWORD);
+    await signUpWithEmail(request, { ...TEST_USER, password: COMPLIANT_PASSWORD });
 
     const urls = fetchMock.mock.calls.map(([input]) => String(input instanceof Request ? input.url : input));
     expect(urls).toHaveLength(1);
@@ -354,7 +389,7 @@ describe('breached password screening (haveIBeenPwned, mocked)', () => {
 
   it('rejects a breached new password on reset-password', async () => {
     await seedUser(COMPLIANT_PASSWORD);
-    const token = await resetToken();
+    const token = await resetToken(request, db);
     mockHibp([PWNED_PASSWORD]);
 
     const res = await post('/reset-password', { newPassword: PWNED_PASSWORD, token });
@@ -365,7 +400,7 @@ describe('breached password screening (haveIBeenPwned, mocked)', () => {
 
   it('keeps the reset link usable after rejecting a breached password', async () => {
     await seedUser(COMPLIANT_PASSWORD);
-    const token = await resetToken();
+    const token = await resetToken(request, db);
     mockHibp([PWNED_PASSWORD]);
 
     const rejected = await post('/reset-password', { newPassword: PWNED_PASSWORD, token });
@@ -378,7 +413,7 @@ describe('breached password screening (haveIBeenPwned, mocked)', () => {
 
   it('keeps the reset link usable after an HIBP outage rejects the request', async () => {
     await seedUser(COMPLIANT_PASSWORD);
-    const token = await resetToken();
+    const token = await resetToken(request, db);
     mockHibp([], 503);
 
     const rejected = await post('/reset-password', { newPassword: OTHER_PASSWORD, token });
@@ -392,7 +427,7 @@ describe('breached password screening (haveIBeenPwned, mocked)', () => {
   it('does not call HIBP on reset-password when the switch is off', async () => {
     buildAuth(false);
     await seedUser(COMPLIANT_PASSWORD);
-    const token = await resetToken();
+    const token = await resetToken(request, db);
     const fetchMock = mockHibp([PWNED_PASSWORD]);
 
     const res = await post('/reset-password', { newPassword: PWNED_PASSWORD, token });
@@ -415,7 +450,7 @@ describe('breached password screening (haveIBeenPwned, mocked)', () => {
   it('reports policy violations first and does not call HIBP for them', async () => {
     const fetchMock = mockHibp([WEAK]);
 
-    const res = await signUp(WEAK);
+    const { res } = await signUpWithEmail(request, { ...TEST_USER, password: WEAK });
 
     expect(((await res.json()) as { code: string }).code).toBe(PASSWORD_POLICY_VIOLATION);
     expect(fetchMock).not.toHaveBeenCalled();
@@ -432,7 +467,7 @@ describe('breached password screening (haveIBeenPwned, mocked)', () => {
   it('fails closed on sign-up when HIBP is unavailable and creates no user', async () => {
     mockHibp([], 503);
 
-    const res = await signUp(COMPLIANT_PASSWORD);
+    const { res } = await signUpWithEmail(request, { ...TEST_USER, password: COMPLIANT_PASSWORD });
 
     expect(res.status).toBe(503);
     expect(await (await auth.$context).internalAdapter.findUserByEmail(EMAIL)).toBeNull();
@@ -460,6 +495,7 @@ describe('breached password screening switched off', () => {
     const found = await internalAdapter.findUserByEmail(EMAIL);
     if (!found) throw new Error('fixture user missing');
     await internalAdapter.updateUser(found.user.id, { role: 'admin' });
+    await enrolPasskey(auth, found.user.id);
     const headers = new Headers({ cookie: await signInCookie(COMPLIANT_PASSWORD) });
     const fetchMock = mockHibp([PWNED_PASSWORD]);
 
@@ -472,7 +508,7 @@ describe('breached password screening switched off', () => {
   it('accepts a breached password on sign-up without calling HIBP', async () => {
     const fetchMock = mockHibp([PWNED_PASSWORD]);
 
-    const res = await signUp(PWNED_PASSWORD);
+    const { res } = await signUpWithEmail(request, { ...TEST_USER, password: PWNED_PASSWORD });
 
     expect(res.status).toBe(200);
     expect(fetchMock).not.toHaveBeenCalled();

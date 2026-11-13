@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/devcontainers/javascript-node:22
+FROM mcr.microsoft.com/devcontainers/javascript-node:24
 
 # Install pnpm, Playwright deps, and additional tools in a single RUN
 RUN corepack enable && corepack prepare pnpm@latest --activate \

@@ -2,8 +2,8 @@
 
 ## Purpose
 
-Provides user authentication flows: login, signup, password reset, and social login (GitHub, Google). MFA (TOTP) UI/API plumbing exists but the redirect flow that would activate it is
-commented out, so MFA is not a live feature today.
+Provides user authentication flows: login, signup, password reset, social login (GitHub, Google), two-factor
+sign-in, and re-authentication when a session is not fresh.
 
 ## User Flows
 
@@ -68,12 +68,23 @@ tracks a local `resetEmailStep` state (`"email-reset"` -> `"token-verification"`
 
 All three actions redirect already-authenticated users to `/` before processing.
 
-### MFA — scaffolded, not live
+### Two-factor sign-in and re-authentication
 
-There is no `/mfa/verify` (or `/totp`) route in the app. The only MFA-related code is the
-commented-out block in `login/+page.server.ts` that would call `locals.api.mfa.totp.$get()` and
-redirect to a TOTP entry page after a successful password login. Until that block is
-re-enabled and a corresponding route is built, logging in never requires a second factor.
+The auth client's two-factor plugin has no `onTwoFactorRedirect`: each password sign-in caller checks the
+`twoFactorRedirect` result itself (ADR 0008). The login page then navigates to `AppRoute.LOGIN_TWO_FACTOR`; the
+re-authentication dialog (`reauth-dialog.svelte`) moves to its challenge step and stays on the page. Both render the
+shared `two-factor-challenge.svelte` (authenticator code, emailed code sent only on request, recovery code; never
+`trustDevice`).
+
+The sign-in pages finish on `?returnTo=` (`RETURN_TO_PARAM`, read with `returnPathFrom`, app-internal paths only)
+and carry it from `/login` to `/login/two-factor`. In the dialog the session cookie is gone once the password is
+accepted, so closing at the challenge step (after a warning), an expired or exhausted challenge, or a two-factor
+lockout settles the dialog as dismissed and sends the user to `/login?returnTo=<current page>` without replaying the
+action. The codes that end the challenge, and the copy for each, live in one map in `two-factor-challenge.svelte`.
+An emailed code has its own attempt counter and expiry: when only that code is used up (`TOO_MANY_ATTEMPTS_REQUEST_NEW_CODE`
+from `verify-otp`) or expired, the user stays on the code step and can request a new code, subject to the email rate
+limit. Two-factor users are not offered social providers in the dialog, because they would gain no capability from a
+much longer flow; a passkey alone is enough.
 
 ### Social login (GitHub, Google)
 
@@ -81,10 +92,22 @@ Buttons render on `/login` and `/signup` for each provider in `socialProviders`,
 layout loads from the public `GET /api/config` (`loadPublicConfig`). A fresh install reports none, so
 no buttons render. Clicking one calls `authClient.signIn.social` (`lib/client/social-auth.ts`); the
 provider redirects back through `/api/auth/callback/<provider>` (proxied to Better Auth) and a refusal
-lands on `/login?error=<code>`, shown with the translated copy for that code (`socialErrorMessage`; messages `auth_social_error_<code>` in `messages/<locale>/auth.json`, codes in `SocialAuthErrorCode`). Only the login page shows it: errors always return there, also when the attempt started on sign-up. Signed-in users
+lands on `/login?error=<code>`, shown with the translated copy for that code (`socialErrorMessage`; messages `auth_social_error_<code>` in `messages/<locale>/auth.json`, codes in `SocialAuthErrorCode`). Only the login page shows it: errors always return there, also when the attempt started on sign-up. A two-factor user is redirected from the callback to `/login/two-factor`, the same challenge as after a password, and lands on the home page when it succeeds (ADR 0012). Signed-in users
 link and unlink providers at `/settings/connected-accounts` (the nav link appears only when a provider
 is configured). Setup and linking rules: the API
 [environment runbook](../../../api/runbooks/environment-config.md#social-login-github-google).
+
+### Admins without a Second Factor
+
+Admin capabilities need two-factor enabled or a registered passkey; signing in does not
+([ADR 0014](../../../../docs/adr/0014-admin-capabilities-require-a-second-factor.md)). `/users/me`
+reports `needsSecondFactor`, and `requireUser` (`lib/server/guards.ts`) answers an admin-only route
+for such a user (`RouteAccess.ENROL_SECOND_FACTOR`) with a 307 (as for sign-in) to `/settings/two-factor` and the
+`SECOND_FACTOR_REQUIRED_MESSAGE` flash, not a 403 page. A client call refused with
+`SECOND_FACTOR_REQUIRED` goes there too (`sendToSecondFactorEnrolment` in
+`lib/client/second-factor.ts`). Removing an admin's last factor is refused with `LAST_SECOND_FACTOR`,
+whose copy `authErrorMessage` shows on the two-factor and passkey pages. A route a non-admin role
+also opens is unaffected.
 
 ## Routes
 
@@ -178,7 +201,11 @@ const { error } = await locals.api.iam.password.reset.$post({ json: newPasswordF
   landing page: `/email-verified` or `/email-changed` (`AuthCallbackPath` in `@adelie/shared`). Both render
   `verification-result.svelte`, which shows success or, when Better Auth appended `?error=`, a failure with the
   recovery action (resend, sign in, or request the change again) and reloads the session on success.
-- A signed-in user with an unverified email sees a banner with a resend button (`unverified-email-notice.svelte`).
+- Sign-up gives no session: the page then asks to check the email, with the same wording for a new and a taken address
+  (the API answers both alike). Password sign-in by an unverified account is refused with `EMAIL_NOT_VERIFIED`; the
+  login page then shows a resend button for the address entered.
+- A signed-in user with an unverified email (a social sign-in the provider did not verify, or a session from before
+  sign-in required verification) sees a banner with a resend button (`unverified-email-notice.svelte`).
 - `/settings/email` starts a change. The confirmation goes to the new address, the old address gets a notice once
   it is followed. For an address that belongs to another account the page shows the same pending message and sends
   nothing, so it does not reveal which addresses are registered.

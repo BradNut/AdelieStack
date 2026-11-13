@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { resetPasswordEmailDto, resetPasswordNewPasswordDto } from '@adelie/shared';
+	import { MIN_PASSWORD_LENGTH, resetPasswordEmailDto, resetPasswordNewPasswordDto } from '@adelie/shared';
 	import { toast } from 'svelte-sonner';
 	import { defaults, setError, superForm } from 'sveltekit-superforms';
 	import { zod4, zod4Client } from 'sveltekit-superforms/adapters';
@@ -28,14 +28,15 @@
 		resetForm: false,
 		async onUpdate({ form }) {
 			if (!form.valid) return;
-			const { error } = await authClient.requestPasswordReset(
-				{
-					email: form.data.email,
-					redirectTo: RESET_PATH,
-				},
-				captcha.fetchOptions(),
+			const { error } = await captcha.attempt((fetchOptions) =>
+				authClient.requestPasswordReset(
+					{
+						email: form.data.email,
+						redirectTo: RESET_PATH,
+					},
+					fetchOptions,
+				),
 			);
-			captcha.afterAttempt();
 			if (error) return setError(form, 'email', captchaErrorMessage(error) ?? authErrorMessage(error));
 			emailSent = true;
 		},
@@ -76,7 +77,7 @@
 					<Form.Control>
 						{#snippet children({ props })}
 							<Form.Label>New password</Form.Label>
-							<Input {...props} type="password" autocomplete="new-password" bind:value={$newPasswordForm.password} />
+							<Input {...props} type="password" autocomplete="new-password" minlength={MIN_PASSWORD_LENGTH} bind:value={$newPasswordForm.password} />
 						{/snippet}
 					</Form.Control>
 					<PasswordFieldErrors />
@@ -88,7 +89,7 @@
 							<Input
 								{...props}
 								type="password"
-								autocomplete="new-password"
+								autocomplete="new-password" minlength={MIN_PASSWORD_LENGTH}
 								bind:value={$newPasswordForm.confirm_password}
 							/>
 						{/snippet}
@@ -101,7 +102,7 @@
 			<Alert.Root>
 				<Alert.Title>Check your email</Alert.Title>
 				<Alert.Description>
-					If an account exists for that address, we sent a link to reset your password.
+					If an account exists for that address, we're sending a link to reset your password. It can take a few minutes.
 				</Alert.Description>
 			</Alert.Root>
 		{:else}

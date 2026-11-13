@@ -30,15 +30,16 @@ inside a service.
   echo "BETTER_AUTH_SECRET=$(openssl rand -base64 32)"
 } > apps/api/.env.local
 
-# For the first run only, add DB_MIGRATING=true and DB_SEEDING=true to apps/api/.env.local.
-
 # Start infrastructure (Postgres, Redis, SeaweedFS, Mailpit, ...)
 docker compose up -d
 pnpm storage:setup
 
-# Initialize the database
-pnpm db:migrate
-pnpm db:seed
+# Initialize the database. These flags only unlock the two scripts; the API ignores them.
+# To seed the admin, set ADMIN_PASSWORD (at least 15 characters) in apps/api/.env.local first.
+DB_MIGRATING=true pnpm db:migrate
+DB_SEEDING=true pnpm db:seed
+# The seeded admin must enrol two-factor or a passkey before using admin pages (ADR 0014);
+# signing in and opening /admin takes you there. See .knowledge-base/api/runbooks/database-migrations.md.
 
 # Start both apps
 pnpm dev

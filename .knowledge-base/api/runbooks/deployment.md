@@ -11,13 +11,15 @@ Push to `main` → Coolify auto-builds → replaces container on success.
 
 ## Nixpacks (`apps/api/nixpacks.toml`)
 
-- Node 22 (`nodejs_22`), apt: `libvips-dev libvips-tools build-essential libpng-dev libjpeg-dev
+- Node 24 (`nodejs_24`), apt: `libvips-dev libvips-tools build-essential libpng-dev libjpeg-dev
   zlib1g-dev` (sharp + argon2 native deps)
 - Install: `corepack enable && corepack prepare pnpm@10.26.0 --activate`, then
   `pnpm install --frozen-lockfile --filter @adelie/api...`
 - Build: `pnpm --filter @adelie/api run paraglide:compile` (compiles Paraglide message modules;
   there is no other build step — the API runs TypeScript directly via `tsx`)
-- Start: `pnpm --filter @adelie/api start` → `tsx src/server.ts`
+- Start: `cd apps/api && exec ./node_modules/.bin/tsx src/server.ts`. Do not start it through
+  `pnpm`: pnpm does not pass SIGTERM on, so the graceful shutdown never runs. If the platform's
+  Start Command setting (Coolify, for example) overrides `nixpacks.toml`, it needs the same command.
 
 Migrations do **not** run automatically on Nixpacks deploys — see
 [Database Migrations](./database-migrations.md#production-migrations).
@@ -42,13 +44,34 @@ Multi-stage build on `node:24-alpine`:
 Container start: `CMD ["./node_modules/.bin/tsx", "src/server.ts"]` — this runs the server
 directly. **There is no migrate or seed step in the Dockerfile CMD or an entrypoint script.**
 If you need migrations to run before the server starts in a Docker deployment, run
-`pnpm --filter @adelie/api db:migrate` (and, if needed, `db:seed`) as a separate step —
-manually or via a platform pre-deploy hook — before/alongside starting the container. Do not
-assume `DB_MIGRATING=true` alone triggers migration inside this image; the schema does declare
-`DB_MIGRATING`/`DB_SEEDING` flags (see [Environment Configuration](./environment-config.md)), but
-no code path in this image currently reads them to run `db:migrate`/`db:seed` automatically.
+`DB_MIGRATING=true pnpm --filter @adelie/api db:migrate` (and, if needed, `DB_SEEDING=true ... db:seed`)
+as a separate step — manually or via a platform pre-deploy hook — before/alongside starting the
+container. Do not assume `DB_MIGRATING=true` alone triggers migration inside this image: the
+`DB_MIGRATING`/`DB_SEEDING` flags only permit those scripts to run (see
+[Environment Configuration](./environment-config.md)), and the running API ignores them.
 
 **Never hand-edit `drizzle/*.sql` or `drizzle/meta/**`. Use `pnpm db:generate` then `pnpm db:migrate`.**
+
+## Startup and Shutdown
+
+`src/server.ts` runs startup, then starts listening, so a failed startup means the server never serves.
+
+Startup fails the boot when:
+
+- Any storage request errors. Missing buckets are created; a bucket another instance created at the
+  same moment is fine.
+- `JOBS_ENABLED` is true and Redis has not answered within 10s.
+
+On SIGINT or SIGTERM the API logs `Shutting down...`, closes HTTP, closes jobs, flushes telemetry and
+exits. The sequence has 8s overall. A step that errors is logged and later steps still run. The exit
+code is 0 when every step succeeded and 1 if any step failed or the limit was reached; at the limit the
+log names what was unfinished.
+
+## Audit Log Retention
+
+With `JOBS_ENABLED` true (the default), a job runs weekly (Sunday 00:00) and **permanently deletes
+audit rows older than 90 days**. Each run logs how many rows it deleted. Export audit rows first if you
+must keep them longer. An interrupted run is safe: the delete either completes or BullMQ reruns the job.
 
 ## Required Env Before Deploy
 

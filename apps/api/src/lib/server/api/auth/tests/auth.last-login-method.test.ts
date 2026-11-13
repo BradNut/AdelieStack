@@ -1,25 +1,13 @@
 import { LAST_LOGIN_METHOD_COOKIE, LoginMethod } from '@adelie/shared';
-import { memoryAdapter } from 'better-auth/adapters/memory';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { type Auth, createAuth } from '#lib/server/api/auth/auth.config';
-import type { SendProps } from '#lib/server/api/mail/interfaces/mailer.interface';
+import { beforeEach, describe, expect, it } from 'vitest';
+import type { Auth } from '#lib/server/api/auth/auth.config';
+import { type AuthRequest, signUpWithEmail, TEST_USER } from '../../../../../test/auth-http';
+import { createTestAuth } from '../../../../../test/auth-instance';
 
-const ORIGIN = 'http://localhost:5173';
-const PASSWORD = 'Correct-horse-9';
-const EMAIL = 'penguin@example.com';
+const { email: EMAIL, password: PASSWORD } = TEST_USER;
 
 let auth: Auth;
-const send = vi.fn<(data: SendProps) => Promise<void>>();
-
-async function post(path: string, body: unknown) {
-  return auth.handler(
-    new Request(`${ORIGIN}/api/auth${path}`, {
-      method: 'POST',
-      headers: { origin: ORIGIN, 'content-type': 'application/json' },
-      body: JSON.stringify(body),
-    }),
-  );
-}
+let request: AuthRequest;
 
 /** The last-login-method cookie a response sets, or undefined when it sets none. */
 function lastLoginCookie(res: Response): string | undefined {
@@ -28,32 +16,22 @@ function lastLoginCookie(res: Response): string | undefined {
 }
 
 beforeEach(() => {
-  send.mockReset();
-  send.mockResolvedValue();
-  auth = createAuth({
-    database: memoryAdapter({ user: [], session: [], account: [], verification: [], twoFactor: [], passkey: [] }),
-    secret: 'test-secret-that-is-at-least-32-characters',
-    baseURL: ORIGIN,
-    trustedOrigins: [ORIGIN],
-    twoFactorIssuer: 'AdelieStack',
-    passkey: { rpID: 'example.com', rpName: 'Acme Penguins', origin: ORIGIN },
-    mailer: { send },
-    signUpEnabled: true,
-  });
+  ({ auth, request } = createTestAuth());
 });
 
 describe('last login method cookie', () => {
   it('records password sign-in', async () => {
-    await post('/sign-up/email', { name: 'Penguin', email: EMAIL, password: PASSWORD });
+    await signUpWithEmail(request, TEST_USER);
 
-    const res = await post('/sign-in/email', { email: EMAIL, password: PASSWORD });
+    const res = await request('/sign-in/email', { body: { email: EMAIL, password: PASSWORD } });
 
     expect(res.status).toBe(200);
     expect(lastLoginCookie(res)).toBe(LoginMethod.PASSWORD);
   });
 
   it('is readable by the browser and lives beyond the session', async () => {
-    const res = await post('/sign-up/email', { name: 'Penguin', email: EMAIL, password: PASSWORD });
+    await signUpWithEmail(request, TEST_USER);
+    const res = await request('/sign-in/email', { body: { email: EMAIL, password: PASSWORD } });
 
     const cookie = res.headers.getSetCookie().find((c) => c.startsWith(`${LAST_LOGIN_METHOD_COOKIE}=`));
 
@@ -63,9 +41,9 @@ describe('last login method cookie', () => {
   });
 
   it('sets nothing when the sign-in fails', async () => {
-    await post('/sign-up/email', { name: 'Penguin', email: EMAIL, password: PASSWORD });
+    await signUpWithEmail(request, TEST_USER);
 
-    const res = await post('/sign-in/email', { email: EMAIL, password: 'Wrong-horse-9!' });
+    const res = await request('/sign-in/email', { body: { email: EMAIL, password: 'Wrong-horse-9!' } });
 
     expect(res.status).toBe(401);
     expect(lastLoginCookie(res)).toBeUndefined();

@@ -1,0 +1,18 @@
+name: Set up workspace
+description: Install pnpm, Node from .nvmrc and the locked dependencies. Runs after actions/checkout.
+
+runs:
+  using: composite
+  steps:
+    # Version comes from packageManager in package.json.
+    - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+
+    - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      with:
+        node-version-file: .nvmrc
+        cache: pnpm
+
+    # Install scripts stay on: argon2 and sharp build native bindings the tests load.
+    - name: Install dependencies
+      shell: bash
+      run: pnpm install --frozen-lockfile

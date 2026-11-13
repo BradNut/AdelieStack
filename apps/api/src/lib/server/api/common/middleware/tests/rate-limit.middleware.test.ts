@@ -1,14 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { expectRateLimitBypassed, getNoSessionRateLimitOptions } from './rate-limit-test.helpers';
+import { expectRateLimitBypassed, getRateLimitOptions } from './rate-limit-test.helpers';
 import { rateLimitTestMocks } from './rate-limit-test.mocks';
 import './rate-limit-test.setup';
 
-const { getClientIpMock } = vi.hoisted(() => ({
-  getClientIpMock: vi.fn(),
+const { resolveClientAddressMock } = vi.hoisted(() => ({
+  resolveClientAddressMock: vi.fn(),
 }));
 
-vi.mock('#lib/server/api/common/utils/ip', () => ({
-  getClientIp: getClientIpMock,
+vi.mock('#lib/server/api/common/utils/ip', async (original) => ({
+  ...(await original<typeof import('#lib/server/api/common/utils/ip')>()),
+  resolveClientAddress: resolveClientAddressMock,
 }));
 
 import { rateLimit } from '#lib/server/api/common/middleware/rate-limit.middleware';
@@ -16,7 +17,7 @@ import { rateLimit } from '#lib/server/api/common/middleware/rate-limit.middlewa
 describe('rate-limit.middleware', () => {
   beforeEach(() => {
     rateLimitTestMocks.resetRateLimitMocks();
-    getClientIpMock.mockReturnValue('127.0.0.1');
+    resolveClientAddressMock.mockReturnValue(null);
   });
 
   it('bypasses limiter when DISABLE_RATE_LIMIT is enabled', async () => {
@@ -28,7 +29,6 @@ describe('rate-limit.middleware', () => {
 
     const options = rateLimitTestMocks.rateLimiterMock.mock.calls[0][0] as {
       keyGenerator: (ctx: { var: { session: { userId: string } | null }; req: { path: string } }) => string;
-      store: { config: { client: { decr: (key: string) => Promise<number> } } };
       windowMs: number;
       limit: number;
     };
@@ -39,32 +39,29 @@ describe('rate-limit.middleware', () => {
     });
 
     expect(key).toBe('user-1_login');
-    expect(getClientIpMock).not.toHaveBeenCalled();
+    expect(resolveClientAddressMock).not.toHaveBeenCalled();
     expect(options.windowMs).toBe(900000);
     expect(options.limit).toBe(10);
-
-    await options.store.config.client.decr('foo');
-    expect(rateLimitTestMocks.callMock).toHaveBeenCalledWith('DECR', 'foo');
   });
 
   it('falls back to client IP and request path when no session exists', () => {
-    const options = getNoSessionRateLimitOptions(() => rateLimit({ limit: 3, minutes: 1 }));
+    const options = getRateLimitOptions(() => rateLimit({ limit: 3, minutes: 1 }));
 
     const key = options.keyGenerator({
       var: { session: null },
       req: { path: '/api/resource' },
     });
 
-    expect(getClientIpMock).toHaveBeenCalled();
+    expect(resolveClientAddressMock).toHaveBeenCalled();
     expect(key).toBe('127.0.0.1_/api/resource');
   });
 
-  it('propagates errors from getClientIp', () => {
-    getClientIpMock.mockImplementation(() => {
+  it('propagates errors from resolveClientAddress', () => {
+    resolveClientAddressMock.mockImplementation(() => {
       throw new Error('ip failure');
     });
 
-    const options = getNoSessionRateLimitOptions(() => rateLimit({ limit: 3, minutes: 1 }));
+    const options = getRateLimitOptions(() => rateLimit({ limit: 3, minutes: 1 }));
 
     expect(() =>
       options.keyGenerator({

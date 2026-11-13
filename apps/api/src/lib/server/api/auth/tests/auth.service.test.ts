@@ -1,10 +1,11 @@
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { describe, expect, it, vi } from 'vitest';
+import { ACCOUNT_LOCKOUT_PLUGIN_ID } from '#lib/server/api/auth/auth.account-lockout';
 import { AuthRateLimitRepository } from '#lib/server/api/auth/auth.rate-limit.repository';
 import { AuthService } from '#lib/server/api/auth/auth.service';
 import type { ConfigService } from '#lib/server/api/common/configs/config.service';
 import { envsDto } from '#lib/server/api/common/configs/dtos/env.dto';
-import { validEnvs } from '#lib/server/api/common/configs/tests/env-fixtures';
+import { productionEnvOverrides, validEnvs } from '#lib/server/api/common/configs/tests/env-fixtures';
 import type { LoggerService } from '#lib/server/api/common/services/logger.service';
 import type { DrizzleService } from '#lib/server/api/databases/postgres/drizzle.service';
 import * as drizzleSchema from '#lib/server/api/databases/postgres/drizzle-schema';
@@ -43,9 +44,17 @@ describe('AuthService', () => {
     });
 
     it('has no reference route in production', async () => {
-      const { service } = buildService({ ENV: 'prod', TRUST_PROXY: 'true' });
+      const { service } = buildService(productionEnvOverrides);
 
       expect((await reference(service)).status).toBe(404);
+    });
+  });
+
+  describe('trusted proxies', () => {
+    it('passes the declared proxies to Better Auth', () => {
+      const { service } = buildService({ TRUST_PROXY: 'true', TRUSTED_PROXIES: '10.0.0.0/8,192.0.2.10' });
+
+      expect(service.auth.options.advanced?.ipAddress?.trustedProxies).toEqual(['10.0.0.0/8', '192.0.2.10']);
     });
   });
 
@@ -82,6 +91,18 @@ describe('AuthService', () => {
 
       expect(service.auth).toBeDefined();
       expect(redis.incrementWithExpiry).not.toHaveBeenCalled();
+    });
+
+    it('counts failed password sign-ins per account in Redis', () => {
+      const { service } = buildService();
+
+      expect(service.auth.options.plugins?.map((plugin) => plugin.id)).toContain(ACCOUNT_LOCKOUT_PLUGIN_ID);
+    });
+
+    it('leaves the account count off when DISABLE_RATE_LIMIT is on', () => {
+      const { service } = buildService({ DISABLE_RATE_LIMIT: 'true' });
+
+      expect(service.auth.options.plugins?.map((plugin) => plugin.id)).not.toContain(ACCOUNT_LOCKOUT_PLUGIN_ID);
     });
 
     it('does not count or touch Redis when DISABLE_RATE_LIMIT is on', async () => {

@@ -3,22 +3,7 @@ import type { Page } from '@playwright/test';
 import { newUser, PASSWORD, signIn, signOut, signUp, type TestUser } from './support/auth';
 import { countEmails, waitForEmail } from './support/mailbox';
 import { expect, test } from './support/test';
-
-/** Enrols TOTP from the settings page and returns what an authenticator app would hold. */
-async function enrolTotp(page: Page) {
-  await page.goto('/settings/two-factor');
-  await page.getByLabel('Password to set up two-factor').fill(PASSWORD);
-  await page.getByRole('button', { name: 'Set up two-factor' }).click();
-
-  const totpURI = (await page.getByTestId('totp-uri').textContent()) ?? '';
-  const recoveryCodes = await page.getByTestId('recovery-codes').getByRole('listitem').allTextContents();
-  expect(recoveryCodes.length).toBeGreaterThan(0);
-
-  await page.getByLabel('Authenticator code').fill(totpCode(totpURI));
-  await page.getByRole('button', { name: 'Confirm and turn on' }).click();
-  await expect(page.getByText('Two-factor authentication is on', { exact: true }).first()).toBeVisible();
-  return { totpURI, recoveryCodes };
-}
+import { enrolTotp } from './support/two-factor';
 
 async function signedUpWithTotp(page: Page) {
   const user: TestUser = newUser();

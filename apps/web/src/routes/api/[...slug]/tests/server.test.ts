@@ -1,4 +1,4 @@
-import { StatusCodes } from '@adelie/shared';
+import { STORAGE_WEBHOOK_PATH, StatusCodes } from '@adelie/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { envMock, fetchMock } = vi.hoisted(() => ({
@@ -193,6 +193,17 @@ describe('routes/api/[...slug]/+server', () => {
       expect(lastUpstreamCall().headers.get('x-forwarded-for')).toBe(CLIENT_ADDRESS);
     });
 
+    it.each([
+      ['https://example.com/api/users', 'https'],
+      ['http://localhost:5173/api/users', 'http'],
+    ])('tells the API the scheme the browser used for %s, over any client-supplied x-forwarded-proto', async (url, proto) => {
+      fetchMock.mockResolvedValue(new Response('ok'));
+
+      await GET(createEvent(new Request(url, { headers: { 'x-forwarded-proto': proto === 'https' ? 'http' : 'https' } })));
+
+      expect(lastUpstreamCall().headers.get('x-forwarded-proto')).toBe(proto);
+    });
+
     it('keeps the existing x-forwarded-for when the client address is unavailable', async () => {
       fetchMock.mockResolvedValue(new Response('ok'));
 
@@ -233,6 +244,74 @@ describe('routes/api/[...slug]/+server', () => {
       expect(response.headers.has('content-length')).toBe(false);
       expect(response.headers.get('x-request-id')).toBe('r1');
       expect(await response.text()).toBe('decoded');
+    });
+  });
+
+  describe('internal-only routes', () => {
+    it.each([
+      ['POST', POST],
+      ['GET', GET],
+      ['HEAD', HEAD],
+      ['OPTIONS', OPTIONS],
+      ['PROPFIND', fallback],
+    ] as const)('answers %s to the storage webhook with 404 and never calls the API', async (method, handler) => {
+      const response = await handler(
+        createEvent(new Request(`http://localhost:5173${STORAGE_WEBHOOK_PATH}`, { method, headers: { authorization: 'Bearer guess' } })),
+      );
+
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(response.status).toBe(StatusCodes.NOT_FOUND);
+    });
+
+    it.each([
+      ['the path the storage provider is configured with', '/api/storage/webhook'],
+      ['a trailing slash', '/api/storage/webhook/'],
+      ['a query string', '/api/storage/webhook?x=1'],
+      ['upper case', '/API/Storage/WEBHOOK'],
+      ['percent-encoded letters', '/api/storage/%77ebhook'],
+      ['an encoded slash', '/api/storage%2Fwebhook'],
+      ['repeated slashes', '/api//storage///webhook'],
+      ['dot segments', '/api/users/../storage/./webhook'],
+      ['encoded dot segments', '/api/users/%2e%2e/storage/webhook'],
+      ['a sub-path', '/api/storage/webhook/extra'],
+    ])('refuses the storage webhook reached through %s', async (_case, path) => {
+      const response = await POST(createEvent(new Request(`http://localhost:5173${path}`, { method: 'POST', body: '{}' })));
+
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(response.status).toBe(StatusCodes.NOT_FOUND);
+    });
+
+    it.each([
+      ['/api/storage/webhook', '/api/storage/webhook'],
+      ['/API/Storage/WEBHOOK', '/API/Storage/WEBHOOK'],
+      ['/api/storage/%77ebhook', '/api/storage/webhook'],
+      ['/api/storage/webhook?x=1', '/api/storage/webhook'],
+    ])('answers %s with the same JSON body the API gives an unknown route', async (path, echoedPath) => {
+      const response = await POST(createEvent(new Request(`http://localhost:5173${path}`, { method: 'POST', body: '{}' })));
+
+      expect(response.headers.get('content-type')).toBe('application/json');
+      expect(await response.json()).toEqual({ message: `Not Found - ${echoedPath}` });
+    });
+
+    it.each(['/api/storage', '/api/storage/webhooks', '/api/storage/webhook-status', '/api/users/storage/webhook'])(
+      'still forwards the neighbouring route %s',
+      async (path) => {
+        fetchMock.mockResolvedValue(new Response('ok'));
+
+        const response = await POST(createEvent(new Request(`http://localhost:5173${path}`, { method: 'POST', body: '{}' })));
+
+        expect(lastUpstreamCall().url).toBe(`http://127.0.0.1:3001${path}`);
+        expect(await response.text()).toBe('ok');
+      },
+    );
+
+    it('still forwards an ordinary API route', async () => {
+      fetchMock.mockResolvedValue(new Response('{"ok":true}', { status: StatusCodes.OK }));
+
+      const response = await POST(createEvent(new Request('http://localhost:5173/api/users/me', { method: 'POST', body: '{}' })));
+
+      expect(lastUpstreamCall().url).toBe('http://127.0.0.1:3001/api/users/me');
+      expect(response.status).toBe(StatusCodes.OK);
     });
   });
 
