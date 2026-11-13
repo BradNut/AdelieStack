@@ -77,7 +77,8 @@ A ban is lifted through the admin endpoint.
 3. Redis: `redis-cli -u "$REDIS_URL" ping`. With auth rate limiting on, an unreachable Redis fails
    every auth request.
 4. `BETTER_AUTH_SECRET` changed → existing session cookies no longer verify and everyone is signed
-   out; secrets Better Auth encrypted with it (TOTP secrets, Recovery Codes) become unreadable.
+   out; secrets Better Auth encrypted with it (TOTP secrets, Recovery Codes, social access and
+   refresh tokens) become unreadable.
 5. `BETTER_AUTH_URL` or `ORIGIN` wrong → cookies set for the wrong host, or requests refused as
    untrusted origins.
 
