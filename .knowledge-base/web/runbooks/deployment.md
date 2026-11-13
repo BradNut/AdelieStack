@@ -23,7 +23,7 @@ variables on the platform, not only at runtime.
 
 ## Docker (`apps/web/Dockerfile`)
 
-Five stages, `node:24-alpine` throughout: `base` (pnpm via corepack) → `manifests` (copy
+Five stages, `node:24.22.3-alpine` throughout: `base` (pnpm via corepack) → `manifests` (copy
 package.json/lockfile only, for install caching) → `build` (full install + `pnpm --filter
 @adelie/web run build`) → `prod-deps` (production-only install) → `runtime` (prod deps + adapter-node
 build output, runs as non-root `node` user).

@@ -2,7 +2,7 @@
 
 # Shared base: pnpm via corepack. No source is copied here so this layer
 # stays cached across dependency and app-source changes.
-FROM node:24-alpine AS base
+FROM node:24.22.3-alpine AS base
 WORKDIR /app
 RUN corepack enable && corepack prepare pnpm@10.26.0 --activate
 
@@ -35,7 +35,7 @@ RUN pnpm install --frozen-lockfile --prod --filter @adelie/api...
 # Paraglide/inlang project sources, no tests, no lockfile-adjacent tooling.
 # tsx is invoked directly (not via `pnpm start`) so the runtime container
 # never needs corepack/pnpm or network access to start.
-FROM node:24-alpine AS runtime
+FROM node:24.22.3-alpine AS runtime
 WORKDIR /app
 
 ENV NODE_ENV=production
