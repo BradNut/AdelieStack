@@ -1,3 +1,5 @@
+/** Milliseconds in a second, for turning those durations into `Date` arithmetic. */
+export const MS_PER_SECOND = 1000;
 /** Seconds in a minute, for durations Better Auth takes in seconds. */
 export const SECONDS_PER_MINUTE = 60;
 /** Seconds in a day. */

@@ -18,7 +18,7 @@ import { ProviderHealthState, type ProviderHealthStateName } from '#lib/server/a
 import type { AuthService } from '#lib/server/api/auth/auth.service';
 import { RolesService } from '#lib/server/api/auth/roles';
 import type { ConfigService } from '#lib/server/api/common/configs/config.service';
-import { validEnvs } from '#lib/server/api/common/configs/tests/env-fixtures';
+import { TEST_SIGNING_SECRET, validEnvs } from '#lib/server/api/common/configs/tests/env-fixtures';
 import { requestLogger } from '#lib/server/api/common/middleware/request-logger.middleware';
 import type { LoggerService } from '#lib/server/api/common/services/logger.service';
 import { buildAuthSession, buildAuthUser } from '#lib/server/api/common/testing/factories';
@@ -55,7 +55,7 @@ function buildApp(envs: Record<string, unknown> = {}, log = pino({ enabled: fals
     } as unknown as StorageWebhookController,
     new ConfigController({ envs: { SIGN_UP_ENABLED: true } } as unknown as ConfigService, authService),
     new AdminExampleController(authService, rolesService),
-    { envs: { SIGNING_SECRET: 'test-signing-secret-at-least-32-chars', ENV: 'test', ...envs } } as unknown as ConfigService,
+    { envs: { SIGNING_SECRET: TEST_SIGNING_SECRET, ENV: 'test', ...envs } } as unknown as ConfigService,
     { log } as unknown as LoggerService,
   ).registerControllers();
 }

@@ -38,8 +38,16 @@ function deriveKey(password: string, salt: string, cost: ScryptCost, keyLength: 
 
 const formatParams = (cost: ScryptCost) => `n=${cost.N},r=${cost.r},p=${cost.p}`;
 
+/** A `$scrypt$` hash taken apart: its cost, the cost as written (`n=..,r=..,p=..`), the salt (hex) and the derived key. */
+interface ParsedHash {
+  cost: ScryptCost;
+  params: string;
+  salt: string;
+  key: Buffer;
+}
+
 /** Parses a `$scrypt$n=..,r=..,p=..$<salt hex>$<key hex>` hash; null when it is not in that format. */
-function parseHash(hash: string): { cost: ScryptCost; params: string; salt: string; key: Buffer } | null {
+function parseHash(hash: string): ParsedHash | null {
   if (!hash.startsWith(PREFIX)) return null;
   const [params, salt, key, ...rest] = hash.slice(PREFIX.length).split('$');
   const match = params?.match(PARAMS_PATTERN);

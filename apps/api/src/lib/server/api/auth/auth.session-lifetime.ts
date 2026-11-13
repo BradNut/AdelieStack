@@ -1,9 +1,8 @@
-import { AUTH_SESSION_MAX_LIFETIME } from '@adelie/shared';
+import { AUTH_SESSION_MAX_LIFETIME, MS_PER_SECOND } from '@adelie/shared';
 import type { BetterAuthOptions } from 'better-auth';
 
+// Better Auth declares its database hooks inline in BetterAuthOptions and exports no named type for one.
 type SessionUpdateBefore = NonNullable<NonNullable<NonNullable<BetterAuthOptions['databaseHooks']>['session']>['update']>['before'];
-
-const MS_PER_SECOND = 1000;
 
 /**
  * `databaseHooks.session.update.before`: holds a session to an absolute lifetime ({@link AUTH_SESSION_MAX_LIFETIME}

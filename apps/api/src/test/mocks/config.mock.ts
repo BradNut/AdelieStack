@@ -1,4 +1,5 @@
 import type { EnvsDto } from '#lib/server/api/common/configs/dtos/env.dto';
+import { TEST_SIGNING_SECRET } from '#lib/server/api/common/configs/tests/env-fixtures';
 
 type TestEnvKey = 'ENV' | 'LOG_LEVEL' | 'ORIGIN' | 'SIGNING_SECRET';
 
@@ -10,7 +11,7 @@ export const TEST_ENVS: Pick<EnvsDto, TestEnvKey> = {
   ENV: 'dev',
   LOG_LEVEL: 'info',
   ORIGIN: 'http://localhost:5173',
-  SIGNING_SECRET: 'test-signing-secret-at-least-32-chars',
+  SIGNING_SECRET: TEST_SIGNING_SECRET,
 };
 
 export function createConfigServiceMock(overrides: Partial<EnvsDto> = {}) {
