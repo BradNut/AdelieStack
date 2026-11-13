@@ -55,7 +55,8 @@ export interface EnvironmentSettings extends LocalDevEnvs {
 /**
  * Whether any setting declares production: `ENV=prod`, or a deploy's `NODE_ENV` or `ENVIRONMENT` set to production.
  * The image sets only `NODE_ENV=production` while `ENV` defaults to `dev`, so {@link isProdEnv} alone would miss it.
+ * Accepts unvalidated strings too (a script reading `process.env`): only an exact production value counts.
  */
-export function declaresProduction({ ENV, ENVIRONMENT, NODE_ENV }: EnvironmentSettings): boolean {
+export function declaresProduction({ ENV, ENVIRONMENT, NODE_ENV }: Partial<Record<keyof EnvironmentSettings, string>>): boolean {
   return isProdEnv(ENV) || NODE_ENV === NodeEnv.PRODUCTION || ENVIRONMENT === DeployEnvironment.PRODUCTION;
 }
