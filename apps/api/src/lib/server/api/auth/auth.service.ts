@@ -88,7 +88,7 @@ export class AuthService {
       socialProviders: this.socialCredentials,
       rateLimitStorage: throttleStorage,
       accountLockoutStorage: throttleStorage,
-      // Non-production only, like logging and pretty output, so production does not advertise the auth surface. (The app's own /api/reference is on in every environment.)
+      // Non-production only, like logging and pretty output, so production does not advertise the auth surface.
       openApiReference: !isProdEnv(this.configService.envs.ENV),
     });
     return this.instance;

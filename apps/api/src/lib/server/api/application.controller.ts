@@ -1,4 +1,4 @@
-import { API_BASE_PATH, AUTH_ROUTE, STORAGE_ROUTE } from '@adelie/shared';
+import { API_BASE_PATH, AUTH_ROUTE, declaresProduction, STORAGE_ROUTE } from '@adelie/shared';
 import { inject, injectable } from '@needle-di/core';
 import { contextStorage } from 'hono/context-storage';
 import { requestId } from 'hono/request-id';
@@ -83,7 +83,8 @@ export class ApplicationController extends RootController {
       .onError(errorHandler({ envs: this.configService.envs, logger: this.loggerService.log }))
       .notFound(notFound);
 
-    configureOpenAPI(app);
+    // The reference and its document map the whole API surface, so only development serves them (#235).
+    if (!declaresProduction(this.configService.envs)) configureOpenAPI(app);
     return app;
   }
 }

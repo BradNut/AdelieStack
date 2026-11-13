@@ -10,7 +10,7 @@ procedures.
 
 - `ENVIRONMENT` (`development`, `staging`, `production`) also suffixes the storage bucket names.
   `ENV` (`dev` or `prod`, `AppEnv` in `@adelie/shared`) is a legacy short-form flag several services still read; it controls the
-  session cookie's `secure` flag, pretty logs, SQL logging and Better Auth's API reference (`/api/auth/reference`, off in prod). The app's own `/api/reference` is mounted regardless of `ENV`.
+  session cookie's `secure` flag, pretty logs, SQL logging and Better Auth's API reference (`/api/auth/reference`, off in prod). The app's own reference (`/api/reference`, with its document at `/api/doc`) is off whenever `ENV`, `NODE_ENV` or `ENVIRONMENT` declares production, and loads its script from the API rather than a CDN.
   A production deploy must set `ENV=prod` explicitly: `ENV` defaults to `dev`, and the API refuses to start when `NODE_ENV` or `ENVIRONMENT` says production but `ENV` does not (see [Production refusals](#production-refusals)).
 - `ORIGIN` is the allowed CORS / session origin; `DOMAIN` (hostname only) is the session cookie
   domain.
