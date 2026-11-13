@@ -1,11 +1,9 @@
+import { CREDENTIAL_PROVIDER_ID } from '@adelie/shared';
 import type { BetterAuthPlugin } from 'better-auth';
 import { createAuthMiddleware, isAPIError } from 'better-auth/api';
 import { isRecord } from '#lib/server/api/common/utils/is-record';
 import { AuthEndpoint } from './auth.endpoints';
 import type { PasswordHasher } from './auth.password-hash';
-
-/** Better Auth's provider id for the email/password account. */
-const CREDENTIAL_PROVIDER_ID = 'credential';
 
 /**
  * After a password sign-in that got past the password check (a session or a two-factor challenge), replaces a stored

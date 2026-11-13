@@ -32,6 +32,9 @@ const commaSeparated = (value: string) =>
     .map((entry) => entry.trim())
     .filter(Boolean);
 
+/** Shortest `SIGNING_SECRET` or `BETTER_AUTH_SECRET` accepted: 32 characters, enough entropy for an HMAC key. */
+const SECRET_MIN_LENGTH = 32;
+
 const baseEnvsDto = z.object({
   DATABASE_USER: z.string(),
   DATABASE_PASSWORD: z.string(),
@@ -55,10 +58,10 @@ const baseEnvsDto = z.object({
   // Background jobs: register BullMQ queues/workers on startup. Disable in tests/CI
   // or one-off processes that must not open a Redis worker connection.
   JOBS_ENABLED: z.stringbool().default(true),
-  SIGNING_SECRET: z.string().min(32, 'SIGNING_SECRET must be at least 32 characters'),
+  SIGNING_SECRET: z.string().min(SECRET_MIN_LENGTH, `SIGNING_SECRET must be at least ${SECRET_MIN_LENGTH} characters`),
   // Better Auth: secret for signing/encrypting auth cookies and tokens, and the public base URL
   // the auth endpoints are served from (the web origin, which proxies /api to this server).
-  BETTER_AUTH_SECRET: z.string().min(32, 'BETTER_AUTH_SECRET must be at least 32 characters'),
+  BETTER_AUTH_SECRET: z.string().min(SECRET_MIN_LENGTH, `BETTER_AUTH_SECRET must be at least ${SECRET_MIN_LENGTH} characters`),
   BETTER_AUTH_URL: z.url(),
   // Name shown in authenticator apps when a user enrols TOTP two-factor.
   TWO_FACTOR_ISSUER: z.string().min(1).default(APP_NAME),

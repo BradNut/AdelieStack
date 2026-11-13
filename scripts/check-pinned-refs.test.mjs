@@ -89,3 +89,18 @@ describe('findUnpinnedRefs: Dockerfile FROM', () => {
     ]);
   });
 });
+
+describe('findUnpinnedRefs: Dockerfile package installs', () => {
+  it('accepts a tool installed at a specific version', () => {
+    const dockerfile = ['FROM node:24.22.3-alpine', 'RUN corepack enable && corepack prepare pnpm@10.26.0 --activate'].join('\n');
+    assert.deepEqual(findUnpinnedRefs('.devcontainer/Dockerfile', dockerfile), []);
+  });
+
+  it('rejects a tool installed at "latest"', () => {
+    const dockerfile = ['FROM node:24.22.3-alpine', 'RUN corepack prepare pnpm@latest --activate \\', '    && npm i -g turbo@latest'].join('\n');
+    assert.deepEqual(findUnpinnedRefs('.devcontainer/Dockerfile', dockerfile), [
+      { file: '.devcontainer/Dockerfile', line: 2, ref: 'pnpm@latest', reason: 'package installed at "latest"' },
+      { file: '.devcontainer/Dockerfile', line: 3, ref: 'turbo@latest', reason: 'package installed at "latest"' },
+    ]);
+  });
+});

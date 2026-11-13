@@ -1,6 +1,6 @@
 // Fails when a GitHub Actions `uses:` is not pinned to a full commit SHA with a
-// version comment, or a container image is untagged, `latest` or a floating
-// major-only tag (#235). Scans tracked workflows/actions, compose files and Dockerfiles.
+// version comment, a container image is untagged, `latest` or a floating
+// major-only tag, or a Dockerfile installs a package at `@latest` (#235). Scans tracked workflows/actions, compose files and Dockerfiles.
 
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
@@ -14,6 +14,8 @@ const imagePattern = /^\s*-?\s*image:\s*['"]?([^'"\s#]+)/;
 const fromPattern = /^\s*FROM\s+(?:--platform=\S+\s+)?(\S+)(?:\s+AS\s+(\S+))?/i;
 // A specific version has at least major.minor (`18.7`, `v1.33.1`, `24.22.3-alpine`, `5.2.6-24`).
 const specificVersion = /^v?\d+\.\d+/;
+// A package a Dockerfile installs at `latest` (`corepack prepare pnpm@latest`, `npm i -g turbo@latest`).
+const latestPackage = /(?:^|\s)((?:@[\w.-]+\/)?[\w.-]+@latest)\b/g;
 
 function checkAction(ref, text) {
   if (ref.startsWith('./')) return null;
@@ -39,10 +41,11 @@ function isDockerfile(file) {
   return name === 'Dockerfile' || name.startsWith('Dockerfile.') || name.endsWith('.Dockerfile');
 }
 
-function findUnpinnedBaseImages(file, content) {
+function findUnpinnedDockerfileRefs(file, content) {
   const findings = [];
   const stages = new Set();
   content.split('\n').forEach((text, index) => {
+    for (const [, pkg] of text.matchAll(latestPackage)) findings.push({ file, line: index + 1, ref: pkg, reason: 'package installed at "latest"' });
     const from = fromPattern.exec(text);
     if (!from) return;
     const [, ref, stage] = from;
@@ -56,7 +59,7 @@ function findUnpinnedBaseImages(file, content) {
 }
 
 export function findUnpinnedRefs(file, content) {
-  if (isDockerfile(file)) return findUnpinnedBaseImages(file, content);
+  if (isDockerfile(file)) return findUnpinnedDockerfileRefs(file, content);
   const findings = [];
   content.split('\n').forEach((text, index) => {
     const uses = usesPattern.exec(text);

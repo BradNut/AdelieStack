@@ -1,9 +1,9 @@
-import { AUTH_CLIENT_IP_HEADER, SECONDS_PER_MINUTE } from '@adelie/shared';
+import { AUTH_CLIENT_IP_HEADER, MS_PER_SECOND, SECONDS_PER_MINUTE } from '@adelie/shared';
 import type { Context } from 'hono';
 import { type ClientIpOptions, resolveClientAddress } from './ip';
 
 /** Often enough to stay visible in a log search, rarely enough that sustained traffic cannot flood the logs. */
-export const MISSING_CLIENT_ADDRESS_WARNING_INTERVAL_MS = 5 * SECONDS_PER_MINUTE * 1000;
+export const MISSING_CLIENT_ADDRESS_WARNING_INTERVAL_MS = 5 * SECONDS_PER_MINUTE * MS_PER_SECOND;
 
 const MISSING_CLIENT_ADDRESS_WARNING = `TRUST_PROXY is on but a request had no usable client address in ${AUTH_CLIENT_IP_HEADER}, so it shares one rate-limit bucket with others like it and clients can lock each other out. Have the proxy set ${AUTH_CLIENT_IP_HEADER} to the client's address, or declare appending proxies in TRUSTED_PROXIES. See the API environment runbook.`;
 

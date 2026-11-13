@@ -1,3 +1,6 @@
+/** A `SIGNING_SECRET` long enough to pass validation, shared by every test that needs one. */
+export const TEST_SIGNING_SECRET = 'test-signing-secret-at-least-32-chars';
+
 /**
  * Canonical set of valid API environment variables for config tests. Values are strings
  * (as they arrive from `process.env`); the zod DTO coerces numbers/booleans on parse.
@@ -16,7 +19,7 @@ export const validEnvs: Record<string, string> = {
   NODE_ENV: 'development',
   PORT: '3001',
   REDIS_URL: 'redis://localhost:6379',
-  SIGNING_SECRET: 'test-signing-secret-at-least-32-chars',
+  SIGNING_SECRET: TEST_SIGNING_SECRET,
   BETTER_AUTH_SECRET: 'better-auth-secret-at-least-32-chars',
   BETTER_AUTH_URL: 'http://localhost:5173',
   PROJECT_NAME: 'adelie',
