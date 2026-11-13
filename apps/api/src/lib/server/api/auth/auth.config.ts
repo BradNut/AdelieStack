@@ -177,6 +177,11 @@ export function createAuth({
       cookieCache: { enabled: false },
     },
     socialProviders: socialProvidersOption(socialProviders, signUpEnabled),
+    verification: {
+      // Identifiers carry live secrets (`reset-password:<token>`), so only their SHA-256 is stored. Lookups fall back to
+      // the plain identifier, so links issued before hashing still work until they expire.
+      storeIdentifier: 'hashed',
+    },
     account: {
       // Provider access and refresh tokens are encrypted with the auth secret before they are stored (NIST SC-28).
       // A row written before this was on still reads: Better Auth passes a value that does not look encrypted through
@@ -252,6 +257,9 @@ export function createAuth({
           accountLockout: { enabled: true, ...TWO_FACTOR_ACCOUNT_LOCKOUT },
           otpOptions: {
             period: TWO_FACTOR_OTP_PERIOD_MINUTES,
+            // Only the code's SHA-256 is stored. A code emailed before hashing is refused as wrong (one counted failure)
+            // and the user asks for a new one; such codes expired within the period anyway.
+            storeOTP: 'hashed',
             async sendOTP({ user, otp }) {
               await mailer.send({
                 to: toMailRecipient(user),
