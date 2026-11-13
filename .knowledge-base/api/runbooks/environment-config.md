@@ -162,7 +162,8 @@ The reCAPTCHA keys above are v2 and always pass, so they do not exercise `CAPTCH
 - Certificates are checked against Node's bundled CAs. For a provider whose CA is not among them (for example AWS RDS), download its bundle and point `NODE_EXTRA_CA_CERTS` at the PEM file for the API and the scripts rather than switching to `require`.
 - Postgres must have TLS enabled: with `verify-full` or `require` the client refuses a server that does not offer it.
 - drizzle-kit reads `process.env` and `apps/api/.env` only (not `.env.local` or the schema defaults), so for `db:push` and `db:studio` against a remote database set `DATABASE_SSL_MODE` on the command or in `.env`, as with the other `DATABASE_*` values.
-- The pure mapping lives in `databases/postgres/postgres-ssl.ts` (`postgresSsl`); the env DTO, `drizzle.client.ts` and `drizzle.config.ts` all use it.
+- The pure mapping lives in `databases/postgres/postgres-ssl.ts` (`postgresSsl`); the env DTO validates against its modes, and `drizzle.service.ts` (the API pool), `drizzle.client.ts` (the scripts) and `drizzle.config.ts` all call it.
+- **Upgrading:** drizzle-kit used to turn TLS on by itself for any `DATABASE_HOST` other than `localhost`; it now follows `DATABASE_SSL_MODE` and defaults to `disable`. If you run `db:push`, `db:studio` or drizzle-kit migrations against a remote database, set `DATABASE_SSL_MODE=verify-full` or those commands connect without TLS (or fail where the server insists on it).
 
 ## Storage
 

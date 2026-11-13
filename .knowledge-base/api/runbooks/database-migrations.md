@@ -16,7 +16,7 @@ git diff drizzle/
 DB_MIGRATING=true pnpm --filter @adelie/api db:migrate
 ```
 
-The migrate step connects with the same `DATABASE_SSL_MODE` as the API; set `verify-full` for a remote database ([Database TLS](./environment-config.md#database-tls)).
+The migrate step connects with the same `DATABASE_SSL_MODE` as the API; set `verify-full` for a remote database ([Database TLS](./environment-config.md#database-tls)). drizzle-kit (`db:push`, `db:studio`) no longer turns TLS on for a non-`localhost` host by itself, so anyone who used it against a remote database must now set `DATABASE_SSL_MODE=verify-full`.
 
 ## Production Migrations
 

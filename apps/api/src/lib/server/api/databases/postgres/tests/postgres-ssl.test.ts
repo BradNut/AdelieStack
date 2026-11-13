@@ -25,6 +25,10 @@ describe('postgresSsl', () => {
     expect([...POSTGRES_SSL_MODES].sort()).toEqual(['disable', 'require', 'verify-full']);
   });
 
+  it('keeps the values operators type into DATABASE_SSL_MODE, libpq sslmode names', () => {
+    expect(PostgresSslMode).toEqual({ DISABLE: 'disable', VERIFY_FULL: 'verify-full', REQUIRE: 'require' });
+  });
+
   it.each([
     { name: '"true"', value: 'true' },
     { name: '"VERIFY-FULL"', value: 'VERIFY-FULL' },

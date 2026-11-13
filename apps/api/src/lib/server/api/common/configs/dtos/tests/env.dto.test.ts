@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { DevelopmentDefault } from '#lib/server/api/common/configs/development-defaults.constant';
 import { envsDto } from '#lib/server/api/common/configs/dtos/env.dto';
 import { productionEnvOverrides, validEnvs } from '#lib/server/api/common/configs/tests/env-fixtures';
+import { POSTGRES_SSL_MODES, PostgresSslMode } from '#lib/server/api/databases/postgres/postgres-ssl';
 import { MailerTransport } from '#lib/server/api/mail/mailer-transport.constant';
 
 /** {@link validEnvs} without `names`, so a test sees each one fall back to its default. */
@@ -60,10 +61,10 @@ describe('envsDto database TLS mode', () => {
     { name: 'unset', envs: validEnvsWithout('DATABASE_SSL_MODE') },
     { name: 'empty', envs: { ...validEnvs, DATABASE_SSL_MODE: '' } },
   ])('defaults to disable when $name, so local development needs no setting', ({ envs }) => {
-    expect(envsDto.parse(envs).DATABASE_SSL_MODE).toBe('disable');
+    expect(envsDto.parse(envs).DATABASE_SSL_MODE).toBe(PostgresSslMode.DISABLE);
   });
 
-  it.each(['disable', 'verify-full', 'require'])('accepts %s', (mode) => {
+  it.each(POSTGRES_SSL_MODES)('accepts %s', (mode) => {
     expect(envsDto.parse({ ...validEnvs, DATABASE_SSL_MODE: mode }).DATABASE_SSL_MODE).toBe(mode);
   });
 

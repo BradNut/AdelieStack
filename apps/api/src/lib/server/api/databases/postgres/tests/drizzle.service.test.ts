@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { setProcessEnvs, validEnvs } from '#lib/server/api/common/configs/tests/env-fixtures';
 import { createTestContainer } from '#lib/server/api/common/testing/test-container';
 import { DrizzleService } from '#lib/server/api/databases/postgres/drizzle.service';
+import { PostgresSslMode } from '#lib/server/api/databases/postgres/postgres-ssl';
 
 /** pg-pool's own default, which the API runs with. A pool connects on first query, so none of this opens a socket. */
 const DEFAULT_POOL_SIZE = 10;
@@ -43,9 +44,9 @@ describe('DrizzleService TLS', () => {
   });
 
   it.each([
-    { mode: 'disable', ssl: false },
-    { mode: 'verify-full', ssl: { rejectUnauthorized: true } },
-    { mode: 'require', ssl: { rejectUnauthorized: false } },
+    { mode: PostgresSslMode.DISABLE, ssl: false },
+    { mode: PostgresSslMode.VERIFY_FULL, ssl: { rejectUnauthorized: true } },
+    { mode: PostgresSslMode.REQUIRE, ssl: { rejectUnauthorized: false } },
   ])('connects with ssl $ssl when DATABASE_SSL_MODE is $mode', ({ mode, ssl }) => {
     setProcessEnvs({ ...validEnvs, DATABASE_SSL_MODE: mode });
 
