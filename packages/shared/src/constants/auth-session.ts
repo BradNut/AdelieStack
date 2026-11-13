@@ -6,6 +6,12 @@ export const SECONDS_PER_DAY = 24 * 60 * 60;
 /** A session lasts this long (seconds) after its last refresh: 7 days. */
 export const AUTH_SESSION_EXPIRES_IN = 7 * SECONDS_PER_DAY;
 
+/**
+ * A session ends this long (seconds) after sign-in however often it is used: 30 days, the NIST SP 800-63B
+ * reauthentication limit for AAL1. Refreshes ({@link AUTH_SESSION_UPDATE_AGE}) never move its expiry past this.
+ */
+export const AUTH_SESSION_MAX_LIFETIME = 30 * SECONDS_PER_DAY;
+
 /** An active session is extended (seconds) at most this often: once a day. */
 export const AUTH_SESSION_UPDATE_AGE = 1 * SECONDS_PER_DAY;
 

@@ -38,6 +38,7 @@ import { type AuthRateLimitStorage, authRateLimitOptions } from './auth.rate-lim
 import { replacedSession } from './auth.replaced-session';
 import { roleGuard } from './auth.role-guard';
 import { secondFactorGuard } from './auth.second-factor';
+import { capSessionLifetime } from './auth.session-lifetime';
 import { uniformSignUpResponse } from './auth.sign-up-response';
 import { socialProvidersOption } from './auth.social';
 import { socialTwoFactorRedirect, withSocialSignInChallenge } from './auth.social-two-factor';
@@ -221,6 +222,8 @@ export function createAuth({
     },
     databaseHooks: {
       user: { create: { before: verifyAdminCreatedUser } },
+      // Refreshes slide the expiry forward, but never past the absolute lifetime from sign-in.
+      session: { update: { before: capSessionLifetime } },
     },
     hooks: {
       before: createPasswordPolicyHook(hibpStatus),
