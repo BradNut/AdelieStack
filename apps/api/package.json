@@ -36,6 +36,7 @@
     "@biomejs/biome": "2.5.15",
     "@faker-js/faker": "^10.6.0",
     "@inlang/paraglide-js": "2.29.0",
+    "@scalar/api-reference": "1.78.1",
     "@types/clamscan": "^2.4.1",
     "@types/node": "^24.10.1",
     "@types/pg": "^8.23.1",
