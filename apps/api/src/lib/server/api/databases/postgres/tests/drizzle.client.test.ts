@@ -24,6 +24,18 @@ describe('createScriptDb', () => {
     });
   });
 
+  it.each([
+    { mode: undefined, ssl: false },
+    { mode: 'disable', ssl: false },
+    { mode: 'verify-full', ssl: { rejectUnauthorized: true } },
+    { mode: 'require', ssl: { rejectUnauthorized: false } },
+  ])('connects with ssl $ssl when DATABASE_SSL_MODE is $mode', ({ mode, ssl }) => {
+    vi.stubEnv(SCRIPT_DB_FLAGS.MIGRATING, 'true');
+    vi.stubEnv('DATABASE_SSL_MODE', mode);
+
+    expect(createScriptDb(SCRIPT_DB_FLAGS.MIGRATING).$client.options.ssl).toEqual(ssl);
+  });
+
   it('does not accept one flag in place of the other', () => {
     vi.stubEnv(SCRIPT_DB_FLAGS.MIGRATING, 'true');
     vi.stubEnv(SCRIPT_DB_FLAGS.SEEDING, 'false');

@@ -1,4 +1,5 @@
 import { defineConfig } from 'drizzle-kit';
+import { postgresSsl } from './src/lib/server/api/databases/postgres/postgres-ssl';
 
 /* ------------------------------- !IMPORTANT ------------------------------- */
 /* ---------------- Before running migrations or generations ---------------- */
@@ -19,7 +20,7 @@ export default defineConfig({
     user: process.env.DATABASE_USER,
     password: process.env.DATABASE_PASSWORD,
     database: process.env.DATABASE_DB || 'acme',
-    ssl: process.env.DATABASE_HOST !== 'localhost',
+    ssl: postgresSsl(process.env.DATABASE_SSL_MODE),
   },
   migrations: {
     table: 'migrations',

@@ -16,6 +16,8 @@ git diff drizzle/
 DB_MIGRATING=true pnpm --filter @adelie/api db:migrate
 ```
 
+The migrate step connects with the same `DATABASE_SSL_MODE` as the API; set `verify-full` for a remote database ([Database TLS](./environment-config.md#database-tls)).
+
 ## Production Migrations
 
 Migrations do **not** run automatically, in Docker or Nixpacks deployments. Run them manually or via a Coolify pre-deploy hook:

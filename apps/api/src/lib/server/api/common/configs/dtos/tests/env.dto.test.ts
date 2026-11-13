@@ -55,6 +55,26 @@ describe('envsDto security switches', () => {
   });
 });
 
+describe('envsDto database TLS mode', () => {
+  it.each([
+    { name: 'unset', envs: validEnvsWithout('DATABASE_SSL_MODE') },
+    { name: 'empty', envs: { ...validEnvs, DATABASE_SSL_MODE: '' } },
+  ])('defaults to disable when $name, so local development needs no setting', ({ envs }) => {
+    expect(envsDto.parse(envs).DATABASE_SSL_MODE).toBe('disable');
+  });
+
+  it.each(['disable', 'verify-full', 'require'])('accepts %s', (mode) => {
+    expect(envsDto.parse({ ...validEnvs, DATABASE_SSL_MODE: mode }).DATABASE_SSL_MODE).toBe(mode);
+  });
+
+  it.each(['true', 'prefer', 'VERIFY-FULL'])('refuses the unknown mode %s', (mode) => {
+    const result = envsDto.safeParse({ ...validEnvs, DATABASE_SSL_MODE: mode });
+
+    expect(result.success).toBe(false);
+    expect(result.error?.issues.map((issue) => issue.path.join('.'))).toContain('DATABASE_SSL_MODE');
+  });
+});
+
 describe('envsDto trusted proxies', () => {
   const parse = (TRUSTED_PROXIES: string) => envsDto.safeParse({ ...validEnvs, TRUSTED_PROXIES });
 

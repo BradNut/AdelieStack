@@ -25,3 +25,30 @@ describe('DrizzleService pool size', () => {
     expect((db as unknown as { $client: { options: { max: number } } }).$client.options.max).toBe(DEFAULT_POOL_SIZE);
   });
 });
+
+describe('DrizzleService TLS', () => {
+  afterEach(() => {
+    setProcessEnvs(validEnvs);
+  });
+
+  const poolSsl = () => {
+    const { db } = createTestContainer().get(DrizzleService);
+    return (db as unknown as { $client: { options: { ssl: unknown } } }).$client.options.ssl;
+  };
+
+  it('connects without TLS by default, as local development does', () => {
+    setProcessEnvs(validEnvs);
+
+    expect(poolSsl()).toBe(false);
+  });
+
+  it.each([
+    { mode: 'disable', ssl: false },
+    { mode: 'verify-full', ssl: { rejectUnauthorized: true } },
+    { mode: 'require', ssl: { rejectUnauthorized: false } },
+  ])('connects with ssl $ssl when DATABASE_SSL_MODE is $mode', ({ mode, ssl }) => {
+    setProcessEnvs({ ...validEnvs, DATABASE_SSL_MODE: mode });
+
+    expect(poolSsl()).toEqual(ssl);
+  });
+});

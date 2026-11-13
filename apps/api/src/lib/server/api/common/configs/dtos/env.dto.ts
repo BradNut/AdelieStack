@@ -16,6 +16,7 @@ import {
 import { z } from 'zod/v4';
 import { DEVELOPMENT_DEFAULT_NAMES, DevelopmentDefault } from '#lib/server/api/common/configs/development-defaults.constant';
 import { findInvalidTrustedProxies } from '#lib/server/api/common/utils/ip';
+import { POSTGRES_SSL_MODES, PostgresSslMode } from '#lib/server/api/databases/postgres/postgres-ssl';
 import { MailerTransport } from '#lib/server/api/mail/mailer-transport.constant';
 
 /** An env file declares optional variables as `NAME=`; treat that empty string as unset. */
@@ -37,6 +38,8 @@ const baseEnvsDto = z.object({
   DATABASE_HOST: z.string(),
   DATABASE_PORT: z.coerce.number(),
   DATABASE_DB: z.string(),
+  // TLS to Postgres (libpq sslmode names): disable locally; verify-full checks the certificate, require opts out of that.
+  DATABASE_SSL_MODE: z.preprocess(emptyAsUndefined, z.enum(POSTGRES_SSL_MODES).default(PostgresSslMode.DISABLE)),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
   ORIGIN: z.string(),
   DOMAIN: z.string(),

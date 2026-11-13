@@ -21,6 +21,7 @@ procedures.
 - Seeding the admin needs `ADMIN_PASSWORD`, at least 15 characters (the seed fails on a shorter one). With `SIGN_UP_ENABLED` false and no password set, the
   seed warns that nobody can sign in.
 - `SIGNING_SECRET` is required and sensitive; generate it with `openssl rand -hex 32`.
+- A database reached over a network needs `DATABASE_SSL_MODE=verify-full` (see [Database TLS](#database-tls)).
 - Local setup: `cp apps/api/.env.schema apps/api/.env`, fill `DATABASE_*`, `REDIS_URL`,
   `SIGNING_SECRET` and `STORAGE_*`, then `pnpm --filter @adelie/api dev`.
 
@@ -146,6 +147,22 @@ The reCAPTCHA keys above are v2 and always pass, so they do not exercise `CAPTCH
 - **Symptom**: protected forms fail with `503 CAPTCHA_UNAVAILABLE`; the forms show "Captcha is temporarily unavailable". Passkey and OAuth sign-in are unaffected. An invalid token is a different, 4xx answer.
 - **Find it**: every failed verification writes one error log entry starting with `CAPTCHA_VERIFY_FAILED` (grep the API logs for it). `/api/healthz` is public and says only that the API is up, so it stays `{ "status": "ok" }` during an outage. Entries appear only when a token is verified. Whether captcha is on is the deployment's `CAPTCHA_ENABLED` value.
 - **Mitigate**: set `CAPTCHA_ENABLED=false` and restart the API. The protected endpoints are unchallenged until you set it back to `true` and restart.
+
+## Database TLS
+
+`DATABASE_SSL_MODE` decides whether Postgres connections use TLS. One setting covers the running API's pool, the `db:migrate` and `db:seed` scripts and drizzle-kit (`db:push`, `db:studio`), so query traffic, session tokens and password hashes never cross the network in the clear while the migration tooling encrypts. The values follow libpq's `sslmode` names:
+
+| Value | Behaviour | Use it for |
+|---|---|---|
+| `disable` (default) | No TLS. | Local development, and a database on the same host or a private Docker network. |
+| `verify-full` | TLS, and the server certificate must chain to a trusted CA and match `DATABASE_HOST`. A bad or self-signed certificate fails the connection. | Any database reached over a network, including managed Postgres. |
+| `require` | TLS without checking the certificate. Traffic is encrypted but anyone on the path can impersonate the server. | Only as an explicit, temporary opt-out when the provider's CA cannot be trusted yet. |
+
+- Unset or empty means `disable`, so a fresh clone needs nothing. An unknown value (`true`, `prefer`, a different case) stops the API at startup and makes the scripts and drizzle-kit throw; nothing falls back to plain text.
+- Certificates are checked against Node's bundled CAs. For a provider whose CA is not among them (for example AWS RDS), download its bundle and point `NODE_EXTRA_CA_CERTS` at the PEM file for the API and the scripts rather than switching to `require`.
+- Postgres must have TLS enabled: with `verify-full` or `require` the client refuses a server that does not offer it.
+- drizzle-kit reads `process.env` and `apps/api/.env` only (not `.env.local` or the schema defaults), so for `db:push` and `db:studio` against a remote database set `DATABASE_SSL_MODE` on the command or in `.env`, as with the other `DATABASE_*` values.
+- The pure mapping lives in `databases/postgres/postgres-ssl.ts` (`postgresSsl`); the env DTO, `drizzle.client.ts` and `drizzle.config.ts` all use it.
 
 ## Storage
 
