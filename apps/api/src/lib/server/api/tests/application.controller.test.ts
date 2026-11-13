@@ -55,7 +55,7 @@ function buildApp(envs: Record<string, unknown> = {}, log = pino({ enabled: fals
     } as unknown as StorageWebhookController,
     new ConfigController({ envs: { SIGN_UP_ENABLED: true } } as unknown as ConfigService, authService),
     new AdminExampleController(authService, rolesService),
-    { envs: { SIGNING_SECRET: 'test-signing-secret', ENV: 'test', ...envs } } as unknown as ConfigService,
+    { envs: { SIGNING_SECRET: 'test-signing-secret-at-least-32-chars', ENV: 'test', ...envs } } as unknown as ConfigService,
     { log } as unknown as LoggerService,
   ).registerControllers();
 }

@@ -10,7 +10,7 @@ export const TEST_ENVS: Pick<EnvsDto, TestEnvKey> = {
   ENV: 'dev',
   LOG_LEVEL: 'info',
   ORIGIN: 'http://localhost:5173',
-  SIGNING_SECRET: 'test-signing-secret',
+  SIGNING_SECRET: 'test-signing-secret-at-least-32-chars',
 };
 
 export function createConfigServiceMock(overrides: Partial<EnvsDto> = {}) {
