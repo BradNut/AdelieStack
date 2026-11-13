@@ -1,4 +1,4 @@
-import { isProdEnv } from '@adelie/shared';
+import { declaresProduction, isProdEnv } from '@adelie/shared';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import type { Client } from 'pg';
 import Pool from 'pg-pool';
@@ -37,10 +37,14 @@ export function createPostgresDb({ env, ...pool }: PostgresConnection): Postgres
  * For one-off scripts (migrate, seed), which read only the variables they need and hold one connection.
  * Refuses unless the script's flag resolves to true. Varlock has already turned `TRUE`, `1` and `yes` into "true";
  * the guard compares strings because `.env.schema` defaults the flag to "false", a truthy string.
+ * The seed truncates every table, so it also refuses when any setting declares production; migrations still run there.
  */
 export function createScriptDb(requiredEnvVar: ScriptDbFlag): PostgresDb {
   if (process.env[requiredEnvVar] !== 'true') {
     throw new Error(`You must set ${requiredEnvVar} to "true" to run this script.`);
+  }
+  if (requiredEnvVar === SCRIPT_DB_FLAGS.SEEDING && declaresProduction(process.env)) {
+    throw new Error('The seed script refuses to run in production: it truncates every table.');
   }
   return createPostgresDb({
     user: process.env.DATABASE_USER,
