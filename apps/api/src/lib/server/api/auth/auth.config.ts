@@ -31,7 +31,9 @@ import { freshSessionGuard } from './auth.fresh-session';
 import { createHibpHealth } from './auth.hibp-status';
 import { type AuthMailLogger, createAuthMail, toMailRecipient } from './auth.mail';
 import { passwordAccountGuard } from './auth.password-account-guard';
+import { createPasswordHasher, type PasswordHasher } from './auth.password-hash';
 import { createPasswordPolicyHook, hibpScreening } from './auth.password-policy';
+import { passwordRehash } from './auth.password-rehash';
 import { ac, roles } from './auth.permissions';
 import type { ProviderHealth } from './auth.provider-health';
 import { type AuthRateLimitStorage, authRateLimitOptions } from './auth.rate-limit';
@@ -115,6 +117,12 @@ export interface CreateAuthOptions {
    * The sign-up gate is applied here, so a provider sign-in for an unknown email follows `signUpEnabled`.
    */
   socialProviders?: BetterAuthOptions['socialProviders'];
+
+  /**
+   * How account passwords are hashed. Defaults to scrypt at the OWASP-recommended cost; only tests pass a cheaper one,
+   * so the many sign-ups they run stay fast.
+   */
+  passwordHasher?: PasswordHasher;
 }
 
 /** Better Auth's Drizzle adapter over our schema. Table names are plural (`users`, `sessions`, ...). */
@@ -159,6 +167,7 @@ export function createAuth({
   openApiReference = false,
   clientIp = { trustProxy: false, trustedProxies: [] },
   socialProviders = {},
+  passwordHasher = createPasswordHasher(),
 }: CreateAuthOptions) {
   const authMail = createAuthMail(mailer, mailLog);
   return betterAuth({
@@ -223,6 +232,9 @@ export function createAuth({
       requireEmailVerification: true,
       minPasswordLength: MIN_PASSWORD_LENGTH,
       maxPasswordLength: MAX_PASSWORD_LENGTH,
+      // scrypt at an OWASP-recommended cost; hashes Better Auth wrote at its weaker default still verify, and
+      // `passwordRehash` replaces them at the next password sign-in.
+      password: { hash: passwordHasher.hash, verify: passwordHasher.verify },
       sendResetPassword: authMail.sendResetPassword,
       onPasswordReset: authMail.notifyPasswordChanged,
       // A stolen session must not outlive the reset. The adapter runs without transactions, so sessions
@@ -286,6 +298,7 @@ export function createAuth({
       secondFactorGuard(),
       roleGuard(allowMultipleRoles),
       passwordAccountGuard(),
+      passwordRehash(passwordHasher),
       ...(accountLockoutStorage ? [accountLockout(accountLockoutStorage)] : []),
       freshSessionGuard(),
       uniformSignUpResponse(),
