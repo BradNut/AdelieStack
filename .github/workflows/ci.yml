@@ -25,7 +25,8 @@ permissions:
 # No secrets anywhere in CI, so fork PRs work. Values not set here come from the .env.schema defaults.
 
 jobs:
-  # Repo-wide, not per package: covers the root config, scripts and web files too (#149).
+  # Repo-wide, not per package: covers the root config, scripts and web files too (#149),
+  # plus the pinned actions/images guard (#235).
   lint:
     name: Lint (Biome)
     runs-on: ubuntu-latest
@@ -34,6 +35,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/setup
       - run: pnpm exec biome check .
+      - run: pnpm check:pinned-refs
+      - run: pnpm test:scripts
 
   check:
     name: Type check (web + API + shared boundaries)
@@ -59,7 +62,7 @@ jobs:
     timeout-minutes: 15
     services:
       redis:
-        image: redis:7
+        image: redis:7.4.12
         ports:
           - 6379:6379
         options: >-

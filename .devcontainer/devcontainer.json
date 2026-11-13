@@ -4,10 +4,10 @@
     "dockerfile": "Dockerfile"
   },
   "features": {
-    "ghcr.io/devcontainers/features/docker-in-docker:2": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2.17.0": {
       "moby": false
     },
-    "ghcr.io/w3cj/devcontainer-features/firewall:latest": {
+    "ghcr.io/w3cj/devcontainer-features/firewall:0.0.2": {
       "dockerNetworks": true,
       "githubDomains": true,
       "githubIps": true,
