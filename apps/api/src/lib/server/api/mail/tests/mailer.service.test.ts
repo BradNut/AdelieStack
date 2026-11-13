@@ -25,7 +25,7 @@ const ENV_WITHOUT_TRANSPORT = {
   ORIGIN: 'http://localhost:5173',
   DOMAIN: 'localhost',
   REDIS_URL: 'redis://localhost:6379',
-  SIGNING_SECRET: 'secret',
+  SIGNING_SECRET: 'test-signing-secret-at-least-32-chars',
   BETTER_AUTH_SECRET: 'better-auth-secret-at-least-32-chars',
   BETTER_AUTH_URL: 'http://localhost:5173',
   ENV: 'dev',

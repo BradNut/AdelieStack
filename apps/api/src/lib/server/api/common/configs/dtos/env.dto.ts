@@ -55,7 +55,7 @@ const baseEnvsDto = z.object({
   // Background jobs: register BullMQ queues/workers on startup. Disable in tests/CI
   // or one-off processes that must not open a Redis worker connection.
   JOBS_ENABLED: z.stringbool().default(true),
-  SIGNING_SECRET: z.string().min(1, 'SIGNING_SECRET must not be empty'),
+  SIGNING_SECRET: z.string().min(32, 'SIGNING_SECRET must be at least 32 characters'),
   // Better Auth: secret for signing/encrypting auth cookies and tokens, and the public base URL
   // the auth endpoints are served from (the web origin, which proxies /api to this server).
   BETTER_AUTH_SECRET: z.string().min(32, 'BETTER_AUTH_SECRET must be at least 32 characters'),
