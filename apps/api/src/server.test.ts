@@ -89,7 +89,7 @@ function stubDeploymentEnv({ jobsEnabled }: { jobsEnabled: boolean }) {
   for (const [, key, value] of schema.matchAll(/^([A-Z][A-Z0-9_]*)=(.+)$/gm)) {
     vi.stubEnv(key, value);
   }
-  vi.stubEnv('SIGNING_SECRET', 'test-signing-secret');
+  vi.stubEnv('SIGNING_SECRET', 'test-signing-secret-at-least-32-chars');
   vi.stubEnv('BETTER_AUTH_SECRET', 'test-better-auth-secret-of-32-chars-min');
   vi.stubEnv('JOBS_ENABLED', String(jobsEnabled));
 }

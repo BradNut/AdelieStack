@@ -20,7 +20,7 @@ procedures.
   connection pool, and neither flag starts a migration or seed by itself.
 - Seeding the admin needs `ADMIN_PASSWORD`, at least 15 characters (the seed fails on a shorter one). With `SIGN_UP_ENABLED` false and no password set, the
   seed warns that nobody can sign in.
-- `SIGNING_SECRET` is required and sensitive; generate it with `openssl rand -hex 32`.
+- `SIGNING_SECRET` is required and sensitive, at least 32 characters (startup fails on a shorter one); generate it with `openssl rand -hex 32`.
 - A database reached over a network needs `DATABASE_SSL_MODE=verify-full` (see [Database TLS](#database-tls)).
 - Local setup: `cp apps/api/.env.schema apps/api/.env`, fill `DATABASE_*`, `REDIS_URL`,
   `SIGNING_SECRET` and `STORAGE_*`, then `pnpm --filter @adelie/api dev`.
