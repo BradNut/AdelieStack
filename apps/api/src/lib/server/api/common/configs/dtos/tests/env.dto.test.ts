@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { DevelopmentDefault } from '#lib/server/api/common/configs/development-defaults.constant';
 import { envsDto } from '#lib/server/api/common/configs/dtos/env.dto';
 import { productionEnvOverrides, validEnvs } from '#lib/server/api/common/configs/tests/env-fixtures';
+import { POSTGRES_SSL_MODES, PostgresSslMode } from '#lib/server/api/databases/postgres/postgres-ssl';
 import { MailerTransport } from '#lib/server/api/mail/mailer-transport.constant';
 
 /** {@link validEnvs} without `names`, so a test sees each one fall back to its default. */
@@ -52,6 +53,26 @@ describe('envsDto security switches', () => {
     const env = envsDto.parse({ ...validEnvs, TRUST_PROXY: 'true', DISABLE_RATE_LIMIT: 'true' });
     expect(env.TRUST_PROXY).toBe(true);
     expect(env.DISABLE_RATE_LIMIT).toBe(true);
+  });
+});
+
+describe('envsDto database TLS mode', () => {
+  it.each([
+    { name: 'unset', envs: validEnvsWithout('DATABASE_SSL_MODE') },
+    { name: 'empty', envs: { ...validEnvs, DATABASE_SSL_MODE: '' } },
+  ])('defaults to disable when $name, so local development needs no setting', ({ envs }) => {
+    expect(envsDto.parse(envs).DATABASE_SSL_MODE).toBe(PostgresSslMode.DISABLE);
+  });
+
+  it.each(POSTGRES_SSL_MODES)('accepts %s', (mode) => {
+    expect(envsDto.parse({ ...validEnvs, DATABASE_SSL_MODE: mode }).DATABASE_SSL_MODE).toBe(mode);
+  });
+
+  it.each(['true', 'prefer', 'VERIFY-FULL'])('refuses the unknown mode %s', (mode) => {
+    const result = envsDto.safeParse({ ...validEnvs, DATABASE_SSL_MODE: mode });
+
+    expect(result.success).toBe(false);
+    expect(result.error?.issues.map((issue) => issue.path.join('.'))).toContain('DATABASE_SSL_MODE');
   });
 });
 

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createScriptDb, SCRIPT_DB_FLAGS } from '#lib/server/api/databases/postgres/drizzle.client';
+import { PostgresSslMode } from '#lib/server/api/databases/postgres/postgres-ssl';
 
 describe('createScriptDb', () => {
   describe.each(Object.values(SCRIPT_DB_FLAGS))('%s', (requiredEnvVar) => {
@@ -22,6 +23,18 @@ describe('createScriptDb', () => {
 
       expect(() => createScriptDb(requiredEnvVar)).toThrowError(`You must set ${requiredEnvVar} to "true"`);
     });
+  });
+
+  it.each([
+    { mode: undefined, ssl: false },
+    { mode: PostgresSslMode.DISABLE, ssl: false },
+    { mode: PostgresSslMode.VERIFY_FULL, ssl: { rejectUnauthorized: true } },
+    { mode: PostgresSslMode.REQUIRE, ssl: { rejectUnauthorized: false } },
+  ])('connects with ssl $ssl when DATABASE_SSL_MODE is $mode', ({ mode, ssl }) => {
+    vi.stubEnv(SCRIPT_DB_FLAGS.MIGRATING, 'true');
+    vi.stubEnv('DATABASE_SSL_MODE', mode);
+
+    expect(createScriptDb(SCRIPT_DB_FLAGS.MIGRATING).$client.options.ssl).toEqual(ssl);
   });
 
   it('does not accept one flag in place of the other', () => {
