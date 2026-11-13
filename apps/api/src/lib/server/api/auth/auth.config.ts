@@ -177,6 +177,10 @@ export function createAuth({
     },
     socialProviders: socialProvidersOption(socialProviders, signUpEnabled),
     account: {
+      // Provider access and refresh tokens are encrypted with the auth secret before they are stored (NIST SC-28).
+      // A row written before this was on still reads: Better Auth passes a value that does not look encrypted through
+      // as plain text, and the next refresh or sign-in rewrites it encrypted.
+      encryptOAuthTokens: true,
       accountLinking: {
         // A provider sign-in links to the existing account with the same email only when the provider reports
         // that email as verified (and the local one is verified too). No provider is trusted regardless: an

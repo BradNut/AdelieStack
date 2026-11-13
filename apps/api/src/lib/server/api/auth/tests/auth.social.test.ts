@@ -228,3 +228,100 @@ describe('sign-up gate for social sign-in', () => {
     for (const provider of providers) expect(provider.options?.disableSignUp).toBe(true);
   });
 });
+
+describe('social tokens at rest', () => {
+  const ACCESS_TOKEN = 'provider-access-token';
+  const REFRESHED = { accessToken: 'refreshed-access-token', refreshToken: 'rotated-refresh-token' };
+  const newcomer: FakeProfile = { id: 'g-tokens', email: 'tokens@example.com', emailVerified: true };
+  const past = () => new Date(Date.now() - 60_000);
+
+  /** Google, answered locally, whose token refresh records the refresh token it is handed. */
+  function buildTokenAuth() {
+    const refreshedWith: string[] = [];
+    const google = {
+      ...fakeProvider(newcomer),
+      refreshAccessToken: async (refreshToken: string) => {
+        refreshedWith.push(refreshToken);
+        return { ...REFRESHED, accessTokenExpiresAt: new Date(Date.now() + 3_600_000) };
+      },
+    };
+    return { ...createTestAuth({ signUpEnabled: true, socialProviders: { google } }), refreshedWith };
+  }
+
+  /** Signs a new user in through Google with an access token; returns their session cookie and the stored account row. */
+  async function signInWithTokens(auth: Auth, request: AuthRequest) {
+    const res = await request('/sign-in/social', {
+      body: { provider: SocialProvider.GOOGLE, idToken: { token: 'provider-token', accessToken: ACCESS_TOKEN } },
+    });
+    expect(res.status).toBe(200);
+    const { user } = (await res.json()) as { user: { id: string } };
+    const account = await storedAccount(auth, user.id);
+    return { cookie: cookiesFrom(res), account, userId: user.id };
+  }
+
+  async function storedAccount(auth: Auth, userId: string) {
+    const { internalAdapter } = await auth.$context;
+    const [account] = await internalAdapter.findAccounts(userId);
+    if (!account) throw new Error('social sign-in stored no account');
+    return account;
+  }
+
+  const accessTokenOf = async (request: AuthRequest, cookie: string, accountId: string) => {
+    const res = await request('/get-access-token', { cookie, body: { accountId } });
+    expect(res.status).toBe(200);
+    return ((await res.json()) as { accessToken: string }).accessToken;
+  };
+
+  it('stores the access token from sign-in encrypted, not as the provider sent it', async () => {
+    const { auth, request } = buildTokenAuth();
+
+    const { account } = await signInWithTokens(auth, request);
+
+    expect(account.accessToken).toBeTruthy();
+    expect(account.accessToken).not.toContain(ACCESS_TOKEN);
+  });
+
+  it('hands the provider token back decrypted to its owner', async () => {
+    const { auth, request } = buildTokenAuth();
+    const { cookie, account } = await signInWithTokens(auth, request);
+
+    expect(await accessTokenOf(request, cookie, account.id)).toBe(ACCESS_TOKEN);
+  });
+
+  it('stores refreshed tokens encrypted and refreshes with the decrypted refresh token', async () => {
+    const { auth, request, refreshedWith } = buildTokenAuth();
+    const { cookie, account, userId } = await signInWithTokens(auth, request);
+    const { internalAdapter } = await auth.$context;
+    await internalAdapter.updateAccount(account.id, { refreshToken: 'legacy-plain-refresh', accessTokenExpiresAt: past() });
+
+    expect(await accessTokenOf(request, cookie, account.id)).toBe(REFRESHED.accessToken);
+    const refreshed = await storedAccount(auth, userId);
+    expect(refreshed.accessToken).not.toContain(REFRESHED.accessToken);
+    expect(refreshed.refreshToken).toBeTruthy();
+    expect(refreshed.refreshToken).not.toContain(REFRESHED.refreshToken);
+
+    await internalAdapter.updateAccount(account.id, { accessTokenExpiresAt: past() });
+    await accessTokenOf(request, cookie, account.id);
+
+    expect(refreshedWith).toEqual(['legacy-plain-refresh', REFRESHED.refreshToken]);
+  });
+
+  it('still reads an access token stored in plain text before encryption was turned on', async () => {
+    const { auth, request } = buildTokenAuth();
+    const { cookie, account } = await signInWithTokens(auth, request);
+    const { internalAdapter } = await auth.$context;
+    await internalAdapter.updateAccount(account.id, { accessToken: 'legacy-plain-token' });
+
+    expect(await accessTokenOf(request, cookie, account.id)).toBe('legacy-plain-token');
+  });
+
+  it('does not hand a provider token to a request without the owner session', async () => {
+    const { auth, request } = buildTokenAuth();
+    const { account } = await signInWithTokens(auth, request);
+
+    const res = await request('/get-access-token', { body: { accountId: account.id } });
+
+    expect(res.ok).toBe(false);
+    expect(await res.text()).not.toContain(ACCESS_TOKEN);
+  });
+});
