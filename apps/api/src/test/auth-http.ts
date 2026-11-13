@@ -147,10 +147,13 @@ export async function startTwoFactorSignIn(request: AuthRequest, { email, passwo
   return { challengeCookie: cookiesFrom(res), twoFactorRedirect };
 }
 
-/** Requests a password reset for {@link TEST_USER} and returns the emailed link's token, read from the rows in `db`. */
-export async function resetToken(request: AuthRequest, db: ReturnType<typeof createTestDatabase>['db']): Promise<string> {
-  const prefix = 'reset-password:';
+/**
+ * Requests a password reset for {@link TEST_USER} and returns the token from the emailed link (`/reset-password/<token>`),
+ * as the user receives it. The stored row holds only its hash.
+ */
+export async function resetToken(request: AuthRequest, sent: SendProps[]): Promise<string> {
+  const before = sent.length;
   await request('/request-password-reset', { body: { email: TEST_USER.email, redirectTo: `${TEST_ORIGIN}/reset` } });
-  const row = db.verification.find((v) => String(v.identifier).startsWith(prefix));
-  return String(row?.identifier).slice(prefix.length);
+  const link = emailedLink(sent.slice(before).at(-1));
+  return link ? (new URL(link).pathname.split('/').at(-1) ?? '') : '';
 }

@@ -10,10 +10,11 @@ const NEW_PASSWORD = 'another long passphrase';
 const OTHER_USER = { ...TEST_USER, email: 'other@example.com' };
 
 let db: ReturnType<typeof createTestAuth>['db'];
+let mailer: ReturnType<typeof createTestAuth>['mailer'];
 let request: AuthRequest;
 
 beforeEach(() => {
-  ({ db, request } = createTestAuth());
+  ({ db, mailer, request } = createTestAuth());
 });
 
 afterEach(() => {
@@ -36,12 +37,12 @@ function reset(token: string, newPassword = NEW_PASSWORD) {
 
 async function signedInWithLink() {
   const { cookie } = await signUpWithEmail(request, TEST_USER);
-  return { cookie, token: await resetToken(request, db) };
+  return { cookie, token: await resetToken(request, mailer.sent) };
 }
 
 /** As {@link signedInWithLink}, on an instance that screens for breached passwords. */
 async function signedInWithScreenedLink() {
-  ({ db, request } = createTestAuth({ hibpStatus: createHibpHealth({ enabled: true }) }));
+  ({ db, mailer, request } = createTestAuth({ hibpStatus: createHibpHealth({ enabled: true }) }));
   mockHibp([]);
   return signedInWithLink();
 }
@@ -53,7 +54,7 @@ describe('a successful password reset', () => {
     expect(await isSignedIn(first)).toBe(true);
     expect(await isSignedIn(second)).toBe(true);
 
-    expect((await reset(await resetToken(request, db))).status).toBe(200);
+    expect((await reset(await resetToken(request, mailer.sent))).status).toBe(200);
 
     expect(await isSignedIn(first)).toBe(false);
     expect(await isSignedIn(second)).toBe(false);
@@ -63,7 +64,7 @@ describe('a successful password reset', () => {
     await signUpWithEmail(request, TEST_USER);
     const { cookie: other } = await signUpWithEmail(request, OTHER_USER);
 
-    await reset(await resetToken(request, db));
+    await reset(await resetToken(request, mailer.sent));
 
     expect(await isSignedIn(other)).toBe(true);
   });
@@ -71,7 +72,7 @@ describe('a successful password reset', () => {
   it('lets the user sign in with the new password, and not the old one', async () => {
     await signUpWithEmail(request, TEST_USER);
 
-    await reset(await resetToken(request, db));
+    await reset(await resetToken(request, mailer.sent));
 
     expect(await isSignedIn(await signIn(NEW_PASSWORD))).toBe(true);
     expect((await request('/sign-in/email', { body: { email: EMAIL, password: PASSWORD } })).status).toBe(401);
@@ -79,7 +80,7 @@ describe('a successful password reset', () => {
 
   it('ends no session of a later sign-in when the spent link is replayed', async () => {
     await signUpWithEmail(request, TEST_USER);
-    const token = await resetToken(request, db);
+    const token = await resetToken(request, mailer.sent);
     await reset(token);
     const signedInAfter = await signIn(NEW_PASSWORD);
 
