@@ -612,6 +612,14 @@ describe('API reference', () => {
     expect(html).not.toMatch(/\bfrom\s*['"]https?:/);
   });
 
+  // Better Auth's own reference page loads its script unpinned from a CDN, so its schema is shown here instead.
+  it('shows the app document and the auth schema as its two sources', async () => {
+    const html = await (await buildApp(DEVELOPMENT_ENVS).request('/api/reference')).text();
+
+    expect(html).toContain('"url": "/api/doc"');
+    expect(html).toContain('"url": "/api/auth/open-api/generate-schema"');
+  });
+
   it('serves the script the page loads, as JavaScript that registers the Scalar global', async () => {
     const res = await buildApp(DEVELOPMENT_ENVS).request('/api/reference/scalar.js');
 

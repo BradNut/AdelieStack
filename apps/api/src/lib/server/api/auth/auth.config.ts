@@ -99,9 +99,10 @@ export interface CreateAuthOptions {
    */
   accountLockoutStorage?: AccountLockoutStorage;
   /**
-   * Serves Better Auth's API reference at `${AUTH_BASE_PATH}/reference` (and its schema at `/open-api/generate-schema`).
-   * Off by default; callers turn it on outside production. It sits below the auth basePath, so it cannot
-   * collide with the app's own `/api/reference`.
+   * Serves Better Auth's OpenAPI schema at `${AUTH_BASE_PATH}/open-api/generate-schema`, which the app's self-hosted
+   * reference (`/api/reference`) shows beside the app's own document. Better Auth's own page at
+   * `${AUTH_BASE_PATH}/reference` stays off: it loads its script unpinned from a CDN (#235). Off by default; callers
+   * turn it on outside production.
    */
   openApiReference?: boolean;
 
@@ -293,7 +294,7 @@ export function createAuth({
       lastLoginMethod({ cookieName: LAST_LOGIN_METHOD_COOKIE }),
       // Only registered when captcha is on, so off means no behaviour change. Its `onRequest` runs before every hook.
       ...(captchaConfig ? [captchaPlugin(captchaConfig, captchaStatus)] : []),
-      ...(openApiReference ? [openAPI()] : []),
+      ...(openApiReference ? [openAPI({ disableDefaultReference: true })] : []),
       // Before the role guard, so an admin without a Second Factor is refused the same way on every admin endpoint.
       secondFactorGuard(),
       roleGuard(allowMultipleRoles),

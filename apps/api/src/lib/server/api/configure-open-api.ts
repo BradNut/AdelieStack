@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
-import { API_BASE_PATH, APP_NAME } from '@adelie/shared';
+import { API_BASE_PATH, APP_NAME, AUTH_BASE_PATH } from '@adelie/shared';
 import { Scalar } from '@scalar/hono-api-reference';
 import { createOpenApiDocument } from 'hono-zod-openapi';
 import packageJSON from '../../../../package.json';
@@ -10,6 +10,12 @@ import type { AppOpenAPI } from './common/utils/hono';
 const REFERENCE_ROUTE = '/reference';
 /** The reference's browser bundle, served by the API so the page loads no third-party script. */
 const REFERENCE_SCRIPT_ROUTE = `${REFERENCE_ROUTE}/scalar.js`;
+const DOCUMENT_ROUTE = '/doc';
+/**
+ * Better Auth's OpenAPI schema, served by its open-api plugin outside production (auth.config.ts). Shown here rather
+ * than on Better Auth's own reference page, which loads its script unpinned from a CDN.
+ */
+const AUTH_SCHEMA_URL = `${AUTH_BASE_PATH}/open-api/generate-schema`;
 
 /**
  * The single-file browser build of `@scalar/api-reference`, read on first request. The package exports no path to it,
@@ -23,26 +29,30 @@ function loadReferenceScript(): Promise<string> {
 }
 
 export default function configureOpenAPI(app: AppOpenAPI) {
-  createOpenApiDocument(app, {
-    info: {
-      title: `${APP_NAME} API`,
-      description: `${APP_NAME} API`,
-      version: packageJSON.version,
-    },
-    components: {
-      securitySchemes: {
-        bearerAuth: {
-          type: 'http',
-          scheme: 'bearer',
-        },
-        cookieAuth: {
-          type: 'apiKey',
-          name: 'session',
-          in: 'cookie',
+  createOpenApiDocument(
+    app,
+    {
+      info: {
+        title: `${APP_NAME} API`,
+        description: `${APP_NAME} API`,
+        version: packageJSON.version,
+      },
+      components: {
+        securitySchemes: {
+          bearerAuth: {
+            type: 'http',
+            scheme: 'bearer',
+          },
+          cookieAuth: {
+            type: 'apiKey',
+            name: 'session',
+            in: 'cookie',
+          },
         },
       },
     },
-  });
+    { routeName: DOCUMENT_ROUTE },
+  );
 
   app.get(
     REFERENCE_ROUTE,
@@ -53,7 +63,10 @@ export default function configureOpenAPI(app: AppOpenAPI) {
         targetKey: 'js',
         clientKey: 'fetch',
       },
-      url: '/api/doc',
+      sources: [
+        { title: `${APP_NAME} API`, url: `${API_BASE_PATH}${DOCUMENT_ROUTE}` },
+        { title: 'Auth', url: AUTH_SCHEMA_URL },
+      ],
       // The page is on the app's own origin (through the web's /api proxy), so its script comes from the API too.
       cdn: `${API_BASE_PATH}${REFERENCE_SCRIPT_ROUTE}`,
     }),
