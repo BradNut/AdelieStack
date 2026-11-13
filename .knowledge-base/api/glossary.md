@@ -143,9 +143,10 @@ Pattern where dependencies are provided to a class rather than created internall
 
 ## Security
 
-**Argon2**
-Password hashing algorithm used for secure password storage (via the `argon2` package,
-wrapped by `HashingService`). Not bcrypt.
+**scrypt**
+Password hashing algorithm for account passwords, at the OWASP-recommended cost (N=2^16, r=8, p=2), via
+`createPasswordHasher` in `auth.password-hash.ts`. Each hash records its cost; a hash at an older cost (including
+Better Auth's default) still verifies and is replaced at the next password sign-in. Not bcrypt or Argon2.
 
 **Salt**
 Random data added to passwords before hashing.
