@@ -47,7 +47,8 @@ curl -s -o /dev/null -w '%{http_code}\n' --aws-sigv4 aws:amz:us-east-1:s3 \
 
 Check both buckets exist and `PROJECT_NAME` / `ENVIRONMENT` match the bucket names (built by
 `buildBucketName` in `apps/api/src/lib/server/api/storage/storage.buckets.ts` as
-`<PROJECT_NAME>-<public|private>-<ENVIRONMENT>`).
+`<PROJECT_NAME>-<public|private>-<ENVIRONMENT>`). `pnpm storage:setup` defaults `ENVIRONMENT` to
+`development`, so pass it the API's value for any other Environment.
 
 ### Fixes
 

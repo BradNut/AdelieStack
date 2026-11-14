@@ -74,7 +74,7 @@
   API directly on the internal network: the web app's `/api` proxy refuses that path with 404 so it
   is not reachable from the public internet. Infected objects are
   deleted; a scanner error only tags the object `error` and leaves it in place. The webhook requires
-  the `STORAGE_WEBHOOK_SECRET` bearer token (outside local development the API refuses to start
+  the `STORAGE_WEBHOOK_SECRET` bearer token (outside development the API refuses to start
   without it; a blank value counts as unset), ignores events for buckets other than the project's
   own, skips keys it cannot decode, and handles at most 10 object-created records per request,
   counting only records in the project's buckets
@@ -83,6 +83,7 @@
 - **Purpose**: Error tracking and application monitoring
 - **Integration**: Sentry SDK
 - **Features**: Error reporting, performance monitoring, release tracking
+- **PII and Spotlight**: on only for an explicit `ENVIRONMENT=development`; unset or unknown turns them off, since Sentry starts before the env is validated. Events are tagged with `ENVIRONMENT`, with no fallback
 
 ## Deployment Architecture
 
@@ -91,7 +92,7 @@
   `apps/api/nixpacks.toml` / `apps/api/Dockerfile`)
 - **Build**: Turbo/pnpm build scoped with `--filter @adelie/api...`
 - **Container**: Docker with Node.js runtime
-- **Environment**: Production environment variables via Coolify secrets
+- **Environment**: Production environment variables via Coolify secrets. The platform must set `ENVIRONMENT` (`staging` or `production`; the image does not) and keep `NODE_ENV=production` (the image sets it); see the [environment-config runbook](./runbooks/environment-config.md#the-environment-switch)
 
 ### Build Process
 1. Install dependencies with pnpm
@@ -157,9 +158,9 @@
 ## Monitoring & Observability
 
 ### Logging
-- Structured JSON logs
+- Structured JSON logs everywhere but `ENVIRONMENT=development`, which pretty-prints them and logs SQL
 - Request/response logging: pino's standard fields (`level`, `time`, `pid`, `hostname`) plus request id, method, path (reset tokens redacted, no query), status, duration and a fixed `msg` (`Request completed`, or `Request failed` at `error` level when a handler threw) only; never headers or error messages
-- Unexpected errors (`common/middleware/error-handler.middleware.ts`): a separate `Unexpected error` entry at `error` level with the request id and the error's type, message, stack and cause chain under `error`; connection-string credentials and query parameters are redacted, and headers stay out. The client gets a generic localised message (`server_unexpected_error`) and the request id; only explicit local development (`ENVIRONMENT=development` and `NODE_ENV=development`, `isLocalDevEnv`) adds the error text and stack. A thrown `HTTPException` is a deliberate client error: it keeps its status and message and is not logged as a failure
+- Unexpected errors (`common/middleware/error-handler.middleware.ts`): a separate `Unexpected error` entry at `error` level with the request id and the error's type, message, stack and cause chain under `error`; connection-string credentials and query parameters are redacted, and headers stay out. The client gets a generic localised message (`server_unexpected_error`) and the request id; only the development Environment (`ENVIRONMENT=development`, `isDevelopmentEnvironment`) adds the error text and stack. A thrown `HTTPException` is a deliberate client error: it keeps its status and message and is not logged as a failure
 - Performance metrics
 
 ### Error Tracking
