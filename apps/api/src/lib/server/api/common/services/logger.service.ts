@@ -1,4 +1,4 @@
-import { isProdEnv } from '@adelie/shared';
+import { isDevelopmentEnvironment } from '@adelie/shared';
 import { inject, injectable } from '@needle-di/core';
 import pino from 'pino';
 import pretty from 'pino-pretty';
@@ -13,7 +13,8 @@ export class LoggerService {
       {
         level: this.configService.envs.LOG_LEVEL || 'info',
       },
-      isProdEnv(this.configService.envs.ENV) ? undefined : pretty(),
+      // Pretty lines only in development; every other Environment writes production's JSON logs.
+      isDevelopmentEnvironment(this.configService.envs.ENVIRONMENT) ? pretty() : undefined,
     );
   }
 }

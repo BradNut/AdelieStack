@@ -1,4 +1,4 @@
-import { AuthErrorCode, DeployEnvironment, NodeEnv, RoleName } from '@adelie/shared';
+import { AuthErrorCode, Environment, RoleName } from '@adelie/shared';
 import pino from 'pino';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AdminExampleController } from '#lib/server/api/admin/admin-example.controller';
@@ -40,7 +40,7 @@ function request() {
     await next();
   });
   app.route('/admin', new AdminExampleController(authService, rolesService).routes() as never);
-  app.onError(errorHandler({ envs: { ENVIRONMENT: DeployEnvironment.PRODUCTION, NODE_ENV: NodeEnv.PRODUCTION }, logger: pino({ enabled: false }) }));
+  app.onError(errorHandler({ envs: { ENVIRONMENT: Environment.PRODUCTION }, logger: pino({ enabled: false }) }));
   return app.request('/admin/example');
 }
 

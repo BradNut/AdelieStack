@@ -13,10 +13,11 @@ export async function flushTelemetry() {
   await sdk?.shutdown();
 }
 
-// Initialize Sentry. Spotlight and PII are dev-only.
+// Initialize Sentry, before the env is validated. Spotlight and PII need ENVIRONMENT to be exactly development, and the
+// tag has no fallback: an unset ENVIRONMENT must not be reported, or treated, as development.
 Sentry.init({
   dsn: process.env.SENTRY_BACKEND_URL,
-  environment: process.env.ENVIRONMENT || 'development',
+  environment: process.env.ENVIRONMENT,
   tracesSampleRate: 0,
   release: `adelie@${process.env.SITE_VERSION || '0.0.1'}`,
   ...getDevOnlySentryOptions(process.env.ENVIRONMENT),

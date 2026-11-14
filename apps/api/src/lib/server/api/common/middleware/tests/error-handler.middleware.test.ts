@@ -1,4 +1,4 @@
-import { AuthErrorCode, DeployEnvironment, NodeEnv } from '@adelie/shared';
+import { AuthErrorCode, Environment } from '@adelie/shared';
 import { DrizzleQueryError } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { contextStorage } from 'hono/context-storage';
@@ -12,8 +12,8 @@ import type { HonoEnv } from '#lib/server/api/common/utils/hono';
 
 const GENERIC_MESSAGE = 'Something went wrong on our side. Please try again later.';
 
-const LOCAL_DEVELOPMENT: ErrorHandlerEnvs = { ENVIRONMENT: DeployEnvironment.DEVELOPMENT, NODE_ENV: NodeEnv.DEVELOPMENT };
-const PRODUCTION: ErrorHandlerEnvs = { ENVIRONMENT: DeployEnvironment.PRODUCTION, NODE_ENV: NodeEnv.PRODUCTION };
+const LOCAL_DEVELOPMENT: ErrorHandlerEnvs = { ENVIRONMENT: Environment.DEVELOPMENT };
+const PRODUCTION: ErrorHandlerEnvs = { ENVIRONMENT: Environment.PRODUCTION };
 
 interface ErrorLogEntry {
   level: number;
@@ -48,10 +48,9 @@ const HEADERS = { Cookie: 'better-auth.session_token=cookie-secret', Authorizati
 describe('errorHandler response', () => {
   it.each<[string, ErrorHandlerEnvs]>([
     ['production', PRODUCTION],
-    ['staging', { ENVIRONMENT: DeployEnvironment.STAGING, NODE_ENV: NodeEnv.PRODUCTION }],
-    ['staging run as a development build', { ENVIRONMENT: DeployEnvironment.STAGING, NODE_ENV: NodeEnv.DEVELOPMENT }],
-    // The image sets NODE_ENV=production but ENVIRONMENT defaults to development: a deploy that kept the default.
-    ['a production build that kept the development default', { ENVIRONMENT: DeployEnvironment.DEVELOPMENT, NODE_ENV: NodeEnv.PRODUCTION }],
+    ['staging', { ENVIRONMENT: Environment.STAGING }],
+    // Before validation, or a caller that forgot it: fails closed.
+    ['an unset Environment', { ENVIRONMENT: undefined }],
   ])('answers an unexpected error in %s with a generic message and the request id', async (_case, envs) => {
     const res = await appThrowing(failure(), envs).request('/fail');
 
@@ -61,7 +60,7 @@ describe('errorHandler response', () => {
     expect(JSON.stringify(body)).not.toMatch(/ECONNREFUSED|db\.internal|SELECT|at /);
   });
 
-  it('shows the error text and stack only in explicit local development', async () => {
+  it('shows the error text and stack only in development', async () => {
     const error = failure();
 
     const res = await appThrowing(error, LOCAL_DEVELOPMENT).request('/fail');

@@ -21,7 +21,7 @@ describe('DrizzleRepository DI wiring', () => {
           DATABASE_HOST: 'localhost',
           DATABASE_PORT: 5432,
           DATABASE_DB: 'test',
-          ENV: 'dev',
+          ENVIRONMENT: 'development',
         },
       }),
     );
