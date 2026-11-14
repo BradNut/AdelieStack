@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { TEST_SIGNING_SECRET } from '#lib/server/api/common/configs/tests/env-fixtures';
 
 /**
  * Boots the real `server.ts`: the DI container, startup, routes and shutdown all run for real. Only the process and
@@ -89,7 +90,7 @@ function stubDeploymentEnv({ jobsEnabled }: { jobsEnabled: boolean }) {
   for (const [, key, value] of schema.matchAll(/^([A-Z][A-Z0-9_]*)=(.+)$/gm)) {
     vi.stubEnv(key, value);
   }
-  vi.stubEnv('SIGNING_SECRET', 'test-signing-secret');
+  vi.stubEnv('SIGNING_SECRET', TEST_SIGNING_SECRET);
   vi.stubEnv('BETTER_AUTH_SECRET', 'test-better-auth-secret-of-32-chars-min');
   vi.stubEnv('JOBS_ENABLED', String(jobsEnabled));
 }

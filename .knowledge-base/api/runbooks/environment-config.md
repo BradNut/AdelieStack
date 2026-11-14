@@ -10,17 +10,18 @@ procedures.
 
 - `ENVIRONMENT` (`development`, `staging`, `production`) also suffixes the storage bucket names.
   `ENV` (`dev` or `prod`, `AppEnv` in `@adelie/shared`) is a legacy short-form flag several services still read; it controls the
-  session cookie's `secure` flag, pretty logs, SQL logging and Better Auth's API reference (`/api/auth/reference`, off in prod). The app's own `/api/reference` is mounted regardless of `ENV`.
+  session cookie's `secure` flag, pretty logs, SQL logging and Better Auth's API reference (`/api/auth/reference`, off in prod). The app's own reference (`/api/reference`, with its document at `/api/doc`) is off whenever `ENV`, `NODE_ENV` or `ENVIRONMENT` declares production, and loads its script from the API rather than a CDN.
   A production deploy must set `ENV=prod` explicitly: `ENV` defaults to `dev`, and the API refuses to start when `NODE_ENV` or `ENVIRONMENT` says production but `ENV` does not (see [Production refusals](#production-refusals)).
 - `ORIGIN` is the allowed CORS / session origin; `DOMAIN` (hostname only) is the session cookie
   domain.
 - `DB_MIGRATING` and `DB_SEEDING` are for the `db:migrate` and `db:seed` scripts only: each script
   refuses to run unless its flag resolves to true (varlock normalizes `TRUE`, `1` and `yes` to
-  `true` first), and both default to `false`. Set them on the command rather than in an env file. The running API ignores them and always uses its normal
+  `true` first; `false` refuses), and both default to `false`. The seed also refuses whenever `ENV`,
+  `NODE_ENV` or `ENVIRONMENT` declares production, since it truncates every table; migrations still run there. Set them on the command rather than in an env file. The running API ignores them and always uses its normal
   connection pool, and neither flag starts a migration or seed by itself.
 - Seeding the admin needs `ADMIN_PASSWORD`, at least 15 characters (the seed fails on a shorter one). With `SIGN_UP_ENABLED` false and no password set, the
   seed warns that nobody can sign in.
-- `SIGNING_SECRET` is required and sensitive; generate it with `openssl rand -hex 32`.
+- `SIGNING_SECRET` is required and sensitive, at least 32 characters (startup fails on a shorter one); generate it with `openssl rand -hex 32`.
 - A database reached over a network needs `DATABASE_SSL_MODE=verify-full` (see [Database TLS](#database-tls)).
 - Local setup: `cp apps/api/.env.schema apps/api/.env`, fill `DATABASE_*`, `REDIS_URL`,
   `SIGNING_SECRET` and `STORAGE_*`, then `pnpm --filter @adelie/api dev`.

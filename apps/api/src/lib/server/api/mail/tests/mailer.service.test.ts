@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ConfigService } from '#lib/server/api/common/configs/config.service';
 import { envsDto } from '#lib/server/api/common/configs/dtos/env.dto';
+import { TEST_SIGNING_SECRET } from '#lib/server/api/common/configs/tests/env-fixtures';
 import { DevMailerService } from '#lib/server/api/mail/dev-mailer.service';
 import type { EmailTemplate } from '#lib/server/api/mail/interfaces/email-template.interface';
 import { MailerService } from '#lib/server/api/mail/mailer.service';
@@ -25,7 +26,7 @@ const ENV_WITHOUT_TRANSPORT = {
   ORIGIN: 'http://localhost:5173',
   DOMAIN: 'localhost',
   REDIS_URL: 'redis://localhost:6379',
-  SIGNING_SECRET: 'secret',
+  SIGNING_SECRET: TEST_SIGNING_SECRET,
   BETTER_AUTH_SECRET: 'better-auth-secret-at-least-32-chars',
   BETTER_AUTH_URL: 'http://localhost:5173',
   ENV: 'dev',

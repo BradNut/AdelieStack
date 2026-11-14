@@ -288,6 +288,19 @@ describe('envsDto required variables', () => {
     expect(() => envsDto.parse({ ...validEnvs, SIGNING_SECRET: '' })).toThrow();
   });
 
+  it('rejects a SIGNING_SECRET shorter than 32 characters', () => {
+    expect(() => envsDto.parse({ ...validEnvs, SIGNING_SECRET: 'x'.repeat(31) })).toThrow(/SIGNING_SECRET must be at least 32 characters/);
+  });
+
+  it('accepts a SIGNING_SECRET of exactly 32 characters', () => {
+    expect(envsDto.parse({ ...validEnvs, SIGNING_SECRET: 'x'.repeat(32) }).SIGNING_SECRET).toBe('x'.repeat(32));
+  });
+
+  it('accepts the 64-character output of openssl rand -hex 32', () => {
+    const hex = '18b95fc1f00bd060e8d797afb61390d52310db937ae6308a96cb382c8c2a14f4';
+    expect(envsDto.safeParse({ ...validEnvs, SIGNING_SECRET: hex }).success).toBe(true);
+  });
+
   it('rejects a non-numeric PORT', () => {
     expect(() => envsDto.parse({ ...validEnvs, PORT: 'not-a-number' })).toThrow();
   });

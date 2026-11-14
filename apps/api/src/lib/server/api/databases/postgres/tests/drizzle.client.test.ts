@@ -1,3 +1,4 @@
+import { AppEnv, DeployEnvironment, NodeEnv } from '@adelie/shared';
 import { describe, expect, it, vi } from 'vitest';
 import { createScriptDb, SCRIPT_DB_FLAGS } from '#lib/server/api/databases/postgres/drizzle.client';
 import { PostgresSslMode } from '#lib/server/api/databases/postgres/postgres-ssl';
@@ -42,5 +43,45 @@ describe('createScriptDb', () => {
     vi.stubEnv(SCRIPT_DB_FLAGS.SEEDING, 'false');
 
     expect(() => createScriptDb(SCRIPT_DB_FLAGS.SEEDING)).toThrowError('You must set DB_SEEDING to "true"');
+  });
+
+  describe('in production', () => {
+    const productionSettings = [
+      { name: 'ENV=prod', envs: { ENV: AppEnv.PROD } },
+      { name: 'NODE_ENV=production', envs: { NODE_ENV: NodeEnv.PRODUCTION } },
+      { name: 'ENVIRONMENT=production', envs: { ENVIRONMENT: DeployEnvironment.PRODUCTION } },
+    ];
+
+    function stubEnvs(envs: Record<string, string | undefined>) {
+      for (const [name, value] of Object.entries(envs)) vi.stubEnv(name, value);
+    }
+
+    it.each(productionSettings)('refuses to seed when $name', ({ envs }) => {
+      vi.stubEnv(SCRIPT_DB_FLAGS.SEEDING, 'true');
+      stubEnvs(envs);
+
+      expect(() => createScriptDb(SCRIPT_DB_FLAGS.SEEDING)).toThrowError('refuses to run in production');
+    });
+
+    it.each(productionSettings)('still migrates when $name', ({ envs }) => {
+      vi.stubEnv(SCRIPT_DB_FLAGS.MIGRATING, 'true');
+      stubEnvs(envs);
+
+      expect(createScriptDb(SCRIPT_DB_FLAGS.MIGRATING).$client.options.max).toBe(1);
+    });
+
+    it('seeds a staging deploy that is not a production build', () => {
+      vi.stubEnv(SCRIPT_DB_FLAGS.SEEDING, 'true');
+      stubEnvs({ ENV: AppEnv.DEV, NODE_ENV: NodeEnv.DEVELOPMENT, ENVIRONMENT: DeployEnvironment.STAGING });
+
+      expect(createScriptDb(SCRIPT_DB_FLAGS.SEEDING).$client.options.max).toBe(1);
+    });
+
+    it('checks the flag before the environment', () => {
+      vi.stubEnv(SCRIPT_DB_FLAGS.SEEDING, 'false');
+      stubEnvs({ ENV: AppEnv.PROD });
+
+      expect(() => createScriptDb(SCRIPT_DB_FLAGS.SEEDING)).toThrowError('You must set DB_SEEDING to "true"');
+    });
   });
 });

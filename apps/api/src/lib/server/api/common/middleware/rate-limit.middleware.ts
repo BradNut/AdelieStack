@@ -1,3 +1,4 @@
+import { MS_PER_SECOND, SECONDS_PER_MINUTE } from '@adelie/shared';
 import { Container } from '@needle-di/core';
 import type { Context } from 'hono';
 import { rateLimiter } from 'hono-rate-limiter';
@@ -36,7 +37,7 @@ export function rateLimit({ limit, minutes, key = '' }: { limit: number; minutes
   const resolveClientAddress = createClientAddressResolver(clientIpOptionsFromEnvs(configService.envs), getLog);
 
   return rateLimiter({
-    windowMs: minutes * 60 * 1000, // every x minutes
+    windowMs: minutes * SECONDS_PER_MINUTE * MS_PER_SECOND, // every x minutes
     limit, // Limit each key to `limit` requests per `window`.
     standardHeaders: 'draft-6', // draft-6: `RateLimit-*` headers; draft-7: combined `RateLimit` header
     keyGenerator: (c: Context<HonoEnv>) => {

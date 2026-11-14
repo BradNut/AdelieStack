@@ -18,7 +18,7 @@ const WEAK_RULES = [PASSWORD_POLICY_RULES.MIN_LENGTH, PASSWORD_POLICY_RULES.LEAD
 const { email: EMAIL } = TEST_USER;
 
 let auth: Auth;
-let db: ReturnType<typeof createTestAuth>['db'];
+let mailer: ReturnType<typeof createTestAuth>['mailer'];
 let request: AuthRequest;
 
 afterEach(() => {
@@ -26,7 +26,7 @@ afterEach(() => {
 });
 
 function buildAuth(enabled = true) {
-  ({ auth, db, request } = createTestAuth({ hibpStatus: createHibpHealth({ enabled }) }));
+  ({ auth, mailer, request } = createTestAuth({ hibpStatus: createHibpHealth({ enabled }) }));
 }
 
 beforeEach(() => {
@@ -103,7 +103,7 @@ async function signInCookie(password: string) {
 describe('password policy hook: reset-password', () => {
   it('rejects a weak new password with the stable code and rules', async () => {
     await seedUser(COMPLIANT_PASSWORD);
-    const token = await resetToken(request, db);
+    const token = await resetToken(request, mailer.sent);
 
     const res = await post('/reset-password', { newPassword: WEAK, token });
 
@@ -115,7 +115,7 @@ describe('password policy hook: reset-password', () => {
 
   it('accepts a compliant new password', async () => {
     await seedUser(COMPLIANT_PASSWORD);
-    const token = await resetToken(request, db);
+    const token = await resetToken(request, mailer.sent);
 
     const res = await post('/reset-password', { newPassword: OTHER_PASSWORD, token });
 
@@ -125,7 +125,7 @@ describe('password policy hook: reset-password', () => {
 
   it('rejects one under the minimum with MIN_LENGTH', async () => {
     await seedUser(COMPLIANT_PASSWORD);
-    const token = await resetToken(request, db);
+    const token = await resetToken(request, mailer.sent);
 
     const res = await post('/reset-password', { newPassword: UNDER_MIN, token });
 
@@ -135,7 +135,7 @@ describe('password policy hook: reset-password', () => {
 
   it('accepts exactly the minimum', async () => {
     await seedUser(COMPLIANT_PASSWORD);
-    const token = await resetToken(request, db);
+    const token = await resetToken(request, mailer.sent);
 
     const res = await post('/reset-password', { newPassword: AT_MIN, token });
 
@@ -389,7 +389,7 @@ describe('breached password screening (haveIBeenPwned, mocked)', () => {
 
   it('rejects a breached new password on reset-password', async () => {
     await seedUser(COMPLIANT_PASSWORD);
-    const token = await resetToken(request, db);
+    const token = await resetToken(request, mailer.sent);
     mockHibp([PWNED_PASSWORD]);
 
     const res = await post('/reset-password', { newPassword: PWNED_PASSWORD, token });
@@ -400,7 +400,7 @@ describe('breached password screening (haveIBeenPwned, mocked)', () => {
 
   it('keeps the reset link usable after rejecting a breached password', async () => {
     await seedUser(COMPLIANT_PASSWORD);
-    const token = await resetToken(request, db);
+    const token = await resetToken(request, mailer.sent);
     mockHibp([PWNED_PASSWORD]);
 
     const rejected = await post('/reset-password', { newPassword: PWNED_PASSWORD, token });
@@ -413,7 +413,7 @@ describe('breached password screening (haveIBeenPwned, mocked)', () => {
 
   it('keeps the reset link usable after an HIBP outage rejects the request', async () => {
     await seedUser(COMPLIANT_PASSWORD);
-    const token = await resetToken(request, db);
+    const token = await resetToken(request, mailer.sent);
     mockHibp([], 503);
 
     const rejected = await post('/reset-password', { newPassword: OTHER_PASSWORD, token });
@@ -427,7 +427,7 @@ describe('breached password screening (haveIBeenPwned, mocked)', () => {
   it('does not call HIBP on reset-password when the switch is off', async () => {
     buildAuth(false);
     await seedUser(COMPLIANT_PASSWORD);
-    const token = await resetToken(request, db);
+    const token = await resetToken(request, mailer.sent);
     const fetchMock = mockHibp([PWNED_PASSWORD]);
 
     const res = await post('/reset-password', { newPassword: PWNED_PASSWORD, token });

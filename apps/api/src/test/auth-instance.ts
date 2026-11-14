@@ -4,6 +4,7 @@ import { Hono } from 'hono';
 import { contextStorage } from 'hono/context-storage';
 import { type CreateAuthOptions, createAuth } from '#lib/server/api/auth/auth.config';
 import { createHibpHealth } from '#lib/server/api/auth/auth.hibp-status';
+import { createPasswordHasher } from '#lib/server/api/auth/auth.password-hash';
 import { requestLocale } from '#lib/server/api/common/middleware/locale.middleware';
 import type { AuthRequest } from './auth-http';
 import { createMailerServiceMock } from './mocks/mailer.mock';
@@ -13,6 +14,12 @@ export const TEST_ORIGIN = 'http://localhost:5173';
 
 /** The secret {@link createTestAuth} signs with, so a test can sign a verification token the way an email link carries it. */
 export const TEST_AUTH_SECRET = 'test-secret-that-is-at-least-32-characters';
+
+/**
+ * Hashes passwords at a far cheaper scrypt cost than production, so the many sign-ups across the suite stay fast.
+ * Tests of the production cost pass `createPasswordHasher()` themselves.
+ */
+export const TEST_PASSWORD_HASHER = createPasswordHasher({ N: 2 ** 10, r: 8, p: 1 });
 
 type Row = Record<string, unknown>;
 
@@ -32,7 +39,7 @@ export function createTestDatabase() {
 }
 
 /**
- * Builds a Better Auth instance over a fresh in-memory database with test defaults: sign-up open, HIBP off
+ * Builds a Better Auth instance over a fresh in-memory database with test defaults: sign-up open, cheap password hashing, HIBP off
  * (no network), a fresh mailer spy. Pass only the options a test changes; they are spread over the defaults.
  * The returned `mailer` is the default spy, so it records nothing when a test passes its own `mailer`.
  */
@@ -48,6 +55,7 @@ export function createTestAuth(overrides: Partial<Omit<CreateAuthOptions, 'datab
     mailer,
     signUpEnabled: true,
     hibpStatus: createHibpHealth({ enabled: false }),
+    passwordHasher: TEST_PASSWORD_HASHER,
     ...overrides,
     database,
   });

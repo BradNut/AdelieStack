@@ -4,7 +4,7 @@ import { ACCOUNT_LOCKOUT_PLUGIN_ID } from '#lib/server/api/auth/auth.account-loc
 import { AuthRateLimitRepository } from '#lib/server/api/auth/auth.rate-limit.repository';
 import { AuthService } from '#lib/server/api/auth/auth.service';
 import type { ConfigService } from '#lib/server/api/common/configs/config.service';
-import { envsDto } from '#lib/server/api/common/configs/dtos/env.dto';
+import { type EnvsDto, envsDto } from '#lib/server/api/common/configs/dtos/env.dto';
 import { productionEnvOverrides, validEnvs } from '#lib/server/api/common/configs/tests/env-fixtures';
 import type { LoggerService } from '#lib/server/api/common/services/logger.service';
 import type { DrizzleService } from '#lib/server/api/databases/postgres/drizzle.service';
@@ -13,7 +13,11 @@ import type { RedisService } from '#lib/server/api/databases/redis/redis.service
 import type { MailerService } from '#lib/server/api/mail/mailer.service';
 import { createRedisServiceMock } from '../../../../../test/mocks/redis.mock';
 
-function buildService(envs: Record<string, string> = {}, warn = vi.fn()) {
+/**
+ * `parsedOverrides` are applied after validation, for settings the DTO would refuse together (such as `NODE_ENV=production`
+ * with `ENV=dev`), so a gate can be checked against each production setting on its own.
+ */
+function buildService(envs: Record<string, string> = {}, warn = vi.fn(), parsedOverrides: Partial<EnvsDto> = {}) {
   const dbRead = vi.fn();
   const drizzleService = {
     get db() {
@@ -21,7 +25,7 @@ function buildService(envs: Record<string, string> = {}, warn = vi.fn()) {
       return drizzle.mock({ casing: 'snake_case', schema: drizzleSchema });
     },
   } as unknown as DrizzleService;
-  const configService = { envs: envsDto.parse({ ...validEnvs, ...envs }) } as ConfigService;
+  const configService = { envs: { ...envsDto.parse({ ...validEnvs, ...envs }), ...parsedOverrides } } as ConfigService;
   const redis = createRedisServiceMock();
   const service = new AuthService(
     configService,
@@ -35,18 +39,40 @@ function buildService(envs: Record<string, string> = {}, warn = vi.fn()) {
 
 describe('AuthService', () => {
   describe('auth API reference', () => {
-    const reference = (service: AuthService) => service.auth.handler(new Request('http://localhost:3000/api/auth/reference'));
+    const request = (service: AuthService, path: string) => service.auth.handler(new Request(`http://localhost:3000/api/auth${path}`));
+    const SCHEMA_PATH = '/open-api/generate-schema';
 
-    it('serves the reference outside production', async () => {
+    it('serves the auth OpenAPI schema outside production, for the app reference to show', async () => {
       const { service } = buildService({ ENV: 'dev' });
 
-      expect((await reference(service)).status).toBe(200);
+      const res = await request(service, SCHEMA_PATH);
+
+      expect(res.status).toBe(200);
+      expect(await res.json()).toMatchObject({ openapi: expect.any(String), paths: expect.any(Object) });
     });
 
-    it('has no reference route in production', async () => {
+    // Better Auth's own page loads its script unpinned from a CDN; the app's self-hosted reference shows the schema instead.
+    it('serves no Better Auth reference page, even outside production', async () => {
+      const { service } = buildService({ ENV: 'dev' });
+
+      expect((await request(service, '/reference')).status).toBe(404);
+    });
+
+    it.each([
+      ['ENV=prod', { ENV: 'prod' }],
+      ['NODE_ENV=production', { NODE_ENV: 'production' }],
+      ['ENVIRONMENT=production', { ENVIRONMENT: 'production' }],
+    ] as const)('serves no auth schema when %s declares production', async (_case, overrides) => {
+      const { service } = buildService({}, vi.fn(), overrides);
+
+      expect((await request(service, SCHEMA_PATH)).status).toBe(404);
+      expect((await request(service, '/reference')).status).toBe(404);
+    });
+
+    it('serves no auth schema in a full production configuration', async () => {
       const { service } = buildService(productionEnvOverrides);
 
-      expect((await reference(service)).status).toBe(404);
+      expect((await request(service, SCHEMA_PATH)).status).toBe(404);
     });
   });
 

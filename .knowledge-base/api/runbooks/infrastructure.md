@@ -2,6 +2,8 @@
 
 Covers Redis, SeaweedFS / S3 (storage), ClamAV (antivirus), and email (unwired).
 
+Local services in `docker-compose.yaml` run on the Compose bridge network and publish their ports on `127.0.0.1` only, so they are reachable from this machine, not the LAN. Connect through `localhost:<port>`. A stack started before this change (host networking) must be recreated: `docker compose up -d --force-recreate`. `apps/api/src/test/docker-compose.test.ts` fails on `network_mode: host` or a port without the `127.0.0.1` prefix.
+
 ## Redis
 
 ### Symptoms

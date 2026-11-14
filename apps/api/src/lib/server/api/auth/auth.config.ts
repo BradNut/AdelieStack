@@ -31,13 +31,16 @@ import { freshSessionGuard } from './auth.fresh-session';
 import { createHibpHealth } from './auth.hibp-status';
 import { type AuthMailLogger, createAuthMail, toMailRecipient } from './auth.mail';
 import { passwordAccountGuard } from './auth.password-account-guard';
+import { createPasswordHasher, type PasswordHasher } from './auth.password-hash';
 import { createPasswordPolicyHook, hibpScreening } from './auth.password-policy';
+import { passwordRehash } from './auth.password-rehash';
 import { ac, roles } from './auth.permissions';
 import type { ProviderHealth } from './auth.provider-health';
 import { type AuthRateLimitStorage, authRateLimitOptions } from './auth.rate-limit';
 import { replacedSession } from './auth.replaced-session';
 import { roleGuard } from './auth.role-guard';
 import { secondFactorGuard } from './auth.second-factor';
+import { capSessionLifetime } from './auth.session-lifetime';
 import { uniformSignUpResponse } from './auth.sign-up-response';
 import { socialProvidersOption } from './auth.social';
 import { socialTwoFactorRedirect, withSocialSignInChallenge } from './auth.social-two-factor';
@@ -96,9 +99,10 @@ export interface CreateAuthOptions {
    */
   accountLockoutStorage?: AccountLockoutStorage;
   /**
-   * Serves Better Auth's API reference at `${AUTH_BASE_PATH}/reference` (and its schema at `/open-api/generate-schema`).
-   * Off by default; callers turn it on outside production. It sits below the auth basePath, so it cannot
-   * collide with the app's own `/api/reference`.
+   * Serves Better Auth's OpenAPI schema at `${AUTH_BASE_PATH}/open-api/generate-schema`, which the app's self-hosted
+   * reference (`/api/reference`) shows beside the app's own document. Better Auth's own page at
+   * `${AUTH_BASE_PATH}/reference` stays off: it loads its script unpinned from a CDN (#235). Off by default; callers
+   * turn it on outside production.
    */
   openApiReference?: boolean;
 
@@ -114,6 +118,12 @@ export interface CreateAuthOptions {
    * The sign-up gate is applied here, so a provider sign-in for an unknown email follows `signUpEnabled`.
    */
   socialProviders?: BetterAuthOptions['socialProviders'];
+
+  /**
+   * How account passwords are hashed. Defaults to scrypt at the OWASP-recommended cost; only tests pass a cheaper one,
+   * so the many sign-ups they run stay fast.
+   */
+  passwordHasher?: PasswordHasher;
 }
 
 /** Better Auth's Drizzle adapter over our schema. Table names are plural (`users`, `sessions`, ...). */
@@ -158,6 +168,7 @@ export function createAuth({
   openApiReference = false,
   clientIp = { trustProxy: false, trustedProxies: [] },
   socialProviders = {},
+  passwordHasher = createPasswordHasher(),
 }: CreateAuthOptions) {
   const authMail = createAuthMail(mailer, mailLog);
   return betterAuth({
@@ -176,7 +187,16 @@ export function createAuth({
       cookieCache: { enabled: false },
     },
     socialProviders: socialProvidersOption(socialProviders, signUpEnabled),
+    verification: {
+      // Identifiers carry live secrets (`reset-password:<token>`), so only their SHA-256 is stored. Lookups fall back to
+      // the plain identifier, so links issued before hashing still work until they expire.
+      storeIdentifier: 'hashed',
+    },
     account: {
+      // Provider access and refresh tokens are encrypted with the auth secret before they are stored (NIST SC-28).
+      // A row written before this was on still reads: Better Auth passes a value that does not look encrypted through
+      // as plain text, and the next refresh or sign-in rewrites it encrypted.
+      encryptOAuthTokens: true,
       accountLinking: {
         // A provider sign-in links to the existing account with the same email only when the provider reports
         // that email as verified (and the local one is verified too). No provider is trusted regardless: an
@@ -213,6 +233,9 @@ export function createAuth({
       requireEmailVerification: true,
       minPasswordLength: MIN_PASSWORD_LENGTH,
       maxPasswordLength: MAX_PASSWORD_LENGTH,
+      // scrypt at an OWASP-recommended cost; hashes Better Auth wrote at its weaker default still verify, and
+      // `passwordRehash` replaces them at the next password sign-in.
+      password: { hash: passwordHasher.hash, verify: passwordHasher.verify },
       sendResetPassword: authMail.sendResetPassword,
       onPasswordReset: authMail.notifyPasswordChanged,
       // A stolen session must not outlive the reset. The adapter runs without transactions, so sessions
@@ -221,6 +244,8 @@ export function createAuth({
     },
     databaseHooks: {
       user: { create: { before: verifyAdminCreatedUser } },
+      // Refreshes slide the expiry forward, but never past the absolute lifetime from sign-in.
+      session: { update: { before: capSessionLifetime } },
     },
     hooks: {
       before: createPasswordPolicyHook(hibpStatus),
@@ -245,6 +270,9 @@ export function createAuth({
           accountLockout: { enabled: true, ...TWO_FACTOR_ACCOUNT_LOCKOUT },
           otpOptions: {
             period: TWO_FACTOR_OTP_PERIOD_MINUTES,
+            // Only the code's SHA-256 is stored. A code emailed before hashing is refused as wrong (one counted failure)
+            // and the user asks for a new one; such codes expired within the period anyway.
+            storeOTP: 'hashed',
             async sendOTP({ user, otp }) {
               await mailer.send({
                 to: toMailRecipient(user),
@@ -266,11 +294,12 @@ export function createAuth({
       lastLoginMethod({ cookieName: LAST_LOGIN_METHOD_COOKIE }),
       // Only registered when captcha is on, so off means no behaviour change. Its `onRequest` runs before every hook.
       ...(captchaConfig ? [captchaPlugin(captchaConfig, captchaStatus)] : []),
-      ...(openApiReference ? [openAPI()] : []),
+      ...(openApiReference ? [openAPI({ disableDefaultReference: true })] : []),
       // Before the role guard, so an admin without a Second Factor is refused the same way on every admin endpoint.
       secondFactorGuard(),
       roleGuard(allowMultipleRoles),
       passwordAccountGuard(),
+      passwordRehash(passwordHasher),
       ...(accountLockoutStorage ? [accountLockout(accountLockoutStorage)] : []),
       freshSessionGuard(),
       uniformSignUpResponse(),
