@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ENVIRONMENTS, isDevelopmentEnvironment } from '../environment';
+import { ENVIRONMENTS, Environment, isDevelopmentEnvironment } from '../environment';
 
 describe('ENVIRONMENTS', () => {
   it('lists the three Environments', () => {
@@ -9,12 +9,12 @@ describe('ENVIRONMENTS', () => {
 
 describe('isDevelopmentEnvironment', () => {
   it('is true for development', () => {
-    expect(isDevelopmentEnvironment('development')).toBe(true);
+    expect(isDevelopmentEnvironment(Environment.DEVELOPMENT)).toBe(true);
   });
 
   it.each([
-    ['staging', 'staging'],
-    ['production', 'production'],
+    ['staging', Environment.STAGING],
+    ['production', Environment.PRODUCTION],
     ['unset', undefined],
     ['empty', ''],
     ['the retired ENV value', 'dev'],

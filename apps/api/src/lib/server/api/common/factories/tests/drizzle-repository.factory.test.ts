@@ -1,3 +1,4 @@
+import { Environment } from '@adelie/shared';
 import { injectable } from '@needle-di/core';
 import { describe, expect, it } from 'vitest';
 import { ConfigService } from '#lib/server/api/common/configs/config.service';
@@ -21,7 +22,7 @@ describe('DrizzleRepository DI wiring', () => {
           DATABASE_HOST: 'localhost',
           DATABASE_PORT: 5432,
           DATABASE_DB: 'test',
-          ENVIRONMENT: 'development',
+          ENVIRONMENT: Environment.DEVELOPMENT,
         },
       }),
     );

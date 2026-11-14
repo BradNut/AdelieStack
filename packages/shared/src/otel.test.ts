@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { Environment } from './constants/environment';
 import { createOtelResource, getDevOnlySentryOptions, isOtelEnabled, startOpenTelemetrySdk } from './otel';
 
 describe('createOtelResource', () => {
@@ -15,12 +16,12 @@ describe('createOtelResource', () => {
 
 describe('getDevOnlySentryOptions', () => {
   it('enables spotlight and PII in development', () => {
-    expect(getDevOnlySentryOptions('development')).toEqual({ spotlight: true, sendDefaultPii: true });
+    expect(getDevOnlySentryOptions(Environment.DEVELOPMENT)).toEqual({ spotlight: true, sendDefaultPii: true });
   });
 
   it.each([
-    ['staging', 'staging'],
-    ['production', 'production'],
+    ['staging', Environment.STAGING],
+    ['production', Environment.PRODUCTION],
     ['unset', undefined],
     ['empty', ''],
     ['an unknown value', 'dev'],

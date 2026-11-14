@@ -1,3 +1,4 @@
+import { Environment } from '@adelie/shared';
 import type { EnvsDto } from '#lib/server/api/common/configs/dtos/env.dto';
 import { TEST_SIGNING_SECRET } from '#lib/server/api/common/configs/tests/env-fixtures';
 
@@ -8,7 +9,7 @@ type TestEnvKey = 'ENVIRONMENT' | 'LOG_LEVEL' | 'ORIGIN' | 'SIGNING_SECRET';
  * extend via `overrides` instead of reading `process.env`, so no test depends on a local `.env`.
  */
 export const TEST_ENVS: Pick<EnvsDto, TestEnvKey> = {
-  ENVIRONMENT: 'development',
+  ENVIRONMENT: Environment.DEVELOPMENT,
   LOG_LEVEL: 'info',
   ORIGIN: 'http://localhost:5173',
   SIGNING_SECRET: TEST_SIGNING_SECRET,
