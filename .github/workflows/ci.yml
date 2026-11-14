@@ -24,6 +24,10 @@ permissions:
 
 # No secrets anywhere in CI, so fork PRs work. Values not set here come from the .env.schema defaults.
 
+# The API's Environment has no default (ADR 0015), so every job that loads the API's env states it here.
+env:
+  ENVIRONMENT: development
+
 jobs:
   # Repo-wide, not per package: covers the root config, scripts and web files too (#149),
   # plus the pinned actions/images guard (#235).
@@ -82,7 +86,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     # Throwaway values that only protect containers living for one run on this runner.
-    # Everything else comes from the defaults in apps/api/.env.schema, which point at the services started below.
+    # Everything else comes from the workflow env above and the defaults in apps/api/.env.schema, which point at the
+    # services started below.
     env:
       SIGNING_SECRET: ci-only-not-a-secret-signing-secret-key
       BETTER_AUTH_SECRET: ci-only-not-a-secret-better-auth-key

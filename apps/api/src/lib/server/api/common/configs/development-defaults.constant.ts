@@ -1,11 +1,11 @@
-/** Env names whose published development value production refuses; {@link DevelopmentDefault} must cover exactly these. */
+/** Env names whose published development value a Deployed Environment refuses; {@link DevelopmentDefault} must cover exactly these. */
 export const DEVELOPMENT_DEFAULT_NAMES = ['DATABASE_PASSWORD', 'STORAGE_ACCESS_KEY', 'STORAGE_SECRET_KEY'] as const;
 export type DevelopmentDefaultName = (typeof DEVELOPMENT_DEFAULT_NAMES)[number];
 
 /**
  * Credentials the repo publishes for local development: the defaults in `apps/api/.env.schema`, which match the local
- * Postgres in `docker-compose.yaml` and SeaweedFS in `docker/seaweedfs/s3-config.json`. Anyone can read them, so production
- * refuses to start while any of them is still set.
+ * Postgres in `docker-compose.yaml` and SeaweedFS in `docker/seaweedfs/s3-config.json`. Anyone can read them, so a Deployed
+ * Environment refuses to start while any of them is still set.
  */
 export const DevelopmentDefault = {
   DATABASE_PASSWORD: 'postgres',

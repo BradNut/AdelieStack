@@ -1,3 +1,4 @@
+import { Environment } from '@adelie/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ConfigService } from '#lib/server/api/common/configs/config.service';
 import { envsDto } from '#lib/server/api/common/configs/dtos/env.dto';
@@ -29,7 +30,7 @@ const ENV_WITHOUT_TRANSPORT = {
   SIGNING_SECRET: TEST_SIGNING_SECRET,
   BETTER_AUTH_SECRET: 'better-auth-secret-at-least-32-chars',
   BETTER_AUTH_URL: 'http://localhost:5173',
-  ENV: 'dev',
+  ENVIRONMENT: Environment.DEVELOPMENT,
   PORT: '3001',
   STORAGE_HOST: 'localhost',
   STORAGE_PORT: '8333',

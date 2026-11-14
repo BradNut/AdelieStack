@@ -44,7 +44,8 @@ that identity and restart SeaweedFS.
 ## Configuration
 
 `STORAGE_HOST`, `STORAGE_PORT`, `STORAGE_SSL`, `STORAGE_ACCESS_KEY`, `STORAGE_SECRET_KEY`, `PROJECT_NAME`,
-`ENVIRONMENT`. See the [API environment config runbook](../../runbooks/environment-config.md).
+`ENVIRONMENT` (required, no default; `scripts/setup-seaweedfs.sh` defaults its own to `development`, so give it the
+API's value). See the [API environment config runbook](../../runbooks/environment-config.md).
 
 ## Security Considerations
 

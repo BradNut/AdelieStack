@@ -14,7 +14,6 @@ export const validEnvs: Record<string, string> = {
   LOG_LEVEL: 'info',
   ORIGIN: 'http://localhost:5173',
   DOMAIN: 'localhost',
-  ENV: 'dev',
   ENVIRONMENT: 'development',
   NODE_ENV: 'development',
   PORT: '3001',
@@ -41,7 +40,6 @@ export const validEnvs: Record<string, string> = {
  * the development defaults the API refuses in production.
  */
 export const productionEnvOverrides: Record<string, string> = {
-  ENV: 'prod',
   ENVIRONMENT: 'production',
   NODE_ENV: 'production',
   TRUST_PROXY: 'true',

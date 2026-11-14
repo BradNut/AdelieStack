@@ -6,40 +6,69 @@ the API reads: names, types and defaults. Real values live in `.env` (local, git
 `.env.schema`. This runbook keeps what the schema cannot say: behaviour, gotchas and outage
 procedures.
 
-## Gotchas
+## The Environment switch
 
-- `ENVIRONMENT` (`development`, `staging`, `production`) also suffixes the storage bucket names.
-  `ENV` (`dev` or `prod`, `AppEnv` in `@adelie/shared`) is a legacy short-form flag several services still read; it controls the
-  session cookie's `secure` flag, pretty logs, SQL logging and Better Auth's API reference (`/api/auth/reference`, off in prod). The app's own reference (`/api/reference`, with its document at `/api/doc`) is off whenever `ENV`, `NODE_ENV` or `ENVIRONMENT` declares production, and loads its script from the API rather than a CDN.
-  A production deploy must set `ENV=prod` explicitly: `ENV` defaults to `dev`, and the API refuses to start when `NODE_ENV` or `ENVIRONMENT` says production but `ENV` does not (see [Production refusals](#production-refusals)).
+`ENVIRONMENT` (`development`, `staging`, `production`; `Environment` in `@adelie/shared`) is the only switch the API's own code reads to decide which Environment it runs in ([ADR 0015](../../../docs/adr/0015-one-required-environment-switch.md)). It is **required, with no default**: an API that is not told its Environment does not start. `pnpm initialize` writes `ENVIRONMENT=development` to `apps/api/.env` when that file does not set it, and CI sets it in workflow `env`. The images do not set it: staging and production share one image, so the deploy platform must.
+
+Every protection is on unless `ENVIRONMENT` is exactly `development` (`isDevelopmentEnvironment`):
+
+| Protection | `development` | `staging`, `production` |
+|---|---|---|
+| Session cookie (`_id`) | not `Secure` | `Secure` |
+| Logs | pretty | JSON |
+| SQL logging | on | off |
+| API references (`/api/reference`, `/api/doc`, the auth schema) | served | not served |
+| Error detail (message and stack) in 500 responses | shown | generic message only |
+| Sentry PII and Spotlight | on | off |
+| [Startup refusals](#startup-refusals) | none | all |
+| `pnpm db:seed` | runs | refuses |
+
+Staging gets production's protections; it differs only in its bucket names and Sentry tag. Sentry starts before the env is validated, so it fails closed on its own: an unset or unknown `ENVIRONMENT` turns PII and Spotlight off, and the Sentry `environment` tag is whatever `ENVIRONMENT` says, with no fallback.
+
+- **`ENV` is retired.** For one release the API refuses to start while `ENV` is set to anything (an empty `ENV=` counts as unset); the error names `ENV` and points here. Nothing reads it.
+- **`NODE_ENV` is for Node and Better Auth only.** Better Auth reads it for its own cookie, client-IP fallback and error page; none of the API's decisions branch on it. Staging and production refuse to start unless it is `production`, which the images set.
+- **The app's API reference** (`/api/reference`, with its document at `/api/doc`) loads its script from the API rather than a CDN, and shows Better Auth's schema as its second source; Better Auth's own `/api/auth/reference` page is never served.
+- **`ENVIRONMENT` also suffixes the storage bucket names**, and `scripts/setup-seaweedfs.sh` defaults its own `ENVIRONMENT` to `development`: when you provision buckets for another Environment, pass the same value the API runs with.
+
+### Migrating a deployment off `ENV`
+
+Every deployment changes its variables once, before it runs this release:
+
+1. **Remove `ENV`** from the deploy platform's variables. The API refuses to start while it is set.
+2. **Set `ENVIRONMENT`** to `production` or `staging`. It has no default, so a deploy without it does not start.
+3. **Keep `NODE_ENV=production`.** The images already set it; a deploy outside them must set it, or the API refuses to start.
+4. **Staging only**: staging that ran on `ENV=dev` now gets production's protections and [startup refusals](#startup-refusals). Replace its development-default credentials, switch `MAILER_TRANSPORT` to `unsend`, serve `BETTER_AUTH_URL` over https, set `STORAGE_WEBHOOK_SECRET` and `TRUST_PROXY` (or `DISABLE_RATE_LIMIT`), and stop seeding it.
+5. **Local clones**: run `pnpm initialize` again, or add `ENVIRONMENT=development` to `apps/api/.env`, and remove `ENV` from `apps/api/.env` and `apps/api/.env.local`.
+
+## Gotchas
 - `ORIGIN` is the allowed CORS / session origin; `DOMAIN` (hostname only) is the session cookie
   domain.
 - `DB_MIGRATING` and `DB_SEEDING` are for the `db:migrate` and `db:seed` scripts only: each script
   refuses to run unless its flag resolves to true (varlock normalizes `TRUE`, `1` and `yes` to
-  `true` first; `false` refuses), and both default to `false`. The seed also refuses whenever `ENV`,
-  `NODE_ENV` or `ENVIRONMENT` declares production, since it truncates every table; migrations still run there. Set them on the command rather than in an env file. The running API ignores them and always uses its normal
+  `true` first; `false` refuses), and both default to `false`. The seed also refuses unless
+  `ENVIRONMENT` is exactly `development`, since it truncates every table; migrations run in every Environment. Set them on the command rather than in an env file. The running API ignores them and always uses its normal
   connection pool, and neither flag starts a migration or seed by itself.
 - Seeding the admin needs `ADMIN_PASSWORD`, at least 15 characters (the seed fails on a shorter one). With `SIGN_UP_ENABLED` false and no password set, the
   seed warns that nobody can sign in.
 - `SIGNING_SECRET` is required and sensitive, at least 32 characters (startup fails on a shorter one); generate it with `openssl rand -hex 32`.
 - A database reached over a network needs `DATABASE_SSL_MODE=verify-full` (see [Database TLS](#database-tls)).
-- Local setup: `cp apps/api/.env.schema apps/api/.env`, fill `DATABASE_*`, `REDIS_URL`,
+- Local setup: `cp apps/api/.env.schema apps/api/.env`, set `ENVIRONMENT=development`, fill `DATABASE_*`, `REDIS_URL`,
   `SIGNING_SECRET` and `STORAGE_*`, then `pnpm --filter @adelie/api dev`.
 
-## Production refusals
+## Startup refusals
 
-The schema's defaults make a fresh clone run locally, and every one of them is public in this repo. So when any setting declares production (`ENV=prod`, `NODE_ENV=production` or `ENVIRONMENT=production`; the image sets `NODE_ENV=production`), the API refuses to start on the development values below. The error names each variable and never prints its value; it lists every refusal at once. Development, staging on `ENV=dev`, tests and the e2e suite are unaffected. The checks live in `envsDto` (`apps/api/src/lib/server/api/common/configs/dtos/env.dto.ts`); the refused credentials are `DevelopmentDefault` in `common/configs/development-defaults.constant.ts`, which a test keeps in sync with `.env.schema`.
+The schema's defaults make a fresh clone run locally, and every one of them is public in this repo. So in every Environment but `development` (staging and production alike), the API refuses to start on the development values below. The error names each variable and never prints its value; it lists every refusal at once. Development, tests and the e2e suite are unaffected. The checks live in `envsDto` (`apps/api/src/lib/server/api/common/configs/dtos/env.dto.ts`); the refused credentials are `DevelopmentDefault` in `common/configs/development-defaults.constant.ts`, which a test keeps in sync with `.env.schema`.
 
-| Variable | Refused in production | Fix |
+| Variable | Refused outside development | Fix |
 |---|---|---|
-| `ENV` | `dev` while `NODE_ENV` or `ENVIRONMENT` is `production` | Set `ENV=prod`. On `dev` the other production protections (secure cookie, rate-limit check, no auth API reference) stay off. |
+| `NODE_ENV` | Anything but `production`, also when unset | Set `NODE_ENV=production` (the images do). |
 | `DATABASE_PASSWORD` | `postgres`, the local Postgres password | Set the real database password. |
 | `STORAGE_ACCESS_KEY` | `adelie-local-access-key`, the local SeaweedFS key | Set the provider's access key. |
 | `STORAGE_SECRET_KEY` | `adelie-local-secret-key`, the local SeaweedFS secret | Set the provider's secret key. |
 | `MAILER_TRANSPORT` | `mailpit`, also as the default when unset | Set `unsend` with `USESEND_API_KEY` and `MAIL_FROM` (see [Email](#email)). |
 | `BETTER_AUTH_URL` | Any URL not on `https` | Serve the web origin over TLS and set its `https://` URL. |
 
-Two more production checks have their own sections: `TRUST_PROXY` with rate limiting on (`ENV=prod` only, see [Auth rate limiting](#auth-rate-limiting)) and a missing `STORAGE_WEBHOOK_SECRET` (everywhere but local development, see `.env.schema`).
+Two more checks have their own sections: `TRUST_PROXY` off with rate limiting on (see [Auth rate limiting](#auth-rate-limiting)) and a missing `STORAGE_WEBHOOK_SECRET` (see `.env.schema`). In every Environment, the API also refuses a set `ENV` (see [The Environment switch](#the-environment-switch)) and an unset or unknown `ENVIRONMENT`.
 
 ## Email
 
@@ -112,7 +141,7 @@ Better Auth's own limiter guards every `/api/auth/*` request, keyed by client IP
 - **`TRUSTED_PROXIES`**: comma-separated IPs or CIDR ranges, such as `10.0.0.0/8,192.0.2.10`, IPv4 or IPv6. Used only with `TRUST_PROXY=true`, and passed to both limiters, but always validated: an invalid entry refuses startup even with `TRUST_PROXY=false`. Each limiter strips the chain from the right to the first address that is not declared, and that address is the client, so anything a client prepends is ignored. The error names `TRUSTED_PROXIES`. IPv4-mapped IPv6 addresses count as their IPv4 address, and an IPv6 client is limited as its /64. Declare every appending hop, in any order: an undeclared hop is taken for the client, and all traffic through it shares its bucket.
 - **What counts as no client address**: with no proxies declared, only a single valid IP counts; a chain or an invalid value resolves to no address. With proxies declared, an invalid value reached while walking from the right, or a chain of only declared proxies, resolves to no address. Those requests share one bucket per path in this limiter, as do anonymous ones in `rateLimit()` (signed-in users key on `userId`), so clients can lock each other out. `X-Real-IP` and `CF-Connecting-IP` are ignored, so a client cannot pick its bucket by sending them. A proxy in front of the API directly that sets only one of those must change to set `X-Forwarded-For`, even with `TRUST_PROXY=true`.
 - **Log warning `no usable client address`**: with `TRUST_PROXY=true`, the API logs a warning that names `x-forwarded-for` when a request has no usable client address, on an `/api/auth/*` route or an anonymous request through `rateLimit()`, at most once every 5 minutes per process. It never includes header values and appears in the logs only; no endpoint reports it. It means those clients share one rate-limit bucket. Check the proxy in front of the API: it must set `X-Forwarded-For`, even if it already sets `X-Real-IP` or `CF-Connecting-IP`. A chain with no proxies declared, or a chain made up only of declared proxies, also triggers it: declare each appending proxy in `TRUSTED_PROXIES`, and check that the client's address is in the header. Health checks to `/healthz` are not rate limited and do not trigger it. With `DISABLE_RATE_LIMIT=true` it is not logged, because no bucket exists to share. On `/api/auth/*` routes, unless `NODE_ENV` is `development`, `dev` or `test`, Better Auth also logs its own warning, once per process, starting `Rate limiting could not determine a client IP and is falling back to a single shared per-path bucket`; it names Better Auth settings (`advanced.ipAddress.*`), which here come from `TRUST_PROXY` and `TRUSTED_PROXIES`, so the fix is the same. With those `NODE_ENV` values Better Auth stays silent, since it keys such requests on `127.0.0.1`; our warning still fires with `TRUST_PROXY=true`, for example on a request sent to the API directly without `X-Forwarded-For`.
-- **Startup check**: with `ENV=prod`, auth rate limiting on and `TRUST_PROXY` off, the API refuses to start (the error names `TRUST_PROXY`); fix it with `TRUST_PROXY=true` or, deliberately, `DISABLE_RATE_LIMIT=true`. Outside prod it starts but logs a warning with the same advice. Why not silently disable the limiter instead: that would quietly drop brute-force protection, whereas a refusal makes the operator pick; a shared bucket locks every user out after a few requests, so it is never the right steady state.
+- **Startup check**: outside development (staging and production), with auth rate limiting on and `TRUST_PROXY` off, the API refuses to start (the error names `TRUST_PROXY`); fix it with `TRUST_PROXY=true` or, deliberately, `DISABLE_RATE_LIMIT=true`. In development it starts but logs a warning with the same advice. Why not silently disable the limiter instead: that would quietly drop brute-force protection, whereas a refusal makes the operator pick; a shared bucket locks every user out after a few requests, so it is never the right steady state.
 - **Redis outage** (also applies to the `rateLimit()` route middleware): a request whose limit check cannot reach Redis fails with a server error rather than skipping the limit.
 
 ## Captcha

@@ -1,3 +1,4 @@
+import { Environment } from '@adelie/shared';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { describe, expect, it, vi } from 'vitest';
 import { ACCOUNT_LOCKOUT_PLUGIN_ID } from '#lib/server/api/auth/auth.account-lockout';
@@ -14,8 +15,8 @@ import type { MailerService } from '#lib/server/api/mail/mailer.service';
 import { createRedisServiceMock } from '../../../../../test/mocks/redis.mock';
 
 /**
- * `parsedOverrides` are applied after validation, for settings the DTO would refuse together (such as `NODE_ENV=production`
- * with `ENV=dev`), so a gate can be checked against each production setting on its own.
+ * `parsedOverrides` are applied after validation, for settings the DTO would refuse together (such as staging with the
+ * development defaults), so a gate can be checked against each Environment on its own.
  */
 function buildService(envs: Record<string, string> = {}, warn = vi.fn(), parsedOverrides: Partial<EnvsDto> = {}) {
   const dbRead = vi.fn();
@@ -42,8 +43,8 @@ describe('AuthService', () => {
     const request = (service: AuthService, path: string) => service.auth.handler(new Request(`http://localhost:3000/api/auth${path}`));
     const SCHEMA_PATH = '/open-api/generate-schema';
 
-    it('serves the auth OpenAPI schema outside production, for the app reference to show', async () => {
-      const { service } = buildService({ ENV: 'dev' });
+    it('serves the auth OpenAPI schema in development, for the app reference to show', async () => {
+      const { service } = buildService();
 
       const res = await request(service, SCHEMA_PATH);
 
@@ -52,18 +53,18 @@ describe('AuthService', () => {
     });
 
     // Better Auth's own page loads its script unpinned from a CDN; the app's self-hosted reference shows the schema instead.
-    it('serves no Better Auth reference page, even outside production', async () => {
-      const { service } = buildService({ ENV: 'dev' });
+    it('serves no Better Auth reference page, even in development', async () => {
+      const { service } = buildService();
 
       expect((await request(service, '/reference')).status).toBe(404);
     });
 
     it.each([
-      ['ENV=prod', { ENV: 'prod' }],
-      ['NODE_ENV=production', { NODE_ENV: 'production' }],
-      ['ENVIRONMENT=production', { ENVIRONMENT: 'production' }],
-    ] as const)('serves no auth schema when %s declares production', async (_case, overrides) => {
-      const { service } = buildService({}, vi.fn(), overrides);
+      ['staging', { ENVIRONMENT: Environment.STAGING }],
+      ['production', { ENVIRONMENT: Environment.PRODUCTION }],
+      ['unset', { ENVIRONMENT: undefined }],
+    ] as const)('serves no auth schema when the Environment is %s', async (_case, overrides) => {
+      const { service } = buildService({}, vi.fn(), overrides as Partial<EnvsDto>);
 
       expect((await request(service, SCHEMA_PATH)).status).toBe(404);
       expect((await request(service, '/reference')).status).toBe(404);
@@ -85,16 +86,28 @@ describe('AuthService', () => {
   });
 
   describe('shared rate-limit bucket', () => {
-    it('warns at startup when rate limiting is on without a trusted proxy', () => {
+    it('warns at startup in development when rate limiting is on without a trusted proxy', () => {
       const warn = vi.fn();
-      buildService({ ENV: 'dev', TRUST_PROXY: 'false' }, warn);
+      buildService({ ENVIRONMENT: Environment.DEVELOPMENT, TRUST_PROXY: 'false' }, warn);
 
       expect(warn).toHaveBeenCalledWith(expect.stringContaining('TRUST_PROXY'));
     });
 
+    // Outside development the DTO refuses to boot in this state, so the warning is checked at the service seam alone.
+    it.each([
+      ['staging', { ENVIRONMENT: Environment.STAGING }],
+      ['production', { ENVIRONMENT: Environment.PRODUCTION }],
+      ['unset', { ENVIRONMENT: undefined }],
+    ] as const)('does not warn when the Environment is %s', (_case, overrides) => {
+      const warn = vi.fn();
+      buildService({ TRUST_PROXY: 'false' }, warn, overrides as Partial<EnvsDto>);
+
+      expect(warn).not.toHaveBeenCalled();
+    });
+
     it.each<Record<string, string>>([{ TRUST_PROXY: 'true' }, { DISABLE_RATE_LIMIT: 'true' }])('does not warn with %o', (envs) => {
       const warn = vi.fn();
-      buildService({ ENV: 'dev', ...envs }, warn);
+      buildService(envs, warn);
 
       expect(warn).not.toHaveBeenCalled();
     });

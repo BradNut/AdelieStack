@@ -1,4 +1,4 @@
-import { AppEnv, DeployEnvironment, NodeEnv } from '@adelie/shared';
+import { Environment, NodeEnv } from '@adelie/shared';
 import { describe, expect, it } from 'vitest';
 import { DevelopmentDefault } from '#lib/server/api/common/configs/development-defaults.constant';
 import { envsDto } from '#lib/server/api/common/configs/dtos/env.dto';
@@ -128,8 +128,13 @@ describe('envsDto auth rate-limit bucket', () => {
     expect(envsDto.safeParse({ ...prod, DISABLE_RATE_LIMIT: 'true' }).success).toBe(true);
   });
 
+  it('refuses staging with rate limiting on and no trusted proxy', () => {
+    const result = envsDto.safeParse({ ...prod, ENVIRONMENT: Environment.STAGING });
+    expect(result.error?.issues.map((i) => i.path[0])).toEqual(['TRUST_PROXY']);
+  });
+
   it('allows development without a trusted proxy (the service warns instead)', () => {
-    expect(envsDto.safeParse({ ...validEnvs, ENV: 'dev' }).success).toBe(true);
+    expect(envsDto.safeParse(validEnvs).success).toBe(true);
   });
 });
 
@@ -158,23 +163,22 @@ describe('envsDto storage webhook secret', () => {
     expect(result.error?.issues.map((i) => i.path[0])).toContain('STORAGE_WEBHOOK_SECRET');
   });
 
-  it.each([
-    ['ENVIRONMENT', 'production'],
-    ['ENVIRONMENT', 'staging'],
-    ['NODE_ENV', 'production'],
-  ])('refuses ENV=dev with %s=%s without a storage webhook secret', (name, value) => {
-    const result = envsDto.safeParse({ ...validEnvs, ENV: 'dev', [name]: value });
-    expect(result.success).toBe(false);
-    expect(result.error?.issues.map((i) => i.path[0])).toContain('STORAGE_WEBHOOK_SECRET');
+  it('refuses staging without a storage webhook secret', () => {
+    const result = envsDto.safeParse({ ...prod, ENVIRONMENT: Environment.STAGING });
+    expect(result.error?.issues.map((i) => i.path[0])).toEqual(['STORAGE_WEBHOOK_SECRET']);
   });
 
-  it('accepts a staging deploy on ENV=dev with a storage webhook secret', () => {
-    const deployed = { ...validEnvs, ENV: 'dev', ENVIRONMENT: 'staging', STORAGE_WEBHOOK_SECRET: 'webhook-secret' };
-    expect(envsDto.safeParse(deployed).success).toBe(true);
+  it('accepts staging with a storage webhook secret', () => {
+    expect(envsDto.safeParse({ ...prod, ENVIRONMENT: Environment.STAGING, STORAGE_WEBHOOK_SECRET: 'webhook-secret' }).success).toBe(true);
+  });
+
+  it('allows development without a storage webhook secret, whatever NODE_ENV says', () => {
+    const result = envsDto.safeParse({ ...validEnvs, NODE_ENV: NodeEnv.PRODUCTION, STORAGE_WEBHOOK_SECRET: '' });
+    expect(result.success).toBe(true);
   });
 
   it('allows local development without a storage webhook secret', () => {
-    const result = envsDto.safeParse({ ...validEnvs, ENV: 'dev', STORAGE_WEBHOOK_SECRET: '' });
+    const result = envsDto.safeParse({ ...validEnvs, STORAGE_WEBHOOK_SECRET: '' });
     expect(result.success).toBe(true);
     expect(result.data?.STORAGE_WEBHOOK_SECRET).toBeUndefined();
   });
@@ -226,29 +230,20 @@ describe('envsDto production refuses development defaults', () => {
     ).toEqual(expect.arrayContaining(['DATABASE_PASSWORD', 'STORAGE_ACCESS_KEY', 'STORAGE_SECRET_KEY', 'MAILER_TRANSPORT', 'BETTER_AUTH_URL']));
   });
 
-  it.each([
-    ['NODE_ENV', NodeEnv.PRODUCTION],
-    ['ENVIRONMENT', DeployEnvironment.PRODUCTION],
-  ])('refuses %s=%s with ENV=dev and names ENV', (name, value) => {
-    const result = envsDto.safeParse({
-      ...production,
-      ENV: AppEnv.DEV,
-      ENVIRONMENT: DeployEnvironment.STAGING,
-      NODE_ENV: NodeEnv.DEVELOPMENT,
-      [name]: value,
-    });
-    expect(result.error?.issues.map((issue) => issue.path[0])).toEqual(['ENV']);
+  it('accepts a staging configuration without development defaults', () => {
+    expect(parseProduction({ ENVIRONMENT: Environment.STAGING }).success).toBe(true);
   });
 
-  it('refuses development defaults when only NODE_ENV declares production', () => {
-    const deployed = { ...validEnvs, ...DevelopmentDefault, NODE_ENV: NodeEnv.PRODUCTION, STORAGE_WEBHOOK_SECRET: 'webhook-secret' };
-    expect(envsDto.safeParse(deployed).error?.issues.map((issue) => issue.path[0])).toEqual(
-      expect.arrayContaining(['ENV', 'DATABASE_PASSWORD', 'MAILER_TRANSPORT', 'BETTER_AUTH_URL']),
+  it('refuses every development default in staging too', () => {
+    const staging = {
+      ...DevelopmentDefault,
+      ENVIRONMENT: Environment.STAGING,
+      MAILER_TRANSPORT: MailerTransport.MAILPIT,
+      BETTER_AUTH_URL: 'http://localhost:5173',
+    };
+    expect(refusedPaths(staging)).toEqual(
+      expect.arrayContaining(['DATABASE_PASSWORD', 'STORAGE_ACCESS_KEY', 'STORAGE_SECRET_KEY', 'MAILER_TRANSPORT', 'BETTER_AUTH_URL']),
     );
-  });
-
-  it('accepts a production ENV with a staging ENVIRONMENT', () => {
-    expect(parseProduction({ ENVIRONMENT: DeployEnvironment.STAGING }).success).toBe(true);
   });
 });
 
@@ -263,15 +258,69 @@ describe('envsDto development and test configurations', () => {
     expect(envsDto.safeParse(local).success).toBe(true);
   });
 
-  it('accepts a staging deploy on ENV=dev with development defaults', () => {
-    const staging = {
-      ...validEnvs,
-      ...DevelopmentDefault,
-      ENV: AppEnv.DEV,
-      ENVIRONMENT: DeployEnvironment.STAGING,
-      STORAGE_WEBHOOK_SECRET: 'webhook-secret',
-    };
-    expect(envsDto.safeParse(staging).success).toBe(true);
+  it('accepts development defaults in development even when NODE_ENV is production', () => {
+    expect(envsDto.safeParse({ ...validEnvs, ...DevelopmentDefault, NODE_ENV: NodeEnv.PRODUCTION }).success).toBe(true);
+  });
+});
+
+describe('envsDto Environment', () => {
+  const production = { ...validEnvs, ...productionEnvOverrides };
+  const issuesOf = (envs: Record<string, string | undefined>) => envsDto.safeParse(envs).error?.issues ?? [];
+  const pathsOf = (envs: Record<string, string | undefined>) => issuesOf(envs).map((issue) => issue.path[0]);
+
+  it.each(Object.values(Environment))('accepts %s', (environment) => {
+    const envs = environment === Environment.DEVELOPMENT ? validEnvs : { ...production, ENVIRONMENT: environment };
+    expect(envsDto.parse(envs).ENVIRONMENT).toBe(environment);
+  });
+
+  it.each([
+    ['unset', undefined],
+    ['empty', ''],
+    ['the retired ENV value', 'dev'],
+    ['unknown', 'test'],
+  ])('refuses an ENVIRONMENT that is %s, with no default', (_name, value) => {
+    expect(pathsOf({ ...validEnvsWithout('ENVIRONMENT'), ENVIRONMENT: value })).toEqual(['ENVIRONMENT']);
+  });
+
+  describe('retired ENV', () => {
+    it.each(['dev', 'prod'])('refuses ENV=%s and points to the runbook', (value) => {
+      const issues = issuesOf({ ...production, ENV: value });
+      expect(issues.map((issue) => issue.path[0])).toEqual(['ENV']);
+      expect(issues[0].message).toContain('environment-config');
+      expect(issues[0].message).toContain('ENVIRONMENT');
+    });
+
+    it('never prints the value of ENV', () => {
+      const value = 'stale-env-value';
+      expect(issuesOf({ ...production, ENV: value })[0].message).not.toContain(value);
+    });
+
+    it('refuses ENV in development too', () => {
+      expect(pathsOf({ ...validEnvs, ENV: 'dev' })).toEqual(['ENV']);
+    });
+
+    it('treats an empty ENV, as an env file declares it, as unset', () => {
+      expect(envsDto.safeParse({ ...validEnvs, ENV: '' }).success).toBe(true);
+    });
+
+    it('leaves ENV out of the parsed envs', () => {
+      expect(envsDto.parse({ ...validEnvs, ENV: '' })).not.toHaveProperty('ENV');
+    });
+  });
+
+  describe('NODE_ENV in a Deployed Environment', () => {
+    it.each([Environment.STAGING, Environment.PRODUCTION])('refuses %s without NODE_ENV=production', (environment) => {
+      expect(pathsOf({ ...production, ENVIRONMENT: environment, NODE_ENV: NodeEnv.DEVELOPMENT })).toEqual(['NODE_ENV']);
+    });
+
+    it.each([Environment.STAGING, Environment.PRODUCTION])('refuses %s with NODE_ENV unset', (environment) => {
+      const { NODE_ENV: _nodeEnv, ...withoutNodeEnv } = production;
+      expect(pathsOf({ ...withoutNodeEnv, ENVIRONMENT: environment })).toEqual(['NODE_ENV']);
+    });
+
+    it.each([NodeEnv.DEVELOPMENT, NodeEnv.PRODUCTION])('accepts development with NODE_ENV=%s', (nodeEnv) => {
+      expect(envsDto.safeParse({ ...validEnvs, NODE_ENV: nodeEnv }).success).toBe(true);
+    });
   });
 });
 
