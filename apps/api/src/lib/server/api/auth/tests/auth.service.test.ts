@@ -86,11 +86,23 @@ describe('AuthService', () => {
   });
 
   describe('shared rate-limit bucket', () => {
-    it('warns at startup when rate limiting is on without a trusted proxy', () => {
+    it('warns at startup in development when rate limiting is on without a trusted proxy', () => {
       const warn = vi.fn();
-      buildService({ TRUST_PROXY: 'false' }, warn);
+      buildService({ ENVIRONMENT: Environment.DEVELOPMENT, TRUST_PROXY: 'false' }, warn);
 
       expect(warn).toHaveBeenCalledWith(expect.stringContaining('TRUST_PROXY'));
+    });
+
+    // Outside development the DTO refuses to boot in this state, so the warning is checked at the service seam alone.
+    it.each([
+      ['staging', { ENVIRONMENT: Environment.STAGING }],
+      ['production', { ENVIRONMENT: Environment.PRODUCTION }],
+      ['unset', { ENVIRONMENT: undefined }],
+    ] as const)('does not warn when the Environment is %s', (_case, overrides) => {
+      const warn = vi.fn();
+      buildService({ TRUST_PROXY: 'false' }, warn, overrides as Partial<EnvsDto>);
+
+      expect(warn).not.toHaveBeenCalled();
     });
 
     it.each<Record<string, string>>([{ TRUST_PROXY: 'true' }, { DISABLE_RATE_LIMIT: 'true' }])('does not warn with %o', (envs) => {

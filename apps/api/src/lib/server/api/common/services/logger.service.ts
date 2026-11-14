@@ -4,6 +4,11 @@ import pino from 'pino';
 import pretty from 'pino-pretty';
 import { ConfigService } from '#lib/server/api/common/configs/config.service';
 
+/** Pretty lines only in development; every other Environment, unset included, writes production's JSON logs. */
+export function logDestination(environment: string | undefined): pino.DestinationStream | undefined {
+  return isDevelopmentEnvironment(environment) ? pretty() : undefined;
+}
+
 @injectable()
 export class LoggerService {
   public log: pino.Logger;
@@ -13,8 +18,7 @@ export class LoggerService {
       {
         level: this.configService.envs.LOG_LEVEL || 'info',
       },
-      // Pretty lines only in development; every other Environment writes production's JSON logs.
-      isDevelopmentEnvironment(this.configService.envs.ENVIRONMENT) ? pretty() : undefined,
+      logDestination(this.configService.envs.ENVIRONMENT),
     );
   }
 }
