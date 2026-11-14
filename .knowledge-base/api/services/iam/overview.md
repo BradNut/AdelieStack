@@ -12,7 +12,8 @@ Better Auth endpoints under `/api/auth` (its own request and response shapes, ou
 `api-contract` RPC types; the web uses the Better Auth Svelte client):
 
 - Email and password sign-up and sign-in (`/sign-up/email`, `/sign-in/email`), gated by `SIGN_UP_ENABLED`
-- Social sign-in and account linking (GitHub, Google) when configured (`/sign-in/social`)
+- Social sign-in and account linking (GitHub, Google) when configured (`/sign-in/social`). Provider access and
+  refresh tokens are encrypted with the auth secret; rows stored before that read as plain text until rewritten.
 - Sign-out, listing and revoking sessions (`/sign-out`, `/list-sessions`, `/revoke-session`, `/revoke-other-sessions`, `/revoke-sessions`)
 - Email verification (`/send-verification-email`, `/verify-email`) and email change
 - Password reset by emailed link (`/request-password-reset`, `/reset-password`) and password change (`/change-password`)

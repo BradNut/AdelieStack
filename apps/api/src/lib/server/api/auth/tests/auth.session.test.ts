@@ -1,4 +1,11 @@
-import { AUTH_CLIENT_IP_HEADER, AUTH_SESSION_EXPIRES_IN, AUTH_SESSION_FRESH_AGE, AUTH_SESSION_UPDATE_AGE } from '@adelie/shared';
+import {
+  AUTH_CLIENT_IP_HEADER,
+  AUTH_SESSION_EXPIRES_IN,
+  AUTH_SESSION_FRESH_AGE,
+  AUTH_SESSION_MAX_LIFETIME,
+  AUTH_SESSION_UPDATE_AGE,
+  SECONDS_PER_DAY,
+} from '@adelie/shared';
 import { describe, expect, it } from 'vitest';
 import { type AuthRequest, ageSessions, cookiesFrom, hasSessionCookie, signUpWithEmail, TEST_USER } from '../../../../../test/auth-http';
 import { createTestAuth } from '../../../../../test/auth-instance';
@@ -64,6 +71,58 @@ describe('fresh vs stale sessions', () => {
     expect(signedIn.status).toBe(200);
     expect((await deleteUser(request, cookiesFrom(signedIn))).status).toBe(200);
     expect(db.user).toHaveLength(0);
+  });
+});
+
+describe('absolute session lifetime', () => {
+  const MS = 1000;
+  const HOUR = 60 * 60;
+  const readSession = async (request: AuthRequest, cookie: string) =>
+    (await (await request('/get-session', { cookie })).json()) as { session?: { expiresAt: string } } | null;
+
+  /** Makes the session look `ageSeconds` old and due for its sliding refresh (last refreshed over a day ago). */
+  function ageAndDueRefresh(db: ReturnType<typeof createTestAuth>['db'], ageSeconds: number): Date {
+    const createdAt = new Date(Date.now() - ageSeconds * MS);
+    for (const s of db.session) {
+      s.createdAt = createdAt;
+      s.expiresAt = new Date(Date.now() + (AUTH_SESSION_EXPIRES_IN - AUTH_SESSION_UPDATE_AGE - HOUR) * MS);
+    }
+    return createdAt;
+  }
+
+  it('caps sessions at 30 days from sign-in (NIST 800-63B reauthentication)', () => {
+    expect(AUTH_SESSION_MAX_LIFETIME).toBe(30 * 24 * 60 * 60);
+  });
+
+  it('still slides a young session forward by the full expiry', async () => {
+    const { request, db } = createTestAuth();
+    const { cookie } = await signUpWithEmail(request, TEST_USER);
+    ageAndDueRefresh(db, 2 * SECONDS_PER_DAY);
+
+    const before = Date.now();
+    const session = await readSession(request, cookie);
+    expect(new Date(session?.session?.expiresAt ?? 0).getTime()).toBeGreaterThanOrEqual(before + (AUTH_SESSION_EXPIRES_IN - 1) * MS);
+  });
+
+  it('does not extend a session past its maximum lifetime when it is used', async () => {
+    const { request, db } = createTestAuth();
+    const { cookie } = await signUpWithEmail(request, TEST_USER);
+    const createdAt = ageAndDueRefresh(db, AUTH_SESSION_MAX_LIFETIME - 2 * SECONDS_PER_DAY);
+    const cap = createdAt.getTime() + AUTH_SESSION_MAX_LIFETIME * MS;
+
+    const session = await readSession(request, cookie);
+    expect(new Date(session?.session?.expiresAt ?? 0).getTime()).toBe(cap);
+    expect(db.session[0].expiresAt).toEqual(new Date(cap));
+  });
+
+  it('ends a session once its maximum lifetime has passed, however recently it was used', async () => {
+    const { request, db } = createTestAuth();
+    const { cookie } = await signUpWithEmail(request, TEST_USER);
+    ageAndDueRefresh(db, AUTH_SESSION_MAX_LIFETIME + HOUR);
+
+    expect((await readSession(request, cookie))?.session).toBeUndefined();
+    // Using it again does not revive it.
+    expect((await readSession(request, cookie))?.session).toBeUndefined();
   });
 });
 

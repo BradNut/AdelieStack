@@ -33,4 +33,11 @@ describe('declaresProduction', () => {
   ])('is false for %s', (_case, overrides) => {
     expect(declaresProduction({ ...local, ...overrides })).toBe(false);
   });
+
+  it.each([
+    ['nothing is set', {}],
+    ['values differ only in case', { ENV: 'PROD', NODE_ENV: 'Production', ENVIRONMENT: 'PRODUCTION' }],
+  ])('is false for unvalidated settings when %s', (_case, settings) => {
+    expect(declaresProduction(settings)).toBe(false);
+  });
 });

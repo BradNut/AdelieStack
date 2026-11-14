@@ -18,7 +18,7 @@ import { ProviderHealthState, type ProviderHealthStateName } from '#lib/server/a
 import type { AuthService } from '#lib/server/api/auth/auth.service';
 import { RolesService } from '#lib/server/api/auth/roles';
 import type { ConfigService } from '#lib/server/api/common/configs/config.service';
-import { validEnvs } from '#lib/server/api/common/configs/tests/env-fixtures';
+import { TEST_SIGNING_SECRET, validEnvs } from '#lib/server/api/common/configs/tests/env-fixtures';
 import { requestLogger } from '#lib/server/api/common/middleware/request-logger.middleware';
 import type { LoggerService } from '#lib/server/api/common/services/logger.service';
 import { buildAuthSession, buildAuthUser } from '#lib/server/api/common/testing/factories';
@@ -55,7 +55,7 @@ function buildApp(envs: Record<string, unknown> = {}, log = pino({ enabled: fals
     } as unknown as StorageWebhookController,
     new ConfigController({ envs: { SIGN_UP_ENABLED: true } } as unknown as ConfigService, authService),
     new AdminExampleController(authService, rolesService),
-    { envs: { SIGNING_SECRET: 'test-signing-secret', ENV: 'test', ...envs } } as unknown as ConfigService,
+    { envs: { SIGNING_SECRET: TEST_SIGNING_SECRET, ENV: 'test', ...envs } } as unknown as ConfigService,
     { log } as unknown as LoggerService,
   ).registerControllers();
 }
@@ -586,5 +586,73 @@ describe('security headers', () => {
     const res = await buildApp().request('/api/healthz');
 
     expect(await res.json()).toEqual({ status: 'ok' });
+  });
+});
+
+describe('API reference', () => {
+  const DEVELOPMENT_ENVS = { ENV: AppEnv.DEV, ENVIRONMENT: DeployEnvironment.DEVELOPMENT, NODE_ENV: NodeEnv.DEVELOPMENT };
+
+  /** Every `src` a `<script>` tag on the page loads. */
+  function scriptSources(html: string): string[] {
+    return [...html.matchAll(/<script\b[^>]*\bsrc="([^"]*)"/g)].map(([, src]) => src);
+  }
+
+  it('serves the reference page in development, loading its script from the API itself', async () => {
+    const res = await buildApp(DEVELOPMENT_ENVS).request('/api/reference');
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toContain('text/html');
+    expect(scriptSources(await res.text())).toEqual(['/api/reference/scalar.js']);
+  });
+
+  it('loads no script module from another origin', async () => {
+    const html = await (await buildApp(DEVELOPMENT_ENVS).request('/api/reference')).text();
+
+    expect(html).not.toContain('cdn.jsdelivr.net');
+    expect(html).not.toMatch(/\bfrom\s*['"]https?:/);
+  });
+
+  // Better Auth's own reference page loads its script unpinned from a CDN, so its schema is shown here instead.
+  it('shows the app document and the auth schema as its two sources', async () => {
+    const html = await (await buildApp(DEVELOPMENT_ENVS).request('/api/reference')).text();
+
+    expect(html).toContain('"url": "/api/doc"');
+    expect(html).toContain('"url": "/api/auth/open-api/generate-schema"');
+  });
+
+  it('serves the script the page loads, as JavaScript that registers the Scalar global', async () => {
+    const res = await buildApp(DEVELOPMENT_ENVS).request('/api/reference/scalar.js');
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toContain('javascript');
+    expect(await res.text()).toContain('createApiReference');
+  });
+
+  it('serves the OpenAPI document the page reads in development', async () => {
+    const res = await buildApp(DEVELOPMENT_ENVS).request('/api/doc');
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ openapi: expect.any(String), paths: expect.any(Object) });
+  });
+
+  const REFERENCE_PATHS = ['/api/reference', '/api/reference/scalar.js', '/api/doc'];
+
+  it.each([
+    ['ENV=prod', { ...DEVELOPMENT_ENVS, ENV: AppEnv.PROD }],
+    ['NODE_ENV=production', { ...DEVELOPMENT_ENVS, NODE_ENV: NodeEnv.PRODUCTION }],
+    ['ENVIRONMENT=production', { ...DEVELOPMENT_ENVS, ENVIRONMENT: DeployEnvironment.PRODUCTION }],
+  ])('is not served when %s declares production', async (_case, envs) => {
+    const app = buildApp(envs);
+
+    for (const path of REFERENCE_PATHS) {
+      const res = await app.request(path);
+      expect(res.status, path).toBe(StatusCodes.NOT_FOUND);
+    }
+  });
+
+  it('still serves the rest of the API in production', async () => {
+    const res = await buildApp({ ENV: AppEnv.PROD, ENVIRONMENT: DeployEnvironment.PRODUCTION, NODE_ENV: NodeEnv.PRODUCTION }).request('/api/healthz');
+
+    expect(res.status).toBe(200);
   });
 });

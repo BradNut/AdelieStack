@@ -16,6 +16,8 @@ git diff drizzle/
 DB_MIGRATING=true pnpm --filter @adelie/api db:migrate
 ```
 
+The migrate step connects with the same `DATABASE_SSL_MODE` as the API; set `verify-full` for a remote database ([Database TLS](./environment-config.md#database-tls)). drizzle-kit (`db:push`, `db:studio`) no longer turns TLS on for a non-`localhost` host by itself, so anyone who used it against a remote database must now set `DATABASE_SSL_MODE=verify-full`.
+
 ## Production Migrations
 
 Migrations do **not** run automatically, in Docker or Nixpacks deployments. Run them manually or via a Coolify pre-deploy hook:
@@ -31,7 +33,7 @@ DB_MIGRATING=true pnpm --filter @adelie/api db:migrate
 | `pnpm db:generate` | Generate migration SQL from schema diff |
 | `pnpm db:migrate` | Apply pending migrations to DB (refuses unless `DB_MIGRATING=true`) |
 | `pnpm db:push` | Push schema directly to DB (dev only, no migration file) |
-| `pnpm db:seed` | Seed initial data (refuses unless `DB_SEEDING=true`) |
+| `pnpm db:seed` | Seed initial data (refuses unless `DB_SEEDING=true`, and always in production) |
 | `pnpm db:studio` | Open Drizzle Studio GUI |
 
 ## Seeding

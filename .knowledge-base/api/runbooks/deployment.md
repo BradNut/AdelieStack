@@ -26,7 +26,7 @@ Migrations do **not** run automatically on Nixpacks deploys — see
 
 ## Docker (`apps/api/Dockerfile`)
 
-Multi-stage build on `node:24-alpine`:
+Multi-stage build on `node:24.22.3-alpine`:
 
 1. `base` — installs pnpm via corepack (`pnpm@10.26.0`), no source copied (cache-friendly).
 2. `manifests` — copies only `package.json`/`pnpm-lock.yaml`/`pnpm-workspace.yaml` and the
@@ -36,7 +36,7 @@ Multi-stage build on `node:24-alpine`:
    and `packages/shared/src`, and runs `pnpm --filter @adelie/api run paraglide:compile`.
 4. `prod-deps` (from `manifests`, parallel to `build`) —
    `pnpm install --frozen-lockfile --prod --filter @adelie/api...` (production-only deps).
-5. `runtime` (fresh `node:24-alpine`) — copies `node_modules` from `prod-deps`, the compiled
+5. `runtime` (fresh `node:24.22.3-alpine`) — copies `node_modules` from `prod-deps`, the compiled
    `apps/api/src` (including generated Paraglide output) from `build`, plus
    `apps/api/drizzle`, `apps/api/drizzle.config.ts`, and `apps/api/.env.schema`. Runs as the
    non-root `node` user.
@@ -76,6 +76,8 @@ must keep them longer. An interrupted run is safe: the delete either completes o
 ## Required Env Before Deploy
 
 `ORIGIN`, `DOMAIN`, `DATABASE_*`, `REDIS_URL`, `SIGNING_SECRET`, `STORAGE_*`, `PROJECT_NAME`.
+Set `DATABASE_SSL_MODE=verify-full` unless Postgres shares the host or a private network with the API
+(see [Database TLS](./environment-config.md#database-tls)); the default `disable` sends queries in the clear.
 
 See [Environment Configuration](./environment-config.md) for the full variable list (matches
 `apps/api/.env.schema` exactly).

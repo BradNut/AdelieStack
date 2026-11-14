@@ -27,6 +27,8 @@
     "check": "pnpm turbo run check --filter=@adelie/web --filter=@adelie/api",
     "audit:agent-tokens": "node scripts/audit-agent-doc-tokens.mjs",
     "check:shared-boundaries": "node scripts/check-shared-boundaries.mjs",
+    "check:pinned-refs": "node scripts/check-pinned-refs.mjs",
+    "test:scripts": "node --test scripts/*.test.mjs",
     "setup:query": "node scripts/setup-tanstack-query.mjs",
     "check:watch": "pnpm --filter @adelie/web check:watch",
     "storage:setup": "bash scripts/setup-seaweedfs.sh",

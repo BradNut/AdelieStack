@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { setProcessEnvs, validEnvs } from '#lib/server/api/common/configs/tests/env-fixtures';
 import { createTestContainer } from '#lib/server/api/common/testing/test-container';
 import { DrizzleService } from '#lib/server/api/databases/postgres/drizzle.service';
+import { PostgresSslMode } from '#lib/server/api/databases/postgres/postgres-ssl';
 
 /** pg-pool's own default, which the API runs with. A pool connects on first query, so none of this opens a socket. */
 const DEFAULT_POOL_SIZE = 10;
@@ -23,5 +24,32 @@ describe('DrizzleService pool size', () => {
 
     // DrizzleService types `db` without the pool, which is the only place its size can be observed.
     expect((db as unknown as { $client: { options: { max: number } } }).$client.options.max).toBe(DEFAULT_POOL_SIZE);
+  });
+});
+
+describe('DrizzleService TLS', () => {
+  afterEach(() => {
+    setProcessEnvs(validEnvs);
+  });
+
+  const poolSsl = () => {
+    const { db } = createTestContainer().get(DrizzleService);
+    return (db as unknown as { $client: { options: { ssl: unknown } } }).$client.options.ssl;
+  };
+
+  it('connects without TLS by default, as local development does', () => {
+    setProcessEnvs(validEnvs);
+
+    expect(poolSsl()).toBe(false);
+  });
+
+  it.each([
+    { mode: PostgresSslMode.DISABLE, ssl: false },
+    { mode: PostgresSslMode.VERIFY_FULL, ssl: { rejectUnauthorized: true } },
+    { mode: PostgresSslMode.REQUIRE, ssl: { rejectUnauthorized: false } },
+  ])('connects with ssl $ssl when DATABASE_SSL_MODE is $mode', ({ mode, ssl }) => {
+    setProcessEnvs({ ...validEnvs, DATABASE_SSL_MODE: mode });
+
+    expect(poolSsl()).toEqual(ssl);
   });
 });
