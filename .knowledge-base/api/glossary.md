@@ -82,7 +82,7 @@ Type-safe database toolkit for TypeScript used for database queries and migratio
 S3-compatible object storage used for file uploads in local development.
 
 **Redis**
-In-memory data store used for sessions, caching, and rate limiting.
+Store for rate-limit counters and account lockout state, shared by every API instance. Sessions are not kept here.
 
 **Migration**
 Database schema change managed through Drizzle tooling.
@@ -116,7 +116,13 @@ Function that processes requests before they reach the route handler.
 Zod schema that defines expected request data structure.
 
 **Rate Limiting**
-Restricting the number of requests a client can make in a time window.
+Restricting the number of requests a client can make in a time window. The API has two limiters: Auth Rate Limiting and Route Rate Limiting.
+
+**Auth Rate Limiting**
+The limits on every auth request, owned by Better Auth, with stricter limits for sign-in, two-factor, password reset and passkey requests. See [ADR 0006](../../docs/adr/0006-better-auth-owns-auth-rate-limiting.md).
+
+**Route Rate Limiting**
+An optional limit a developer adds to one of their own routes, keyed on the signed-in user or else the client IP. No route uses it out of the box; it never covers auth requests.
 
 **CORS (Cross-Origin Resource Sharing)**
 Security mechanism that controls which origins can access the API.
