@@ -151,7 +151,7 @@ export function sharesOneRateLimitBucket(envs: Pick<z.infer<typeof baseEnvsDto>,
  * Auth development mode, a credential this repo publishes, the local mail inbox, auth served without TLS, one shared
  * rate-limit bucket, or an unauthenticated storage webhook. Messages name the variable and never print its value.
  */
-function refuseDevelopmentDefaults(envs: z.infer<typeof baseEnvsDto>, ctx: z.RefinementCtx): void {
+function refuseOutsideDevelopment(envs: z.infer<typeof baseEnvsDto>, ctx: z.RefinementCtx): void {
   if (envs.NODE_ENV !== NodeEnv.PRODUCTION) {
     ctx.addIssue({
       code: 'custom',
@@ -190,7 +190,7 @@ const refinedEnvsDto = baseEnvsDto.superRefine((envs, ctx) => {
   // Before the Environment checks: a stale `ENV=prod` deploy must fail loudly, never boot as something else.
   if (envs.ENV !== undefined) ctx.addIssue({ code: 'custom', path: ['ENV'], message: RETIRED_ENV_MESSAGE });
   // Every protection is on unless the Environment is exactly development; staging gets production's.
-  if (!isDevelopmentEnvironment(envs.ENVIRONMENT)) refuseDevelopmentDefaults(envs, ctx);
+  if (!isDevelopmentEnvironment(envs.ENVIRONMENT)) refuseOutsideDevelopment(envs, ctx);
   for (const { id: idName, secret: secretName } of Object.values(SOCIAL_PROVIDER_ENV_NAMES)) {
     if ((envs[idName] === undefined) !== (envs[secretName] === undefined)) {
       const missing = envs[idName] === undefined ? idName : secretName;
