@@ -23,7 +23,10 @@ inside a service.
 ## Quick start
 
 ```bash
-# The schemas already carry working local defaults for everything except secrets.
+# The schemas already carry working local defaults for everything except secrets and the API's
+# Environment, which has no default (`pnpm initialize` writes it for you; see ADR 0015).
+echo "ENVIRONMENT=development" >> apps/api/.env
+
 # Generate the two required API secrets into a gitignored local file.
 {
   echo "SIGNING_SECRET=$(openssl rand -hex 32)"
@@ -50,7 +53,8 @@ pnpm dev
 A few variables are declared in both `apps/api/.env.schema` and `apps/web/.env.schema` and
 should be kept consistent across the two apps' local env files when applicable:
 
-- `ENVIRONMENT`
+- `ENVIRONMENT` (required by the API, with no default; it also names the storage buckets, so
+  `scripts/setup-seaweedfs.sh`, which defaults to `development`, must get the same value)
 - `PUBLIC_IMAGE_URI` (must match the API's SeaweedFS public bucket URL)
 
 ## Secrets and the client bundle

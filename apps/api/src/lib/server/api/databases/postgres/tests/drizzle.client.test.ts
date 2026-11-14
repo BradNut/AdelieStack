@@ -1,12 +1,15 @@
-import { AppEnv, DeployEnvironment, NodeEnv } from '@adelie/shared';
+import { Environment, NodeEnv } from '@adelie/shared';
+import { sql } from 'drizzle-orm';
+import Pool from 'pg-pool';
 import { describe, expect, it, vi } from 'vitest';
-import { createScriptDb, SCRIPT_DB_FLAGS } from '#lib/server/api/databases/postgres/drizzle.client';
+import { createPostgresDb, createScriptDb, SCRIPT_DB_FLAGS } from '#lib/server/api/databases/postgres/drizzle.client';
 import { PostgresSslMode } from '#lib/server/api/databases/postgres/postgres-ssl';
 
 describe('createScriptDb', () => {
   describe.each(Object.values(SCRIPT_DB_FLAGS))('%s', (requiredEnvVar) => {
     it('holds one connection when the flag is "true"', () => {
       vi.stubEnv(requiredEnvVar, 'true');
+      vi.stubEnv('ENVIRONMENT', Environment.DEVELOPMENT);
 
       expect(createScriptDb(requiredEnvVar).$client.options.max).toBe(1);
     });
@@ -45,43 +48,73 @@ describe('createScriptDb', () => {
     expect(() => createScriptDb(SCRIPT_DB_FLAGS.SEEDING)).toThrowError('You must set DB_SEEDING to "true"');
   });
 
-  describe('in production', () => {
-    const productionSettings = [
-      { name: 'ENV=prod', envs: { ENV: AppEnv.PROD } },
-      { name: 'NODE_ENV=production', envs: { NODE_ENV: NodeEnv.PRODUCTION } },
-      { name: 'ENVIRONMENT=production', envs: { ENVIRONMENT: DeployEnvironment.PRODUCTION } },
-    ];
-
-    function stubEnvs(envs: Record<string, string | undefined>) {
-      for (const [name, value] of Object.entries(envs)) vi.stubEnv(name, value);
-    }
-
-    it.each(productionSettings)('refuses to seed when $name', ({ envs }) => {
+  describe('the seed allow-list', () => {
+    it('seeds in development', () => {
       vi.stubEnv(SCRIPT_DB_FLAGS.SEEDING, 'true');
-      stubEnvs(envs);
+      vi.stubEnv('ENVIRONMENT', Environment.DEVELOPMENT);
 
-      expect(() => createScriptDb(SCRIPT_DB_FLAGS.SEEDING)).toThrowError('refuses to run in production');
+      expect(createScriptDb(SCRIPT_DB_FLAGS.SEEDING).$client.options.max).toBe(1);
     });
 
-    it.each(productionSettings)('still migrates when $name', ({ envs }) => {
+    const refusedEnvironments = [
+      { name: 'staging', value: Environment.STAGING },
+      { name: 'production', value: Environment.PRODUCTION },
+      { name: 'unset', value: undefined },
+      { name: 'an unknown value', value: 'dev' },
+    ];
+
+    it.each(refusedEnvironments)('refuses to seed when ENVIRONMENT is $name', ({ value }) => {
+      vi.stubEnv(SCRIPT_DB_FLAGS.SEEDING, 'true');
+      vi.stubEnv('ENVIRONMENT', value);
+
+      expect(() => createScriptDb(SCRIPT_DB_FLAGS.SEEDING)).toThrowError('runs only when ENVIRONMENT is development');
+    });
+
+    it.each(refusedEnvironments)('still migrates when ENVIRONMENT is $name', ({ value }) => {
       vi.stubEnv(SCRIPT_DB_FLAGS.MIGRATING, 'true');
-      stubEnvs(envs);
+      vi.stubEnv('ENVIRONMENT', value);
 
       expect(createScriptDb(SCRIPT_DB_FLAGS.MIGRATING).$client.options.max).toBe(1);
     });
 
-    it('seeds a staging deploy that is not a production build', () => {
+    it('ignores NODE_ENV', () => {
       vi.stubEnv(SCRIPT_DB_FLAGS.SEEDING, 'true');
-      stubEnvs({ ENV: AppEnv.DEV, NODE_ENV: NodeEnv.DEVELOPMENT, ENVIRONMENT: DeployEnvironment.STAGING });
+      vi.stubEnv('ENVIRONMENT', Environment.DEVELOPMENT);
+      vi.stubEnv('NODE_ENV', NodeEnv.PRODUCTION);
 
       expect(createScriptDb(SCRIPT_DB_FLAGS.SEEDING).$client.options.max).toBe(1);
     });
 
     it('checks the flag before the environment', () => {
       vi.stubEnv(SCRIPT_DB_FLAGS.SEEDING, 'false');
-      stubEnvs({ ENV: AppEnv.PROD });
+      vi.stubEnv('ENVIRONMENT', Environment.PRODUCTION);
 
       expect(() => createScriptDb(SCRIPT_DB_FLAGS.SEEDING)).toThrowError('You must set DB_SEEDING to "true"');
     });
+  });
+});
+
+describe('createPostgresDb SQL logging', () => {
+  /** Runs one query against a pool that answers without a server, and reports whether Drizzle logged its SQL. */
+  async function logsQueries(environment: string | undefined): Promise<boolean> {
+    vi.spyOn(Pool.prototype, 'query').mockResolvedValue({ rows: [] } as never);
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const db = createPostgresDb({ port: 5432, ssl: false, environment });
+
+    await db.execute(sql`select 1`);
+
+    return log.mock.calls.some(([line]) => String(line).includes('select 1'));
+  }
+
+  it('logs queries in development', async () => {
+    expect(await logsQueries(Environment.DEVELOPMENT)).toBe(true);
+  });
+
+  it.each([
+    { name: 'staging', value: Environment.STAGING },
+    { name: 'production', value: Environment.PRODUCTION },
+    { name: 'unset', value: undefined },
+  ])('logs no queries when the Environment is $name', async ({ value }) => {
+    expect(await logsQueries(value)).toBe(false);
   });
 });

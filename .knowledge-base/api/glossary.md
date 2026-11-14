@@ -218,6 +218,12 @@ Self-hosted deployment platform used for production.
 **Docker**
 Containerization platform for packaging applications.
 
+**Environment**
+Where the API runs: development (a developer's own machine), staging or production. One setting names it, and it has no default: an API that is not told its Environment does not start.
+
+**Deployed Environment**
+Staging or production. Every protection is on in a Deployed Environment; staging differs from production only in names (its storage buckets and its error-reporting tag).
+
 **Environment Variable**
 Configuration value stored outside code (e.g., API keys).
 

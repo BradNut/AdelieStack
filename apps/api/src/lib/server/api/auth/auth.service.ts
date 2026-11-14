@@ -1,4 +1,4 @@
-import { type CaptchaPublicConfig, declaresProduction, isProdEnv, type SocialProvider } from '@adelie/shared';
+import { type CaptchaPublicConfig, isDevelopmentEnvironment, type SocialProvider } from '@adelie/shared';
 import { inject, injectable } from '@needle-di/core';
 import { ConfigService } from '#lib/server/api/common/configs/config.service';
 import { SHARED_RATE_LIMIT_BUCKET_MESSAGE, sharesOneRateLimitBucket } from '#lib/server/api/common/configs/dtos/env.dto';
@@ -30,8 +30,8 @@ export class AuthService {
     this.captchaConfig = captchaConfigFromEnvs(configService.envs);
     this.socialCredentials = socialCredentialsFromEnvs(configService.envs);
     this.captchaStatus = createCaptchaHealth({ enabled: Boolean(this.captchaConfig), log: this.loggerService.log });
-    // Production refuses to start in this state (env.dto.ts); elsewhere it is allowed but worth a loud note.
-    if (!isProdEnv(configService.envs.ENV) && sharesOneRateLimitBucket(configService.envs)) {
+    // Outside development the API refuses to start in this state (env.dto.ts); in development it is allowed but worth a loud note.
+    if (isDevelopmentEnvironment(configService.envs.ENVIRONMENT) && sharesOneRateLimitBucket(configService.envs)) {
       this.loggerService.log.warn(SHARED_RATE_LIMIT_BUCKET_MESSAGE);
     }
   }
@@ -88,9 +88,8 @@ export class AuthService {
       socialProviders: this.socialCredentials,
       rateLimitStorage: throttleStorage,
       accountLockoutStorage: throttleStorage,
-      // Gated like the app reference (application.controller.ts): the image sets only NODE_ENV=production, so ENV alone
-      // would leave it on. Production does not advertise the auth surface.
-      openApiReference: !declaresProduction(this.configService.envs),
+      // Gated like the app reference (application.controller.ts): only development advertises the auth surface.
+      openApiReference: isDevelopmentEnvironment(this.configService.envs.ENVIRONMENT),
     });
     return this.instance;
   }

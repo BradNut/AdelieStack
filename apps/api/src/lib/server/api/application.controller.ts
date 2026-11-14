@@ -1,4 +1,4 @@
-import { API_BASE_PATH, AUTH_ROUTE, declaresProduction, STORAGE_ROUTE } from '@adelie/shared';
+import { API_BASE_PATH, AUTH_ROUTE, isDevelopmentEnvironment, STORAGE_ROUTE } from '@adelie/shared';
 import { inject, injectable } from '@needle-di/core';
 import { contextStorage } from 'hono/context-storage';
 import { requestId } from 'hono/request-id';
@@ -84,7 +84,7 @@ export class ApplicationController extends RootController {
       .notFound(notFound);
 
     // The reference and its document map the whole API surface, so only development serves them (#235).
-    if (!declaresProduction(this.configService.envs)) configureOpenAPI(app);
+    if (isDevelopmentEnvironment(this.configService.envs.ENVIRONMENT)) configureOpenAPI(app);
     return app;
   }
 }
