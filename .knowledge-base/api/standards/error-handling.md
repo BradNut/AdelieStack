@@ -51,14 +51,14 @@ Anything that is not an `HTTPException` (a failed query, a driver or socket erro
 generic localised `server_unexpected_error` message and the request id. The error's text and stack never reach the
 client, since they can hold SQL, parameters or internal hosts.
 
-Only explicit local development, `isLocalDevEnv` from `@adelie/shared` (`ENVIRONMENT=development` and
-`NODE_ENV=development`), adds them back for debugging:
+Only the development Environment, `isDevelopmentEnvironment` from `@adelie/shared` (`ENVIRONMENT=development`), adds
+them back for debugging:
 
 ```typescript
 { "message": "<the error's message>", "stack": "<the error's stack>", "requestId": "..." }
 ```
 
-`ENV=dev` alone is not enough: it is the schema default, and the images set only `NODE_ENV=production`.
+Staging and an unset `ENVIRONMENT` get the generic body, like production; `NODE_ENV` plays no part (ADR 0015).
 
 Do not catch an unexpected error just to rethrow `InternalError(...)` with its text; let it reach the handler. Catch
 only to turn a known condition into a deliberate error (for example a unique-constraint violation into `409`), or to

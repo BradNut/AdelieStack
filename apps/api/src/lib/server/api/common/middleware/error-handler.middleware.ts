@@ -1,4 +1,4 @@
-import { type AuthErrorCode, isLocalDevEnv, type LocalDevEnvs, StatusCodes } from '@adelie/shared';
+import { type AuthErrorCode, type Environment, isDevelopmentEnvironment, StatusCodes } from '@adelie/shared';
 import { DrizzleQueryError } from 'drizzle-orm';
 import type { ErrorHandler } from 'hono';
 import { HTTPException } from 'hono/http-exception';
@@ -16,8 +16,10 @@ const URL_CREDENTIALS_PATTERN = /\b([a-z][a-z\d+.-]*:\/\/)[^\s/@]+@/gi;
 /** Deep enough for a query error wrapping a driver error wrapping a socket error, and bounded against a cycle. */
 const MAX_LOGGED_CAUSES = 5;
 
-/** The settings that decide whether a client may see an error's detail; see {@link isLocalDevEnv}. */
-export type ErrorHandlerEnvs = LocalDevEnvs;
+/** The setting that decides whether a client may see an error's detail. Unset fails closed, like any non-development value. */
+export interface ErrorHandlerEnvs {
+  ENVIRONMENT: Environment | undefined;
+}
 
 interface ErrorHandlerOptions {
   envs: ErrorHandlerEnvs;
@@ -64,12 +66,12 @@ function loggedError(error: Error, depth = 0): LoggedError {
 
 /**
  * Answers an error no handler caught. An unexpected error gets a generic, localised message and the request id, so
- * a client never sees the error text or stack, which can hold SQL, parameters or internal hosts. Only explicit local
- * development ({@link isLocalDevEnv}) adds them back, for debugging. The full error is logged against the request id,
+ * a client never sees the error text or stack, which can hold SQL, parameters or internal hosts. Only the development
+ * Environment ({@link isDevelopmentEnvironment}) adds them back, for debugging. The full error is logged against the request id,
  * with credentials redacted and no request headers. A deliberate `HTTPException` keeps its status and message everywhere.
  */
 export function errorHandler({ envs, logger }: ErrorHandlerOptions): ErrorHandler {
-  const showDetail = isLocalDevEnv(envs);
+  const showDetail = isDevelopmentEnvironment(envs.ENVIRONMENT);
 
   return (error, c) => {
     const requestId: string = c.get('requestId');

@@ -24,13 +24,17 @@ const credentialSources = [credentialSource];
 
 describe('local storage credentials', () => {
   it.each(credentialSources)('%s defaults cannot collide with ordinary response text', (file) => {
-    for (const key of ['STORAGE_ACCESS_KEY', 'STORAGE_SECRET_KEY']) {
+    for (const key of ['STORAGE_ACCESS_KEY', 'STORAGE_SECRET_KEY', 'REDIS_URL']) {
       const value = envValue(file, key);
       expect(value, `${file} ${key}`).toBeTruthy();
       for (const text of OrdinaryResponseText) {
         expect(text.includes(value as string), `${key} appears in "${text}"`).toBe(false);
       }
     }
+  });
+
+  it('declares REDIS_URL sensitive, since a real URL embeds the password', () => {
+    expect(read(credentialSource)).toMatch(/^# @type=url @sensitive=true\nREDIS_URL=/m);
   });
 
   it('match between the env schema and the SeaweedFS identity', () => {

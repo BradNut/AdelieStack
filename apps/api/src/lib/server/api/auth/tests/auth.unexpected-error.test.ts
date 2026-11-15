@@ -1,4 +1,4 @@
-import { APP_NAME, AUTH_BASE_PATH, DeployEnvironment, NodeEnv } from '@adelie/shared';
+import { APP_NAME, AUTH_BASE_PATH, Environment } from '@adelie/shared';
 import { DrizzleQueryError } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { contextStorage } from 'hono/context-storage';
@@ -44,7 +44,7 @@ function mountedAuth(log: pino.Logger, failing = true) {
     .use(contextStorage())
     .use(requestLocale)
     .on(['GET', 'POST'], `${AUTH_BASE_PATH}/*`, (c) => auth.handler(c.req.raw))
-    .onError(errorHandler({ envs: { ENVIRONMENT: DeployEnvironment.PRODUCTION, NODE_ENV: NodeEnv.PRODUCTION }, logger: log }));
+    .onError(errorHandler({ envs: { ENVIRONMENT: Environment.PRODUCTION }, logger: log }));
 }
 
 function signIn(app: Hono<HonoEnv>) {

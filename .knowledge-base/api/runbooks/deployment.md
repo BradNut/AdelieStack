@@ -78,6 +78,8 @@ must keep them longer. An interrupted run is safe: the delete either completes o
 `ORIGIN`, `DOMAIN`, `DATABASE_*`, `REDIS_URL`, `SIGNING_SECRET`, `STORAGE_*`, `PROJECT_NAME`.
 Set `DATABASE_SSL_MODE=verify-full` unless Postgres shares the host or a private network with the API
 (see [Database TLS](./environment-config.md#database-tls)); the default `disable` sends queries in the clear.
+Keep Redis on the API's private network and use `rediss://` or a password in `REDIS_URL` when anything else shares
+it or it is reached over a network (see [Redis access and TLS](./environment-config.md#redis-access-and-tls)).
 
 See [Environment Configuration](./environment-config.md) for the full variable list (matches
 `apps/api/.env.schema` exactly).

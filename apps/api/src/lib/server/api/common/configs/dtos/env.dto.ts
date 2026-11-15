@@ -1,18 +1,4 @@
-import {
-  APP_ENVS,
-  APP_NAME,
-  AppEnv,
-  CAPTCHA_PROVIDERS,
-  DEPLOY_ENVIRONMENTS,
-  DeployEnvironment,
-  declaresProduction,
-  type EnvironmentSettings,
-  isLocalDevEnv,
-  isProdEnv,
-  NODE_ENVS,
-  NodeEnv,
-  SocialProvider,
-} from '@adelie/shared';
+import { APP_NAME, CAPTCHA_PROVIDERS, ENVIRONMENTS, isDevelopmentEnvironment, NODE_ENVS, NodeEnv, SocialProvider } from '@adelie/shared';
 import { z } from 'zod/v4';
 import { DEVELOPMENT_DEFAULT_NAMES, DevelopmentDefault } from '#lib/server/api/common/configs/development-defaults.constant';
 import { findInvalidTrustedProxies } from '#lib/server/api/common/utils/ip';
@@ -88,7 +74,11 @@ const baseEnvsDto = z.object({
   GITHUB_CLIENT_SECRET: z.preprocess(emptyAsUndefined, z.string().optional()),
   GOOGLE_CLIENT_ID: z.preprocess(emptyAsUndefined, z.string().optional()),
   GOOGLE_CLIENT_SECRET: z.preprocess(emptyAsUndefined, z.string().optional()),
-  ENV: z.enum(APP_ENVS),
+  // Which Environment the API runs in: the only switch its own code reads (ADR 0015). Required, with no default.
+  ENVIRONMENT: z.enum(ENVIRONMENTS),
+  // Retired by ENVIRONMENT. Declared only so that setting it refuses boot (see RETIRED_ENV_MESSAGE); never read.
+  ENV: z.preprocess(emptyAsUndefined, z.unknown().optional()),
+  // Read by Node and Better Auth only; no decision of ours branches on it. A Deployed Environment requires production.
   NODE_ENV: z.enum(NODE_ENVS).default(NodeEnv.DEVELOPMENT),
   PORT: z.coerce.number(),
   ADMIN_EMAIL: z.email().optional(),
@@ -107,7 +97,6 @@ const baseEnvsDto = z.object({
   CLAMAV_HOST: z.string().default('localhost'),
   CLAMAV_PORT: z.coerce.number().default(3310),
   // Storage buckets are named `${PROJECT_NAME}-{public|private}-${ENVIRONMENT}`
-  ENVIRONMENT: z.enum(DEPLOY_ENVIRONMENTS).default(DeployEnvironment.DEVELOPMENT),
   PROJECT_NAME: z.string().min(1).default('adelie'),
   SITE_VERSION: z.string().optional(),
   // Security: trusted-proxy handling and the rate-limit kill switch (see rate-limit middleware).
@@ -138,14 +127,19 @@ export const SOCIAL_PROVIDER_ENV_NAMES = {
 } as const satisfies Record<SocialProvider, { id: keyof z.infer<typeof baseEnvsDto>; secret: keyof z.infer<typeof baseEnvsDto> }>;
 
 /** Suffix of every message refusing a setting that only local development may use. */
-const REFUSED_IN_PRODUCTION = '(refused in production)';
+const REFUSED_OUTSIDE_DEVELOPMENT = '(refused outside development)';
+
+/** The runbook with the steps that move a deployment off the retired `ENV`. */
+const ENVIRONMENT_CONFIG_RUNBOOK = '.knowledge-base/api/runbooks/environment-config.md';
+
+export const RETIRED_ENV_MESSAGE = `ENV is retired: remove it and set ENVIRONMENT (development, staging or production). See ${ENVIRONMENT_CONFIG_RUNBOOK}`;
 
 export const SHARED_RATE_LIMIT_BUCKET_MESSAGE =
   'Auth rate limiting is on but TRUST_PROXY is off: every client shares one rate-limit bucket per auth path, so a few requests lock everyone out. Set TRUST_PROXY=true behind a trusted proxy, or DISABLE_RATE_LIMIT=true.';
 
 /**
  * Auth rate limiting keys clients by IP. Without a trusted proxy no IP header is read, so every client would
- * share one bucket per path: a handful of requests would lock everyone out of sign-in. In production that is
+ * share one bucket per path: a handful of requests would lock everyone out of sign-in. Outside development that is
  * refused at startup; turn the limiter off explicitly (`DISABLE_RATE_LIMIT`) or declare the proxy (`TRUST_PROXY`).
  */
 export function sharesOneRateLimitBucket(envs: Pick<z.infer<typeof baseEnvsDto>, 'TRUST_PROXY' | 'DISABLE_RATE_LIMIT'>): boolean {
@@ -153,58 +147,50 @@ export function sharesOneRateLimitBucket(envs: Pick<z.infer<typeof baseEnvsDto>,
 }
 
 /**
- * Only a developer's own machine may run the storage webhook unauthenticated. `ENV` defaults to `dev` and a deploy may
- * set only `NODE_ENV=production`, so the deploy settings ({@link isLocalDevEnv}) decide, and `ENV=prod` always requires it.
+ * Refuses a Deployed Environment (staging or production) on settings only fit for local development: a Node or Better
+ * Auth development mode, a credential this repo publishes, the local mail inbox, auth served without TLS, one shared
+ * rate-limit bucket, or an unauthenticated storage webhook. Messages name the variable and never print its value.
  */
-function runsWithoutWebhookSecret(envs: EnvironmentSettings): boolean {
-  return !isProdEnv(envs.ENV) && isLocalDevEnv(envs);
-}
-
-/**
- * Refuses production on settings only fit for local development: a credential this repo publishes, the local mail
- * inbox, or auth served without TLS. Messages name the variable and never print its value.
- */
-function refuseDevelopmentDefaults(envs: z.infer<typeof baseEnvsDto>, ctx: z.RefinementCtx): void {
-  if (!isProdEnv(envs.ENV)) {
+function refuseOutsideDevelopment(envs: z.infer<typeof baseEnvsDto>, ctx: z.RefinementCtx): void {
+  if (envs.NODE_ENV !== NodeEnv.PRODUCTION) {
     ctx.addIssue({
       code: 'custom',
-      path: ['ENV'],
-      message: `ENV must be ${AppEnv.PROD} when NODE_ENV or ENVIRONMENT is production: ${AppEnv.DEV} turns off the production protections`,
+      path: ['NODE_ENV'],
+      message: `NODE_ENV must be ${NodeEnv.PRODUCTION} outside development: Node and Better Auth read it for their own protections`,
     });
   }
   for (const name of DEVELOPMENT_DEFAULT_NAMES) {
     if (envs[name] === DevelopmentDefault[name]) {
-      ctx.addIssue({ code: 'custom', path: [name], message: `${name} still holds its public development default ${REFUSED_IN_PRODUCTION}` });
+      ctx.addIssue({ code: 'custom', path: [name], message: `${name} still holds its public development default ${REFUSED_OUTSIDE_DEVELOPMENT}` });
     }
   }
   if (envs.MAILER_TRANSPORT === MailerTransport.MAILPIT) {
     ctx.addIssue({
       code: 'custom',
       path: ['MAILER_TRANSPORT'],
-      message: `MAILER_TRANSPORT ${MailerTransport.MAILPIT} is the local inbox ${REFUSED_IN_PRODUCTION}; use ${MailerTransport.UNSEND}`,
+      message: `MAILER_TRANSPORT ${MailerTransport.MAILPIT} is the local inbox ${REFUSED_OUTSIDE_DEVELOPMENT}; use ${MailerTransport.UNSEND}`,
     });
   }
   if (new URL(envs.BETTER_AUTH_URL).protocol !== 'https:') {
-    ctx.addIssue({ code: 'custom', path: ['BETTER_AUTH_URL'], message: `BETTER_AUTH_URL must use https ${REFUSED_IN_PRODUCTION}` });
+    ctx.addIssue({ code: 'custom', path: ['BETTER_AUTH_URL'], message: `BETTER_AUTH_URL must use https ${REFUSED_OUTSIDE_DEVELOPMENT}` });
   }
-}
-
-export const envsDto = baseEnvsDto.superRefine((envs, ctx) => {
-  if (declaresProduction(envs)) refuseDevelopmentDefaults(envs, ctx);
-  if (isProdEnv(envs.ENV) && sharesOneRateLimitBucket(envs)) {
-    ctx.addIssue({
-      code: 'custom',
-      path: ['TRUST_PROXY'],
-      message: `${SHARED_RATE_LIMIT_BUCKET_MESSAGE} ${REFUSED_IN_PRODUCTION}`,
-    });
+  if (sharesOneRateLimitBucket(envs)) {
+    ctx.addIssue({ code: 'custom', path: ['TRUST_PROXY'], message: `${SHARED_RATE_LIMIT_BUCKET_MESSAGE} ${REFUSED_OUTSIDE_DEVELOPMENT}` });
   }
-  if (!runsWithoutWebhookSecret(envs) && envs.STORAGE_WEBHOOK_SECRET === undefined) {
+  if (envs.STORAGE_WEBHOOK_SECRET === undefined) {
     ctx.addIssue({
       code: 'custom',
       path: ['STORAGE_WEBHOOK_SECRET'],
-      message: 'STORAGE_WEBHOOK_SECRET is required outside local development: without it anyone can drive the storage webhook',
+      message: 'STORAGE_WEBHOOK_SECRET is required outside development: without it anyone can drive the storage webhook',
     });
   }
+}
+
+const refinedEnvsDto = baseEnvsDto.superRefine((envs, ctx) => {
+  // Before the Environment checks: a stale `ENV=prod` deploy must fail loudly, never boot as something else.
+  if (envs.ENV !== undefined) ctx.addIssue({ code: 'custom', path: ['ENV'], message: RETIRED_ENV_MESSAGE });
+  // Every protection is on unless the Environment is exactly development; staging gets production's.
+  if (!isDevelopmentEnvironment(envs.ENVIRONMENT)) refuseOutsideDevelopment(envs, ctx);
   for (const { id: idName, secret: secretName } of Object.values(SOCIAL_PROVIDER_ENV_NAMES)) {
     if ((envs[idName] === undefined) !== (envs[secretName] === undefined)) {
       const missing = envs[idName] === undefined ? idName : secretName;
@@ -222,5 +208,8 @@ export const envsDto = baseEnvsDto.superRefine((envs, ctx) => {
     if (envs[name] === undefined) ctx.addIssue({ code: 'custom', path: [name], message: `${name} is required when CAPTCHA_ENABLED is true` });
   }
 });
+
+/** The validated API env. The retired `ENV` is refused above and left out, so no code can read it. */
+export const envsDto = refinedEnvsDto.transform(({ ENV: _retired, ...envs }) => envs);
 
 export type EnvsDto = z.infer<typeof envsDto>;

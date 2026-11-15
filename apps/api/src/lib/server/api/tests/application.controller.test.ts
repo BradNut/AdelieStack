@@ -1,13 +1,4 @@
-import {
-  AppEnv,
-  AUTH_CLIENT_IP_HEADER,
-  DeployEnvironment,
-  NodeEnv,
-  notFoundMessage,
-  RoleName,
-  STORAGE_WEBHOOK_ROUTE,
-  StatusCodes,
-} from '@adelie/shared';
+import { AUTH_CLIENT_IP_HEADER, Environment, NodeEnv, notFoundMessage, RoleName, STORAGE_WEBHOOK_ROUTE, StatusCodes } from '@adelie/shared';
 import { Hono } from 'hono';
 import { TrieRouter } from 'hono/router/trie-router';
 import pino from 'pino';
@@ -55,7 +46,7 @@ function buildApp(envs: Record<string, unknown> = {}, log = pino({ enabled: fals
     } as unknown as StorageWebhookController,
     new ConfigController({ envs: { SIGN_UP_ENABLED: true } } as unknown as ConfigService, authService),
     new AdminExampleController(authService, rolesService),
-    { envs: { SIGNING_SECRET: TEST_SIGNING_SECRET, ENV: 'test', ...envs } } as unknown as ConfigService,
+    { envs: { SIGNING_SECRET: TEST_SIGNING_SECRET, ...envs } } as unknown as ConfigService,
     { log } as unknown as LoggerService,
   ).registerControllers();
 }
@@ -456,14 +447,14 @@ describe('GET /api/users/me', () => {
 // The handler's own behaviour (environment gating, redaction, cause chain) is tested in error-handler.middleware.test.ts;
 // these check it is the app's handler, behind the request id, locale and logger.
 describe('error responses', () => {
-  const PRODUCTION_ENVS = { ENV: AppEnv.PROD, ENVIRONMENT: DeployEnvironment.PRODUCTION, NODE_ENV: NodeEnv.PRODUCTION };
+  const PRODUCTION_ENVS = { ENVIRONMENT: Environment.PRODUCTION, NODE_ENV: NodeEnv.PRODUCTION };
   const failure = () => new Error('connect ECONNREFUSED db.internal:5432 for SELECT * FROM users');
 
   it('decides on error detail from the configured environment', async () => {
     const error = failure();
     getSession.mockRejectedValue(error);
 
-    const res = await buildApp({ ENVIRONMENT: DeployEnvironment.DEVELOPMENT, NODE_ENV: NodeEnv.DEVELOPMENT }).request('/api/users/me');
+    const res = await buildApp({ ENVIRONMENT: Environment.DEVELOPMENT }).request('/api/users/me');
 
     expect(res.status).toBe(500);
     expect(await res.json()).toMatchObject({ message: error.message, stack: error.stack });
@@ -590,7 +581,7 @@ describe('security headers', () => {
 });
 
 describe('API reference', () => {
-  const DEVELOPMENT_ENVS = { ENV: AppEnv.DEV, ENVIRONMENT: DeployEnvironment.DEVELOPMENT, NODE_ENV: NodeEnv.DEVELOPMENT };
+  const DEVELOPMENT_ENVS = { ENVIRONMENT: Environment.DEVELOPMENT, NODE_ENV: NodeEnv.DEVELOPMENT };
 
   /** Every `src` a `<script>` tag on the page loads. */
   function scriptSources(html: string): string[] {
@@ -637,11 +628,15 @@ describe('API reference', () => {
 
   const REFERENCE_PATHS = ['/api/reference', '/api/reference/scalar.js', '/api/doc'];
 
+  it('serves the reference in development whatever NODE_ENV says', async () => {
+    expect((await buildApp({ ...DEVELOPMENT_ENVS, NODE_ENV: NodeEnv.PRODUCTION }).request('/api/reference')).status).toBe(200);
+  });
+
   it.each([
-    ['ENV=prod', { ...DEVELOPMENT_ENVS, ENV: AppEnv.PROD }],
-    ['NODE_ENV=production', { ...DEVELOPMENT_ENVS, NODE_ENV: NodeEnv.PRODUCTION }],
-    ['ENVIRONMENT=production', { ...DEVELOPMENT_ENVS, ENVIRONMENT: DeployEnvironment.PRODUCTION }],
-  ])('is not served when %s declares production', async (_case, envs) => {
+    ['staging', { ENVIRONMENT: Environment.STAGING, NODE_ENV: NodeEnv.PRODUCTION }],
+    ['production', { ENVIRONMENT: Environment.PRODUCTION, NODE_ENV: NodeEnv.PRODUCTION }],
+    ['unset', { NODE_ENV: NodeEnv.DEVELOPMENT }],
+  ])('is not served when the Environment is %s', async (_case, envs) => {
     const app = buildApp(envs);
 
     for (const path of REFERENCE_PATHS) {
@@ -651,8 +646,31 @@ describe('API reference', () => {
   });
 
   it('still serves the rest of the API in production', async () => {
-    const res = await buildApp({ ENV: AppEnv.PROD, ENVIRONMENT: DeployEnvironment.PRODUCTION, NODE_ENV: NodeEnv.PRODUCTION }).request('/api/healthz');
+    const res = await buildApp({ ENVIRONMENT: Environment.PRODUCTION, NODE_ENV: NodeEnv.PRODUCTION }).request('/api/healthz');
 
     expect(res.status).toBe(200);
+  });
+});
+
+describe('browser session cookie', () => {
+  /** The `Set-Cookie` line of the browser session id a first request is given. */
+  async function browserSessionCookie(envs: Record<string, unknown>): Promise<string | undefined> {
+    const res = await buildApp(envs).request('/api/healthz');
+    return res.headers.getSetCookie().find((cookie) => cookie.startsWith('_id='));
+  }
+
+  it('is not Secure in development, so plain-http localhost keeps it', async () => {
+    const cookie = await browserSessionCookie({ ENVIRONMENT: Environment.DEVELOPMENT });
+
+    expect(cookie).toBeDefined();
+    expect(cookie).not.toMatch(/;\s*Secure/i);
+  });
+
+  it.each([
+    ['staging', { ENVIRONMENT: Environment.STAGING }],
+    ['production', { ENVIRONMENT: Environment.PRODUCTION }],
+    ['unset', {}],
+  ])('is Secure when the Environment is %s', async (_case, envs) => {
+    expect(await browserSessionCookie(envs)).toMatch(/;\s*Secure/i);
   });
 });

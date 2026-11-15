@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { Environment } from '@adelie/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TEST_SIGNING_SECRET } from '#lib/server/api/common/configs/tests/env-fixtures';
 
@@ -84,12 +85,13 @@ type Signal = (typeof SIGNALS)[number];
 const PUBLIC_BUCKET = 'adelie-public-development';
 const PRIVATE_BUCKET = 'adelie-private-development';
 
-/** The defaults a deployment gets from `.env.schema`, plus the secrets it leaves for the platform to supply. */
+/** The defaults a deployment gets from `.env.schema`, plus the Environment and secrets it leaves for the platform to supply. */
 function stubDeploymentEnv({ jobsEnabled }: { jobsEnabled: boolean }) {
   const schema = readFileSync(new URL('../.env.schema', import.meta.url), 'utf8');
   for (const [, key, value] of schema.matchAll(/^([A-Z][A-Z0-9_]*)=(.+)$/gm)) {
     vi.stubEnv(key, value);
   }
+  vi.stubEnv('ENVIRONMENT', Environment.DEVELOPMENT);
   vi.stubEnv('SIGNING_SECRET', TEST_SIGNING_SECRET);
   vi.stubEnv('BETTER_AUTH_SECRET', 'test-better-auth-secret-of-32-chars-min');
   vi.stubEnv('JOBS_ENABLED', String(jobsEnabled));
