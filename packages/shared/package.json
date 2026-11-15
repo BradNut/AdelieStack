@@ -8,11 +8,11 @@
     "test": "vitest --run"
   },
   "dependencies": {
-    "@opentelemetry/auto-instrumentations-node": "0.81.2",
+    "@opentelemetry/auto-instrumentations-node": "0.83.1",
     "@opentelemetry/exporter-trace-otlp-proto": "0.223.0",
     "@opentelemetry/resources": "2.12.0",
     "@opentelemetry/sdk-node": "0.223.0",
-    "@opentelemetry/semantic-conventions": "1.43.0",
+    "@opentelemetry/semantic-conventions": "1.45.0",
     "dayjs": "^1.11.23",
     "zod": "^4.6.7"
   },
@@ -24,7 +24,7 @@
     "./sentry": "./src/sentry.ts"
   },
   "devDependencies": {
-    "@types/node": "^24.10.1",
-    "vitest": "5.0.5"
+    "@types/node": "^24.19.2",
+    "vitest": "5.1.0"
   }
 }
