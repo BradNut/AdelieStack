@@ -33,7 +33,7 @@
   },
   "devDependencies": {
     "@adelie/test-utils": "workspace:*",
-    "@biomejs/biome": "2.5.15",
+    "@biomejs/biome": "2.6.8",
     "@faker-js/faker": "^10.6.0",
     "@inlang/paraglide-js": "2.29.0",
     "@scalar/api-reference": "1.78.1",

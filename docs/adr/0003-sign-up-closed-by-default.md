@@ -1,6 +1,6 @@
 ---
-status: accepted
----
+
+## status: accepted
 
 # Sign-up is closed by default; accounts are admin-provisioned
 

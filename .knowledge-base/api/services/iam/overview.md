@@ -27,6 +27,7 @@ Our own routes only read the session: `GET /api/users/me` (Users service) and an
 ## Key Concepts
 
 ### Request flow
+
 1. `ApplicationController.registerControllers` hands `/api/auth/*` straight to
    `AuthService.auth.handler`, before any other route.
 2. For every other route, the `authSession` middleware calls `auth.api.getSession` and sets
@@ -36,6 +37,7 @@ Our own routes only read the session: `GET /api/users/me` (Users service) and an
    ([ADR 0002](../../../../docs/adr/0002-authorization-delegates-to-better-auth.md)).
 
 ### Sessions
+
 - Stored in the Postgres `sessions` table, not Redis. The cookie cache is off, so every request
   reads the row and a revoked session or changed role applies at once.
 - Lifetimes come from `packages/shared/src/constants/auth-session.ts`: a session lasts 7 days after
@@ -46,6 +48,7 @@ Our own routes only read the session: `GET /api/users/me` (Users service) and an
 - Cookies, the `_id` browser-session cookie included, are `Secure` when `BETTER_AUTH_URL` is https (`usesSecureCookies`); attributes come from `DEFAULT_COOKIE_ATTRIBUTES`.
 
 ### Roles
+
 Stored on `users.role` by the admin plugin (`admin`, `support`, `user`); see the
 [data model](./data-model.md) and the glossary's Role and Role Policy. Admin capabilities need a
 Second Factor (two-factor enabled or a passkey); signing in and enrolling do not
@@ -108,11 +111,13 @@ Operational details for each of these are in the
 ## Dependencies
 
 ### Internal
+
 - `ConfigService` (env), `DrizzleService` (Postgres), `MailerService`, `LoggerService`
 - `AuthRateLimitRepository` over `RedisService` (rate-limit counters only)
 - `@adelie/shared`: session, cookie, rate-limit, role and password constants
 
 ### External
+
 - `better-auth`, `@better-auth/passkey`
 - Have I Been Pwned and the configured Captcha Provider, when enabled
 

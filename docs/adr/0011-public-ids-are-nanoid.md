@@ -1,6 +1,6 @@
 ---
-status: accepted
----
+
+## status: accepted
 
 # Public Ids are nanoid, not cuid2 or UUIDs
 

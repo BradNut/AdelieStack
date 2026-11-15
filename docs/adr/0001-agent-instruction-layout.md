@@ -1,6 +1,6 @@
 ---
-status: accepted
----
+
+## status: accepted
 
 # Agent instructions live in AGENTS.md, not a `.agents/` rules layer
 

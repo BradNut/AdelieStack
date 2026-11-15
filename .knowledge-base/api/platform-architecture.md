@@ -32,18 +32,21 @@
 ### Infrastructure Services
 
 #### PostgreSQL Database
+
 - **Purpose**: Primary data store for users, roles, sessions, and account/auth records
 - **ORM**: Drizzle with type-safe queries
 - **Migrations**: Managed via `drizzle-kit`
 - **Connection**: Pooled connections with lazy initialization
 
 #### Redis Cache
+
 - **Purpose**: Session storage, rate limiting, caching
 - **Client**: ioredis with `lazyConnect: true`
 - **Configuration**: Lazy getter pattern to prevent build-time connections
 - **Use Cases**: User sessions, API rate limits, temporary data
 
 #### SeaweedFS Object Storage
+
 - **Purpose**: S3-compatible object storage for user-uploaded files
 - **Integration**: AWS SDK v3
 - **Features**: S3 API on `:8333`; public-read granted via `docker/seaweedfs/s3-config.json`;
@@ -56,11 +59,13 @@
   created on first use). `PUBLIC_IMAGE_URI` is the public bucket's browser-facing base
 
 #### Mailpit
+
 - **Purpose**: Email testing and delivery in development
 - **Integration**: SMTP transport
 - **Use Cases**: Password reset, verification emails, notifications
 
 #### ClamAV
+
 - **Purpose**: Virus scanning of uploaded files
 - **Integration**: `clamscan` client talking to a clamd daemon over TCP
   (`storage/virus-scanner.service.ts`); the connection opens on the first scan
@@ -96,6 +101,7 @@
   counting only records in the project's buckets
 
 #### Spotlight
+
 - **Purpose**: Error tracking and application monitoring
 - **Integration**: Sentry SDK
 - **Features**: Error reporting, performance monitoring, release tracking
@@ -104,6 +110,7 @@
 ## Deployment Architecture
 
 ### Coolify Deployment
+
 - **Platform**: Self-hosted Coolify instance (Nixpacks or Docker build — see
   `apps/api/nixpacks.toml` / `apps/api/Dockerfile`)
 - **Build**: Turbo/pnpm build scoped with `--filter @adelie/api...`
@@ -111,6 +118,7 @@
 - **Environment**: Production environment variables via Coolify secrets. The platform must set `ENVIRONMENT` (`staging` or `production`; the image does not) and keep `NODE_ENV=production` (the image sets it); see the [environment-config runbook](./runbooks/environment-config.md#the-environment-switch)
 
 ### Build Process
+
 1. Install dependencies with pnpm
 2. Run Turbo build for API workspace
 3. Generate Drizzle migrations (if needed)
@@ -119,6 +127,7 @@
 6. Deploy to Coolify with health checks
 
 ### Memory Optimization
+
 - Removed heavy build plugins to reduce memory usage
 - Lazy service initialization prevents OOM during builds
 - Redis lazy connect prevents connection attempts at build time
@@ -127,12 +136,14 @@
 ## Network Architecture
 
 ### URL Structure
+
 - **Production**: no fixed public domain is documented in this repo; the API listens on port
   3001 behind Coolify (see [deployment runbook](./runbooks/deployment.md))
 - **Local Development**: `http://localhost:3000`
 - **API Proxy**: Web app proxies `/api/*` to API service
 
 ### CORS & Security
+
 - CORS configured for web domain
 - CSRF protection for state-changing operations
 - Secure headers (HSTS, CSP, X-Frame-Options)
@@ -141,6 +152,7 @@
 ## Data Flow
 
 ### Request Lifecycle
+
 1. **Client Request** → Web app or direct API call
 2. **Proxy/Gateway** → Route to API service
 3. **Middleware Chain** → Auth, rate limit, CORS, logging
@@ -150,6 +162,7 @@
 7. **Response** → Standardized JSON response
 
 ### Authentication Flow
+
 1. User submits credentials
 2. Validate against database (Argon2 hash via `HashingService`)
 3. Create session in Redis
@@ -158,6 +171,7 @@
 6. Middleware validates session from Redis
 
 ### File Upload Flow
+
 1. Client uploads file via multipart form
 2. API receives and validates file type/size
 3. Resize via `sharp` if the upload requests a width or height
@@ -175,18 +189,21 @@
 ## Monitoring & Observability
 
 ### Logging
+
 - Structured JSON logs everywhere but `ENVIRONMENT=development`, which pretty-prints them and logs SQL
 - Request/response logging: pino's standard fields (`level`, `time`, `pid`, `hostname`) plus request id, method, path (reset tokens redacted, no query), status, duration and a fixed `msg` (`Request completed`, or `Request failed` at `error` level when a handler threw) only; never headers or error messages
 - Unexpected errors (`common/middleware/error-handler.middleware.ts`): a separate `Unexpected error` entry at `error` level with the request id and the error's type, message, stack and cause chain under `error`; connection-string credentials and query parameters are redacted, and headers stay out. The client gets a generic localised message (`server_unexpected_error`) and the request id; only the development Environment (`ENVIRONMENT=development`, `isDevelopmentEnvironment`) adds the error text and stack. A thrown `HTTPException` is a deliberate client error: it keeps its status and message and is not logged as a failure
 - Performance metrics
 
 ### Error Tracking
+
 - Spotlight/Sentry integration
 - Automatic error capture
 - Source maps for stack traces
 - Release tracking
 
 ### Health Checks
+
 - `/health` endpoint for liveness
 - Database connection check
 - Redis connection check
@@ -195,12 +212,14 @@
 ## Scaling Considerations
 
 ### Horizontal Scaling
+
 - Stateless API design (sessions in Redis)
 - Load balancer ready
 - Shared Redis for session consistency
 - Shared PostgreSQL with connection pooling
 
 ### Vertical Scaling
+
 - Memory optimization for build and runtime
 - Efficient database queries with indexes
 - Redis caching for hot data

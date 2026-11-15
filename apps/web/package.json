@@ -32,7 +32,7 @@
   },
   "devDependencies": {
     "@adelie/test-utils": "workspace:*",
-    "@biomejs/biome": "2.5.15",
+    "@biomejs/biome": "2.6.8",
     "@chromatic-com/storybook": "^5.6.0",
     "@dicebear/converter": "^10.7.0",
     "@dicebear/core": "^10.7.0",

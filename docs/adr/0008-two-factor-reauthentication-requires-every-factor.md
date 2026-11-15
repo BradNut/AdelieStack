@@ -1,6 +1,6 @@
 ---
-status: accepted
----
+
+## status: accepted
 
 # Re-authentication of a two-factor account requires every factor
 

@@ -41,7 +41,7 @@
     "machine-translate": "pnpm --filter @adelie/web machine-translate"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.5.15",
+    "@biomejs/biome": "2.6.8",
     "turbo": "2.11.11",
     "typescript": "^7.0.2"
   },

@@ -59,7 +59,7 @@ No additional setup is required, zero api keys, zero services to signup for, zer
 This is **not** supposed to serve as an all batteries included ["production boilerplate"](https://github.com/ixartz/Next-js-Boilerplate) with 200 useless sponsored features that get in your way.
 Templates that do this are ANYTHING but "production" and "quick start".
 
-This is stack is designed to be library agnostic. The philosophy here is to boostrap the concrete, repetitive, 
+This is stack is designed to be library agnostic. The philosophy here is to boostrap the concrete, repetitive,
 and time-consuming tasks that every application will need regardless of what you're building.
 
 **So - fork this repo, add your favorite libraries, and build out your own "more opinionated" personal template tailored to you**!

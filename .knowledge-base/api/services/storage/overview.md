@@ -39,13 +39,13 @@ With `ANTIVIRUS_ENABLED` on, each object carries a [Scan Status](../../glossary.
 - Every read (`get`, `getObjectStream`, `getPresignedUrl`, `getFileUrl`) checks the Scan Status before
   fetching any bytes, for both buckets:
 
-  | Scan Status | Response | `code` (`StorageErrorCode`) |
-  |---|---|---|
-  | none, `pending`, `scanning` | 425 | `SCAN_PENDING` |
-  | `infected` | 410 | `SCAN_INFECTED` |
-  | `error` | 500 | `SCAN_FAILED` |
-  | `too-large`, any other value | 403 | `SCAN_REFUSED` |
-  | `clean` | the object | none |
+  | Scan Status                  | Response   | `code` (`StorageErrorCode`) |
+  | ---------------------------- | ---------- | --------------------------- |
+  | none, `pending`, `scanning`  | 425        | `SCAN_PENDING`              |
+  | `infected`                   | 410        | `SCAN_INFECTED`             |
+  | `error`                      | 500        | `SCAN_FAILED`               |
+  | `too-large`, any other value | 403        | `SCAN_REFUSED`              |
+  | `clean`                      | the object | none                        |
 
 - A failure to read the tags (an outage, a missing key) propagates unchanged; it is not reported as pending
 - `getScanStatus` returns the recorded value, or `null` when there is none

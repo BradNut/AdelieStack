@@ -1,6 +1,6 @@
 ---
-status: accepted
----
+
+## status: accepted
 
 # Social re-authentication replays a persisted action after the provider redirect
 
