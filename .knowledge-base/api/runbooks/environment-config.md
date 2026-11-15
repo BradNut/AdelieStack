@@ -195,6 +195,17 @@ The reCAPTCHA keys above are v2 and always pass, so they do not exercise `CAPTCH
 - The pure mapping lives in `databases/postgres/postgres-ssl.ts` (`postgresSsl`); the env DTO validates against its modes, and `drizzle.service.ts` (the API pool), `drizzle.client.ts` (the scripts) and `drizzle.config.ts` all call it.
 - **Upgrading:** drizzle-kit used to turn TLS on by itself for any `DATABASE_HOST` other than `localhost`; it now follows `DATABASE_SSL_MODE` and defaults to `disable`. If you run `db:push`, `db:studio` or drizzle-kit migrations against a remote database, set `DATABASE_SSL_MODE=verify-full` or those commands connect without TLS (or fail where the server insists on it).
 
+## Redis access and TLS
+
+`REDIS_URL` holds the auth rate-limit counters, account lockout state and the background job queues. Anyone who can reach Redis can reset throttling and lockouts and tamper with jobs. The variable is declared sensitive because a real URL embeds the password, so tooling redacts it; the API's startup and job messages name the variable, never its value. Production accepts any `REDIS_URL`: the boundary below is the deployer's to keep ([decision](../decisions/index.md#recorded-decisions)).
+
+- **Boundary:** never publish Redis to the internet; make it reachable only on the API's private network. If anything other than the API and its operators shares that network, Redis needs a password.
+- **TLS:** `redis://` (no TLS) is acceptable on the same host or a private network. Use `rediss://` for any Redis reached over a network, including managed Redis, so rate-limit, lockout and job traffic is not sent in the clear. Both work through the URL alone; there is no separate TLS or password setting.
+- **Password:** put it in the URL: `redis://:password@host:6379`, or `redis://user:password@host:6379` for an ACL user. Percent-encode special characters in the password.
+- Certificates are checked against Node's bundled CAs. For a private CA, point `NODE_EXTRA_CA_CERTS` at its PEM file, as for Postgres.
+- Local development keeps `redis://localhost:6379`; a fresh clone needs nothing.
+- `redis-cli -u "$REDIS_URL"` from an API host or container stays within this boundary.
+
 ## Storage
 
 Buckets: `${PROJECT_NAME}-public-${ENVIRONMENT}` and `${PROJECT_NAME}-private-${ENVIRONMENT}`.
