@@ -78,7 +78,7 @@
     "drizzle-orm": "^0.45.4",
     "drizzle-zod": "^0.8.3",
     "file-type": "^22.3.0",
-    "hono": "^4.13.13",
+    "hono": "^4.13.16",
     "hono-pino": "^0.10.3",
     "hono-rate-limiter": "^0.5.4",
     "hono-zod-openapi": "^1.1.1",

@@ -116,7 +116,7 @@
     "better-auth": "1.7.13",
     "dayjs": "^1.11.23",
     "dotenv": "^18.0.8",
-    "hono": "^4.13.13",
+    "hono": "^4.13.16",
     "import-in-the-middle": "^3.5.2",
     "just-is-empty": "^3.4.1",
     "just-kebab-case": "^4.2.0",
