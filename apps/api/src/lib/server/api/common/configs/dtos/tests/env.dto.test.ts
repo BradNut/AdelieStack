@@ -247,6 +247,16 @@ describe('envsDto production refuses development defaults', () => {
   });
 });
 
+describe('envsDto production Redis URL', () => {
+  // Decision: .knowledge-base/api/decisions/index.md ("Production does not require Redis credentials or TLS", #272).
+  // Transport to internal services is the deployer's call; do not add a refusal here without revisiting that entry.
+  it('accepts production with a passwordless, plain-text REDIS_URL (see the decisions index, #272)', () => {
+    const result = envsDto.safeParse({ ...validEnvs, ...productionEnvOverrides, REDIS_URL: 'redis://redis:6379' });
+    expect(result.error?.issues).toBeUndefined();
+    expect(result.success).toBe(true);
+  });
+});
+
 describe('envsDto development and test configurations', () => {
   it('accepts every development default, mailpit and an http BETTER_AUTH_URL', () => {
     const local = {

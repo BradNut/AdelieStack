@@ -82,7 +82,7 @@ Type-safe database toolkit for TypeScript used for database queries and migratio
 S3-compatible object storage used for file uploads in local development.
 
 **Redis**
-Store for rate-limit counters and account lockout state, shared by every API instance. Sessions are not kept here.
+Store for rate-limit counters, account lockout state and background job queues, shared by every API instance. Sessions are not kept here.
 
 **Migration**
 Database schema change managed through Drizzle tooling.
