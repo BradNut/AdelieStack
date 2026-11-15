@@ -57,13 +57,13 @@ steps 1-4 above (origin/domain/cookie config), not Redis.
 
 ## Common Fixes
 
-| Problem | Fix |
-|---|---|
+| Problem                                                                  | Fix                                                                                                                         |
+| ------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------- |
 | Form action returns 403 `Cross-site POST form submissions are forbidden` | Origin derived wrong: set `PROTOCOL_HEADER`/`HOST_HEADER` behind a trusted proxy, or build with `WEB_ORIGIN` for plain HTTP |
-| `DOMAIN` wrong | Hostname only — no `https://`, no path |
-| HTTP in production | Cookies with `Secure` flag dropped over HTTP; enforce HTTPS |
-| Redis down (API-side) | Restart Redis; check API's `REDIS_URL` — not a web-app config |
-| Stale session after password change | API invalidates old sessions; expected behavior |
+| `DOMAIN` wrong                                                           | Hostname only — no `https://`, no path                                                                                      |
+| HTTP in production                                                       | Cookies with `Secure` flag dropped over HTTP; enforce HTTPS                                                                 |
+| Redis down (API-side)                                                    | Restart Redis; check API's `REDIS_URL` — not a web-app config                                                               |
+| Stale session after password change                                      | API invalidates old sessions; expected behavior                                                                             |
 
 ## Related
 

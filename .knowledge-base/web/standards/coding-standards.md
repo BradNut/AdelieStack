@@ -64,16 +64,14 @@ export const actions = {
       return fail(StatusCodes.BAD_REQUEST, { updateEmailForm });
     }
 
-    const { error } = await parseApiResponse(
-      await honoClient(fetch).users.me.email.request.$post({ json: updateEmailForm.data })
-    );
+    const { error } = await parseApiResponse(await honoClient(fetch).users.me.email.request.$post({ json: updateEmailForm.data }));
 
     if (error) {
       return setError(updateEmailForm, 'email', 'Unable to update email.');
     }
 
     return { updateEmailForm };
-  }
+  },
 };
 ```
 

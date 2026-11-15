@@ -7,7 +7,7 @@ on:
     branches: [main]
   schedule:
     # Weekly, so new queries scan code that has not changed.
-    - cron: '23 4 * * 1'
+    - cron: "23 4 * * 1"
 
 permissions:
   contents: read

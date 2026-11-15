@@ -6,6 +6,7 @@ Better Auth owns authentication (see `apps/api/src/lib/server/api/auth/auth.conf
 handler is mounted at `/api/auth/*`, ahead of the session middleware and every other route.
 
 ### Cookie Sessions
+
 - Sessions are rows in the `sessions` table (PostgreSQL), referenced by an opaque token
 - The token travels only in a signed, `httpOnly`, `sameSite: 'lax'` cookie, `secure` over HTTPS
 - Better Auth signs and encrypts with `BETTER_AUTH_SECRET` (min 32 chars)
@@ -14,6 +15,7 @@ handler is mounted at `/api/auth/*`, ahead of the session middleware and every o
 - Signing out, or revoking a session, deletes its row
 
 ### Password Security
+
 - **Hashing**: handled by Better Auth; application code never hashes or stores passwords itself
 - **Length**: new passwords are 15 to 128 characters (`MIN_PASSWORD_LENGTH` / `MAX_PASSWORD_LENGTH`
   in `@adelie/shared`), the NIST SP 800-63B-4 minimum when a password may be the only factor. No
@@ -24,6 +26,7 @@ handler is mounted at `/api/auth/*`, ahead of the session middleware and every o
 ## Authorization
 
 ### Role-Based Access Control (RBAC)
+
 - Roles: `admin`, `support`, `user` (`RoleName` in `@adelie/shared`)
 - A user's role is the `role` field the Better Auth admin plugin keeps on the `users` row; it
   defaults to `user` and cannot be set by sign-up or update-user input
@@ -40,6 +43,7 @@ this.controller.get('/admin/example', requirePermission(authService, { user: ['l
 ```
 
 ### Resource-Level Authorization
+
 ```typescript
 // Verify user owns resource
 async function authorizeResource(userId: string, resourceId: string) {
@@ -54,6 +58,7 @@ async function authorizeResource(userId: string, resourceId: string) {
 ## Input Validation
 
 ### Zod Schema Validation
+
 - Validate all inputs with Zod schemas
 - Sanitize user input
 - Reject unexpected fields
@@ -61,42 +66,44 @@ async function authorizeResource(userId: string, resourceId: string) {
 ```typescript
 import { z } from 'zod';
 
-const userInputSchema = z.object({
-  email: z.string().email().toLowerCase(),
-  name: z.string().min(1).max(100).trim(),
-  age: z.number().int().min(0).max(120)
-}).strict(); // Reject extra fields
+const userInputSchema = z
+  .object({
+    email: z.string().email().toLowerCase(),
+    name: z.string().min(1).max(100).trim(),
+    age: z.number().int().min(0).max(120),
+  })
+  .strict(); // Reject extra fields
 ```
 
 ### SQL Injection Prevention
+
 - Use parameterized queries (Drizzle ORM)
 - Never concatenate user input into SQL
 - Use ORM query builders
 
 ```typescript
 // ✅ Safe: Parameterized query
-const user = await db.select()
-  .from(users)
-  .where(eq(users.email, email));
+const user = await db.select().from(users).where(eq(users.email, email));
 
 // ❌ Unsafe: String concatenation
 const query = `SELECT * FROM users WHERE email = '${email}'`;
 ```
 
 ### XSS Prevention
+
 - Escape user-generated content
 - Use Content-Security-Policy headers
 - Sanitize HTML input
 
 ```typescript
 // CSP header
-res.setHeader('Content-Security-Policy', 
-  "default-src 'self'; script-src 'self' 'unsafe-inline'");
+res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline'");
 ```
 
 ## Rate Limiting
 
 ### Redis-Based Rate Limiting
+
 - Per-IP rate limits
 - Per-user rate limits
 - Different limits for different endpoints
@@ -106,11 +113,12 @@ res.setHeader('Content-Security-Policy',
 const rateLimits = {
   login: { requests: 5, window: 60 }, // 5 requests per minute
   api: { requests: 100, window: 60 }, // 100 requests per minute
-  upload: { requests: 10, window: 3600 } // 10 uploads per hour
+  upload: { requests: 10, window: 3600 }, // 10 uploads per hour
 };
 ```
 
 ### Response Headers
+
 ```typescript
 X-RateLimit-Limit: 100
 X-RateLimit-Remaining: 95
@@ -120,6 +128,7 @@ X-RateLimit-Reset: 1640000000
 ## CSRF Protection
 
 ### CSRF Tokens
+
 - Generate CSRF tokens for state-changing operations
 - Validate tokens on POST, PATCH, DELETE requests
 - Use SameSite cookie attribute
@@ -133,7 +142,7 @@ res.cookie('csrf-token', csrfToken, { sameSite: 'strict' });
 function validateCsrf(req: Request) {
   const headerToken = req.headers.get('X-CSRF-Token');
   const cookieToken = req.cookies.get('csrf-token');
-  
+
   if (headerToken !== cookieToken) {
     throw new ForbiddenError('Invalid CSRF token');
   }
@@ -143,6 +152,7 @@ function validateCsrf(req: Request) {
 ## Secure Headers
 
 ### Security Headers
+
 `securityHeaders()` (`common/middleware/security-headers.middleware.ts`) runs on every `/api` response, Better Auth's,
 404s and errors included, and the web app's `hooks.server.ts` sets the same headers on pages. Both use
 `withSecurityHeaders` from `@adelie/shared`, so the values live in one place:
@@ -159,6 +169,7 @@ Pages keep SvelteKit's CSP (`apps/web/csp-directives.mjs`). No endpoint reports 
 ## Data Protection
 
 ### Sensitive Data Handling
+
 - Never log passwords, tokens, or sensitive data
 - Redact sensitive fields in logs
 - Encrypt sensitive data at rest
@@ -173,6 +184,7 @@ function sanitizeForLogging(user: User) {
 ```
 
 ### Personal Data
+
 - Comply with GDPR/privacy regulations
 - Implement data deletion on user request
 - Minimize data collection
@@ -181,6 +193,7 @@ function sanitizeForLogging(user: User) {
 ## File Upload Security
 
 ### File Validation
+
 - Validate file type and size
 - Scan files with ClamAV antivirus
 - Store files in isolated storage (S3-compatible, SeaweedFS locally)
@@ -211,6 +224,7 @@ if (scanResult.isInfected) {
 ```
 
 ### File Storage
+
 - Store files outside web root
 - Use presigned URLs for access
 - Set appropriate file permissions
@@ -219,6 +233,7 @@ if (scanResult.isInfected) {
 ## Secrets Management
 
 ### Environment Variables
+
 - Store secrets in environment variables
 - Never commit secrets to version control
 - Use `.env` files for local development
@@ -236,6 +251,7 @@ if (!dbPassword || !apiKey) {
 ```
 
 ### Secret Rotation
+
 - Rotate secrets regularly
 - Support multiple active secrets during rotation
 - Invalidate old secrets after rotation period
@@ -243,6 +259,7 @@ if (!dbPassword || !apiKey) {
 ## Audit Logging
 
 ### Audit Events to Log
+
 - Authentication attempts (success/failure)
 - Authorization failures
 - Password changes
@@ -257,11 +274,12 @@ await auditLog.create({
   action: 'LOGIN_SUCCESS',
   ipAddress: req.ip,
   userAgent: req.headers.get('User-Agent'),
-  timestamp: new Date()
+  timestamp: new Date(),
 });
 ```
 
 ### Log Security
+
 - Protect logs from unauthorized access
 - Retain logs for compliance period
 - Monitor logs for security incidents
@@ -276,21 +294,25 @@ in `auth/tables/auth.table.ts`.
 ## API Security Best Practices
 
 ### 1. Principle of Least Privilege
+
 - Grant minimum necessary permissions
 - Restrict access by default
 - Require explicit authorization
 
 ### 2. Defense in Depth
+
 - Multiple layers of security
 - Validate at every layer (client, API, database)
 - Fail securely
 
 ### 3. Secure Defaults
+
 - Secure by default configuration
 - Opt-in for less secure options
 - Clear security warnings
 
 ### 4. Regular Security Audits
+
 - Code reviews for security issues
 - Dependency vulnerability scanning
 - Penetration testing
@@ -299,6 +321,7 @@ in `auth/tables/auth.table.ts`.
 ## Dependency Security
 
 ### Vulnerability Scanning
+
 ```bash
 # Check for known vulnerabilities
 pnpm audit
@@ -308,6 +331,7 @@ pnpm update
 ```
 
 ### Dependency Management
+
 - Keep dependencies up to date
 - Review dependency changes
 - Use lock files (`pnpm-lock.yaml`)
@@ -316,6 +340,7 @@ pnpm update
 ## Incident Response
 
 ### Security Incident Procedure
+
 1. **Detect** - Monitor for security events
 2. **Contain** - Isolate affected systems
 3. **Investigate** - Determine scope and impact
@@ -324,6 +349,7 @@ pnpm update
 6. **Review** - Post-incident analysis
 
 ### Breach Notification
+
 - Notify affected users
 - Report to authorities if required
 - Document incident and response

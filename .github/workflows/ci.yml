@@ -8,9 +8,9 @@ on:
   push:
     branches: [main]
     paths-ignore:
-      - '**.md'
-      - '.knowledge-base/**'
-      - 'docs/**'
+      - "**.md"
+      - ".knowledge-base/**"
+      - "docs/**"
   workflow_dispatch:
 
 concurrency:
@@ -102,7 +102,7 @@ jobs:
       BETTER_AUTH_SECRET: ci-only-not-a-secret-better-auth-key
       ADMIN_PASSWORD: ci-only-not-a-secret-admin-password
       # Playwright turns this off for the servers it starts; the seed runs outside Playwright.
-      HIBP_ENABLED: 'false'
+      HIBP_ENABLED: "false"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/setup

@@ -34,18 +34,21 @@
 ### Rendering Modes
 
 #### Server-Side Rendering (SSR)
+
 - Default for most pages
 - Fast initial page load
 - SEO-friendly
 - Dynamic content
 
 #### Static Site Generation (SSG)
+
 - Pre-rendered at build time
 - Fastest possible load
 - Used for static pages (about, terms, etc.)
 - Set via `export const prerender = true`
 
 #### Client-Side Rendering (CSR)
+
 - Hydration after SSR
 - Interactive components
 - Dynamic updates without page reload
@@ -174,6 +177,7 @@ individual cookies or reconstruct headers by hand.
 ## State Management
 
 ### Server State (Load Functions)
+
 ```typescript
 // +page.server.ts
 import { honoClient, parseApiResponse } from '#lib/utils/api';
@@ -185,6 +189,7 @@ export async function load({ fetch }) {
 ```
 
 ### Component State (Runes)
+
 ```svelte
 <script>
   let count = $state(0);
@@ -202,6 +207,7 @@ There is no global writable store for user/session state; server `load` re-fetch
 ## Build Process
 
 ### Development Build
+
 ```bash
 pnpm dev
 # Starts Vite dev server with HMR
@@ -210,6 +216,7 @@ pnpm dev
 ```
 
 ### Production Build
+
 ```bash
 pnpm build
 # 1. Run svelte-kit sync
@@ -220,6 +227,7 @@ pnpm build
 ```
 
 ### Build Optimizations
+
 - Tree shaking (remove unused code)
 - Code splitting (lazy load routes)
 - CSS purging (remove unused Tailwind)
@@ -237,11 +245,13 @@ duplicate them, to avoid drift.
 ## Performance Architecture
 
 ### Code Splitting
+
 - Automatic route-based splitting
 - Dynamic imports for heavy components
 - Lazy load below-the-fold content
 
 ### Caching Strategy
+
 ```typescript
 // Static assets: 1 year
 Cache-Control: public, max-age=31536000, immutable
@@ -254,6 +264,7 @@ Cache-Control: private, max-age=300
 ```
 
 ### Image Optimization
+
 - Responsive images with srcset
 - Lazy loading for off-screen images
 - WebP format with fallbacks
@@ -294,11 +305,13 @@ The mode-watcher theme script is a `<script nonce="%sveltekit.nonce%">` in `src/
 violation. See the comments in `csp-directives.mjs` for why each entry exists before changing it.
 
 ### CSRF Protection
+
 - SvelteKit built-in CSRF tokens
 - Validated on form submissions
 - SameSite cookies
 
 ### Session Security
+
 - HttpOnly session cookies
 - Secure flag in production
 - SameSite=Lax attribute
@@ -307,11 +320,13 @@ violation. See the comments in `csp-directives.mjs` for why each entry exists be
 ## Monitoring & Observability
 
 ### Client-Side Monitoring
+
 - Error tracking (Sentry/Spotlight)
 - Performance metrics (Web Vitals)
 - User analytics (optional)
 
 ### Server-Side Monitoring
+
 - Request logging
 - Error logging
 - Performance metrics
@@ -319,12 +334,14 @@ violation. See the comments in `csp-directives.mjs` for why each entry exists be
 ## Scalability Considerations
 
 ### Horizontal Scaling
+
 - Stateless server (sessions in API)
 - Load balancer ready
 - CDN for static assets
 - API proxy distributes load
 
 ### Vertical Scaling
+
 - Memory optimization (removed heavy plugins)
 - Efficient bundle size
 - Lazy loading

@@ -120,8 +120,6 @@ also opens is unaffected.
 - **Components**: login form built from `sveltekit-superforms` + Shadcn `Form`/`Input`/`Button`;
   the shared `SocialButtons` component, rendered only for configured providers
 
-
-
 ### `/signup` — Signup Page
 
 - **Layout**: `(auth)`

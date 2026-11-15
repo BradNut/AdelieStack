@@ -5,11 +5,13 @@ Token-light navigation for the AdelieStack knowledge base. Prefer the API/Web in
 ## API Documentation
 
 ### Foundation
+
 - [Overview](./api/overview.md) - API architecture and purpose
 - [Core Principles](./api/core-principles.md) - Design principles and patterns
 - [Platform Architecture](./api/platform-architecture.md) - Infrastructure and deployment
 
 ### Standards & Conventions
+
 - [Coding Standards](./api/standards/coding-standards.md)
 - [API Conventions](./api/standards/api-conventions.md)
 - [Testing Standards](./api/standards/testing-standards.md)
@@ -24,6 +26,7 @@ Token-light navigation for the AdelieStack knowledge base. Prefer the API/Web in
 - [Storage](./api/services/storage/overview.md)
 
 ### Operations
+
 - [Runbooks](./api/runbooks/index.md) - Operational procedures
 - [Decisions](./api/decisions/index.md) - Architectural decision records
 - [Glossary](./api/glossary.md) - Terms and definitions
@@ -31,11 +34,13 @@ Token-light navigation for the AdelieStack knowledge base. Prefer the API/Web in
 ## Web Documentation
 
 ### Foundation
+
 - [Overview](./web/overview.md) - Web application architecture
 - [Core Principles](./web/core-principles.md) - Frontend design principles
 - [Platform Architecture](./web/platform-architecture.md) - SvelteKit structure
 
 ### Standards & Conventions
+
 - [Coding Standards](./web/standards/coding-standards.md)
 
 ### Features
@@ -43,6 +48,7 @@ Token-light navigation for the AdelieStack knowledge base. Prefer the API/Web in
 - [Authentication](./web/features/authentication/overview.md)
 
 ### Operations
+
 - [Runbooks](./web/runbooks/index.md) - Deployment and operations
 - [Decisions](./web/decisions/index.md) - Frontend architectural decisions
 - [Glossary](./web/glossary.md) - Frontend terms and definitions
