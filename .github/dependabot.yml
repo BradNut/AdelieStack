@@ -1,6 +1,6 @@
 version: 2
 updates:
-  # Keeps the SHA-pinned actions in .github/ current; npm updates are not managed here.
+  # Keeps the SHA-pinned actions in .github/ current.
   - package-ecosystem: github-actions
     directories:
       - /
@@ -14,3 +14,12 @@ updates:
           - '*'
     commit-message:
       prefix: ci
+
+  # npm is security-updates only: the zero PR limit turns version updates off, and the entry exists so security-update
+  # PRs target development instead of the default branch (#234).
+  - package-ecosystem: npm
+    directory: /
+    target-branch: development
+    open-pull-requests-limit: 0
+    commit-message:
+      prefix: fix

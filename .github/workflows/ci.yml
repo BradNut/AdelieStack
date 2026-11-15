@@ -1,12 +1,10 @@
 name: CI
 
 on:
+  # No paths-ignore on pull_request: these jobs are required checks (docs/runbooks/branch-protection.md), and a
+  # required check that never runs leaves a docs-only PR unmergeable.
   pull_request:
     branches: [main, development]
-    paths-ignore:
-      - '**.md'
-      - '.knowledge-base/**'
-      - 'docs/**'
   push:
     branches: [main]
     paths-ignore:
@@ -41,6 +39,17 @@ jobs:
       - run: pnpm exec biome check .
       - run: pnpm check:pinned-refs
       - run: pnpm test:scripts
+
+  # Fails on any high or critical production advisory. Moderates and lows stay visible in the output but
+  # do not block; their disposition is in docs/runbooks/branch-protection.md (#234).
+  audit:
+    name: Dependency audit (production)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup
+      - run: pnpm audit --prod --audit-level=high
 
   check:
     name: Type check (web + API + shared boundaries)

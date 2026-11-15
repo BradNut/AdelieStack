@@ -10,3 +10,14 @@ onlyBuiltDependencies:
   - "protobufjs"
   - "sharp"
   - "svelte-preprocess"
+
+# Patched floors for transitive production dependencies with published advisories (#234).
+# Each pins a range inside the dependent's own semver range, so remove an entry once the
+# parent's lockfile resolution is at or above it on its own.
+overrides:
+  defu@<6.1.5: ">=6.1.5"
+  joi@<17.13.9: ">=17.13.9 <18"
+  systeminformation@<5.33.16: ">=5.33.16"
+  ws@<8.21.0: ">=8.21.0 <9"
+  "@babel/runtime@<7.26.10": ">=7.26.10"
+  postcss-selector-parser@<6.1.5: ">=6.1.5 <7"
