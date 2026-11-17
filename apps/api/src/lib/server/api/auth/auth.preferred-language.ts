@@ -1,6 +1,12 @@
-import type { DBFieldAttribute } from 'better-auth';
+import type { BetterAuthOptions, DBFieldAttribute } from 'better-auth';
 import { z } from 'zod';
 import { getRequestLocale, type Locale, locales } from '#lib/server/api/common/i18n/index';
+import { AuthEndpoint } from './auth.endpoints';
+
+type UserCreateBefore = NonNullable<NonNullable<NonNullable<NonNullable<BetterAuthOptions['databaseHooks']>['user']>['create']>['before']>;
+
+/** Where an account holder creates their own account, so the request's language is theirs. */
+const SELF_SIGN_UP_PATHS: ReadonlySet<string> = new Set([AuthEndpoint.SIGN_UP_EMAIL, AuthEndpoint.SIGN_IN_SOCIAL, AuthEndpoint.SOCIAL_CALLBACK]);
 
 /**
  * `user.additionalFields` entry for the Preferred Language: the locale every email to the account is written in.
@@ -33,3 +39,14 @@ function isSupportedLocale(value: unknown): value is Locale {
 export function mailLocale(user: PreferredLanguageHolder): Locale {
   return isSupportedLocale(user.locale) ? user.locale : getRequestLocale();
 }
+
+/**
+ * `databaseHooks.user.create.before`: a self or social sign-up saves its Request Locale as the Preferred Language, so
+ * the account starts in the language it was created in; a locale in the body does not override it. Every other way a
+ * user is created (an admin, the seed) leaves it `null`: that request carries the creator's language, not the account
+ * holder's. Existing accounts are not backfilled.
+ */
+export const seedPreferredLanguage: UserCreateBefore = async (user, context) => {
+  const locale = context?.path && SELF_SIGN_UP_PATHS.has(context.path) ? getRequestLocale() : null;
+  return { data: { ...user, locale } };
+};

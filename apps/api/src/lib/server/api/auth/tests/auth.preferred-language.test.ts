@@ -1,8 +1,8 @@
-import { AUTH_SESSION_FRESH_AGE } from '@adelie/shared';
+import { AUTH_SESSION_FRESH_AGE, RoleName, SocialProvider } from '@adelie/shared';
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { SendProps } from '#lib/server/api/mail/interfaces/mailer.interface';
-import { type AuthRequest, ageSessions, signUpWithEmail, TEST_USER } from '../../../../../test/auth-http';
-import { createTestAuth } from '../../../../../test/auth-instance';
+import { type AuthRequest, ageSessions, cookiesFrom, enrolPasskey, signUpWithEmail, TEST_USER } from '../../../../../test/auth-http';
+import { createTestAuth, stubGoogleUserInfo } from '../../../../../test/auth-instance';
 
 /** A session age just past the fresh age, so the session is stale. */
 const STALE_AGE = AUTH_SESSION_FRESH_AGE + 60;
@@ -26,8 +26,8 @@ async function signUp() {
   return cookie;
 }
 
-function storedLocale() {
-  return db.user.find((u) => u.email === TEST_USER.email)?.locale;
+function storedLocale(email = TEST_USER.email) {
+  return db.user.find((u) => u.email === email)?.locale;
 }
 
 const saveLocale = (cookie: string, locale: unknown) => request('/update-user', { cookie, body: { locale } });
@@ -68,5 +68,64 @@ describe('saving a Preferred Language', () => {
     expect(res.status).toBe(400);
     expect(((await res.json()) as { code: string }).code).toBe('VALIDATION_ERROR');
     expect(storedLocale()).toBe('de');
+  });
+});
+
+describe('seeding the Preferred Language at sign-up', () => {
+  const GERMAN = { 'accept-language': 'de' };
+
+  it('saves the Request Locale of a password sign-up', async () => {
+    await request('/sign-up/email', { headers: GERMAN, body: TEST_USER });
+
+    expect(storedLocale()).toBe('de');
+  });
+
+  it('saves en when the sign-up request names no supported language', async () => {
+    await request('/sign-up/email', { headers: { 'accept-language': 'fr' }, body: TEST_USER });
+
+    expect(storedLocale()).toBe('en');
+  });
+
+  it('ignores a locale in the sign-up body: the request decides', async () => {
+    await request('/sign-up/email', { headers: GERMAN, body: { ...TEST_USER, locale: 'es' } });
+
+    expect(storedLocale()).toBe('de');
+  });
+
+  it('saves the Request Locale of a social sign-up', async () => {
+    const email = 'social@example.com';
+    ({ db, request } = createTestAuth({
+      socialProviders: {
+        google: { clientId: 'id', clientSecret: 'secret', verifyIdToken: async () => true, getUserInfo: stubGoogleUserInfo(email) },
+      },
+    }));
+
+    const res = await request('/sign-in/social', {
+      headers: { 'accept-language': 'es' },
+      body: { provider: SocialProvider.GOOGLE, idToken: { token: 'provider-token' } },
+    });
+
+    expect(res.status).toBe(200);
+    expect(storedLocale(email)).toBe('es');
+  });
+
+  it("leaves an admin-created account without one, whatever the admin's language", async () => {
+    const testAuth = createTestAuth();
+    ({ db, request } = testAuth);
+    const admin = { name: 'Admin', email: 'admin@example.com', password: TEST_USER.password };
+    const { user } = await testAuth.auth.api.createUser({ body: { ...admin, role: RoleName.ADMIN } });
+    await enrolPasskey(testAuth.auth, user.id);
+    const cookie = cookiesFrom(await request('/sign-in/email', { body: { email: admin.email, password: admin.password } }));
+    const invitee = 'invitee@example.com';
+
+    const res = await request('/admin/create-user', {
+      cookie,
+      headers: GERMAN,
+      body: { name: 'Invitee', email: invitee, password: TEST_USER.password, role: RoleName.USER, data: { locale: 'de' } },
+    });
+
+    expect(res.status).toBe(200);
+    expect(storedLocale(invitee)).toBeNull();
+    expect(storedLocale(admin.email)).toBeNull();
   });
 });

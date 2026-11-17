@@ -35,7 +35,7 @@ import { createPasswordHasher, type PasswordHasher } from './auth.password-hash'
 import { createPasswordPolicyHook, hibpScreening } from './auth.password-policy';
 import { passwordRehash } from './auth.password-rehash';
 import { ac, roles } from './auth.permissions';
-import { preferredLanguageField } from './auth.preferred-language';
+import { preferredLanguageField, seedPreferredLanguage } from './auth.preferred-language';
 import type { ProviderHealth } from './auth.provider-health';
 import { type AuthRateLimitStorage, authRateLimitOptions } from './auth.rate-limit';
 import { replacedSession } from './auth.replaced-session';
@@ -138,6 +138,24 @@ export function drizzleAuthDatabase(db: NodePgDatabase<typeof drizzleSchema>): B
  */
 export function generateAuthId(): string {
   return uuidv7();
+}
+
+type UserCreateBefore = NonNullable<NonNullable<NonNullable<NonNullable<BetterAuthOptions['databaseHooks']>['user']>['create']>['before']>;
+
+/**
+ * Runs `databaseHooks.user.create.before` hooks in order, each one seeing the user the previous one returned. A hook
+ * that returns `false` stops the create, as Better Auth's own single hook would.
+ */
+function chainUserCreateBefore(...hooks: UserCreateBefore[]): UserCreateBefore {
+  return async (user, context) => {
+    let current = user;
+    for (const hook of hooks) {
+      const result = await hook(current, context);
+      if (result === false) return false;
+      if (typeof result === 'object') current = { ...current, ...result.data };
+    }
+    return { data: current };
+  };
 }
 
 /** Cookies are `Secure` whenever the API is served over https. */
@@ -246,7 +264,7 @@ export function createAuth({
       revokeSessionsOnPasswordReset: true,
     },
     databaseHooks: {
-      user: { create: { before: verifyAdminCreatedUser } },
+      user: { create: { before: chainUserCreateBefore(seedPreferredLanguage, verifyAdminCreatedUser) } },
       // Refreshes slide the expiry forward, but never past the absolute lifetime from sign-in.
       session: { update: { before: capSessionLifetime } },
     },

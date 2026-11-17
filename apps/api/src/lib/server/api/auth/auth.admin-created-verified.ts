@@ -2,7 +2,7 @@ import type { BetterAuthOptions } from 'better-auth';
 import { isRecord } from '#lib/server/api/common/utils/is-record';
 import { AuthEndpoint } from './auth.endpoints';
 
-type UserCreateBefore = NonNullable<NonNullable<NonNullable<BetterAuthOptions['databaseHooks']>['user']>['create']>['before'];
+type UserCreateBefore = NonNullable<NonNullable<NonNullable<NonNullable<BetterAuthOptions['databaseHooks']>['user']>['create']>['before']>;
 
 /** The `emailVerified` an admin's create-user body sets in its `data`, or undefined when it leaves it out. */
 function requestedEmailVerified(body: unknown): unknown {
