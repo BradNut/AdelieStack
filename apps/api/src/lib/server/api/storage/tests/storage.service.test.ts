@@ -16,7 +16,7 @@ import { ScanStatus, ScanTag, type Upload } from '#lib/server/api/storage/storag
 import { type ScanResponse, ScanResult, VirusScannerService } from '#lib/server/api/storage/virus-scanner.service';
 import { createConfigServiceMock } from '../../../../../test/mocks/config.mock';
 import { createLoggerServiceMock } from '../../../../../test/mocks/logger.mock';
-import { createJpeg, createPng, failureOf, IMAGE_LIBRARY_BROKEN, withNullDimensions } from './storage-test.helpers';
+import { createJpeg, createPng, failureOf, IMAGE_LIBRARY_BROKEN, stubClamd, withNullDimensions } from './storage-test.helpers';
 
 const envs: Partial<EnvsDto> = {
   ANTIVIRUS_ENABLED: false,
@@ -46,12 +46,13 @@ const IMAGE_UPLOAD = { maxSizeBytes: MAX_UPLOAD_SIZE_BYTES, acceptedTypes: ACCEP
 type ServiceBindings = {
   scanner?: Partial<VirusScannerService>;
   images?: Partial<ImagesService>;
+  envOverrides?: Partial<EnvsDto>;
 };
 
 /** Builds a StorageService; pass a stub to drive the virus scanner or observe ImagesService directly. */
-const createService = ({ scanner, images }: ServiceBindings = {}) => {
+const createService = ({ scanner, images, envOverrides }: ServiceBindings = {}) => {
   const container = new Container();
-  container.bind({ provide: ConfigService, useValue: createConfigServiceMock(envs) as unknown as ConfigService });
+  container.bind({ provide: ConfigService, useValue: createConfigServiceMock({ ...envs, ...envOverrides }) as unknown as ConfigService });
   container.bind({ provide: LoggerService, useValue: createLoggerServiceMock() as unknown as LoggerService });
   if (scanner) container.bind({ provide: VirusScannerService, useValue: scanner as VirusScannerService });
   if (images) container.bind({ provide: ImagesService, useValue: images as ImagesService });
@@ -716,6 +717,20 @@ describe('StorageService', () => {
 
       expect(error.status).toBe(503);
       expect(putObject).not.toHaveBeenCalled();
+    });
+
+    it('refuses an upload clamd gave no verdict for, with nothing stored or tagged', async () => {
+      const putObject = vi.spyOn(S3StorageClient.prototype, 'putObject').mockResolvedValue();
+      const setObjectTagging = vi.spyOn(S3StorageClient.prototype, 'setObjectTagging').mockResolvedValue();
+      const { scanStream } = stubClamd({ isInfected: null, viruses: [] });
+      const file = pngFile(await createPng(4, 4));
+
+      const error = await failureOf(createService({ envOverrides: { ANTIVIRUS_ENABLED: true } }).upload({ ...IMAGE_UPLOAD, file }));
+
+      expect(scanStream).toHaveBeenCalledOnce();
+      expect(error.status).toBe(StatusCodes.SERVICE_UNAVAILABLE);
+      expect(putObject).not.toHaveBeenCalled();
+      expect(setObjectTagging).not.toHaveBeenCalled();
     });
 
     it('skips scanning entirely when antivirus is disabled', async () => {

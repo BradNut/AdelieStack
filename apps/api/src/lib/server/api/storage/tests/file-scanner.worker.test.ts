@@ -6,6 +6,7 @@ import { FileScannerWorker } from '#lib/server/api/storage/file-scanner.worker';
 import { S3StorageClient } from '#lib/server/api/storage/s3-storage.client';
 import { ScanStatus, ScanTag } from '#lib/server/api/storage/storage.types';
 import { type ScanResponse, ScanResult, VirusScannerService } from '#lib/server/api/storage/virus-scanner.service';
+import { stubClamd } from './storage-test.helpers';
 
 const loggerStub = { log: { info: vi.fn(), warn: vi.fn(), debug: vi.fn(), error: vi.fn() } } as unknown as LoggerService;
 
@@ -69,5 +70,21 @@ describe('FileScannerWorker', () => {
       expect.objectContaining({ [ScanTag.STATUS]: ScanStatus.INFECTED, [ScanTag.VIRUSES]: 'Eicar-Test-Signature' }),
     );
     expect(removeObject).toHaveBeenCalledWith(JOB.bucket, JOB.key);
+  });
+
+  it('tags an object clamd gave no verdict for as errored and leaves it in place', async () => {
+    vi.spyOn(S3StorageClient.prototype, 'getObject').mockResolvedValue({ body: Buffer.from('?'), contentType: 'image/png' });
+    const setObjectTagging = vi.spyOn(S3StorageClient.prototype, 'setObjectTagging').mockResolvedValue();
+    const removeObject = vi.spyOn(S3StorageClient.prototype, 'removeObject').mockResolvedValue();
+    const { scanStream } = stubClamd({ isInfected: null, viruses: [] });
+    const container = new Container();
+    container.bind({ provide: ConfigService, useValue: { envs: { ...envs, ANTIVIRUS_ENABLED: true } } as unknown as ConfigService });
+    container.bind({ provide: LoggerService, useValue: loggerStub });
+
+    await container.get(FileScannerWorker).handleScanJobs([JOB]);
+
+    expect(scanStream).toHaveBeenCalledOnce();
+    expect(removeObject).not.toHaveBeenCalled();
+    expect(setObjectTagging).toHaveBeenLastCalledWith(JOB.bucket, JOB.key, expect.objectContaining({ [ScanTag.STATUS]: ScanStatus.ERROR }));
   });
 });
