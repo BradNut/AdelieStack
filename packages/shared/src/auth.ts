@@ -11,4 +11,8 @@ export interface AuthedUser {
   twoFactorEnabled: boolean;
   /** True when one of the user's roles needs a Second Factor and the account has none (ADR 0014). */
   needsSecondFactor: boolean;
+  /** The stored Preferred Language, or null for none. Not checked here: it may name a locale the web no longer supports. */
+  preferredLanguage: string | null;
+  /** True while an admin is impersonating the account; the web then leaves its locale cookie alone. */
+  impersonating: boolean;
 }

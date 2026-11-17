@@ -12,6 +12,8 @@ const apiUser = {
   emailVerified: true,
   twoFactorEnabled: true,
   needsSecondFactor: false,
+  impersonating: false,
+  locale: 'de',
   banned: false,
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
@@ -33,7 +35,20 @@ describe('toAuthedUser', () => {
       emailVerified: true,
       twoFactorEnabled: true,
       needsSecondFactor: false,
+      preferredLanguage: 'de',
+      impersonating: false,
     });
+  });
+
+  it('passes on an impersonated session', () => {
+    expect(toAuthedUser({ ...apiUser, impersonating: true }).impersonating).toBe(true);
+  });
+
+  it('treats a missing Preferred Language as none', () => {
+    const { locale: _locale, ...withoutLocale } = apiUser;
+
+    expect(toAuthedUser(withoutLocale).preferredLanguage).toBeNull();
+    expect(toAuthedUser({ ...apiUser, locale: null }).preferredLanguage).toBeNull();
   });
 
   it('passes on that the user needs a Second Factor', () => {
