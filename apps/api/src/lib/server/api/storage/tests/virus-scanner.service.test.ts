@@ -2,7 +2,7 @@ import { Container } from '@needle-di/core';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ConfigService } from '#lib/server/api/common/configs/config.service';
 import { LoggerService } from '#lib/server/api/common/services/logger.service';
-import { ScanResult, VirusScannerService } from '#lib/server/api/storage/virus-scanner.service';
+import { NO_VERDICT_ERROR, ScanResult, VirusScannerService } from '#lib/server/api/storage/virus-scanner.service';
 import { createConfigServiceMock } from '../../../../../test/mocks/config.mock';
 import { createLoggerServiceMock } from '../../../../../test/mocks/logger.mock';
 import { stubClamd } from './storage-test.helpers';
@@ -29,15 +29,14 @@ describe('VirusScannerService', () => {
 
     const response = await createScanner().scanBuffer(BYTES);
 
-    expect(response.result).toBe(ScanResult.ERROR);
-    expect(response.error).toBeTruthy();
+    expect(response).toEqual({ result: ScanResult.ERROR, error: NO_VERDICT_ERROR });
   });
 
   it.each([
     ['undefined', undefined],
     ['a non-boolean', 'maybe'],
   ])('reports an error when the verdict is %s', async (_label, isInfected) => {
-    stubClamd({ isInfected: isInfected as unknown as boolean, viruses: [] });
+    stubClamd({ isInfected, viruses: [] });
 
     const response = await createScanner().scanBuffer(BYTES);
 

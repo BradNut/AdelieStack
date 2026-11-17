@@ -21,7 +21,8 @@ export type ScanResponse = {
 // ClamAV's clamd daemon listens on this TCP port by default.
 const DEFAULT_CLAMAV_PORT = 3310;
 const SCAN_TIMEOUT_MS = 60_000;
-const NO_VERDICT_ERROR = 'Scanner returned no verdict';
+/** The error a scan reports when clamd answers without a verdict. */
+export const NO_VERDICT_ERROR = 'Scanner returned no verdict';
 
 /**
  * Wraps the `clamscan` client and talks to a clamd daemon over TCP.

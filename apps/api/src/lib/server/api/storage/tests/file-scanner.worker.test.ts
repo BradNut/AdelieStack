@@ -1,11 +1,13 @@
 import { Container } from '@needle-di/core';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ConfigService } from '#lib/server/api/common/configs/config.service';
+import type { EnvsDto } from '#lib/server/api/common/configs/dtos/env.dto';
 import { LoggerService } from '#lib/server/api/common/services/logger.service';
 import { FileScannerWorker } from '#lib/server/api/storage/file-scanner.worker';
 import { S3StorageClient } from '#lib/server/api/storage/s3-storage.client';
 import { ScanStatus, ScanTag } from '#lib/server/api/storage/storage.types';
 import { type ScanResponse, ScanResult, VirusScannerService } from '#lib/server/api/storage/virus-scanner.service';
+import { createConfigServiceMock } from '../../../../../test/mocks/config.mock';
 import { stubClamd } from './storage-test.helpers';
 
 const loggerStub = { log: { info: vi.fn(), warn: vi.fn(), debug: vi.fn(), error: vi.fn() } } as unknown as LoggerService;
@@ -18,11 +20,17 @@ const envs = {
   STORAGE_SECRET_KEY: 'secret',
 };
 
+/** A container holding the worker's config (the shared mock plus storage envs) and logger. */
+const createContainer = (envOverrides: Partial<EnvsDto> = {}) => {
+  const container = new Container();
+  container.bind({ provide: ConfigService, useValue: createConfigServiceMock({ ...envs, ...envOverrides }) as unknown as ConfigService });
+  container.bind({ provide: LoggerService, useValue: loggerStub });
+  return container;
+};
+
 const buildWorker = (opts: { enabled?: boolean; scan: ScanResponse }) => {
   const scanBuffer = vi.fn(async () => opts.scan);
-  const container = new Container();
-  container.bind({ provide: ConfigService, useValue: { envs } as unknown as ConfigService });
-  container.bind({ provide: LoggerService, useValue: loggerStub });
+  const container = createContainer();
   container.bind({ provide: VirusScannerService, useValue: { isEnabled: opts.enabled ?? true, scanBuffer } as unknown as VirusScannerService });
   return { worker: container.get(FileScannerWorker), scanBuffer };
 };
@@ -77,9 +85,7 @@ describe('FileScannerWorker', () => {
     const setObjectTagging = vi.spyOn(S3StorageClient.prototype, 'setObjectTagging').mockResolvedValue();
     const removeObject = vi.spyOn(S3StorageClient.prototype, 'removeObject').mockResolvedValue();
     const { scanStream } = stubClamd({ isInfected: null, viruses: [] });
-    const container = new Container();
-    container.bind({ provide: ConfigService, useValue: { envs: { ...envs, ANTIVIRUS_ENABLED: true } } as unknown as ConfigService });
-    container.bind({ provide: LoggerService, useValue: loggerStub });
+    const container = createContainer({ ANTIVIRUS_ENABLED: true });
 
     await container.get(FileScannerWorker).handleScanJobs([JOB]);
 
