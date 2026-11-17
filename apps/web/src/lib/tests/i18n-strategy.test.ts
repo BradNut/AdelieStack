@@ -7,7 +7,7 @@ const read = (path: string) => readFileSync(new URL(`../../../${path}`, import.m
 // `i18n` in src/lib/i18n.ts hands the original request to paraglideMiddleware, which is only correct while no strategy
 // rewrites the URL (SvelteKit 3 made event.request read-only). Adding a `url` strategy needs the hook reworked first.
 describe('paraglide locale strategy', () => {
-  it('is the cookie, Accept-Language, base locale order', () => {
+  it("is the cookie, Accept-Language (Paraglide's `preferredLanguage`), base locale order", () => {
     expect(REQUEST_LOCALE_ORDER).toEqual(['cookie', 'preferredLanguage', 'baseLocale']);
   });
 

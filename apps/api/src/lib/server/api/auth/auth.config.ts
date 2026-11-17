@@ -26,6 +26,7 @@ import { TwoFactorOtpEmail } from '#lib/server/api/mail/templates/two-factor-otp
 import { type AccountLockoutStorage, accountLockout } from './auth.account-lockout';
 import { verifyAdminCreatedUser } from './auth.admin-created-verified';
 import { type CaptchaConfig, captchaPlugin, createCaptchaHealth } from './auth.captcha';
+import type { UserCreateBefore } from './auth.database-hooks';
 import { freshSessionGuard } from './auth.fresh-session';
 import { createHibpHealth } from './auth.hibp-status';
 import { type AuthMailLogger, createAuthMail, toMailRecipient } from './auth.mail';
@@ -138,8 +139,6 @@ export function drizzleAuthDatabase(db: NodePgDatabase<typeof drizzleSchema>): B
 export function generateAuthId(): string {
   return uuidv7();
 }
-
-type UserCreateBefore = NonNullable<NonNullable<NonNullable<NonNullable<BetterAuthOptions['databaseHooks']>['user']>['create']>['before']>;
 
 /**
  * Runs `databaseHooks.user.create.before` hooks in order, each one seeing the user the previous one returned. A hook

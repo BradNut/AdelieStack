@@ -8,7 +8,10 @@ const SESSION_COOKIE_MARKER = 'session_token';
 /** The signed-in user as `/users/me` returns it, typed by the shared API contract. */
 type SessionUserResponse = NonNullable<InferResponseType<Api['users']['me']['$get'], 200>>;
 
-/** Narrows the API's user to what the web app needs. */
+/**
+ * Narrows the API's user to what the web app needs. The Preferred Language is stored as `users.locale` (Better Auth's
+ * `locale` field, the name `updateUser` takes too) and is surfaced under its glossary name, `preferredLanguage`.
+ */
 export function toAuthedUser(user: SessionUserResponse): AuthedUser {
   return {
     id: user.id,

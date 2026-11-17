@@ -5,6 +5,7 @@ import { recoveryCodeDto, twoFactorCodeDto } from '../login/two-factor-code.dto'
 import { resetPasswordNewPasswordDto } from '../reset-password/reset-password-new-password.dto';
 import { deleteAccountDto } from '../settings/account/delete-account.dto';
 import { changeEmailDto } from '../settings/email/change-email.dto';
+import { MATCH_MY_BROWSER, updatePreferredLanguageDto } from '../settings/language/update-preferred-language.dto';
 import { changePasswordDto } from '../settings/password/change-password.dto';
 import { signupDto } from '../signup/signup.dto';
 
@@ -162,5 +163,15 @@ describe('settings dtos', () => {
   it('deleteAccountDto requires a password', () => {
     expect(deleteAccountDto.safeParse({ password: '' }).success).toBe(false);
     expect(deleteAccountDto.safeParse({ password: 'x' }).success).toBe(true);
+  });
+});
+
+describe('updatePreferredLanguageDto', () => {
+  it.each(['de', MATCH_MY_BROWSER])('accepts %j', (preferredLanguage) => {
+    expect(updatePreferredLanguageDto.safeParse({ preferredLanguage }).success).toBe(true);
+  });
+
+  it.each([null, undefined, 1])('rejects %j', (preferredLanguage) => {
+    expect(issuePaths(updatePreferredLanguageDto.safeParse({ preferredLanguage }))).toContain('preferredLanguage');
   });
 });
