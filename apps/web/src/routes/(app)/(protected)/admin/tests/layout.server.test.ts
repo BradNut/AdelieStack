@@ -2,18 +2,11 @@
 // Vitest resolves the browser export condition (vite.config.ts), so Kit 3's redirect() takes its client build, which reads `window`.
 import { AppRoute, type AuthedUser, RoleName, SECOND_FACTOR_REQUIRED_MESSAGE } from '@adelie/shared';
 import { describe, expect, it, vi } from 'vitest';
+import { buildAuthedUser } from '#lib/tests/factories.ts';
 import { load } from '../+layout.server';
 
-const authedUser = (overrides: Partial<AuthedUser> = {}): AuthedUser => ({
-  id: 'u1',
-  email: 'admin@example.com',
-  name: 'Admin',
-  roles: [RoleName.ADMIN],
-  emailVerified: true,
-  twoFactorEnabled: false,
-  needsSecondFactor: false,
-  ...overrides,
-});
+const authedUser = (overrides: Partial<AuthedUser> = {}): AuthedUser =>
+  buildAuthedUser({ email: 'admin@example.com', name: 'Admin', roles: [RoleName.ADMIN], ...overrides });
 
 function event(user: AuthedUser | null) {
   return {

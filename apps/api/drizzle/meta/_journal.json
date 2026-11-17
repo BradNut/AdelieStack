@@ -64,6 +64,13 @@
       "when": 1794603534013,
       "tag": "0008_purge_plaintext_two_factor_verifications",
       "breakpoints": false
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1794915090981,
+      "tag": "0009_preferred_language",
+      "breakpoints": false
     }
   ]
 }

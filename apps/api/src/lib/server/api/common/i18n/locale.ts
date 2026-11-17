@@ -1,5 +1,6 @@
+import { REQUEST_LOCALE_ORDER } from '@adelie/shared/constants';
 import { tryGetContext } from 'hono/context-storage';
-import { baseLocale, extractLocaleFromHeader, type locales } from '../../../../paraglide/runtime.js';
+import { baseLocale, extractLocaleFromRequestWithStrategies, type locales } from '../../../../paraglide/runtime.js';
 
 /**
  * A locale from the API message catalogue (`apps/api/project.inlang`).
@@ -10,14 +11,15 @@ export type Locale = (typeof locales)[number];
 /**
  * Resolves the locale for an incoming request.
  *
- * Resolution order:
- * 1. `Accept-Language` header, honouring q-values; region tags fall back to
+ * Follows the shared `REQUEST_LOCALE_ORDER`, the same order the web app uses:
+ * 1. The Paraglide locale cookie (`PARAGLIDE_LOCALE`), which the web proxy
+ *    forwards; an unsupported value is skipped.
+ * 2. `Accept-Language` header, honouring q-values; region tags fall back to
  *    their base language (`de-AT` -> `de`).
- * 2. The catalogue's base locale (`en`) when the header is missing, empty, or
- *    only names unsupported locales.
+ * 3. The catalogue's base locale (`en`) when neither names a supported locale.
  */
 export function resolveRequestLocale(request: Request): Locale {
-  return extractLocaleFromHeader(request) ?? baseLocale;
+  return extractLocaleFromRequestWithStrategies(request, [...REQUEST_LOCALE_ORDER]);
 }
 
 /**

@@ -1,6 +1,6 @@
 import { AUTH_BASE_PATH, LAST_LOGIN_METHOD_COOKIE } from '@adelie/shared';
 import { passkeyClient } from '@better-auth/passkey/client';
-import { adminClient, lastLoginMethodClient, twoFactorClient } from 'better-auth/client/plugins';
+import { adminClient, inferAdditionalFields, lastLoginMethodClient, twoFactorClient } from 'better-auth/client/plugins';
 import { createAuthClient } from 'better-auth/svelte';
 import { withCaptchaBinding } from '#lib/client/captcha-binding.ts';
 import { withRetryAfter } from '#lib/client/retry-after.ts';
@@ -20,5 +20,7 @@ export const authClient = createAuthClient({
     passkeyClient(),
     adminClient(),
     lastLoginMethodClient({ cookieName: LAST_LOGIN_METHOD_COOKIE }),
+    // The API's `user.additionalFields`, declared here because server code stays out of the client bundle.
+    inferAdditionalFields({ user: { locale: { type: 'string', required: false } } }),
   ],
 });

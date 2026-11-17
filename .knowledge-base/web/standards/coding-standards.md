@@ -82,6 +82,10 @@ export const actions = {
 Read the current page from `$app/state` (`page.status`, `page.error?.message`; a runed object, no `$`
 prefix), not the deprecated `$app/stores`.
 
+## Localisation
+
+Web text comes from the Paraglide catalogue in `apps/web/messages/{locale}/*.json`. A non-English message you add or change goes on that language's fluent-speaker review issue; see [API Localisation](../../api/standards/i18n.md#fluent-speaker-review).
+
 ## Related Documentation
 
 - [Core Principles](../core-principles.md)

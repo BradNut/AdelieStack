@@ -11,6 +11,7 @@ export * from './cookies';
 export * from './environment';
 export * from './file-limits';
 export * from './http-headers';
+export * from './locale';
 export * from './login-methods';
 export * from './mfa-limits';
 export * from './pagination';
