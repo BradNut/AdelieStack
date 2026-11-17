@@ -10,6 +10,8 @@ const user = (...roles: AuthedUser['roles']): AuthedUser => ({
   emailVerified: false,
   twoFactorEnabled: false,
   needsSecondFactor: false,
+  preferredLanguage: null,
+  impersonating: false,
 });
 
 /** A user whose roles need a Second Factor they have not enrolled, as `/users/me` reports. */

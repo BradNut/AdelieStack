@@ -12,6 +12,8 @@ const authedUser = (overrides: Partial<AuthedUser> = {}): AuthedUser => ({
   emailVerified: true,
   twoFactorEnabled: false,
   needsSecondFactor: false,
+  preferredLanguage: null,
+  impersonating: false,
   ...overrides,
 });
 

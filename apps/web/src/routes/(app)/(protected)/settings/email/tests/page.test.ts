@@ -23,6 +23,8 @@ const AUTHED_USER: AuthedUser = {
   emailVerified: true,
   twoFactorEnabled: false,
   needsSecondFactor: false,
+  preferredLanguage: null,
+  impersonating: false,
 };
 
 function mount() {

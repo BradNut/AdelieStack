@@ -6,6 +6,7 @@
 	import { authClient } from '#lib/auth-client.ts';
 	import { authErrorMessage, refreshSession } from '#lib/client/auth-form.ts';
 	import DeleteAccountCard from '#lib/components/auth/delete-account-card.svelte';
+	import PreferredLanguageCard from '#lib/components/auth/preferred-language-card.svelte';
 	import * as Card from '#lib/components/ui/card/index.ts';
 	import * as Form from '#lib/components/ui/form/index.ts';
 	import { Input } from '#lib/components/ui/input/index.ts';
@@ -57,5 +58,9 @@
 		</Card.Footer>
 	</form>
 </Card.Root>
+
+{#if data.authedUser}
+	<PreferredLanguageCard user={data.authedUser} />
+{/if}
 
 <DeleteAccountCard />

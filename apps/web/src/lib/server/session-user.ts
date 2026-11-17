@@ -19,6 +19,8 @@ export function toAuthedUser(user: SessionUserResponse): AuthedUser {
     emailVerified: user.emailVerified,
     twoFactorEnabled: user.twoFactorEnabled ?? false,
     needsSecondFactor: user.needsSecondFactor,
+    preferredLanguage: user.locale ?? null,
+    impersonating: user.impersonating,
   };
 }
 

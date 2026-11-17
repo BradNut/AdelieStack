@@ -2,7 +2,7 @@ import { RoleName } from '@adelie/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AuthService } from '#lib/server/api/auth/auth.service';
 import { type RolesService, resolveRoles } from '#lib/server/api/auth/roles';
-import { buildAuthUser } from '#lib/server/api/common/testing/factories';
+import { buildAuthSession, buildAuthUser } from '#lib/server/api/common/testing/factories';
 import { createHono } from '#lib/server/api/common/utils/hono';
 import { UsersController } from '#lib/server/api/users/users.controller';
 
@@ -15,11 +15,13 @@ const hasSecondFactor = vi.fn(async () => false);
 const authService = { hasSecondFactor } as unknown as AuthService;
 
 let currentUser: ReturnType<typeof buildAuthUser> | null = null;
+let currentSession: ReturnType<typeof buildAuthSession> | null = null;
 
 async function me() {
   const app = createHono();
   app.use('*', async (c, next) => {
     c.set('user', currentUser);
+    c.set('session', currentSession);
     await next();
   });
   app.route('/users', new UsersController(rolesService, authService).routes() as never);
@@ -29,6 +31,7 @@ async function me() {
 describe('GET /users/me', () => {
   beforeEach(() => {
     currentUser = null;
+    currentSession = null;
     hasSecondFactor.mockReset().mockResolvedValue(false);
   });
 
@@ -60,5 +63,28 @@ describe('GET /users/me', () => {
     currentUser = buildAuthUser({ role: RoleName.ADMIN });
 
     expect(await me()).not.toHaveProperty('role');
+  });
+
+  it('passes on the Preferred Language, or null when there is none', async () => {
+    currentUser = buildAuthUser({ locale: 'de' });
+    currentSession = buildAuthSession();
+    expect(await me()).toMatchObject({ locale: 'de' });
+
+    currentUser = buildAuthUser({ locale: null });
+    expect(await me()).toMatchObject({ locale: null });
+  });
+
+  it('reports an impersonated session', async () => {
+    currentUser = buildAuthUser();
+    currentSession = buildAuthSession({ impersonatedBy: 'admin-1' });
+
+    expect(await me()).toMatchObject({ impersonating: true });
+  });
+
+  it('reports a session the account holder signed in to themselves', async () => {
+    currentUser = buildAuthUser();
+    currentSession = buildAuthSession();
+
+    expect(await me()).toMatchObject({ impersonating: false });
   });
 });
