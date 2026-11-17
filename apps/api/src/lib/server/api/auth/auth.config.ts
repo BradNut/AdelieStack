@@ -18,7 +18,6 @@ import { type BetterAuthOptions, betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { admin, lastLoginMethod, openAPI, twoFactor } from 'better-auth/plugins';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { getRequestLocale } from '#lib/server/api/common/i18n/index';
 import { uuidv7 } from '#lib/server/api/common/utils/crypto';
 import type { ClientIpOptions } from '#lib/server/api/common/utils/ip';
 import type * as drizzleSchema from '#lib/server/api/databases/postgres/drizzle-schema';
@@ -35,6 +34,7 @@ import { createPasswordHasher, type PasswordHasher } from './auth.password-hash'
 import { createPasswordPolicyHook, hibpScreening } from './auth.password-policy';
 import { passwordRehash } from './auth.password-rehash';
 import { ac, roles } from './auth.permissions';
+import { mailLocale, preferredLanguageField, seedPreferredLanguage } from './auth.preferred-language';
 import type { ProviderHealth } from './auth.provider-health';
 import { type AuthRateLimitStorage, authRateLimitOptions } from './auth.rate-limit';
 import { replacedSession } from './auth.replaced-session';
@@ -139,6 +139,24 @@ export function generateAuthId(): string {
   return uuidv7();
 }
 
+type UserCreateBefore = NonNullable<NonNullable<NonNullable<NonNullable<BetterAuthOptions['databaseHooks']>['user']>['create']>['before']>;
+
+/**
+ * Runs `databaseHooks.user.create.before` hooks in order, each one seeing the user the previous one returned. A hook
+ * that returns `false` stops the create, as Better Auth's own single hook would.
+ */
+function chainUserCreateBefore(...hooks: UserCreateBefore[]): UserCreateBefore {
+  return async (user, context) => {
+    let current = user;
+    for (const hook of hooks) {
+      const result = await hook(current, context);
+      if (result === false) return false;
+      if (typeof result === 'object') current = { ...current, ...result.data };
+    }
+    return { data: current };
+  };
+}
+
 /** Cookies are `Secure` whenever the API is served over https. */
 function isSecureCookies(baseURL: string): boolean {
   return baseURL.startsWith('https://');
@@ -221,6 +239,8 @@ export function createAuth({
       // Needs the account password (or a fresh session). Sessions, accounts, two-factor and passkey
       // rows go with the user: the foreign keys cascade (see auth.delete-user.test.ts).
       deleteUser: { enabled: true },
+      // The Preferred Language every email to the account is written in (`null`: follow the Request Locale).
+      additionalFields: { locale: preferredLanguageField },
     },
     emailAndPassword: {
       enabled: true,
@@ -243,7 +263,7 @@ export function createAuth({
       revokeSessionsOnPasswordReset: true,
     },
     databaseHooks: {
-      user: { create: { before: verifyAdminCreatedUser } },
+      user: { create: { before: chainUserCreateBefore(seedPreferredLanguage, verifyAdminCreatedUser) } },
       // Refreshes slide the expiry forward, but never past the absolute lifetime from sign-in.
       session: { update: { before: capSessionLifetime } },
     },
@@ -276,7 +296,7 @@ export function createAuth({
             async sendOTP({ user, otp }) {
               await mailer.send({
                 to: toMailRecipient(user),
-                template: new TwoFactorOtpEmail(otp, TWO_FACTOR_OTP_PERIOD_MINUTES, getRequestLocale()),
+                template: new TwoFactorOtpEmail(otp, TWO_FACTOR_OTP_PERIOD_MINUTES, mailLocale(user)),
               });
             },
           },

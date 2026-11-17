@@ -200,11 +200,24 @@ describe('security-event emails', () => {
   });
 });
 
-describe('the language of an email', () => {
+/** Saves `locale` as the signed-in account's Preferred Language (`null` clears it). */
+async function savePreferredLanguage(cookie: string, locale: string | null) {
+  const res = await request('/update-user', { cookie, body: { locale } });
+  expect(res.status).toBe(200);
+}
+
+/** Stores a Preferred Language that is no longer supported, as a locale dropped from the catalogue leaves behind. */
+async function storeStaleLocale(cookie: string, locale: string) {
+  const { internalAdapter } = await auth.$context;
+  await internalAdapter.updateUser(await userIdOf(cookie), { locale });
+}
+
+describe('the language of an email without a Preferred Language', () => {
   const ENGLISH_SUBJECT = 'Your password was changed';
 
   async function changePasswordWith(headers: Record<string, string>) {
     const cookie = await signUp();
+    await savePreferredLanguage(cookie, null);
     await request('/change-password', { cookie, headers, body: { currentPassword: PASSWORD, newPassword: NEW_PASSWORD } });
     return sent[0].template;
   }
@@ -234,38 +247,88 @@ describe('the language of an email', () => {
   });
 });
 
-describe('every email follows the language of the request that caused it', () => {
+describe('a Preferred Language that is no longer supported', () => {
+  it('counts as none: the email follows the request, and the stored value is left alone', async () => {
+    const cookie = await signUp();
+    await storeStaleLocale(cookie, 'fr');
+
+    await request('/change-password', {
+      cookie,
+      headers: { 'accept-language': 'de' },
+      body: { currentPassword: PASSWORD, newPassword: NEW_PASSWORD },
+    });
+
+    expect(sent[0].template.html()).toContain("<html lang='de'>");
+    const { internalAdapter } = await auth.$context;
+    expect((await internalAdapter.findUserByEmail(EMAIL))?.user).toMatchObject({ locale: 'fr' });
+  });
+
+  it('is English when the request names nothing usable either', async () => {
+    const cookie = await signUp();
+    await storeStaleLocale(cookie, 'fr');
+
+    await request('/change-password', { cookie, body: { currentPassword: PASSWORD, newPassword: NEW_PASSWORD } });
+
+    expect(sent[0].template.html()).toContain("<html lang='en'>");
+  });
+});
+
+describe('every email is in the Preferred Language, whatever language the request carries', () => {
+  /** The account's Preferred Language, and the different language every request below carries. */
+  const PREFERRED = 'es';
   const GERMAN = { 'accept-language': 'de' };
 
-  function expectGerman(templateClass: new (...args: never[]) => EmailTemplate) {
+  function expectPreferred(templateClass: new (...args: never[]) => EmailTemplate) {
     const email = sentTemplates().find((template) => template instanceof templateClass);
-    expect(email?.html()).toContain("<html lang='de'>");
+    expect(email?.html()).toContain(`<html lang='${PREFERRED}'>`);
+  }
+
+  /** Signs up and verifies, then saves {@link PREFERRED}; returns the session cookie. */
+  async function signUpPreferring() {
+    const cookie = await signUp();
+    await savePreferredLanguage(cookie, PREFERRED);
+    return cookie;
   }
 
   it('the verification email', async () => {
-    await signUpUnverifiedUser();
+    // Sign-up seeds the Preferred Language from its own request, the only way an unverified account gets one.
+    await request('/sign-up/email', { headers: { 'accept-language': PREFERRED }, body: TEST_USER });
+    clearSent();
 
     await request('/send-verification-email', { headers: GERMAN, body: { email: EMAIL } });
 
-    expectGerman(EmailVerificationEmail);
+    expectPreferred(EmailVerificationEmail);
   });
 
-  it('the password reset link', async () => {
-    await signUp();
+  it('the password reset link and the reset completion', async () => {
+    await signUpPreferring();
 
     await request('/request-password-reset', { headers: GERMAN, body: { email: EMAIL, redirectTo: RESET_REDIRECT } });
+    expectPreferred(PasswordResetLinkEmail);
 
-    expectGerman(PasswordResetLinkEmail);
+    const token = new URL(emailedLink(sent[0])).pathname.split('/').pop();
+    clearSent();
+    await request('/reset-password', { headers: GERMAN, body: { newPassword: NEW_PASSWORD, token } });
+    expectPreferred(PasswordChangedEmail);
   });
 
-  it('the email change request and notice', async () => {
-    const cookie = await signUp();
+  it('the password change', async () => {
+    const cookie = await signUpPreferring();
+
+    await request('/change-password', { cookie, headers: GERMAN, body: { currentPassword: PASSWORD, newPassword: NEW_PASSWORD } });
+
+    expectPreferred(PasswordChangedEmail);
+  });
+
+  it('the email change request and the notice to the old address', async () => {
+    const cookie = await signUpPreferring();
 
     await request('/change-email', { cookie, headers: GERMAN, body: { newEmail: NEW_EMAIL, callbackURL: '/email-verified' } });
-    expectGerman(EmailChangeRequestEmail);
+    expectPreferred(EmailChangeRequestEmail);
 
+    // The link is opened from the new mailbox, which may be a different browser in a different language.
     await request(linkPath(sent.at(-1)), { cookie, headers: GERMAN });
-    expectGerman(EmailChangeNoticeEmail);
+    expectPreferred(EmailChangeNoticeEmail);
   });
 
   it('the recovery code emails', async () => {
@@ -273,24 +336,37 @@ describe('every email follows the language of the request that caused it', () =>
       cookie,
       backupCodes: [code],
     } = await signUpWithTotp(request, TEST_USER);
+    await savePreferredLanguage(cookie, PREFERRED);
     clearSent();
 
     const { challengeCookie } = await startTwoFactorSignIn(request, TEST_USER);
     await request('/two-factor/verify-backup-code', { cookie: challengeCookie, headers: GERMAN, body: { code } });
-    expectGerman(RecoveryCodesUsedEmail);
+    expectPreferred(RecoveryCodesUsedEmail);
 
     await request('/two-factor/generate-backup-codes', { cookie, headers: GERMAN, body: { password: PASSWORD } });
-    expectGerman(RecoveryCodesRegeneratedEmail);
+    expectPreferred(RecoveryCodesRegeneratedEmail);
+  });
+
+  it('the two-factor code email', async () => {
+    const { cookie } = await signUpWithTotp(request, TEST_USER);
+    await savePreferredLanguage(cookie, PREFERRED);
+    const { challengeCookie } = await startTwoFactorSignIn(request, TEST_USER);
+    clearSent();
+
+    await request('/two-factor/send-otp', { cookie: challengeCookie, headers: GERMAN, body: {} });
+
+    expect(sent[0].template.html()).toContain(`<html lang='${PREFERRED}'>`);
   });
 });
 
-describe('the two-factor code email', () => {
+describe('the two-factor code email without a Preferred Language', () => {
   it('follows the language of the request that asked for the code', async () => {
-    await signUpWithTotp(request, TEST_USER);
-    const { challengeCookie: cookie } = await startTwoFactorSignIn(request, TEST_USER);
+    const { cookie } = await signUpWithTotp(request, TEST_USER);
+    await savePreferredLanguage(cookie, null);
+    const { challengeCookie } = await startTwoFactorSignIn(request, TEST_USER);
     clearSent();
 
-    await request('/two-factor/send-otp', { cookie, headers: { 'accept-language': 'es' }, body: {} });
+    await request('/two-factor/send-otp', { cookie: challengeCookie, headers: { 'accept-language': 'es' }, body: {} });
 
     expect(sent[0].template.html()).toContain("<html lang='es'>");
     expect(sent[0].template.subject()).not.toBe('Your sign-in code');
