@@ -35,6 +35,7 @@ import { createPasswordHasher, type PasswordHasher } from './auth.password-hash'
 import { createPasswordPolicyHook, hibpScreening } from './auth.password-policy';
 import { passwordRehash } from './auth.password-rehash';
 import { ac, roles } from './auth.permissions';
+import { preferredLanguageField } from './auth.preferred-language';
 import type { ProviderHealth } from './auth.provider-health';
 import { type AuthRateLimitStorage, authRateLimitOptions } from './auth.rate-limit';
 import { replacedSession } from './auth.replaced-session';
@@ -221,6 +222,8 @@ export function createAuth({
       // Needs the account password (or a fresh session). Sessions, accounts, two-factor and passkey
       // rows go with the user: the foreign keys cascade (see auth.delete-user.test.ts).
       deleteUser: { enabled: true },
+      // The Preferred Language every email to the account is written in (`null`: follow the Request Locale).
+      additionalFields: { locale: preferredLanguageField },
     },
     emailAndPassword: {
       enabled: true,
