@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
-import { AuthCallbackPath, type AuthedUser, ReplayActionKey } from '@adelie/shared';
+import { AuthCallbackPath, ReplayActionKey } from '@adelie/shared';
 import { cleanup, render, screen, waitFor } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NOT_FRESH } from '#lib/client/tests/fresh-session-fixtures.ts';
+import { buildAuthedUser } from '#lib/tests/factories.ts';
 
 const authClient = vi.hoisted(() => ({ changeEmail: vi.fn() }));
 
@@ -15,15 +16,7 @@ import EmailPage from '../+page.svelte';
 const CURRENT_EMAIL = 'penguin@example.com';
 const NEW_EMAIL = 'emperor@example.com';
 const STARTED = { data: { status: true }, error: null };
-const AUTHED_USER: AuthedUser = {
-  id: 'user-1',
-  email: CURRENT_EMAIL,
-  name: 'Penguin',
-  roles: [],
-  emailVerified: true,
-  twoFactorEnabled: false,
-  needsSecondFactor: false,
-};
+const AUTHED_USER = buildAuthedUser({ email: CURRENT_EMAIL });
 
 function mount() {
   return render(EmailPage, { data: { socialProviders: [], signUpEnabled: false, flash: undefined, authedUser: AUTHED_USER } });

@@ -1,5 +1,4 @@
 import { createAuthMiddleware, isAPIError } from 'better-auth/api';
-import { getRequestLocale } from '#lib/server/api/common/i18n/index';
 import type { EmailTemplate } from '#lib/server/api/mail/interfaces/email-template.interface';
 import type { Mailer, MailRecipient } from '#lib/server/api/mail/interfaces/mailer.interface';
 import { EmailChangeNoticeEmail } from '#lib/server/api/mail/templates/email-change-notice.template';
@@ -10,9 +9,11 @@ import { PasswordResetLinkEmail } from '#lib/server/api/mail/templates/password-
 import { RecoveryCodesRegeneratedEmail } from '#lib/server/api/mail/templates/recovery-codes-regenerated.template';
 import { RecoveryCodesUsedEmail } from '#lib/server/api/mail/templates/recovery-codes-used.template';
 import { AuthEndpoint } from './auth.endpoints';
+import { mailLocale, type PreferredLanguageHolder } from './auth.preferred-language';
 import { CHANGE_EMAIL_REQUEST_TYPE, readVerificationToken, readVerificationTokenOfRequest } from './auth.verification-token';
 
-interface AuthMailUser {
+/** The user an auth email is about. Its Preferred Language chooses the email's locale ({@link mailLocale}). */
+interface AuthMailUser extends PreferredLanguageHolder {
   id: string;
   email: string;
 }
@@ -57,13 +58,13 @@ export function createAuthMail(mailer: Mailer, log?: AuthMailLogger) {
     /** Sign-up and resend verification, and (to the new address) the confirmation of an email change. */
     async sendVerificationEmail({ user, url, token }: { user: AuthMailUser; url: string; token?: string }) {
       const isEmailChange = readVerificationToken(token)?.requestType === CHANGE_EMAIL_REQUEST_TYPE;
-      const locale = getRequestLocale();
+      const locale = mailLocale(user);
       const template = isEmailChange ? new EmailChangeRequestEmail(url, locale) : new EmailVerificationEmail(url, locale);
       void sendAndLogFailure(toMailRecipient(user), template, AUTH_LINK_EMAIL_FAILED_LOG);
     },
 
     async sendResetPassword({ user, url }: { user: AuthMailUser; url: string }) {
-      void sendAndLogFailure(toMailRecipient(user), new PasswordResetLinkEmail(url, getRequestLocale()), AUTH_LINK_EMAIL_FAILED_LOG);
+      void sendAndLogFailure(toMailRecipient(user), new PasswordResetLinkEmail(url, mailLocale(user)), AUTH_LINK_EMAIL_FAILED_LOG);
     },
 
     /**
@@ -80,14 +81,14 @@ export function createAuthMail(mailer: Mailer, log?: AuthMailLogger) {
       if (!user || claims?.requestType !== CHANGE_EMAIL_REQUEST_TYPE || !claims.email) return;
       await sendAndLogFailure(
         { email: claims.email, userId: user.id },
-        new EmailChangeNoticeEmail(user.email, getRequestLocale()),
+        new EmailChangeNoticeEmail(user.email, mailLocale(user)),
         SECURITY_EVENT_EMAIL_FAILED_LOG,
       );
     },
 
     /** Reset-by-link completion (`emailAndPassword.onPasswordReset`). */
     async notifyPasswordChanged({ user }: { user: AuthMailUser }) {
-      await sendAndLogFailure(toMailRecipient(user), new PasswordChangedEmail(getRequestLocale()), SECURITY_EVENT_EMAIL_FAILED_LOG);
+      await sendAndLogFailure(toMailRecipient(user), new PasswordChangedEmail(mailLocale(user)), SECURITY_EVENT_EMAIL_FAILED_LOG);
     },
 
     /**
@@ -101,13 +102,13 @@ export function createAuthMail(mailer: Mailer, log?: AuthMailLogger) {
       if (!user) return;
       switch (ctx.path) {
         case AuthEndpoint.CHANGE_PASSWORD:
-          await sendAndLogFailure(toMailRecipient(user), new PasswordChangedEmail(getRequestLocale()), SECURITY_EVENT_EMAIL_FAILED_LOG);
+          await sendAndLogFailure(toMailRecipient(user), new PasswordChangedEmail(mailLocale(user)), SECURITY_EVENT_EMAIL_FAILED_LOG);
           break;
         case AuthEndpoint.VERIFY_BACKUP_CODE:
-          await sendAndLogFailure(toMailRecipient(user), new RecoveryCodesUsedEmail(getRequestLocale()), SECURITY_EVENT_EMAIL_FAILED_LOG);
+          await sendAndLogFailure(toMailRecipient(user), new RecoveryCodesUsedEmail(mailLocale(user)), SECURITY_EVENT_EMAIL_FAILED_LOG);
           break;
         case AuthEndpoint.GENERATE_BACKUP_CODES:
-          await sendAndLogFailure(toMailRecipient(user), new RecoveryCodesRegeneratedEmail(getRequestLocale()), SECURITY_EVENT_EMAIL_FAILED_LOG);
+          await sendAndLogFailure(toMailRecipient(user), new RecoveryCodesRegeneratedEmail(mailLocale(user)), SECURITY_EVENT_EMAIL_FAILED_LOG);
           break;
       }
     }),

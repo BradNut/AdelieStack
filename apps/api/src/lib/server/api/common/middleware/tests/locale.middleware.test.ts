@@ -19,8 +19,10 @@ function createApp() {
     .onError(onError);
 }
 
-function get(path: string, acceptLanguage?: string) {
-  const headers: Record<string, string> = acceptLanguage === undefined ? {} : { 'accept-language': acceptLanguage };
+function get(path: string, acceptLanguage?: string, cookie?: string) {
+  const headers: Record<string, string> = {};
+  if (acceptLanguage !== undefined) headers['accept-language'] = acceptLanguage;
+  if (cookie !== undefined) headers.cookie = cookie;
   return createApp().request(path, { headers });
 }
 
@@ -41,6 +43,38 @@ describe('requestLocale middleware', () => {
   it('falls back to en for an unknown locale', async () => {
     const res = await get('/locale', 'fr-FR');
     expect(await res.json()).toEqual({ locale: 'en' });
+  });
+
+  it('takes the locale cookie before Accept-Language', async () => {
+    const res = await get('/locale', 'de-DE,de;q=0.9', 'theme=dark; PARAGLIDE_LOCALE=es');
+    expect(await res.json()).toEqual({ locale: 'es' });
+    expect(res.headers.get('content-language')).toBe('es');
+  });
+
+  it('uses the locale cookie when Accept-Language is missing', async () => {
+    const res = await get('/locale', undefined, 'PARAGLIDE_LOCALE=de');
+    expect(await res.json()).toEqual({ locale: 'de' });
+  });
+
+  it('falls through an unsupported cookie to Accept-Language', async () => {
+    const res = await get('/locale', 'de', 'PARAGLIDE_LOCALE=fr');
+    expect(await res.json()).toEqual({ locale: 'de' });
+  });
+
+  it('falls through an unsupported cookie and header to en', async () => {
+    const res = await get('/locale', 'ja', 'PARAGLIDE_LOCALE=fr');
+    expect(await res.json()).toEqual({ locale: 'en' });
+  });
+
+  it('ignores cookies with a different name', async () => {
+    const res = await get('/locale', 'de', 'NOT_PARAGLIDE_LOCALE=es');
+    expect(await res.json()).toEqual({ locale: 'de' });
+  });
+
+  it('varies on both Accept-Language and Cookie', async () => {
+    const res = await get('/locale', 'de');
+    const vary = (res.headers.get('vary') ?? '').split(',').map((v) => v.trim().toLowerCase());
+    expect(vary).toEqual(expect.arrayContaining(['accept-language', 'cookie']));
   });
 });
 

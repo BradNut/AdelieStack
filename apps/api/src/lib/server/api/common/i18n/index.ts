@@ -7,5 +7,5 @@ import { getRequestLocale } from './locale';
 overwriteGetLocale(getRequestLocale);
 
 export { m } from '../../../../paraglide/messages.js';
-export { baseLocale, locales } from '../../../../paraglide/runtime.js';
+export { baseLocale, isLocale, locales } from '../../../../paraglide/runtime.js';
 export { getRequestLocale, type Locale, resolveRequestLocale } from './locale';
