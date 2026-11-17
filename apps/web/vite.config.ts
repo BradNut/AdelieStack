@@ -1,3 +1,4 @@
+import { REQUEST_LOCALE_ORDER } from '@adelie/shared/constants/locale';
 import { paraglideVitePlugin } from '@inlang/paraglide-js';
 import { sentrySvelteKit } from '@sentry/sveltekit/vite';
 import adapter from '@sveltejs/adapter-node';
@@ -42,7 +43,9 @@ export default defineConfig(({ mode }) => {
     paraglideVitePlugin({
       project: './project.inlang',
       outdir: './src/lib/paraglide',
-      strategy: ['cookie', 'baseLocale'],
+      // The shared Request Locale order (cookie, Accept-Language, base locale), also followed by the API. Imported by subpath
+      // because Node loads this config and the constants barrel uses extensionless imports.
+      strategy: [...REQUEST_LOCALE_ORDER],
     }),
   ];
 
