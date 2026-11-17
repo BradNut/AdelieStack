@@ -22,7 +22,9 @@ export class UsersController extends Controller {
       const roles = this.rolesService.rolesOf(user);
       // The web app sends an admin without a Second Factor to enrolment instead of an error page (ADR 0014).
       const needsSecondFactor = rolesNeedSecondFactor(roles) && !(await this.authService.hasSecondFactor(user));
-      return c.json({ ...rest, roles, needsSecondFactor });
+      // The web app leaves its locale cookie alone while an admin impersonates the account.
+      const impersonating = !!c.var.session?.impersonatedBy;
+      return c.json({ ...rest, roles, needsSecondFactor, impersonating });
     });
   }
 }
