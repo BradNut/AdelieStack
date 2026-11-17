@@ -293,10 +293,25 @@ describe('every email is in the Preferred Language, whatever language the reques
   it('the verification email', async () => {
     // Sign-up seeds the Preferred Language from its own request, the only way an unverified account gets one.
     await request('/sign-up/email', { headers: { 'accept-language': PREFERRED }, body: TEST_USER });
+    expectPreferred(EmailVerificationEmail);
     clearSent();
 
     await request('/send-verification-email', { headers: GERMAN, body: { email: EMAIL } });
 
+    expect(sent).toHaveLength(1);
+    expectPreferred(EmailVerificationEmail);
+  });
+
+  it('the verification email resent after the Preferred Language moved away from the sign-up language', async () => {
+    // Signed up in German, so German was seeded; the stored preference then changes to Spanish.
+    await request('/sign-up/email', { headers: GERMAN, body: TEST_USER });
+    const userId = (await (await auth.$context).internalAdapter.findUserByEmail(EMAIL))?.user.id;
+    await (await auth.$context).internalAdapter.updateUser(String(userId), { locale: PREFERRED });
+    clearSent();
+
+    await request('/send-verification-email', { headers: GERMAN, body: { email: EMAIL } });
+
+    expect(sent).toHaveLength(1);
     expectPreferred(EmailVerificationEmail);
   });
 
