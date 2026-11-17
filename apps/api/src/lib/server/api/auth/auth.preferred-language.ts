@@ -20,9 +20,13 @@ export const preferredLanguageField = {
   validator: { input: z.enum(locales).nullable() },
 } satisfies DBFieldAttribute;
 
-/** The slice of a user the mail locale is chosen from. */
+/**
+ * The slice of a user the mail locale is chosen from. `locale` is whatever the row holds, which may be a value a later
+ * catalogue no longer supports; Better Auth's own user types do not declare it at all.
+ */
 export interface PreferredLanguageHolder {
-  locale?: string | null;
+  id: string;
+  locale?: unknown;
 }
 
 function isSupportedLocale(value: unknown): value is Locale {
