@@ -1,9 +1,8 @@
-import type { BetterAuthOptions, DBFieldAttribute } from 'better-auth';
+import type { DBFieldAttribute } from 'better-auth';
 import { z } from 'zod';
-import { getRequestLocale, type Locale, locales } from '#lib/server/api/common/i18n/index';
+import { getRequestLocale, isLocale, type Locale, locales } from '#lib/server/api/common/i18n/index';
+import type { UserCreateBefore } from './auth.database-hooks';
 import { AuthEndpoint } from './auth.endpoints';
-
-type UserCreateBefore = NonNullable<NonNullable<NonNullable<NonNullable<BetterAuthOptions['databaseHooks']>['user']>['create']>['before']>;
 
 /** Where an account holder creates their own account, so the request's language is theirs. */
 const SELF_SIGN_UP_PATHS: ReadonlySet<string> = new Set([AuthEndpoint.SIGN_UP_EMAIL, AuthEndpoint.SIGN_IN_SOCIAL, AuthEndpoint.SOCIAL_CALLBACK]);
@@ -29,10 +28,6 @@ export interface PreferredLanguageHolder {
   locale?: unknown;
 }
 
-function isSupportedLocale(value: unknown): value is Locale {
-  return (locales as readonly unknown[]).includes(value);
-}
-
 /**
  * The locale an email to `user` is written in: the Preferred Language, else the Request Locale (which falls back to
  * `en`). A stored value that is no longer a supported locale counts as no preference; the row is left as it is.
@@ -41,7 +36,7 @@ function isSupportedLocale(value: unknown): value is Locale {
  * the browser that opened an email-change link, must not choose the language of the owner's warning.
  */
 export function mailLocale(user: PreferredLanguageHolder): Locale {
-  return isSupportedLocale(user.locale) ? user.locale : getRequestLocale();
+  return isLocale(user.locale) ? user.locale : getRequestLocale();
 }
 
 /**
