@@ -73,6 +73,16 @@ _Avoid_: Alert, notification
 An email carrying a link the user must follow to finish what they asked for: verify an address, confirm an email change or reset a password. Unlike a Security Event, losing one blocks the user.
 _Avoid_: action email, transactional email
 
+## Localisation
+
+**Preferred Language**
+The language an account holder chose for their account. It starts as the language they signed up in; they can change it, or clear it to follow each request. An account may have none (one an admin created, or one older than the preference). When set, every email to the account uses it.
+_Avoid_: user locale, language setting
+
+**Request Locale**
+The language worked out for a single request from what that request carries. It describes whoever sent the request, who is not necessarily the account holder.
+_Avoid_: browser language
+
 ## Data & Storage
 
 **Drizzle ORM**
