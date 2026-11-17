@@ -45,7 +45,7 @@ describe('requestLocale middleware', () => {
     expect(await res.json()).toEqual({ locale: 'en' });
   });
 
-  it('prefers the locale cookie over Accept-Language', async () => {
+  it('takes the locale cookie before Accept-Language', async () => {
     const res = await get('/locale', 'de-DE,de;q=0.9', 'theme=dark; PARAGLIDE_LOCALE=es');
     expect(await res.json()).toEqual({ locale: 'es' });
     expect(res.headers.get('content-language')).toBe('es');
