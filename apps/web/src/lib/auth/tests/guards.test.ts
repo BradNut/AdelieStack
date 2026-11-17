@@ -1,18 +1,9 @@
 import { type AuthedUser, RoleName } from '@adelie/shared';
 import { describe, expect, it } from 'vitest';
+import { buildAuthedUser } from '#lib/tests/factories.ts';
 import { evaluateRouteAccess, hasAnyRole, RouteAccess } from '../guards';
 
-const user = (...roles: AuthedUser['roles']): AuthedUser => ({
-  id: 'u1',
-  email: 'a@example.com',
-  name: 'A',
-  roles,
-  emailVerified: false,
-  twoFactorEnabled: false,
-  needsSecondFactor: false,
-  preferredLanguage: null,
-  impersonating: false,
-});
+const user = (...roles: AuthedUser['roles']): AuthedUser => buildAuthedUser({ roles, emailVerified: false });
 
 /** A user whose roles need a Second Factor they have not enrolled, as `/users/me` reports. */
 const unenrolled = (...roles: AuthedUser['roles']): AuthedUser => ({ ...user(...roles), needsSecondFactor: true });

@@ -12,25 +12,14 @@ vi.mock('#lib/client/preferred-language.ts', () => ({ applyPreferredLanguage }))
 vi.mock('svelte-sonner', () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
 import { toast } from 'svelte-sonner';
+import { buildAuthedUser } from '#lib/tests/factories.ts';
 import { refreshAll } from '$app/navigation';
 import SettingsPage from '../+page.svelte';
-
-const AUTHED_USER: AuthedUser = {
-  id: 'user-1',
-  email: 'penguin@example.com',
-  name: 'Penguin',
-  roles: [],
-  emailVerified: true,
-  twoFactorEnabled: false,
-  needsSecondFactor: false,
-  preferredLanguage: null,
-  impersonating: false,
-};
 
 const SAVED = { data: { status: true }, error: null };
 
 function mount(user: Partial<Pick<AuthedUser, 'preferredLanguage' | 'impersonating'>> = {}) {
-  const authedUser = { ...AUTHED_USER, ...user } as AuthedUser;
+  const authedUser = buildAuthedUser(user);
   return render(SettingsPage, { data: { socialProviders: [], signUpEnabled: false, flash: undefined, authedUser } });
 }
 
