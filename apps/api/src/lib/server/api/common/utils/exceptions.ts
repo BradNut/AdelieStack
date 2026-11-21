@@ -5,6 +5,8 @@ export function TooManyRequests(message = 'Too many requests') {
   return new HTTPException(StatusCodes.TOO_MANY_REQUESTS, { message });
 }
 
+type ErrorStatus = ConstructorParameters<typeof HTTPException>[0];
+
 /** A stable, client-visible error code from `@adelie/shared`. */
 export type ErrorCode = AuthErrorCode | StorageErrorCode;
 
@@ -14,7 +16,7 @@ export type ErrorCode = AuthErrorCode | StorageErrorCode;
  */
 export class CodedHTTPException extends HTTPException {
   constructor(
-    status: ConstructorParameters<typeof HTTPException>[0],
+    status: ErrorStatus,
     readonly code: ErrorCode,
     message: string,
   ) {
@@ -22,9 +24,23 @@ export class CodedHTTPException extends HTTPException {
   }
 }
 
+/** A `CodedHTTPException` when there is a `code`, else a plain `HTTPException`. */
+const httpError = (status: ErrorStatus, message: string, code?: ErrorCode): HTTPException =>
+  code ? new CodedHTTPException(status, code, message) : new HTTPException(status, { message });
+
 /** 403. With `code`, the response carries it for the client to act on. */
-export function Forbidden(message = 'Forbidden', code?: AuthErrorCode) {
-  return code ? new CodedHTTPException(StatusCodes.FORBIDDEN, code, message) : new HTTPException(StatusCodes.FORBIDDEN, { message });
+export function Forbidden(message = 'Forbidden', code?: ErrorCode) {
+  return httpError(StatusCodes.FORBIDDEN, message, code);
+}
+
+/** 425: not ready yet, try again later. With `code`, the response carries it for the client to act on. */
+export function TooEarly(message = 'Too Early', code?: ErrorCode) {
+  return httpError(StatusCodes.TOO_EARLY, message, code);
+}
+
+/** 410: gone for good. With `code`, the response carries it for the client to act on. */
+export function Gone(message = 'Gone', code?: ErrorCode) {
+  return httpError(StatusCodes.GONE, message, code);
 }
 
 export function Unauthorized(message = 'Unauthorized') {
@@ -51,6 +67,7 @@ export function UnprocessableEntity(message = 'Unprocessable Entity') {
   return new HTTPException(StatusCodes.UNPROCESSABLE_ENTITY, { message });
 }
 
-export function InternalError(message = 'Internal Error') {
-  return new HTTPException(StatusCodes.INTERNAL_SERVER_ERROR, { message });
+/** 500. With `code`, the response carries it for the client to tell a known failure from an unexpected one. */
+export function InternalError(message = 'Internal Error', code?: ErrorCode) {
+  return httpError(StatusCodes.INTERNAL_SERVER_ERROR, message, code);
 }
