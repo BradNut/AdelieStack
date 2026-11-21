@@ -13,6 +13,7 @@ With antivirus on, every read of a stored object needs a clean Scan Status. That
 - **Antivirus off writes no Scan Status and checks none.** Tagging clean while off would let unscanned objects through once antivirus is turned on.
 - **A Presigned URL is checked once, when issued.** It stays valid until it expires even if a later scan marks the object error. An infected object is deleted, so its URL stops working anyway.
 - **Public objects read straight from storage are not checked.** The public bucket is anonymously readable, so its only protection is the scan at upload.
+- **Each refusal carries a `StorageErrorCode`.** A pending object is `425`, an infected one `410`, a scan with no verdict `500` and an unrecognised Scan Status `403`. The `500` cannot be told from a real fault by its status alone, so each refusal also sends a stable code (`SCAN_PENDING`, `SCAN_INFECTED`, `SCAN_FAILED`, `SCAN_REFUSED`) that a future download route or web page can act on without matching message text.
 
 ## Considered options
 
