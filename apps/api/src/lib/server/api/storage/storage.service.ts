@@ -6,9 +6,11 @@ import { m } from '#lib/server/api/common/i18n/index';
 import { publicId } from '#lib/server/api/common/utils/crypto';
 import {
   BadRequest,
-  CodedHTTPException,
+  Forbidden,
+  Gone,
   InternalError,
   PayloadTooLarge,
+  TooEarly,
   UnprocessableEntity,
   UnsupportedMediaType,
 } from '#lib/server/api/common/utils/exceptions';
@@ -136,9 +138,7 @@ export class StorageService {
 
   /** Reads an object into memory. With antivirus on, only a clean object is read (see `assertReadable`). */
   async get(key: string, visibility: BucketVisibility): Promise<StoredObject> {
-    const bucket = this.bucketFor(visibility);
-    await this.assertReadable(bucket, key);
-    return this.storage.client.getObject(bucket, key);
+    return this.storage.client.getObject(await this.readableBucket(key, visibility), key);
   }
 
   /**
@@ -146,8 +146,7 @@ export class StorageService {
    * labelled binary; an unknown length is left out. With antivirus on, only a clean object is streamed.
    */
   async getObjectStream(key: string, visibility: BucketVisibility): Promise<ObjectStream> {
-    const bucket = this.bucketFor(visibility);
-    await this.assertReadable(bucket, key);
+    const bucket = await this.readableBucket(key, visibility);
     const { stream, contentType, contentLength } = await this.storage.client.getObjectStream(bucket, key);
     return {
       stream,
@@ -168,9 +167,7 @@ export class StorageService {
     if (!isPresignedUrlLifetime(expiresInSeconds)) {
       throw BadRequest(m.storage_signed_url_lifetime_invalid());
     }
-    const bucket = this.bucketFor(visibility);
-    await this.assertReadable(bucket, key);
-    return this.storage.presigner.presignedGetObject(bucket, key, expiresInSeconds);
+    return this.storage.presigner.presignedGetObject(await this.readableBucket(key, visibility), key, expiresInSeconds);
   }
 
   /**
@@ -182,7 +179,7 @@ export class StorageService {
     if (visibility === BucketVisibility.PRIVATE) {
       return this.getSignedUrl(key, visibility, expiresInSeconds);
     }
-    await this.assertReadable(this.bucketFor(visibility), key);
+    await this.readableBucket(key, visibility);
     return `${this.configService.envs.PUBLIC_IMAGE_URI.replace(/\/+$/, '')}/${encodeKeyPath(key)}`;
   }
 
@@ -197,6 +194,13 @@ export class StorageService {
   private async scanStatusOf(bucket: string, key: string): Promise<string | null> {
     const tags = await this.storage.client.getObjectTagging(bucket, key);
     return tags[ScanTag.STATUS] || null;
+  }
+
+  /** The bucket a read of `key` goes to, once `assertReadable` lets the read through. */
+  private async readableBucket(key: string, visibility: BucketVisibility): Promise<string> {
+    const bucket = this.bucketFor(visibility);
+    await this.assertReadable(bucket, key);
+    return bucket;
   }
 
   /**
@@ -214,13 +218,13 @@ export class StorageService {
       case null:
       case ScanStatus.PENDING:
       case ScanStatus.SCANNING:
-        throw new CodedHTTPException(StatusCodes.TOO_EARLY, StorageErrorCode.SCAN_PENDING, m.storage_scan_pending());
+        throw TooEarly(m.storage_scan_pending(), StorageErrorCode.SCAN_PENDING);
       case ScanStatus.INFECTED:
-        throw new CodedHTTPException(StatusCodes.GONE, StorageErrorCode.SCAN_INFECTED, m.storage_scan_infected());
+        throw Gone(m.storage_scan_infected(), StorageErrorCode.SCAN_INFECTED);
       case ScanStatus.ERROR:
-        throw new CodedHTTPException(StatusCodes.INTERNAL_SERVER_ERROR, StorageErrorCode.SCAN_FAILED, m.storage_scan_failed());
+        throw InternalError(m.storage_scan_failed(), StorageErrorCode.SCAN_FAILED);
       default:
-        throw new CodedHTTPException(StatusCodes.FORBIDDEN, StorageErrorCode.SCAN_REFUSED, m.storage_scan_refused());
+        throw Forbidden(m.storage_scan_refused(), StorageErrorCode.SCAN_REFUSED);
     }
   }
 
