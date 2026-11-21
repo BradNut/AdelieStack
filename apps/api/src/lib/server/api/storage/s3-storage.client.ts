@@ -13,7 +13,7 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { inject, injectable } from '@needle-di/core';
 import { ConfigService } from '#lib/server/api/common/configs/config.service';
 import type { EnvsDto } from '#lib/server/api/common/configs/dtos/env.dto';
-import type { PresignerConfig, StorageClientConfig, StoredObject, StoredObjectStream } from './storage.types';
+import type { PresignerConfig, StorageClientConfig, StorageCredentials, StoredObject, StoredObjectStream } from './storage.types';
 
 // SeaweedFS ignores the region, but the AWS SDK requires one to sign requests.
 const DEFAULT_REGION = 'us-east-1';
@@ -26,7 +26,7 @@ export const buildEndpoint = ({ host, port, useSSL }: Pick<StorageClientConfig, 
   `${useSSL ? 'https' : 'http'}://${host}:${port}`;
 
 /** An SDK client for `endpoint`, with path-style addressing. Creating one opens no connection. */
-const createS3Client = (endpoint: string, { accessKey, secretKey }: Pick<StorageClientConfig, 'accessKey' | 'secretKey'>): S3Client =>
+const createS3Client = (endpoint: string, { accessKey, secretKey }: StorageCredentials): S3Client =>
   new S3Client({
     endpoint,
     region: DEFAULT_REGION,

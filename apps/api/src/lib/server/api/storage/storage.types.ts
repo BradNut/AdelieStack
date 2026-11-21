@@ -2,20 +2,22 @@ import { SECONDS_PER_DAY, SECONDS_PER_MINUTE } from '@adelie/shared';
 import type { ResizeOptions } from 'sharp';
 import type { BucketVisibility } from './storage.buckets';
 
-export type StorageClientConfig = {
+/** The access key pair the API authenticates to storage with (`STORAGE_ACCESS_KEY`, `STORAGE_SECRET_KEY`). */
+export interface StorageCredentials {
+  accessKey: string;
+  secretKey: string;
+}
+
+export interface StorageClientConfig extends StorageCredentials {
   host: string;
   port: number;
   useSSL: boolean;
-  accessKey: string;
-  secretKey: string;
-};
+}
 
 /** What signs Presigned URLs: the browser-facing storage address (`STORAGE_URL`) and the storage credentials. */
-export type PresignerConfig = {
+export interface PresignerConfig extends StorageCredentials {
   endpoint: string;
-  accessKey: string;
-  secretKey: string;
-};
+}
 
 export type StoredObject = {
   body: Buffer;
@@ -23,17 +25,17 @@ export type StoredObject = {
 };
 
 /** A stored object's body as a stream, with what the storage reported about it. */
-export type StoredObjectStream = {
+export interface StoredObjectStream {
   stream: ReadableStream<Uint8Array>;
   contentType: string | undefined;
   contentLength: number | undefined;
-};
+}
 
 /** An object's body as a stream, with the `content-type` and (when known) `content-length` headers to send it under. */
-export type ObjectStream = {
+export interface ObjectStream {
   stream: ReadableStream<Uint8Array>;
   headers: Record<string, string>;
-};
+}
 
 /**
  * An object's Scan Status, recorded as an S3 object tag while antivirus is on. Every `StorageService` read checks it
