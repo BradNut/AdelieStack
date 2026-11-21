@@ -44,5 +44,6 @@
   "storage_scan_infected": "Este archivo se ha eliminado porque se encontró un virus en él.",
   "storage_scan_failed": "No se pudo comprobar si este archivo tiene virus, por lo que no se puede abrir.",
   "storage_scan_refused": "Este archivo no se puede abrir.",
+  "storage_signed_url_lifetime_invalid": "La duración del enlace debe ser un número entero de segundos entre 1 segundo y 7 días.",
   "server_unexpected_error": "Algo salió mal por nuestra parte. Inténtalo de nuevo más tarde."
 }

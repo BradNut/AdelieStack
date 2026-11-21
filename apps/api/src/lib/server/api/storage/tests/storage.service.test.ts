@@ -10,7 +10,7 @@ import { LoggerService } from '#lib/server/api/common/services/logger.service';
 import { CodedHTTPException } from '#lib/server/api/common/utils/exceptions';
 import { ActiveContentType, CONTENT_SNIFF_BYTES } from '#lib/server/api/storage/content-type';
 import { ImagesService } from '#lib/server/api/storage/images.service';
-import { S3StorageClient } from '#lib/server/api/storage/s3-storage.client';
+import { S3Presigner, S3StorageClient } from '#lib/server/api/storage/s3-storage.client';
 import { BucketVisibility } from '#lib/server/api/storage/storage.buckets';
 import { StorageService } from '#lib/server/api/storage/storage.service';
 import { ScanStatus, ScanTag, type Upload } from '#lib/server/api/storage/storage.types';
@@ -28,6 +28,8 @@ const envs: Partial<EnvsDto> = {
   STORAGE_SSL: false,
   STORAGE_ACCESS_KEY: 'key',
   STORAGE_SECRET_KEY: 'secret',
+  STORAGE_URL: 'https://files.example.com',
+  PUBLIC_IMAGE_URI: 'https://files.example.com/adelie-public-development',
 };
 
 /** A Public Id: 21 characters from 0-9A-Za-z. */
@@ -82,7 +84,12 @@ const BUCKET_OF: Record<BucketVisibility, string> = { [BucketVisibility.PUBLIC]:
 const READS: [string, (service: StorageService, visibility: BucketVisibility) => Promise<unknown>][] = [
   ['get', (service, visibility) => service.get(OBJECT_KEY, visibility)],
   ['getObjectStream', (service, visibility) => service.getObjectStream(OBJECT_KEY, visibility)],
+  ['getSignedUrl', (service, visibility) => service.getSignedUrl(OBJECT_KEY, visibility)],
+  ['getFileUrl', (service, visibility) => service.getFileUrl(OBJECT_KEY, visibility)],
 ];
+
+const ONE_HOUR_SECONDS = 3600;
+const SEVEN_DAYS_SECONDS = 604800;
 
 /** How a read answers each Scan Status other than clean (ADR 0016). */
 const REFUSALS: [string, number, StorageErrorCode][] = [
@@ -808,6 +815,90 @@ describe('StorageService', () => {
     });
   });
 
+  describe('getSignedUrl', () => {
+    const signedUrl = async (visibility: BucketVisibility, expiresInSeconds?: number) =>
+      new URL(await createService().getSignedUrl(OBJECT_KEY, visibility, expiresInSeconds));
+
+    it('signs a GET of the object on STORAGE_URL, the address browsers reach storage on', async () => {
+      const url = await signedUrl(BucketVisibility.PRIVATE);
+
+      expect(url.origin).toBe('https://files.example.com');
+      expect(url.pathname).toBe(`/${PRIVATE_BUCKET}/${OBJECT_KEY}`);
+      expect(url.searchParams.get('X-Amz-Signature')).toMatch(/^[0-9a-f]{64}$/);
+    });
+
+    it('lasts one hour by default', async () => {
+      const url = await signedUrl(BucketVisibility.PRIVATE);
+
+      expect(url.searchParams.get('X-Amz-Expires')).toBe(String(ONE_HOUR_SECONDS));
+    });
+
+    it.each([1, 600, SEVEN_DAYS_SECONDS])('lasts the %i seconds asked for', async (seconds) => {
+      const url = await signedUrl(BucketVisibility.PUBLIC, seconds);
+
+      expect(url.searchParams.get('X-Amz-Expires')).toBe(String(seconds));
+    });
+
+    it.each([
+      ['zero', 0],
+      ['negative', -1],
+      ['over seven days', SEVEN_DAYS_SECONDS + 1],
+      ['fractional', 1.5],
+      ['not a number', Number.NaN],
+      ['infinite', Number.POSITIVE_INFINITY],
+    ])('refuses a %s lifetime with a 400, before checking or signing anything', async (_label, seconds) => {
+      const getObjectTagging = vi.spyOn(S3StorageClient.prototype, 'getObjectTagging');
+      const presign = vi.spyOn(S3Presigner.prototype, 'presignedGetObject');
+
+      const error = await failureOf(createService({ scanner: { isEnabled: true } }).getSignedUrl(OBJECT_KEY, BucketVisibility.PRIVATE, seconds));
+
+      expect(error.status).toBe(StatusCodes.BAD_REQUEST);
+      expect(error.message).not.toBe('');
+      expect(getObjectTagging).not.toHaveBeenCalled();
+      expect(presign).not.toHaveBeenCalled();
+    });
+
+    it('does not create the presigner until a URL is signed', async () => {
+      const fromEnv = vi.spyOn(S3Presigner, 'fromEnv');
+      vi.spyOn(S3StorageClient.prototype, 'getObject').mockResolvedValue(STORED);
+
+      const service = createService();
+      await service.get(OBJECT_KEY, BucketVisibility.PRIVATE);
+      expect(fromEnv).not.toHaveBeenCalled();
+
+      await service.getSignedUrl(OBJECT_KEY, BucketVisibility.PRIVATE);
+      expect(fromEnv).toHaveBeenCalledOnce();
+    });
+  });
+
+  describe('getFileUrl', () => {
+    it('gives a public object its address under PUBLIC_IMAGE_URI', async () => {
+      await expect(createService().getFileUrl('avatars/abc.png', BucketVisibility.PUBLIC)).resolves.toBe(
+        'https://files.example.com/adelie-public-development/avatars/abc.png',
+      );
+    });
+
+    it('encodes a key that is not URL-safe, keeping its folders', async () => {
+      await expect(createService().getFileUrl('my files/a#1.png', BucketVisibility.PUBLIC)).resolves.toBe(
+        'https://files.example.com/adelie-public-development/my%20files/a%231.png',
+      );
+    });
+
+    it('gives a private object a Presigned URL, lasting as long as asked', async () => {
+      const url = new URL(await createService().getFileUrl(OBJECT_KEY, BucketVisibility.PRIVATE, 600));
+
+      expect(url.origin).toBe('https://files.example.com');
+      expect(url.pathname).toBe(`/${PRIVATE_BUCKET}/${OBJECT_KEY}`);
+      expect(url.searchParams.get('X-Amz-Expires')).toBe('600');
+    });
+
+    it('refuses an out-of-range lifetime for a private object', async () => {
+      const error = await failureOf(createService().getFileUrl(OBJECT_KEY, BucketVisibility.PRIVATE, 0));
+
+      expect(error.status).toBe(StatusCodes.BAD_REQUEST);
+    });
+  });
+
   describe('getScanStatus', () => {
     it('returns the Scan Status recorded on the object', async () => {
       const getObjectTagging = vi.spyOn(S3StorageClient.prototype, 'getObjectTagging').mockResolvedValue({ [ScanTag.STATUS]: ScanStatus.SCANNING });
@@ -842,6 +933,7 @@ describe('StorageService', () => {
     const reading = () => [
       vi.spyOn(S3StorageClient.prototype, 'getObject').mockResolvedValue(STORED),
       vi.spyOn(S3StorageClient.prototype, 'getObjectStream').mockResolvedValue(STORED_STREAM),
+      vi.spyOn(S3Presigner.prototype, 'presignedGetObject'),
     ];
     const taggedWith = (tags: Record<string, string>) => vi.spyOn(S3StorageClient.prototype, 'getObjectTagging').mockResolvedValue(tags);
 

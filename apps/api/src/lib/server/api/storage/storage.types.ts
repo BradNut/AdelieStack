@@ -1,3 +1,4 @@
+import { SECONDS_PER_DAY, SECONDS_PER_MINUTE } from '@adelie/shared';
 import type { ResizeOptions } from 'sharp';
 import type { BucketVisibility } from './storage.buckets';
 
@@ -47,6 +48,16 @@ export const ScanStatus = {
 } as const;
 
 export type ScanStatus = (typeof ScanStatus)[keyof typeof ScanStatus];
+
+/**
+ * How long a Presigned URL lasts. A URL is checked once, when issued, and stays valid until it expires (ADR 0016),
+ * so the default is short. The maximum is the longest lifetime S3 SigV4 signing allows.
+ */
+export const PresignedUrlLifetime = {
+  DEFAULT_SECONDS: 60 * SECONDS_PER_MINUTE,
+  MIN_SECONDS: 1,
+  MAX_SECONDS: 7 * SECONDS_PER_DAY,
+} as const;
 
 /** Object tag keys used to persist scan outcomes on stored objects. */
 export const ScanTag = {

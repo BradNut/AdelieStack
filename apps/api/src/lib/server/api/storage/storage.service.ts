@@ -5,6 +5,7 @@ import { ConfigService } from '#lib/server/api/common/configs/config.service';
 import { m } from '#lib/server/api/common/i18n/index';
 import { publicId } from '#lib/server/api/common/utils/crypto';
 import {
+  BadRequest,
   CodedHTTPException,
   InternalError,
   PayloadTooLarge,
@@ -15,8 +16,14 @@ import { CONTENT_SNIFF_BYTES, detectContentType } from './content-type';
 import { ImagesService } from './images.service';
 import { S3StorageClientProvider } from './s3-storage.client';
 import { BucketVisibility, buildBucketName } from './storage.buckets';
-import { type ObjectStream, ScanStatus, ScanTag, type StoredObject, scanTags, type Upload } from './storage.types';
+import { type ObjectStream, PresignedUrlLifetime, ScanStatus, ScanTag, type StoredObject, scanTags, type Upload } from './storage.types';
 import { ScanResult, VirusScannerService } from './virus-scanner.service';
+
+const isPresignedUrlLifetime = (seconds: number): boolean =>
+  Number.isInteger(seconds) && seconds >= PresignedUrlLifetime.MIN_SECONDS && seconds <= PresignedUrlLifetime.MAX_SECONDS;
+
+/** A key as a URL path: each folder segment encoded, the `/` between them kept. */
+const encodeKeyPath = (key: string): string => key.split('/').map(encodeURIComponent).join('/');
 
 @injectable()
 export class StorageService {
@@ -149,6 +156,34 @@ export class StorageService {
         ...(contentLength === undefined ? {} : { [CONTENT_LENGTH_HEADER]: String(contentLength) }),
       },
     };
+  }
+
+  /**
+   * A Presigned URL that lets its holder GET the object straight from storage, on `STORAGE_URL`, for
+   * `expiresInSeconds` (one hour by default; a whole number of seconds from 1 second to 7 days, else a 400). With
+   * antivirus on, the object must be clean when the URL is issued; that is the only check, so the URL keeps working
+   * until it expires even if a later scan marks the object error (ADR 0016).
+   */
+  async getSignedUrl(key: string, visibility: BucketVisibility, expiresInSeconds: number = PresignedUrlLifetime.DEFAULT_SECONDS): Promise<string> {
+    if (!isPresignedUrlLifetime(expiresInSeconds)) {
+      throw BadRequest(m.storage_signed_url_lifetime_invalid());
+    }
+    const bucket = this.bucketFor(visibility);
+    await this.assertReadable(bucket, key);
+    return this.storage.presigner.presignedGetObject(bucket, key, expiresInSeconds);
+  }
+
+  /**
+   * The URL a browser loads the object from. A public object's is its address under `PUBLIC_IMAGE_URI`; a private
+   * object gets a Presigned URL (see `getSignedUrl`). Either way, with antivirus on, the object must be clean now.
+   * A public object fetched straight from storage later is not checked again: its only protection is the scan at upload.
+   */
+  async getFileUrl(key: string, visibility: BucketVisibility, expiresInSeconds?: number): Promise<string> {
+    if (visibility === BucketVisibility.PRIVATE) {
+      return this.getSignedUrl(key, visibility, expiresInSeconds);
+    }
+    await this.assertReadable(this.bucketFor(visibility), key);
+    return `${this.configService.envs.PUBLIC_IMAGE_URI.replace(/\/+$/, '')}/${encodeKeyPath(key)}`;
   }
 
   /**
