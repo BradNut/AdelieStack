@@ -169,6 +169,43 @@ describe('S3StorageClient', () => {
     });
   });
 
+  describe('getObjectStream', () => {
+    const webStream = () => new ReadableStream<Uint8Array>();
+
+    it('returns the body as a stream with its content type and length', async () => {
+      const client = createClient();
+      const stream = webStream();
+      const send = spySend().mockResolvedValue({
+        Body: { transformToWebStream: () => stream },
+        ContentType: 'image/png',
+        ContentLength: 42,
+      } as never);
+
+      const result = await client.getObjectStream('my-bucket', 'key.png');
+
+      expect(send.mock.calls[0][0]).toBeInstanceOf(GetObjectCommand);
+      expect(send.mock.calls[0][0].input).toEqual({ Bucket: 'my-bucket', Key: 'key.png' });
+      expect(result).toEqual({ stream, contentType: 'image/png', contentLength: 42 });
+    });
+
+    it('leaves out a type and length the response does not give', async () => {
+      const client = createClient();
+      spySend().mockResolvedValue({ Body: { transformToWebStream: webStream } } as never);
+
+      const result = await client.getObjectStream('my-bucket', 'key.png');
+
+      expect(result.contentType).toBeUndefined();
+      expect(result.contentLength).toBeUndefined();
+    });
+
+    it('throws when the response has no body', async () => {
+      const client = createClient();
+      spySend().mockResolvedValue({} as never);
+
+      await expect(client.getObjectStream('my-bucket', 'key.txt')).rejects.toThrow('my-bucket/key.txt has no body');
+    });
+  });
+
   describe('removeObject', () => {
     it('sends DeleteObject', async () => {
       const client = createClient();

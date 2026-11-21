@@ -14,6 +14,19 @@ export type StoredObject = {
   contentType: string | undefined;
 };
 
+/** A stored object's body as a stream, with what the storage reported about it. */
+export type StoredObjectStream = {
+  stream: ReadableStream<Uint8Array>;
+  contentType: string | undefined;
+  contentLength: number | undefined;
+};
+
+/** An object's body as a stream, with the `content-type` and (when known) `content-length` headers to send it under. */
+export type ObjectStream = {
+  stream: ReadableStream<Uint8Array>;
+  headers: Record<string, string>;
+};
+
 /**
  * Lifecycle of an object's virus scan, recorded as an S3 object tag so access
  * decisions can be made without re-scanning.

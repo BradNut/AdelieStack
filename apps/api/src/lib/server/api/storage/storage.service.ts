@@ -1,4 +1,4 @@
-import { StatusCodes, StorageErrorCode } from '@adelie/shared';
+import { BINARY_CONTENT_TYPE, CONTENT_LENGTH_HEADER, CONTENT_TYPE_HEADER, StatusCodes, StorageErrorCode } from '@adelie/shared';
 import { inject, injectable } from '@needle-di/core';
 import { HTTPException } from 'hono/http-exception';
 import { ConfigService } from '#lib/server/api/common/configs/config.service';
@@ -15,7 +15,7 @@ import { CONTENT_SNIFF_BYTES, detectContentType } from './content-type';
 import { ImagesService } from './images.service';
 import { S3StorageClientProvider } from './s3-storage.client';
 import { BucketVisibility, buildBucketName } from './storage.buckets';
-import { ScanStatus, ScanTag, type StoredObject, scanTags, type Upload } from './storage.types';
+import { type ObjectStream, ScanStatus, ScanTag, type StoredObject, scanTags, type Upload } from './storage.types';
 import { ScanResult, VirusScannerService } from './virus-scanner.service';
 
 @injectable()
@@ -132,6 +132,23 @@ export class StorageService {
     const bucket = this.bucketFor(visibility);
     await this.assertReadable(bucket, key);
     return this.storage.client.getObject(bucket, key);
+  }
+
+  /**
+   * Streams an object's body without buffering it, with the headers to send it under. A body of unknown type is
+   * labelled binary; an unknown length is left out. With antivirus on, only a clean object is streamed.
+   */
+  async getObjectStream(key: string, visibility: BucketVisibility): Promise<ObjectStream> {
+    const bucket = this.bucketFor(visibility);
+    await this.assertReadable(bucket, key);
+    const { stream, contentType, contentLength } = await this.storage.client.getObjectStream(bucket, key);
+    return {
+      stream,
+      headers: {
+        [CONTENT_TYPE_HEADER]: contentType ?? BINARY_CONTENT_TYPE,
+        ...(contentLength === undefined ? {} : { [CONTENT_LENGTH_HEADER]: String(contentLength) }),
+      },
+    };
   }
 
   /**

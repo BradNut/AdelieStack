@@ -12,7 +12,7 @@ import {
 import { inject, injectable } from '@needle-di/core';
 import { ConfigService } from '#lib/server/api/common/configs/config.service';
 import type { EnvsDto } from '#lib/server/api/common/configs/dtos/env.dto';
-import type { StorageClientConfig, StoredObject } from './storage.types';
+import type { StorageClientConfig, StoredObject, StoredObjectStream } from './storage.types';
 
 // SeaweedFS ignores the region, but the AWS SDK requires one to sign requests.
 const DEFAULT_REGION = 'us-east-1';
@@ -89,6 +89,19 @@ export class S3StorageClient {
     return {
       body: Buffer.from(await result.Body.transformToByteArray()),
       contentType: result.ContentType,
+    };
+  }
+
+  /** Opens the object's body as a stream, without buffering it. */
+  async getObjectStream(bucket: string, key: string): Promise<StoredObjectStream> {
+    const result = await this.s3Client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+    if (!result.Body) {
+      throw new Error(`Object ${bucket}/${key} has no body`);
+    }
+    return {
+      stream: result.Body.transformToWebStream(),
+      contentType: result.ContentType,
+      contentLength: result.ContentLength,
     };
   }
 
