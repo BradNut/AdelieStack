@@ -393,7 +393,6 @@ describe('StorageService', () => {
 
       it.each(EVERY_RESIZE_REQUEST)('refuses an upload %s as empty, with nothing resized, scanned or stored', async (_label, resizeOptions) => {
         const putObject = storing();
-        const setObjectTagging = vi.spyOn(S3StorageClient.prototype, 'setObjectTagging').mockResolvedValue();
         const scanner = scanStub(async () => ({ result: ScanResult.CLEAN }));
         const resize = vi.fn(async () => UNUSED_RESIZE_RESULT);
         const file = fileOf('', PNG_CONTENT_TYPE);
@@ -404,7 +403,6 @@ describe('StorageService', () => {
         expect(resize).not.toHaveBeenCalled();
         expect(scanner.scanBuffer).not.toHaveBeenCalled();
         expect(putObject).not.toHaveBeenCalled();
-        expect(setObjectTagging).not.toHaveBeenCalled();
       });
 
       it.each([
@@ -422,7 +420,6 @@ describe('StorageService', () => {
 
     it('still scans and stores a file that is not empty', async () => {
       const putObject = storing();
-      vi.spyOn(S3StorageClient.prototype, 'setObjectTagging').mockResolvedValue();
       const scanner = scanStub(async () => ({ result: ScanResult.CLEAN }));
 
       await createService({ scanner }).upload({ ...IMAGE_UPLOAD, file: pngFile(await createPng(4, 4)) });
@@ -590,7 +587,6 @@ describe('StorageService', () => {
 
     it('scans an upload with empty resize options before anything reaches storage', async () => {
       const putObject = vi.spyOn(S3StorageClient.prototype, 'putObject').mockResolvedValue();
-      vi.spyOn(S3StorageClient.prototype, 'setObjectTagging').mockResolvedValue();
       const scanner = scanStub(async () => ({ result: ScanResult.CLEAN }));
       const scanBuffer = vi.mocked(scanner.scanBuffer as VirusScannerService['scanBuffer']);
       const original = await createPng(40, 20, { compressionLevel: 0 });
@@ -680,7 +676,6 @@ describe('StorageService', () => {
 
     it('scans the resized bytes before anything reaches storage', async () => {
       const putObject = vi.spyOn(S3StorageClient.prototype, 'putObject').mockResolvedValue();
-      vi.spyOn(S3StorageClient.prototype, 'setObjectTagging').mockResolvedValue();
       const scanner = scanStub(async () => ({ result: ScanResult.CLEAN }));
       const scanBuffer = vi.mocked(scanner.scanBuffer as VirusScannerService['scanBuffer']);
 
@@ -756,7 +751,6 @@ describe('StorageService', () => {
 
     it('skips scanning entirely when antivirus is disabled', async () => {
       const putObject = vi.spyOn(S3StorageClient.prototype, 'putObject').mockResolvedValue();
-      const setObjectTagging = vi.spyOn(S3StorageClient.prototype, 'setObjectTagging').mockResolvedValue();
       const initClamAv = vi.spyOn(NodeClam.prototype, 'init');
       const png = await createPng(4, 4);
       const file = pngFile(png);
@@ -766,7 +760,6 @@ describe('StorageService', () => {
       expect(result).toEqual({ key: 'skip-key' });
       expect(initClamAv).not.toHaveBeenCalled();
       expect(putObject).toHaveBeenCalledWith(PUBLIC_BUCKET, 'skip-key', png, PNG_CONTENT_TYPE, UNTAGGED);
-      expect(setObjectTagging).not.toHaveBeenCalled();
     });
   });
 
