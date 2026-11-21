@@ -1,4 +1,4 @@
-import { ACCEPTED_IMAGE_TYPES, MAX_UPLOAD_SIZE_BYTES, StatusCodes } from '@adelie/shared';
+import { ACCEPTED_IMAGE_TYPES, MAX_UPLOAD_SIZE_BYTES, StatusCodes, StorageErrorCode } from '@adelie/shared';
 import { Container } from '@needle-di/core';
 import NodeClam from 'clamscan';
 import type { HTTPException } from 'hono/http-exception';
@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
 import { ConfigService } from '#lib/server/api/common/configs/config.service';
 import type { EnvsDto } from '#lib/server/api/common/configs/dtos/env.dto';
 import { LoggerService } from '#lib/server/api/common/services/logger.service';
+import { CodedHTTPException } from '#lib/server/api/common/utils/exceptions';
 import { ActiveContentType, CONTENT_SNIFF_BYTES } from '#lib/server/api/storage/content-type';
 import { ImagesService } from '#lib/server/api/storage/images.service';
 import { S3StorageClient } from '#lib/server/api/storage/s3-storage.client';
@@ -70,6 +71,25 @@ const scanStub = (scanBuffer: () => Promise<ScanResponse>): Partial<VirusScanner
 });
 
 const pngFile = (bytes: Buffer) => new File([new Uint8Array(bytes)], 'image.png', { type: PNG_CONTENT_TYPE });
+
+const OBJECT_KEY = 'object-key';
+const STORED = { body: Buffer.from('data'), contentType: 'text/plain' };
+const VISIBILITIES = Object.values(BucketVisibility);
+const BUCKET_OF: Record<BucketVisibility, string> = { [BucketVisibility.PUBLIC]: PUBLIC_BUCKET, [BucketVisibility.PRIVATE]: PRIVATE_BUCKET };
+
+/** Every read of a stored object; each one has to honour the Scan Status. */
+const READS: [string, (service: StorageService, visibility: BucketVisibility) => Promise<unknown>][] = [
+  ['get', (service, visibility) => service.get(OBJECT_KEY, visibility)],
+];
+
+/** How a read answers each Scan Status other than clean (ADR 0016). */
+const REFUSALS: [string, number, StorageErrorCode][] = [
+  [ScanStatus.PENDING, StatusCodes.TOO_EARLY, StorageErrorCode.SCAN_PENDING],
+  [ScanStatus.SCANNING, StatusCodes.TOO_EARLY, StorageErrorCode.SCAN_PENDING],
+  [ScanStatus.INFECTED, StatusCodes.GONE, StorageErrorCode.SCAN_INFECTED],
+  [ScanStatus.ERROR, StatusCodes.INTERNAL_SERVER_ERROR, StorageErrorCode.SCAN_FAILED],
+  ['quarantined', StatusCodes.FORBIDDEN, StorageErrorCode.SCAN_REFUSED],
+];
 
 const dimensionsOf = async (bytes: Buffer) => {
   const { width, height } = await sharp(bytes).metadata();
@@ -754,6 +774,96 @@ describe('StorageService', () => {
       vi.spyOn(S3StorageClient.prototype, 'getObject').mockRejectedValue(Object.assign(new Error('missing'), { name: 'NoSuchKey' }));
 
       await expect(createService().get('nope', BucketVisibility.PUBLIC)).rejects.toThrow('missing');
+    });
+  });
+
+  describe('getScanStatus', () => {
+    it('returns the Scan Status recorded on the object', async () => {
+      const getObjectTagging = vi.spyOn(S3StorageClient.prototype, 'getObjectTagging').mockResolvedValue({ [ScanTag.STATUS]: ScanStatus.SCANNING });
+
+      await expect(createService().getScanStatus(OBJECT_KEY, BucketVisibility.PRIVATE)).resolves.toBe(ScanStatus.SCANNING);
+      expect(getObjectTagging).toHaveBeenCalledWith(PRIVATE_BUCKET, OBJECT_KEY);
+    });
+
+    it('returns null for an object with no Scan Status', async () => {
+      vi.spyOn(S3StorageClient.prototype, 'getObjectTagging').mockResolvedValue({ other: 'tag' });
+
+      await expect(createService().getScanStatus(OBJECT_KEY, BucketVisibility.PUBLIC)).resolves.toBeNull();
+    });
+
+    it('returns an unrecognised value as it is recorded', async () => {
+      vi.spyOn(S3StorageClient.prototype, 'getObjectTagging').mockResolvedValue({ [ScanTag.STATUS]: 'quarantined' });
+
+      await expect(createService().getScanStatus(OBJECT_KEY, BucketVisibility.PUBLIC)).resolves.toBe('quarantined');
+    });
+
+    it('propagates a failure to read the tags', async () => {
+      const outage = new Error('connection refused');
+      vi.spyOn(S3StorageClient.prototype, 'getObjectTagging').mockRejectedValue(outage);
+
+      await expect(createService().getScanStatus(OBJECT_KEY, BucketVisibility.PUBLIC)).rejects.toBe(outage);
+    });
+  });
+
+  describe('reads with antivirus on', () => {
+    const scanner: Partial<VirusScannerService> = { isEnabled: true };
+    const reading = () => vi.spyOn(S3StorageClient.prototype, 'getObject').mockResolvedValue(STORED);
+    const taggedWith = (tags: Record<string, string>) => vi.spyOn(S3StorageClient.prototype, 'getObjectTagging').mockResolvedValue(tags);
+
+    describe.each(READS)('%s', (_name, read) => {
+      it.each(VISIBILITIES)('serves a clean object from the %s bucket', async (visibility) => {
+        reading();
+        const getObjectTagging = taggedWith({ [ScanTag.STATUS]: ScanStatus.CLEAN });
+
+        await expect(read(createService({ scanner }), visibility)).resolves.toBeDefined();
+        expect(getObjectTagging).toHaveBeenCalledWith(BUCKET_OF[visibility], OBJECT_KEY);
+      });
+
+      it.each(REFUSALS)('refuses an object whose Scan Status is %s with %i %s, before reading its bytes', async (status, httpStatus, code) => {
+        const getObject = reading();
+        taggedWith({ [ScanTag.STATUS]: status });
+
+        for (const visibility of VISIBILITIES) {
+          const error = await failureOf(read(createService({ scanner }), visibility));
+
+          expect(error).toBeInstanceOf(CodedHTTPException);
+          expect(error.status).toBe(httpStatus);
+          expect((error as CodedHTTPException).code).toBe(code);
+          expect(error.message).not.toBe('');
+        }
+        expect(getObject).not.toHaveBeenCalled();
+      });
+
+      it('refuses an object with no Scan Status as pending', async () => {
+        reading();
+        taggedWith({});
+
+        const error = (await failureOf(read(createService({ scanner }), BucketVisibility.PRIVATE))) as CodedHTTPException;
+
+        expect(error.status).toBe(StatusCodes.TOO_EARLY);
+        expect(error.code).toBe(StorageErrorCode.SCAN_PENDING);
+      });
+
+      it('propagates a failure to read the tags unchanged, without reading the bytes', async () => {
+        const getObject = reading();
+        const missing = Object.assign(new Error('missing'), { name: 'NoSuchKey' });
+        vi.spyOn(S3StorageClient.prototype, 'getObjectTagging').mockRejectedValue(missing);
+
+        await expect(read(createService({ scanner }), BucketVisibility.PUBLIC)).rejects.toBe(missing);
+        expect(getObject).not.toHaveBeenCalled();
+      });
+    });
+  });
+
+  describe('reads with antivirus off', () => {
+    describe.each(READS)('%s', (_name, read) => {
+      it.each(VISIBILITIES)('serves an object from the %s bucket without asking for a Scan Status', async (visibility) => {
+        vi.spyOn(S3StorageClient.prototype, 'getObject').mockResolvedValue(STORED);
+        const getObjectTagging = vi.spyOn(S3StorageClient.prototype, 'getObjectTagging');
+
+        await expect(read(createService(), visibility)).resolves.toBeDefined();
+        expect(getObjectTagging).not.toHaveBeenCalled();
+      });
     });
   });
 

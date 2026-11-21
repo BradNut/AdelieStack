@@ -1,18 +1,21 @@
-import { type AuthErrorCode, StatusCodes } from '@adelie/shared';
+import { type AuthErrorCode, StatusCodes, type StorageErrorCode } from '@adelie/shared';
 import { HTTPException } from 'hono/http-exception';
 
 export function TooManyRequests(message = 'Too many requests') {
   return new HTTPException(StatusCodes.TOO_MANY_REQUESTS, { message });
 }
 
+/** A stable, client-visible error code from `@adelie/shared`. */
+export type ErrorCode = AuthErrorCode | StorageErrorCode;
+
 /**
- * A deliberate error with a stable, client-visible code (an `AuthErrorCode` from `@adelie/shared`) next to its
- * message, so a client can act on it without matching text. The error handler sends the code as `code`.
+ * A deliberate error with a stable, client-visible code (an `AuthErrorCode` or `StorageErrorCode` from `@adelie/shared`)
+ * next to its message, so a client can act on it without matching text. The error handler sends the code as `code`.
  */
 export class CodedHTTPException extends HTTPException {
   constructor(
     status: ConstructorParameters<typeof HTTPException>[0],
-    readonly code: AuthErrorCode,
+    readonly code: ErrorCode,
     message: string,
   ) {
     super(status, { message });

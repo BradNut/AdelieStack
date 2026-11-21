@@ -1,15 +1,21 @@
-import { StatusCodes } from '@adelie/shared';
+import { StatusCodes, StorageErrorCode } from '@adelie/shared';
 import { inject, injectable } from '@needle-di/core';
 import { HTTPException } from 'hono/http-exception';
 import { ConfigService } from '#lib/server/api/common/configs/config.service';
 import { m } from '#lib/server/api/common/i18n/index';
 import { publicId } from '#lib/server/api/common/utils/crypto';
-import { InternalError, PayloadTooLarge, UnprocessableEntity, UnsupportedMediaType } from '#lib/server/api/common/utils/exceptions';
+import {
+  CodedHTTPException,
+  InternalError,
+  PayloadTooLarge,
+  UnprocessableEntity,
+  UnsupportedMediaType,
+} from '#lib/server/api/common/utils/exceptions';
 import { CONTENT_SNIFF_BYTES, detectContentType } from './content-type';
 import { ImagesService } from './images.service';
 import { S3StorageClientProvider } from './s3-storage.client';
 import { BucketVisibility, buildBucketName } from './storage.buckets';
-import { ScanStatus, type StoredObject, scanTags, type Upload } from './storage.types';
+import { ScanStatus, ScanTag, type StoredObject, scanTags, type Upload } from './storage.types';
 import { ScanResult, VirusScannerService } from './virus-scanner.service';
 
 @injectable()
@@ -121,8 +127,49 @@ export class StorageService {
     }
   }
 
+  /** Reads an object into memory. With antivirus on, only a clean object is read (see `assertReadable`). */
   async get(key: string, visibility: BucketVisibility): Promise<StoredObject> {
-    return this.storage.client.getObject(this.bucketFor(visibility), key);
+    const bucket = this.bucketFor(visibility);
+    await this.assertReadable(bucket, key);
+    return this.storage.client.getObject(bucket, key);
+  }
+
+  /**
+   * The object's Scan Status as recorded, or `null` when it has none. A value outside `ScanStatus` is returned as it
+   * is, so a caller sees what is stored. A failure to read the tags (an outage, a missing key) propagates.
+   */
+  async getScanStatus(key: string, visibility: BucketVisibility): Promise<string | null> {
+    return this.scanStatusOf(this.bucketFor(visibility), key);
+  }
+
+  private async scanStatusOf(bucket: string, key: string): Promise<string | null> {
+    const tags = await this.storage.client.getObjectTagging(bucket, key);
+    return tags[ScanTag.STATUS] || null;
+  }
+
+  /**
+   * With antivirus on, refuses a read unless the object's Scan Status is clean (ADR 0016); with it off, nothing is
+   * checked. Runs before any bytes are fetched. An object with no Scan Status counts as pending, never as clean, and a
+   * failure to read the tags propagates as it is rather than being reported as pending.
+   */
+  private async assertReadable(bucket: string, key: string): Promise<void> {
+    if (!this.virusScanner.isEnabled) return;
+
+    const status = await this.scanStatusOf(bucket, key);
+    switch (status) {
+      case ScanStatus.CLEAN:
+        return;
+      case null:
+      case ScanStatus.PENDING:
+      case ScanStatus.SCANNING:
+        throw new CodedHTTPException(StatusCodes.TOO_EARLY, StorageErrorCode.SCAN_PENDING, m.storage_scan_pending());
+      case ScanStatus.INFECTED:
+        throw new CodedHTTPException(StatusCodes.GONE, StorageErrorCode.SCAN_INFECTED, m.storage_scan_infected());
+      case ScanStatus.ERROR:
+        throw new CodedHTTPException(StatusCodes.INTERNAL_SERVER_ERROR, StorageErrorCode.SCAN_FAILED, m.storage_scan_failed());
+      default:
+        throw new CodedHTTPException(StatusCodes.FORBIDDEN, StorageErrorCode.SCAN_REFUSED, m.storage_scan_refused());
+    }
   }
 
   async remove(key: string, visibility: BucketVisibility): Promise<void> {

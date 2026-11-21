@@ -40,5 +40,9 @@
   "storage_upload_unrecognized": "Datei abgelehnt: Ihr Typ konnte nicht erkannt werden.",
   "storage_image_too_many_pixels": "Datei abgelehnt: Das Bild hat zu viele Pixel.",
   "storage_image_output_too_large": "Die angeforderte Bildgröße ist zu groß.",
+  "storage_scan_pending": "Diese Datei wird noch auf Viren geprüft. Bitte versuchen Sie es gleich noch einmal.",
+  "storage_scan_infected": "Diese Datei wurde entfernt, weil darin ein Virus gefunden wurde.",
+  "storage_scan_failed": "Diese Datei konnte nicht auf Viren geprüft werden und kann daher nicht geöffnet werden.",
+  "storage_scan_refused": "Diese Datei kann nicht geöffnet werden.",
   "server_unexpected_error": "Bei uns ist ein Fehler aufgetreten. Bitte versuchen Sie es später erneut."
 }

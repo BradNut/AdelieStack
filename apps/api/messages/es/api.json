@@ -40,5 +40,9 @@
   "storage_upload_unrecognized": "Archivo rechazado: no se pudo reconocer su tipo.",
   "storage_image_too_many_pixels": "Archivo rechazado: la imagen tiene demasiados píxeles.",
   "storage_image_output_too_large": "El tamaño de imagen solicitado es demasiado grande.",
+  "storage_scan_pending": "Todavía se está comprobando si este archivo tiene virus. Inténtelo de nuevo en unos momentos.",
+  "storage_scan_infected": "Este archivo se ha eliminado porque se encontró un virus en él.",
+  "storage_scan_failed": "No se pudo comprobar si este archivo tiene virus, por lo que no se puede abrir.",
+  "storage_scan_refused": "Este archivo no se puede abrir.",
   "server_unexpected_error": "Algo salió mal por nuestra parte. Inténtalo de nuevo más tarde."
 }
