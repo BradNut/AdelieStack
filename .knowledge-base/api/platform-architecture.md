@@ -67,7 +67,7 @@
 - **Configuration**: `ANTIVIRUS_ENABLED` (default `false`), `CLAMAV_HOST`, `CLAMAV_PORT`. When
   disabled, scans report clean without contacting clamd, objects get no Scan Status and reads
   check none
-- **Read check** (ADR 0016): with antivirus on, `get`, `getObjectStream`, `getSignedUrl` and
+- **Read check** (ADR 0016): with antivirus on, `get`, `getObjectStream`, `getPresignedUrl` and
   `getFileUrl` read the object's Scan Status before fetching any bytes, for both buckets. `clean`
   is served; no Scan Status, `pending` or `scanning` is a 425 (`SCAN_PENDING`); `infected` a 410
   (`SCAN_INFECTED`); `error` a 500 (`SCAN_FAILED`); any other value a 403 (`SCAN_REFUSED`). The

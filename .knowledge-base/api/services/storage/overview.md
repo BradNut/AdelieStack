@@ -35,7 +35,7 @@ With `ANTIVIRUS_ENABLED` on, each object carries a [Scan Status](../../glossary.
   `clean`, `error`, or `infected` (and deletes the object). Nothing writes `pending` today
 - `scan-timestamp` is ISO 8601 basic format (`20261121T070809Z`): SeaweedFS stores `PutObject` tag
   values without URL-decoding them, so tag values must need no encoding
-- Every read (`get`, `getObjectStream`, `getSignedUrl`, `getFileUrl`) checks the Scan Status before
+- Every read (`get`, `getObjectStream`, `getPresignedUrl`, `getFileUrl`) checks the Scan Status before
   fetching any bytes, for both buckets:
 
   | Scan Status | Response | `code` (`StorageErrorCode`) |
@@ -75,7 +75,7 @@ all, because the bucket is anonymously readable: its only protection is the scan
 ## Code Map
 
 - `storage/s3-storage.client.ts` - thin `@aws-sdk/client-s3` wrapper (path-style addressing, SigV4), `S3Presigner` (`@aws-sdk/s3-request-presigner`), and the provider that creates each on first use
-- `storage/storage.service.ts` - `configure`, `upload`, `get`, `getObjectStream`, `getSignedUrl`, `getFileUrl`, `getScanStatus`, `remove`
+- `storage/storage.service.ts` - `configure`, `upload`, `get`, `getObjectStream`, `getPresignedUrl`, `getFileUrl`, `getScanStatus`, `remove`
 - `storage/file-scanner.worker.ts` - webhook re-scan that records the Scan Status
 - `storage/images.service.ts` - `ImagesService`, the one home for image processing (`resize`, using `sharp`); forks can inject it directly. Bytes or options it cannot use are refused with a 422; failures of the server itself stay 500s, with the `sharp` error logged rather than returned
 - `storage/content-type.ts` - identifies an upload from its leading bytes

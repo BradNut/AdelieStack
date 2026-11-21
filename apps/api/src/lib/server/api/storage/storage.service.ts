@@ -163,21 +163,21 @@ export class StorageService {
    * antivirus on, the object must be clean when the URL is issued; that is the only check, so the URL keeps working
    * until it expires even if a later scan marks the object error (ADR 0016).
    */
-  async getSignedUrl(key: string, visibility: BucketVisibility, expiresInSeconds: number = PresignedUrlLifetime.DEFAULT_SECONDS): Promise<string> {
+  async getPresignedUrl(key: string, visibility: BucketVisibility, expiresInSeconds: number = PresignedUrlLifetime.DEFAULT_SECONDS): Promise<string> {
     if (!isPresignedUrlLifetime(expiresInSeconds)) {
-      throw BadRequest(m.storage_signed_url_lifetime_invalid());
+      throw BadRequest(m.storage_presigned_url_lifetime_invalid());
     }
     return this.storage.presigner.presignedGetObject(await this.readableBucket(key, visibility), key, expiresInSeconds);
   }
 
   /**
    * The URL a browser loads the object from. A public object's is its address under `PUBLIC_IMAGE_URI`; a private
-   * object gets a Presigned URL (see `getSignedUrl`). Either way, with antivirus on, the object must be clean now.
+   * object gets a Presigned URL (see `getPresignedUrl`). Either way, with antivirus on, the object must be clean now.
    * A public object fetched straight from storage later is not checked again: its only protection is the scan at upload.
    */
   async getFileUrl(key: string, visibility: BucketVisibility, expiresInSeconds?: number): Promise<string> {
     if (visibility === BucketVisibility.PRIVATE) {
-      return this.getSignedUrl(key, visibility, expiresInSeconds);
+      return this.getPresignedUrl(key, visibility, expiresInSeconds);
     }
     await this.readableBucket(key, visibility);
     return `${this.configService.envs.PUBLIC_IMAGE_URI.replace(/\/+$/, '')}/${encodeKeyPath(key)}`;

@@ -84,7 +84,7 @@ const BUCKET_OF: Record<BucketVisibility, string> = { [BucketVisibility.PUBLIC]:
 const READS: [string, (service: StorageService, visibility: BucketVisibility) => Promise<unknown>][] = [
   ['get', (service, visibility) => service.get(OBJECT_KEY, visibility)],
   ['getObjectStream', (service, visibility) => service.getObjectStream(OBJECT_KEY, visibility)],
-  ['getSignedUrl', (service, visibility) => service.getSignedUrl(OBJECT_KEY, visibility)],
+  ['getPresignedUrl', (service, visibility) => service.getPresignedUrl(OBJECT_KEY, visibility)],
   ['getFileUrl', (service, visibility) => service.getFileUrl(OBJECT_KEY, visibility)],
 ];
 
@@ -815,12 +815,12 @@ describe('StorageService', () => {
     });
   });
 
-  describe('getSignedUrl', () => {
-    const signedUrl = async (visibility: BucketVisibility, expiresInSeconds?: number) =>
-      new URL(await createService().getSignedUrl(OBJECT_KEY, visibility, expiresInSeconds));
+  describe('getPresignedUrl', () => {
+    const presignedUrl = async (visibility: BucketVisibility, expiresInSeconds?: number) =>
+      new URL(await createService().getPresignedUrl(OBJECT_KEY, visibility, expiresInSeconds));
 
     it('signs a GET of the object on STORAGE_URL, the address browsers reach storage on', async () => {
-      const url = await signedUrl(BucketVisibility.PRIVATE);
+      const url = await presignedUrl(BucketVisibility.PRIVATE);
 
       expect(url.origin).toBe('https://files.example.com');
       expect(url.pathname).toBe(`/${PRIVATE_BUCKET}/${OBJECT_KEY}`);
@@ -828,13 +828,13 @@ describe('StorageService', () => {
     });
 
     it('lasts one hour by default', async () => {
-      const url = await signedUrl(BucketVisibility.PRIVATE);
+      const url = await presignedUrl(BucketVisibility.PRIVATE);
 
       expect(url.searchParams.get('X-Amz-Expires')).toBe(String(ONE_HOUR_SECONDS));
     });
 
     it.each([1, 600, SEVEN_DAYS_SECONDS])('lasts the %i seconds asked for', async (seconds) => {
-      const url = await signedUrl(BucketVisibility.PUBLIC, seconds);
+      const url = await presignedUrl(BucketVisibility.PUBLIC, seconds);
 
       expect(url.searchParams.get('X-Amz-Expires')).toBe(String(seconds));
     });
@@ -850,7 +850,7 @@ describe('StorageService', () => {
       const getObjectTagging = vi.spyOn(S3StorageClient.prototype, 'getObjectTagging');
       const presign = vi.spyOn(S3Presigner.prototype, 'presignedGetObject');
 
-      const error = await failureOf(createService({ scanner: { isEnabled: true } }).getSignedUrl(OBJECT_KEY, BucketVisibility.PRIVATE, seconds));
+      const error = await failureOf(createService({ scanner: { isEnabled: true } }).getPresignedUrl(OBJECT_KEY, BucketVisibility.PRIVATE, seconds));
 
       expect(error.status).toBe(StatusCodes.BAD_REQUEST);
       expect(error.message).not.toBe('');
@@ -866,7 +866,7 @@ describe('StorageService', () => {
       await service.get(OBJECT_KEY, BucketVisibility.PRIVATE);
       expect(fromEnv).not.toHaveBeenCalled();
 
-      await service.getSignedUrl(OBJECT_KEY, BucketVisibility.PRIVATE);
+      await service.getPresignedUrl(OBJECT_KEY, BucketVisibility.PRIVATE);
       expect(fromEnv).toHaveBeenCalledOnce();
     });
   });
