@@ -36,8 +36,9 @@ export type ObjectStream = {
 };
 
 /**
- * Lifecycle of an object's virus scan, recorded as an S3 object tag so access
- * decisions can be made without re-scanning.
+ * An object's Scan Status, recorded as an S3 object tag while antivirus is on. Every `StorageService` read checks it
+ * first and serves only a clean object; an object with none counts as pending (ADR 0016). `pending` is scaffolding for
+ * bytes stored without a scan first: no path writes it today, since `upload` scans before storing and tags clean.
  */
 export const ScanStatus = {
   PENDING: 'pending',
