@@ -213,6 +213,8 @@ The API creates missing buckets at startup and refuses to start if storage is un
 `pnpm storage:setup` provisions them without starting the API. Credentials must match
 `docker/seaweedfs/s3-config.json`. SeaweedFS S3 runs locally; production takes any S3-compatible
 provider. `PUBLIC_IMAGE_URI` is the public bucket base URI and must equal the web app's value.
+`STORAGE_URL` is the address browsers reach storage on; Presigned URLs are signed against it, so it
+must be reachable from a browser, unlike `STORAGE_HOST`/`STORAGE_PORT`.
 
 ## Leak scanner and storage credentials
 
