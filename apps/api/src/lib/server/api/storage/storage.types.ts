@@ -9,6 +9,13 @@ export type StorageClientConfig = {
   secretKey: string;
 };
 
+/** What signs Presigned URLs: the browser-facing storage address (`STORAGE_URL`) and the storage credentials. */
+export type PresignerConfig = {
+  endpoint: string;
+  accessKey: string;
+  secretKey: string;
+};
+
 export type StoredObject = {
   body: Buffer;
   contentType: string | undefined;

@@ -9,7 +9,8 @@ import {
   S3Client,
 } from '@aws-sdk/client-s3';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { buildEndpoint, S3StorageClient } from '#lib/server/api/storage/s3-storage.client';
+import type { ConfigService } from '#lib/server/api/common/configs/config.service';
+import { buildEndpoint, S3Presigner, S3StorageClient, S3StorageClientProvider } from '#lib/server/api/storage/s3-storage.client';
 
 const createClient = () =>
   new S3StorageClient({
@@ -216,5 +217,65 @@ describe('S3StorageClient', () => {
       expect(send.mock.calls[0][0]).toBeInstanceOf(DeleteObjectCommand);
       expect(send.mock.calls[0][0].input).toEqual({ Bucket: 'my-bucket', Key: 'key.txt' });
     });
+  });
+});
+
+describe('S3Presigner', () => {
+  const presigner = () => new S3Presigner({ endpoint: 'https://files.example.com', accessKey: 'test-key', secretKey: 'test-secret' });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('signs a GET of the object against its own endpoint, offline', async () => {
+    const send = spySend();
+
+    const url = new URL(await presigner().presignedGetObject('my-bucket', 'images/photo.png', 600));
+
+    expect(url.origin).toBe('https://files.example.com');
+    expect(url.pathname).toBe('/my-bucket/images/photo.png');
+    expect(url.searchParams.get('X-Amz-Expires')).toBe('600');
+    expect(url.searchParams.get('X-Amz-Credential')).toMatch(/^test-key\//);
+    expect(url.searchParams.get('X-Amz-Signature')).toMatch(/^[0-9a-f]{64}$/);
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it('is built from STORAGE_URL, the address browsers reach storage on', async () => {
+    const fromEnv = S3Presigner.fromEnv({ STORAGE_URL: 'http://localhost:8333', STORAGE_ACCESS_KEY: 'key', STORAGE_SECRET_KEY: 'secret' });
+
+    const url = new URL(await fromEnv.presignedGetObject('my-bucket', 'k', 1));
+
+    expect(url.origin).toBe('http://localhost:8333');
+  });
+});
+
+describe('S3StorageClientProvider', () => {
+  const envs = {
+    STORAGE_HOST: 'seaweedfs',
+    STORAGE_PORT: 8333,
+    STORAGE_SSL: false,
+    STORAGE_ACCESS_KEY: 'key',
+    STORAGE_SECRET_KEY: 'secret',
+    STORAGE_URL: 'https://files.example.com',
+  };
+  const provider = () => new S3StorageClientProvider({ envs } as unknown as ConfigService);
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('creates the presigner on first use only, once', () => {
+    const fromEnv = vi.spyOn(S3Presigner, 'fromEnv');
+    const subject = provider();
+
+    expect(fromEnv).not.toHaveBeenCalled();
+    expect(subject.presigner).toBe(subject.presigner);
+    expect(fromEnv).toHaveBeenCalledOnce();
+  });
+
+  it('signs against STORAGE_URL, not the internal STORAGE_HOST and STORAGE_PORT', async () => {
+    const url = new URL(await provider().presigner.presignedGetObject('my-bucket', 'k', 1));
+
+    expect(url.origin).toBe('https://files.example.com');
   });
 });
