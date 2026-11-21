@@ -67,7 +67,8 @@ export class S3StorageClient {
     await this.s3Client.send(new CreateBucketCommand({ Bucket: bucket }));
   }
 
-  async putObject(bucket: string, key: string, body: Buffer, contentType?: string): Promise<void> {
+  /** Stores `body`; `tags` are written in the same request, so the object never exists without them. */
+  async putObject(bucket: string, key: string, body: Buffer, contentType?: string, tags?: Record<string, string>): Promise<void> {
     await this.s3Client.send(
       new PutObjectCommand({
         Bucket: bucket,
@@ -75,6 +76,7 @@ export class S3StorageClient {
         Body: body,
         ContentLength: body.byteLength,
         ...(contentType ? { ContentType: contentType } : {}),
+        ...(tags ? { Tagging: new URLSearchParams(tags).toString() } : {}),
       }),
     );
   }

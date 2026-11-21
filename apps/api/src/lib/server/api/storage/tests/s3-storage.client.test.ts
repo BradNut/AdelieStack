@@ -107,6 +107,28 @@ describe('S3StorageClient', () => {
       });
     });
 
+    it('sends the tags URL-encoded in the same request', async () => {
+      const client = createClient();
+      const send = spySend().mockResolvedValue({} as never);
+
+      await client.putObject('my-bucket', 'key.png', Buffer.from('hello'), 'image/png', {
+        'scan-status': 'clean',
+        'scan-timestamp': '20261121T070809Z',
+      });
+
+      expect(send).toHaveBeenCalledOnce();
+      expect(send.mock.calls[0][0].input).toMatchObject({ Tagging: 'scan-status=clean&scan-timestamp=20261121T070809Z' });
+    });
+
+    it('sends no tagging when no tags are given', async () => {
+      const client = createClient();
+      const send = spySend().mockResolvedValue({} as never);
+
+      await client.putObject('my-bucket', 'key.png', Buffer.from('hello'), 'image/png');
+
+      expect(send.mock.calls[0][0].input).not.toHaveProperty('Tagging');
+    });
+
     it('omits the content type when none is given', async () => {
       const client = createClient();
       const send = spySend().mockResolvedValue({} as never);

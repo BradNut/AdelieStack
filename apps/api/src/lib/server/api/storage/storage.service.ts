@@ -64,12 +64,10 @@ export class StorageService {
 
     const bucket = this.bucketFor(visibility);
     const fileKey = key || publicId();
-    await this.storage.client.putObject(bucket, fileKey, buffer, contentType);
-
-    // Record the clean verdict so later webhook/read checks can trust it without re-scanning.
-    if (this.virusScanner.isEnabled) {
-      await this.storage.client.setObjectTagging(bucket, fileKey, scanTags(ScanStatus.CLEAN));
-    }
+    // The bytes passed the scan above, so with antivirus on the object is stored already clean, in the same write:
+    // reads refuse it until then (ADR 0016). With antivirus off nothing was scanned, so no Scan Status is written.
+    const tags = this.virusScanner.isEnabled ? scanTags(ScanStatus.CLEAN) : undefined;
+    await this.storage.client.putObject(bucket, fileKey, buffer, contentType, tags);
 
     return { key: fileKey };
   }

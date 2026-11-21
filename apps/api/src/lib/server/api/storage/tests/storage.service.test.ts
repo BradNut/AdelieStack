@@ -38,6 +38,12 @@ const PRIVATE_BUCKET = 'adelie-private-development';
 const IMAGE_KEY = 'img';
 const PNG_CONTENT_TYPE = 'image/png';
 const PDF_CONTENT_TYPE = 'application/pdf';
+/** What `upload` tags its object with when antivirus is off: nothing. */
+const UNTAGGED = undefined;
+/** ISO 8601 basic format, e.g. `20261121T070809Z`. */
+const ISO_BASIC_TIMESTAMP = /^\d{8}T\d{6}Z$/;
+/** The tags of an upload that passed its scan: clean, stamped with the time of the scan. */
+const CLEAN_TAGS = { [ScanTag.STATUS]: ScanStatus.CLEAN, [ScanTag.TIMESTAMP]: expect.stringMatching(ISO_BASIC_TIMESTAMP) };
 const UNUSED_RESIZE_RESULT = Buffer.from('should-not-be-stored');
 
 /** What every upload has to state: the limits it is held to and the bucket it goes to. */
@@ -154,7 +160,7 @@ describe('StorageService', () => {
       const result = await createService().upload({ ...IMAGE_UPLOAD, file: pngFile(png), key: 'my-key' });
 
       expect(result).toEqual({ key: 'my-key' });
-      expect(putObject).toHaveBeenCalledWith(PUBLIC_BUCKET, 'my-key', png, PNG_CONTENT_TYPE);
+      expect(putObject).toHaveBeenCalledWith(PUBLIC_BUCKET, 'my-key', png, PNG_CONTENT_TYPE, UNTAGGED);
     });
 
     it('generates a key and targets the private bucket when requested', async () => {
@@ -164,7 +170,7 @@ describe('StorageService', () => {
       const result = await createService().upload({ ...IMAGE_UPLOAD, file: pngFile(png), visibility: BucketVisibility.PRIVATE });
 
       expect(result.key).toMatch(PUBLIC_ID_PATTERN);
-      expect(putObject).toHaveBeenCalledWith(PRIVATE_BUCKET, result.key, png, PNG_CONTENT_TYPE);
+      expect(putObject).toHaveBeenCalledWith(PRIVATE_BUCKET, result.key, png, PNG_CONTENT_TYPE, UNTAGGED);
     });
 
     it('propagates upload failures', async () => {
@@ -243,7 +249,7 @@ describe('StorageService', () => {
 
       await createService().upload({ ...IMAGE_UPLOAD, file: fileOf(jpeg, PNG_CONTENT_TYPE), key: IMAGE_KEY });
 
-      expect(putObject).toHaveBeenCalledWith(PUBLIC_BUCKET, IMAGE_KEY, jpeg, 'image/jpeg');
+      expect(putObject).toHaveBeenCalledWith(PUBLIC_BUCKET, IMAGE_KEY, jpeg, 'image/jpeg', UNTAGGED);
     });
 
     it('stores the detected type when the client claimed none', async () => {
@@ -252,7 +258,7 @@ describe('StorageService', () => {
 
       await createService().upload({ ...IMAGE_UPLOAD, file: fileOf(png, ''), key: IMAGE_KEY });
 
-      expect(putObject).toHaveBeenCalledWith(PUBLIC_BUCKET, IMAGE_KEY, png, PNG_CONTENT_TYPE);
+      expect(putObject).toHaveBeenCalledWith(PUBLIC_BUCKET, IMAGE_KEY, png, PNG_CONTENT_TYPE, UNTAGGED);
     });
 
     it('accepts a non-image type when the caller lists it', async () => {
@@ -260,7 +266,7 @@ describe('StorageService', () => {
 
       await createService().upload({ ...IMAGE_UPLOAD, file: fileOf(PDF, ''), key: IMAGE_KEY, acceptedTypes: [PDF_CONTENT_TYPE] });
 
-      expect(putObject).toHaveBeenCalledWith(PUBLIC_BUCKET, IMAGE_KEY, Buffer.from(PDF), PDF_CONTENT_TYPE);
+      expect(putObject).toHaveBeenCalledWith(PUBLIC_BUCKET, IMAGE_KEY, Buffer.from(PDF), PDF_CONTENT_TYPE, UNTAGGED);
     });
 
     it.each([
@@ -297,7 +303,7 @@ describe('StorageService', () => {
 
       await createService().upload({ ...IMAGE_UPLOAD, file: fileOf(content, ''), key: IMAGE_KEY, acceptedTypes: [type] });
 
-      expect(putObject).toHaveBeenCalledWith(PUBLIC_BUCKET, IMAGE_KEY, Buffer.from(content), type);
+      expect(putObject).toHaveBeenCalledWith(PUBLIC_BUCKET, IMAGE_KEY, Buffer.from(content), type, UNTAGGED);
     });
 
     it('refuses markup whose root lies beyond what is read, even when the caller accepts XML', async () => {
@@ -318,7 +324,7 @@ describe('StorageService', () => {
 
       await createService().upload({ ...IMAGE_UPLOAD, file: fileOf(xml, ''), key: IMAGE_KEY, acceptedTypes: ['application/xml'] });
 
-      expect(putObject).toHaveBeenCalledWith(PUBLIC_BUCKET, IMAGE_KEY, Buffer.from(xml), 'application/xml');
+      expect(putObject).toHaveBeenCalledWith(PUBLIC_BUCKET, IMAGE_KEY, Buffer.from(xml), 'application/xml', UNTAGGED);
     });
 
     it('classifies a document embedding SVG as HTML', async () => {
@@ -434,7 +440,7 @@ describe('StorageService', () => {
       await createService({ images: { resize } }).upload({ ...IMAGE_UPLOAD, file: pngFile(original), key: IMAGE_KEY, resizeOptions: { width: 10 } });
 
       expect(resize).toHaveBeenCalledWith(original, { width: 10 }, undefined);
-      expect(putObject).toHaveBeenCalledWith(PUBLIC_BUCKET, IMAGE_KEY, resizedBytes, 'image/jpeg');
+      expect(putObject).toHaveBeenCalledWith(PUBLIC_BUCKET, IMAGE_KEY, resizedBytes, 'image/jpeg', UNTAGGED);
     });
 
     it('stores a resized SVG as the PNG the image library made of it', async () => {
@@ -451,7 +457,7 @@ describe('StorageService', () => {
 
       const stored = putObject.mock.calls[0]?.[2] as Buffer;
       expect((await sharp(stored).metadata()).format).toBe('png');
-      expect(putObject).toHaveBeenCalledWith(PUBLIC_BUCKET, IMAGE_KEY, stored, PNG_CONTENT_TYPE);
+      expect(putObject).toHaveBeenCalledWith(PUBLIC_BUCKET, IMAGE_KEY, stored, PNG_CONTENT_TYPE, UNTAGGED);
     });
 
     it('reports a server error and stores nothing when the resized bytes are of no known type', async () => {
@@ -487,7 +493,7 @@ describe('StorageService', () => {
 
       await createService().upload({ ...IMAGE_UPLOAD, file: pngFile(original), key: IMAGE_KEY });
 
-      expect(putObject).toHaveBeenCalledWith(PUBLIC_BUCKET, IMAGE_KEY, original, PNG_CONTENT_TYPE);
+      expect(putObject).toHaveBeenCalledWith(PUBLIC_BUCKET, IMAGE_KEY, original, PNG_CONTENT_TYPE, UNTAGGED);
     });
 
     it('stores an upload with empty resize options byte-identical to the file received', async () => {
@@ -497,7 +503,7 @@ describe('StorageService', () => {
 
       await createService().upload({ ...IMAGE_UPLOAD, file: pngFile(original), key: IMAGE_KEY, resizeOptions: {} });
 
-      expect(putObject).toHaveBeenCalledWith(PUBLIC_BUCKET, IMAGE_KEY, original, PNG_CONTENT_TYPE);
+      expect(putObject).toHaveBeenCalledWith(PUBLIC_BUCKET, IMAGE_KEY, original, PNG_CONTENT_TYPE, UNTAGGED);
     });
 
     it('does not send an upload with empty resize options through image processing', async () => {
@@ -527,7 +533,7 @@ describe('StorageService', () => {
       await createService({ images: { resize } }).upload({ ...IMAGE_UPLOAD, file: pngFile(original), key: IMAGE_KEY, resizeOptions });
 
       expect(resize).not.toHaveBeenCalled();
-      expect(putObject).toHaveBeenCalledWith(PUBLIC_BUCKET, IMAGE_KEY, original, PNG_CONTENT_TYPE);
+      expect(putObject).toHaveBeenCalledWith(PUBLIC_BUCKET, IMAGE_KEY, original, PNG_CONTENT_TYPE, UNTAGGED);
     });
 
     it('still resizes when only a height is requested', async () => {
@@ -658,7 +664,7 @@ describe('StorageService', () => {
 
       const scanned = scanBuffer.mock.calls[0]?.[0] as Buffer;
       await expect(dimensionsOf(scanned)).resolves.toEqual({ width: 10, height: 5 });
-      expect(putObject).toHaveBeenCalledWith(PUBLIC_BUCKET, IMAGE_KEY, scanned, PNG_CONTENT_TYPE);
+      expect(putObject).toHaveBeenCalledWith(PUBLIC_BUCKET, IMAGE_KEY, scanned, PNG_CONTENT_TYPE, CLEAN_TAGS);
       expect(scanBuffer.mock.invocationCallOrder[0]).toBeLessThan(putObject.mock.invocationCallOrder[0] as number);
     });
 
@@ -676,7 +682,7 @@ describe('StorageService', () => {
   });
 
   describe('upload virus scanning', () => {
-    it('stores a clean file and tags it as scanned clean when antivirus is enabled', async () => {
+    it('stores a clean file already tagged clean, in the one write, when antivirus is enabled', async () => {
       const putObject = vi.spyOn(S3StorageClient.prototype, 'putObject').mockResolvedValue();
       const setObjectTagging = vi.spyOn(S3StorageClient.prototype, 'setObjectTagging').mockResolvedValue();
       const scanner = scanStub(async () => ({ result: ScanResult.CLEAN }));
@@ -687,8 +693,9 @@ describe('StorageService', () => {
 
       expect(result).toEqual({ key: 'clean-key' });
       expect(scanner.scanBuffer).toHaveBeenCalledWith(png);
-      expect(putObject).toHaveBeenCalledWith(PUBLIC_BUCKET, 'clean-key', png, PNG_CONTENT_TYPE);
-      expect(setObjectTagging).toHaveBeenCalledWith(PUBLIC_BUCKET, 'clean-key', expect.objectContaining({ [ScanTag.STATUS]: ScanStatus.CLEAN }));
+      expect(putObject).toHaveBeenCalledOnce();
+      expect(putObject).toHaveBeenCalledWith(PUBLIC_BUCKET, 'clean-key', png, PNG_CONTENT_TYPE, CLEAN_TAGS);
+      expect(setObjectTagging).not.toHaveBeenCalled();
     });
 
     it('rejects an infected file and never persists it', async () => {
@@ -729,7 +736,7 @@ describe('StorageService', () => {
 
       expect(result).toEqual({ key: 'skip-key' });
       expect(initClamAv).not.toHaveBeenCalled();
-      expect(putObject).toHaveBeenCalledWith(PUBLIC_BUCKET, 'skip-key', png, PNG_CONTENT_TYPE);
+      expect(putObject).toHaveBeenCalledWith(PUBLIC_BUCKET, 'skip-key', png, PNG_CONTENT_TYPE, UNTAGGED);
       expect(setObjectTagging).not.toHaveBeenCalled();
     });
   });
