@@ -86,7 +86,7 @@ Signed in with an already-verified email, the request is a `400 EMAIL_ALREADY_VE
    ↓
 2. Link opens the web reset page with a token
    ↓
-3. POST /reset-password { token, newPassword }  (own rate limit, password policy)
+3. POST /reset-password { token, newPassword }  (own rate limit, password policy; then token check, then HIBP screening)
    ↓
 4. Password updated and every session the account held is ended; "password changed" Security Event email sent
 ```

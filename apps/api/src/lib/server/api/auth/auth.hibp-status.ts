@@ -7,8 +7,7 @@ import { ProviderHealth, type ProviderHealthOptions } from './auth.provider-heal
 export const HIBP_CHECK_FAILED_LOG = 'HIBP_CHECK_FAILED';
 
 /** The 503 returned when the breached-password check could not run; the web maps its code to a translated message. */
-export const passwordCheckUnavailable = () =>
-  new APIError('SERVICE_UNAVAILABLE', { code: PASSWORD_CHECK_UNAVAILABLE, message: PASSWORD_CHECK_UNAVAILABLE });
+const passwordCheckUnavailable = () => new APIError('SERVICE_UNAVAILABLE', { code: PASSWORD_CHECK_UNAVAILABLE, message: PASSWORD_CHECK_UNAVAILABLE });
 
 /** Health of the breached-password check; a failure writes one `HIBP_CHECK_FAILED_LOG` entry. */
 export const createHibpHealth = ({ enabled, log }: Omit<ProviderHealthOptions, 'failureMessage'>): ProviderHealth =>

@@ -71,7 +71,7 @@ apps/api/src/lib/server/api/auth/
 ├── auth.config.ts                # createAuth: every Better Auth option and plugin
 ├── auth.cli.ts                   # config for `pnpm --filter @adelie/api auth:generate`
 ├── auth.mail.ts                  # verification, reset and security-event emails
-├── auth.password-policy.ts       # before-hook: password rules and HIBP screening on admin paths
+├── auth.password-policy.ts       # before-hook: password rules; HIBP screening while hashing
 ├── auth.permissions.ts, roles.ts # permission table and Role Policy
 ├── auth.role-guard.ts            # before-hook: several roles on admin role writes only with ALLOW_MULTIPLE_ROLES
 ├── auth.second-factor.ts         # before-hook: admin endpoints need a Second Factor; the last one cannot be removed (ADR 0014)
