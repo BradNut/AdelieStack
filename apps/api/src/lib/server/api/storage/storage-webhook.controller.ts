@@ -104,7 +104,7 @@ export function extractScanJobs(event: unknown, isWantedBucket: (bucket: string)
 /**
  * Receives storage object-created notifications and dispatches virus scans. The
  * endpoint acknowledges immediately and scans asynchronously so the storage provider
- * is never kept waiting. A bearer secret (`STORAGE_WEBHOOK_SECRET`, required outside local development) guards it,
+ * is never kept waiting, unless too many scans are pending, when it refuses with a 503. A bearer secret (`STORAGE_WEBHOOK_SECRET`, required outside local development) guards it,
  * and only the project's own buckets are scanned.
  */
 @injectable()
@@ -152,7 +152,12 @@ export class StorageWebhookController extends Controller {
         }
 
         // Acknowledge now; scan in the background so the provider is not blocked.
-        this.fileScannerWorker.handleScanJobs(jobs).catch((error) => {
+        const scanning = this.fileScannerWorker.handleScanJobs(jobs);
+        if (!scanning) {
+          // Too many scans are pending already; a provider that retries delivers this one later.
+          return c.json({ error: 'Scan queue full' }, StatusCodes.SERVICE_UNAVAILABLE);
+        }
+        scanning.catch((error) => {
           this.loggerService.log.error({ error }, 'Error handling storage webhook scan jobs');
         });
 

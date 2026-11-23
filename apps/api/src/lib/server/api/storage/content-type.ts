@@ -13,6 +13,20 @@ export const ActiveContentType = {
   SVG: 'image/svg+xml',
 } as const;
 
+/**
+ * Types a browser runs script from when it renders them: the active types above, and XML, whose XHTML-namespaced
+ * elements a browser honours. `upload` stores these as a download unless the caller opts out.
+ */
+const SCRIPT_CAPABLE_TYPES: ReadonlySet<string> = new Set([
+  ActiveContentType.HTML,
+  ActiveContentType.SVG,
+  'application/xhtml+xml',
+  'application/xml',
+  'text/xml',
+]);
+
+export const isScriptCapable = (contentType: string): boolean => SCRIPT_CAPABLE_TYPES.has(contentType);
+
 /** A map, not an object, so a root named `constructor` finds nothing. */
 const CONTENT_TYPE_BY_ROOT: ReadonlyMap<string, string> = new Map([
   ['svg', ActiveContentType.SVG],

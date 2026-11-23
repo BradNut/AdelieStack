@@ -55,6 +55,10 @@ export function BadRequest(message = 'Bad Request') {
   return new HTTPException(StatusCodes.BAD_REQUEST, { message });
 }
 
+export function Conflict(message = 'Conflict') {
+  return new HTTPException(StatusCodes.CONFLICT, { message });
+}
+
 export function PayloadTooLarge(message = 'Payload Too Large') {
   return new HTTPException(StatusCodes.REQUEST_TOO_LONG, { message });
 }
