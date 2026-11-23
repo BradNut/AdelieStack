@@ -1,4 +1,4 @@
-import { AUTH_CLIENT_IP_HEADER, FORWARDED_PROTO_HEADER, notFoundMessage, STORAGE_WEBHOOK_PATH, StatusCodes } from '@adelie/shared';
+import { AUTH_CLIENT_IP_HEADER, FORWARDED_PROTO_HEADER, notFoundMessage, REQUEST_ID_HEADER, STORAGE_WEBHOOK_PATH, StatusCodes } from '@adelie/shared';
 import type { RequestEvent, RequestHandler } from '@sveltejs/kit';
 import { getPath } from 'hono/utils/url';
 import { API_PROXY_BASE_URL } from '$app/env/private';
@@ -80,6 +80,9 @@ function getUpstreamHeaders(event: RequestEvent): Headers {
   for (const header of HOP_BY_HOP_REQUEST_HEADERS) {
     headers.delete(header);
   }
+
+  // The API generates every request id and ignores one sent in; dropping it here keeps a caller's choice out entirely.
+  headers.delete(REQUEST_ID_HEADER);
 
   // Overwrite rather than trust any client-supplied value; the API rate limiter keys on it.
   const clientAddress = getClientAddress(event);

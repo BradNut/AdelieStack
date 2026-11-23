@@ -217,6 +217,22 @@ describe('routes/api/[...slug]/+server', () => {
       expect(lastUpstreamCall().headers.get('x-forwarded-for')).toBe('127.0.0.1');
     });
 
+    it('does not forward a client-sent x-request-id, so the API always generates the id', async () => {
+      fetchMock.mockResolvedValue(new Response('ok'));
+
+      await GET(createEvent(new Request('http://localhost:5173/api/users', { headers: { 'x-request-id': 'client-chosen-id' } })));
+
+      expect(lastUpstreamCall().headers.has('x-request-id')).toBe(false);
+    });
+
+    it('returns the API-generated x-request-id to the browser', async () => {
+      fetchMock.mockResolvedValue(new Response('ok', { headers: { 'x-request-id': 'api-generated-id' } }));
+
+      const response = await GET(createEvent(new Request('http://localhost:5173/api/users', { headers: { 'x-request-id': 'client-chosen-id' } })));
+
+      expect(response.headers.get('x-request-id')).toBe('api-generated-id');
+    });
+
     it('strips hop-by-hop request headers', async () => {
       fetchMock.mockResolvedValue(new Response('ok'));
 
