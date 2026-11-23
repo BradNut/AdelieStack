@@ -43,7 +43,7 @@ Our own routes only read the session: `GET /api/users/me` (Users service) and an
   (`AUTH_SESSION_UPDATE_AGE`), and counts as fresh for 5 minutes after sign-in
   (`AUTH_SESSION_FRESH_AGE`). Sensitive actions refuse a session that is not fresh; the web then
   re-authenticates (see the web glossary's Fresh Session and Re-authentication).
-- Cookies are `Secure` when `BETTER_AUTH_URL` is https; attributes come from `DEFAULT_COOKIE_ATTRIBUTES`.
+- Cookies, the `_id` browser-session cookie included, are `Secure` when `BETTER_AUTH_URL` is https (`usesSecureCookies`); attributes come from `DEFAULT_COOKIE_ATTRIBUTES`.
 
 ### Roles
 Stored on `users.role` by the admin plugin (`admin`, `support`, `user`); see the

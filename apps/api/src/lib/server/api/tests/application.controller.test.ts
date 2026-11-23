@@ -765,18 +765,17 @@ describe('browser session cookie', () => {
     return res.headers.getSetCookie().find((cookie) => cookie.startsWith('_id='));
   }
 
-  it('is not Secure in development, so plain-http localhost keeps it', async () => {
-    const cookie = await browserSessionCookie({ ENVIRONMENT: Environment.DEVELOPMENT });
+  it('is not Secure over http, so plain-http localhost development keeps it', async () => {
+    const cookie = await browserSessionCookie({ ENVIRONMENT: Environment.DEVELOPMENT, BETTER_AUTH_URL: 'http://localhost:5173' });
 
     expect(cookie).toBeDefined();
     expect(cookie).not.toMatch(/;\s*Secure/i);
   });
 
-  it.each([
-    ['staging', { ENVIRONMENT: Environment.STAGING }],
-    ['production', { ENVIRONMENT: Environment.PRODUCTION }],
-    ['unset', {}],
-  ])('is Secure when the Environment is %s', async (_case, envs) => {
-    expect(await browserSessionCookie(envs)).toMatch(/;\s*Secure/i);
-  });
+  it.each([Environment.DEVELOPMENT, Environment.STAGING, Environment.PRODUCTION])(
+    'is Secure over https, as the auth cookies are, whatever the Environment (%s)',
+    async (environment) => {
+      expect(await browserSessionCookie({ ENVIRONMENT: environment, BETTER_AUTH_URL: 'https://app.example.com' })).toMatch(/;\s*Secure/i);
+    },
+  );
 });

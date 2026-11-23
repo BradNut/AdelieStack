@@ -14,7 +14,7 @@ Every protection is on unless `ENVIRONMENT` is exactly `development` (`isDevelop
 
 | Protection | `development` | `staging`, `production` |
 |---|---|---|
-| Session cookie (`_id`) | not `Secure` | `Secure` |
+| Cookies (`_id` and the auth cookies) | `Secure` only over https | `Secure` (https is required) |
 | Logs | pretty | JSON |
 | SQL logging | on | off |
 | API references (`/api/reference`, `/api/doc`, the auth schema) | served | not served |
@@ -37,12 +37,14 @@ Every deployment changes its variables once, before it runs this release:
 1. **Remove `ENV`** from the deploy platform's variables. The API refuses to start while it is set.
 2. **Set `ENVIRONMENT`** to `production` or `staging`. It has no default, so a deploy without it does not start.
 3. **Keep `NODE_ENV=production`.** The images already set it; a deploy outside them must set it, or the API refuses to start.
-4. **Staging only**: staging that ran on `ENV=dev` now gets production's protections and [startup refusals](#startup-refusals). Replace its development-default credentials, switch `MAILER_TRANSPORT` to `unsend`, serve `BETTER_AUTH_URL` over https, set `STORAGE_WEBHOOK_SECRET` and `TRUST_PROXY` (or `DISABLE_RATE_LIMIT`), and stop seeding it.
+4. **Staging only**: staging that ran on `ENV=dev` now gets production's protections and [startup refusals](#startup-refusals). Replace its development-default credentials, switch `MAILER_TRANSPORT` to `unsend`, serve `BETTER_AUTH_URL` and `ORIGIN` over https, set `STORAGE_WEBHOOK_SECRET` and `TRUST_PROXY` (or `DISABLE_RATE_LIMIT`), and stop seeding it.
 5. **Local clones**: run `pnpm initialize` again, or add `ENVIRONMENT=development` to `apps/api/.env`, and remove `ENV` from `apps/api/.env` and `apps/api/.env.local`.
 
 ## Gotchas
-- `ORIGIN` is the allowed CORS / session origin; `DOMAIN` (hostname only) is the session cookie
-  domain.
+- `ORIGIN` is the allowed CORS / session origin and must be a URL in every Environment; `DOMAIN` (hostname only) is the
+  session cookie domain.
+- Every cookie the API sets (the `_id` browser-session cookie and Better Auth's) is `Secure` exactly when
+  `BETTER_AUTH_URL` is https, from one rule (`usesSecureCookies`). Local development over http gets cookies without it.
 - `DB_MIGRATING` and `DB_SEEDING` are for the `db:migrate` and `db:seed` scripts only: each script
   refuses to run unless its flag resolves to true (varlock normalizes `TRUE`, `1` and `yes` to
   `true` first; `false` refuses), and both default to `false`. The seed also refuses unless
@@ -67,6 +69,7 @@ The schema's defaults make a fresh clone run locally, and every one of them is p
 | `STORAGE_SECRET_KEY` | `adelie-local-secret-key`, the local SeaweedFS secret | Set the provider's secret key. |
 | `MAILER_TRANSPORT` | `mailpit`, also as the default when unset | Set `unsend` with `USESEND_API_KEY` and `MAIL_FROM` (see [Email](#email)). |
 | `BETTER_AUTH_URL` | Any URL not on `https` | Serve the web origin over TLS and set its `https://` URL. |
+| `ORIGIN` | Any URL not on `https` | Set the web origin's `https://` URL; it is the one trusted origin for auth requests and the passkey origin. |
 
 Two more checks have their own sections: `TRUST_PROXY` off with rate limiting on (see [Auth rate limiting](#auth-rate-limiting)) and a missing `STORAGE_WEBHOOK_SECRET` (see `.env.schema`). In every Environment, the API also refuses a set `ENV` (see [The Environment switch](#the-environment-switch)) and an unset or unknown `ENVIRONMENT`.
 
