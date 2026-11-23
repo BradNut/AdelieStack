@@ -7,7 +7,7 @@ import { AuthEndpoint } from './auth.endpoints';
  * session of any age, kept alive by use, could otherwise run them. Impersonation is here too; stopping it is not, as
  * that session belongs to the impersonated user and only hands the admin's back.
  */
-export const FRESH_SESSION_ADMIN_PATHS: readonly string[] = [
+export const FRESH_SESSION_ADMIN_PATHS: ReadonlySet<string> = new Set([
   AuthEndpoint.ADMIN_CREATE_USER,
   AuthEndpoint.ADMIN_UPDATE_USER,
   AuthEndpoint.ADMIN_SET_ROLE,
@@ -18,7 +18,7 @@ export const FRESH_SESSION_ADMIN_PATHS: readonly string[] = [
   AuthEndpoint.ADMIN_IMPERSONATE_USER,
   AuthEndpoint.ADMIN_REVOKE_USER_SESSION,
   AuthEndpoint.ADMIN_REVOKE_USER_SESSIONS,
-];
+]);
 
 /**
  * Holds two kinds of request to a fresh session (`AUTH_SESSION_FRESH_AGE`) with Better Auth's own check, so a stale
@@ -44,7 +44,7 @@ export const freshSessionGuard = (): BetterAuthPlugin => ({
         }),
       },
       {
-        matcher: (ctx) => FRESH_SESSION_ADMIN_PATHS.includes(ctx.path ?? ''),
+        matcher: (ctx) => FRESH_SESSION_ADMIN_PATHS.has(ctx.path ?? ''),
         handler: createAuthMiddleware(async (ctx) => {
           if (!(await getSessionFromCtx(ctx))) return;
           await freshSessionMiddleware(ctx);

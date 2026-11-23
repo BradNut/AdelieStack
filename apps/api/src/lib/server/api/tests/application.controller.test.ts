@@ -336,6 +336,24 @@ describe('request body limit', () => {
     expect(await res.text()).toBe(String(MAX_REQUEST_BODY_BYTES));
   });
 
+  it('refuses a chunked body over the limit to the auth endpoints with a 413, before Better Auth sees it', async () => {
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode(overLimit()));
+        controller.close();
+      },
+    });
+
+    const res = await buildApp().request('/api/auth/sign-in/email', { method: 'POST', body, duplex: 'half' } as RequestInit);
+
+    expect(res.status).toBe(StatusCodes.REQUEST_TOO_LONG);
+    expect(await res.json()).toEqual({
+      message: 'The request body is larger than this endpoint accepts.',
+      requestId: res.headers.get('x-request-id'),
+    });
+    expect(handler).not.toHaveBeenCalled();
+  });
+
   it('refuses a chunked body over the limit to the storage webhook, though it declares no length', async () => {
     const chunk = new TextEncoder().encode('x'.repeat(64 * 1024));
     let pulled = 0;

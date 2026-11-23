@@ -1,11 +1,11 @@
 import type { Readable } from 'node:stream';
-import { MAX_CONCURRENT_WEBHOOK_SCANS, MAX_PENDING_WEBHOOK_SCANS, MAX_WEBHOOK_SCAN_SIZE_BYTES } from '@adelie/shared';
 import { Container } from '@needle-di/core';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ConfigService } from '#lib/server/api/common/configs/config.service';
 import { LoggerService } from '#lib/server/api/common/services/logger.service';
 import { FileScannerWorker } from '#lib/server/api/storage/file-scanner.worker';
 import { S3StorageClient } from '#lib/server/api/storage/s3-storage.client';
+import { MAX_CONCURRENT_WEBHOOK_SCANS, MAX_PENDING_WEBHOOK_SCANS, MAX_WEBHOOK_SCAN_SIZE_BYTES } from '#lib/server/api/storage/storage.constants';
 import { ScanStatus, ScanTag } from '#lib/server/api/storage/storage.types';
 import { type ScanResponse, ScanResult, VirusScannerService } from '#lib/server/api/storage/virus-scanner.service';
 
@@ -212,6 +212,29 @@ describe('FileScannerWorker', () => {
       releaseAll();
       await accepted;
       expect(scanStream).toHaveBeenCalledTimes(MAX_PENDING_WEBHOOK_SCANS - 1);
+    });
+
+    it(`accepts a notification of more than ${MAX_PENDING_WEBHOOK_SCANS} objects when nothing is pending, so a retry of it is not refused forever`, async () => {
+      const { worker, scanStream, releaseAll, mostAtOnce, running } = blockedWorker();
+
+      const oversized = worker.handleScanJobs(jobs(MAX_PENDING_WEBHOOK_SCANS + 1, 'big'));
+      expect(oversized).not.toBeNull();
+      expect(worker.handleScanJobs(jobs(1, 'late'))).toBeNull();
+      await vi.waitFor(() => expect(running()).toBe(MAX_CONCURRENT_WEBHOOK_SCANS));
+      releaseAll();
+      await oversized;
+
+      expect(scanStream).toHaveBeenCalledTimes(MAX_PENDING_WEBHOOK_SCANS + 1);
+      expect(mostAtOnce()).toBe(MAX_CONCURRENT_WEBHOOK_SCANS);
+    });
+
+    it(`still refuses a notification of more than ${MAX_PENDING_WEBHOOK_SCANS} objects while other scans are pending`, async () => {
+      const { worker, releaseAll } = blockedWorker();
+
+      const accepted = worker.handleScanJobs(jobs(1, 'a'));
+      expect(worker.handleScanJobs(jobs(MAX_PENDING_WEBHOOK_SCANS + 1, 'big'))).toBeNull();
+      releaseAll();
+      await accepted;
     });
 
     it('accepts notifications again once pending scans finish', async () => {

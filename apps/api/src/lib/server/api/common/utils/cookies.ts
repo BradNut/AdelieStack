@@ -1,7 +1,4 @@
-/** Whether `url` is an https URL; anything unparseable is not. */
-export function isHttpsUrl(url: string): boolean {
-  return URL.parse(url)?.protocol === 'https:';
-}
+import { isHttpsUrl } from './url';
 
 /**
  * The one rule for the `Secure` cookie flag: every cookie the API sets is `Secure` exactly when the auth base URL

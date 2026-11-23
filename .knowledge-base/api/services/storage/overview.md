@@ -58,14 +58,15 @@ all, because the bucket is anonymously readable: its only protection is the scan
 
 ### Webhook scan bounds
 
-The webhook re-scan streams each object to clamd rather than reading it into memory. Its limits live in
-`@adelie/shared` (`file-limits.ts`):
+The webhook re-scan streams each object to clamd rather than reading it into memory. Its limits are server-only
+and live beside it in `storage/storage.constants.ts`:
 
 - `MAX_WEBHOOK_SCAN_SIZE_BYTES`: a larger object, or one whose length storage does not report, is tagged
   `too-large` and logged, never read
 - `MAX_CONCURRENT_WEBHOOK_SCANS`: scans running at once, across all requests; the rest wait for a slot
 - `MAX_PENDING_WEBHOOK_SCANS`: scans accepted and not yet finished. A notification that would pass it is
-  refused with a 503, scanning none of it, so the provider can retry
+  refused with a 503, scanning none of it, so the provider can retry. One larger than the cap on its own is
+  accepted once nothing is pending, so its retries are not refused forever
 
 ### Upload keys and disposition
 
