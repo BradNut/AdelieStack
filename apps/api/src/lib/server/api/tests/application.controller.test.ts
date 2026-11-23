@@ -1,4 +1,13 @@
-import { AUTH_CLIENT_IP_HEADER, Environment, NodeEnv, notFoundMessage, RoleName, STORAGE_WEBHOOK_ROUTE, StatusCodes } from '@adelie/shared';
+import {
+  AUTH_CLIENT_IP_HEADER,
+  Environment,
+  MAX_REQUEST_BODY_BYTES,
+  NodeEnv,
+  notFoundMessage,
+  RoleName,
+  STORAGE_WEBHOOK_ROUTE,
+  StatusCodes,
+} from '@adelie/shared';
 import { Hono } from 'hono';
 import { TrieRouter } from 'hono/router/trie-router';
 import pino from 'pino';
@@ -253,6 +262,55 @@ describe('request logging', () => {
 
     expect(entries()[0].req).toEqual({ method: 'GET', url: '/api/does-not-exist' });
     expect(entries()[0].res).toEqual({ status: 404 });
+  });
+});
+
+describe('request body limit', () => {
+  const overLimit = () => 'x'.repeat(MAX_REQUEST_BODY_BYTES + 1);
+
+  it('refuses a body over the limit to the auth endpoints with a 413 and the request id, before Better Auth sees it', async () => {
+    const res = await buildApp().request('/api/auth/sign-in/email', { method: 'POST', body: overLimit() });
+
+    expect(res.status).toBe(StatusCodes.REQUEST_TOO_LONG);
+    expect(await res.json()).toEqual({
+      message: 'The request body is larger than this endpoint accepts.',
+      requestId: res.headers.get('x-request-id'),
+    });
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it('passes a body exactly at the limit through to Better Auth whole', async () => {
+    handler.mockImplementation(async (request: Request) => new Response(String((await request.text()).length)));
+
+    const res = await buildApp().request('/api/auth/sign-in/email', { method: 'POST', body: 'x'.repeat(MAX_REQUEST_BODY_BYTES) });
+
+    expect(res.status).toBe(StatusCodes.OK);
+    expect(await res.text()).toBe(String(MAX_REQUEST_BODY_BYTES));
+  });
+
+  it('refuses a chunked body over the limit to the storage webhook, though it declares no length', async () => {
+    const chunk = new TextEncoder().encode('x'.repeat(64 * 1024));
+    let pulled = 0;
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pulled += chunk.length;
+        controller.enqueue(chunk);
+      },
+    });
+
+    const res = await buildApp().request('/api/storage/webhook', { method: 'POST', body, duplex: 'half' } as RequestInit);
+
+    expect(res.status).toBe(StatusCodes.REQUEST_TOO_LONG);
+    expect(await res.text()).not.toContain('from-storage-webhook');
+    // An endless stream: it is cut off just past the limit instead of read to the end.
+    expect(pulled).toBeLessThanOrEqual(MAX_REQUEST_BODY_BYTES + 2 * chunk.length);
+  });
+
+  it('localises the refusal to the request language', async () => {
+    const res = await buildApp().request('/api/users/me', { method: 'PATCH', body: overLimit(), headers: { 'Accept-Language': 'de' } });
+
+    expect(res.status).toBe(StatusCodes.REQUEST_TOO_LONG);
+    expect(((await res.json()) as { message: string }).message).toBe('Der Anfrageinhalt ist größer, als dieser Endpunkt annimmt.');
   });
 });
 
