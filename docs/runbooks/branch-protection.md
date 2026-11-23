@@ -29,6 +29,13 @@ CodeQL is one required job per language, so the seven checks in the spec are eig
 `paths-ignore` on `pull_request` for the same reason: a required check that never runs would leave a docs-only PR
 unmergeable.
 
+## Workflow privileges
+
+Every workflow declares read-only `permissions` at the top; a job that needs a write grant sets it on the job with a
+comment saying why. CI maps no secrets: jobs run on the `.env.schema` defaults and throwaway placeholders, so fork PRs
+work. A secret a future step needs goes on that step only, never at workflow or job level and never on a dependency
+install step. `pnpm check:workflow-permissions` enforces this in the lint job (#269).
+
 ## Apply
 
 Run after the workflows have merged and each job has run once (GitHub only accepts a required check it has seen).
