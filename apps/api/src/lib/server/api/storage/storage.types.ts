@@ -19,6 +19,17 @@ export interface PresignerConfig extends StorageCredentials {
   endpoint: string;
 }
 
+/** How `S3StorageClient.putObject` stores an object. */
+export interface PutObjectOptions {
+  contentType?: string;
+  /** Object tags, written in the same request as the body. */
+  tags?: Record<string, string>;
+  /** The `Content-Disposition` storage serves the object with. */
+  contentDisposition?: string;
+  /** Store the object only if no object has the key yet. */
+  onlyIfAbsent?: boolean;
+}
+
 export type StoredObject = {
   body: Buffer;
   contentType: string | undefined;
@@ -29,9 +40,11 @@ export interface StoredObjectStream {
   stream: ReadableStream<Uint8Array>;
   contentType: string | undefined;
   contentLength: number | undefined;
+  /** The `Content-Disposition` the object was stored with, if any. */
+  contentDisposition?: string;
 }
 
-/** An object's body as a stream, with the `content-type` and (when known) `content-length` headers to send it under. */
+/** An object's body as a stream, with the `content-type` and (when known) `content-length` and `content-disposition` headers to send it under. */
 export interface ObjectStream {
   stream: ReadableStream<Uint8Array>;
   headers: Record<string, string>;
@@ -91,9 +104,26 @@ export interface ImageLimits {
   maxOutputDimension: number;
 }
 
+/**
+ * The shape a caller-supplied upload key must have: `/`-separated segments of ASCII letters, digits, `.`, `_` and `-`,
+ * none empty or starting with `.` (so no `.`, `..` or hidden segment), at most `MAX_OBJECT_KEY_LENGTH` characters.
+ */
+export const OBJECT_KEY_PATTERN = /^[\w-][\w.-]*(?:\/[\w-][\w.-]*)*$/;
+
+/** The `Content-Disposition` that makes a browser download an object instead of rendering it. */
+export const DOWNLOAD_DISPOSITION = 'attachment';
+
 export type Upload = {
   file: File;
+  /** Where to store the file; must match `OBJECT_KEY_PATTERN`. A Public Id is generated when omitted. */
   key?: string;
+  /** Replace an object that already has `key`. Without it, an upload to a taken key is refused with a 409. */
+  overwrite?: boolean;
+  /**
+   * Let a browser render a script-capable type (HTML, SVG, XML) inline. Without it, such a file is stored as a
+   * download (`Content-Disposition: attachment`), so script in it does not run on the storage origin.
+   */
+  inlineActiveContent?: boolean;
   /** Largest file accepted. A larger one is refused before it is read. */
   maxSizeBytes: number;
   /** Types accepted, compared with what the file's bytes are. HTML and SVG are refused unless listed. */

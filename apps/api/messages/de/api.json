@@ -38,6 +38,8 @@
   "storage_upload_too_large": "Datei abgelehnt: Sie ist größer, als dieser Upload erlaubt.",
   "storage_upload_type_not_accepted": "Datei abgelehnt: Dieser Dateityp wird nicht akzeptiert.",
   "storage_upload_unrecognized": "Datei abgelehnt: Ihr Typ konnte nicht erkannt werden.",
+  "storage_upload_key_invalid": "Datei abgelehnt: Ihr Speicherschlüssel ist ungültig.",
+  "storage_upload_key_taken": "Datei abgelehnt: Eine Datei mit diesem Speicherschlüssel existiert bereits.",
   "storage_image_too_many_pixels": "Datei abgelehnt: Das Bild hat zu viele Pixel.",
   "storage_image_output_too_large": "Die angeforderte Bildgröße ist zu groß.",
   "storage_scan_pending": "Diese Datei wird noch auf Viren geprüft. Bitte versuchen Sie es gleich noch einmal.",

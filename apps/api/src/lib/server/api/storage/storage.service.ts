@@ -1,4 +1,12 @@
-import { BINARY_CONTENT_TYPE, CONTENT_LENGTH_HEADER, CONTENT_TYPE_HEADER, StatusCodes, StorageErrorCode } from '@adelie/shared';
+import {
+  BINARY_CONTENT_TYPE,
+  CONTENT_DISPOSITION_HEADER,
+  CONTENT_LENGTH_HEADER,
+  CONTENT_TYPE_HEADER,
+  MAX_OBJECT_KEY_LENGTH,
+  StatusCodes,
+  StorageErrorCode,
+} from '@adelie/shared';
 import { inject, injectable } from '@needle-di/core';
 import { HTTPException } from 'hono/http-exception';
 import { ConfigService } from '#lib/server/api/common/configs/config.service';
@@ -6,6 +14,7 @@ import { m } from '#lib/server/api/common/i18n/index';
 import { publicId } from '#lib/server/api/common/utils/crypto';
 import {
   BadRequest,
+  Conflict,
   Forbidden,
   Gone,
   InternalError,
@@ -14,12 +23,24 @@ import {
   UnprocessableEntity,
   UnsupportedMediaType,
 } from '#lib/server/api/common/utils/exceptions';
-import { CONTENT_SNIFF_BYTES, detectContentType } from './content-type';
+import { CONTENT_SNIFF_BYTES, detectContentType, isScriptCapable } from './content-type';
 import { ImagesService } from './images.service';
-import { S3StorageClientProvider } from './s3-storage.client';
+import { ObjectAlreadyExistsError, S3StorageClientProvider } from './s3-storage.client';
 import { BucketVisibility, buildBucketName } from './storage.buckets';
-import { type ObjectStream, PresignedUrlLifetime, ScanStatus, ScanTag, type StoredObject, scanTags, type Upload } from './storage.types';
+import {
+  DOWNLOAD_DISPOSITION,
+  OBJECT_KEY_PATTERN,
+  type ObjectStream,
+  PresignedUrlLifetime,
+  ScanStatus,
+  ScanTag,
+  type StoredObject,
+  scanTags,
+  type Upload,
+} from './storage.types';
 import { ScanResult, VirusScannerService } from './virus-scanner.service';
+
+const isValidObjectKey = (key: string): boolean => key.length <= MAX_OBJECT_KEY_LENGTH && OBJECT_KEY_PATTERN.test(key);
 
 const isPresignedUrlLifetime = (seconds: number): boolean =>
   Number.isInteger(seconds) && seconds >= PresignedUrlLifetime.MIN_SECONDS && seconds <= PresignedUrlLifetime.MAX_SECONDS;
@@ -64,7 +85,28 @@ export class StorageService {
     }
   }
 
-  async upload({ file, maxSizeBytes, acceptedTypes, resizeOptions, imageLimits, key, visibility }: Upload): Promise<{ key: string }> {
+  /**
+   * Stores a file that passes the upload checks and returns its key. A caller-supplied `key` must match
+   * `OBJECT_KEY_PATTERN` (else a 400) and be free unless `overwrite` is set (else a 409). A script-capable type is
+   * stored as a download unless `inlineActiveContent` is set.
+   */
+  async upload({
+    file,
+    maxSizeBytes,
+    acceptedTypes,
+    resizeOptions,
+    imageLimits,
+    key,
+    overwrite = false,
+    inlineActiveContent = false,
+    visibility,
+  }: Upload): Promise<{
+    key: string;
+  }> {
+    if (key !== undefined && !isValidObjectKey(key)) {
+      throw BadRequest(m.storage_upload_key_invalid());
+    }
+
     let contentType = await this.acceptedContentType(file, { maxSizeBytes, acceptedTypes });
 
     let buffer: Buffer = Buffer.from(await file.arrayBuffer());
@@ -78,11 +120,24 @@ export class StorageService {
     await this.scanBeforePersist(buffer);
 
     const bucket = this.bucketFor(visibility);
-    const fileKey = key || publicId();
+    const fileKey = key ?? publicId();
+    const { client } = this.storage;
+    // The write below is conditional too, but a provider may ignore the condition (SeaweedFS 3.79 does), so a
+    // caller-supplied key is checked first. A generated key is a fresh Public Id, so only the condition guards it.
+    if (key !== undefined && !overwrite && (await client.objectExists(bucket, fileKey))) {
+      throw Conflict(m.storage_upload_key_taken());
+    }
+
     // The bytes passed the scan above, so with antivirus on the object is stored already clean, in the same write:
     // reads refuse it until then (ADR 0016). With antivirus off nothing was scanned, so no Scan Status is written.
     const tags = this.virusScanner.isEnabled ? scanTags(ScanStatus.CLEAN) : undefined;
-    await this.storage.client.putObject(bucket, fileKey, buffer, contentType, tags);
+    const contentDisposition = isScriptCapable(contentType) && !inlineActiveContent ? DOWNLOAD_DISPOSITION : undefined;
+    try {
+      await client.putObject(bucket, fileKey, buffer, { contentType, tags, contentDisposition, onlyIfAbsent: !overwrite });
+    } catch (error) {
+      if (error instanceof ObjectAlreadyExistsError) throw Conflict(m.storage_upload_key_taken());
+      throw error;
+    }
 
     return { key: fileKey };
   }
@@ -143,16 +198,18 @@ export class StorageService {
 
   /**
    * Streams an object's body without buffering it, with the headers to send it under. A body of unknown type is
-   * labelled binary; an unknown length is left out. With antivirus on, only a clean object is streamed.
+   * labelled binary; an unknown length is left out, and a stored disposition is kept. With antivirus on, only a clean object is streamed.
    */
   async getObjectStream(key: string, visibility: BucketVisibility): Promise<ObjectStream> {
     const bucket = await this.readableBucket(key, visibility);
-    const { stream, contentType, contentLength } = await this.storage.client.getObjectStream(bucket, key);
+    const { stream, contentType, contentLength, contentDisposition } = await this.storage.client.getObjectStream(bucket, key);
     return {
       stream,
       headers: {
         [CONTENT_TYPE_HEADER]: contentType ?? BINARY_CONTENT_TYPE,
         ...(contentLength === undefined ? {} : { [CONTENT_LENGTH_HEADER]: String(contentLength) }),
+        // An object stored as a download (see `upload`) stays one when the API serves it.
+        ...(contentDisposition ? { [CONTENT_DISPOSITION_HEADER]: contentDisposition } : {}),
       },
     };
   }

@@ -38,6 +38,8 @@
   "storage_upload_too_large": "Archivo rechazado: es más grande de lo que permite esta subida.",
   "storage_upload_type_not_accepted": "Archivo rechazado: este tipo de archivo no se acepta.",
   "storage_upload_unrecognized": "Archivo rechazado: no se pudo reconocer su tipo.",
+  "storage_upload_key_invalid": "Archivo rechazado: su clave de almacenamiento no es válida.",
+  "storage_upload_key_taken": "Archivo rechazado: ya existe un archivo con esta clave de almacenamiento.",
   "storage_image_too_many_pixels": "Archivo rechazado: la imagen tiene demasiados píxeles.",
   "storage_image_output_too_large": "El tamaño de imagen solicitado es demasiado grande.",
   "storage_scan_pending": "Todavía se está comprobando si este archivo tiene virus. Inténtelo de nuevo en unos momentos.",
