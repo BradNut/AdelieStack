@@ -48,6 +48,8 @@ export const ScanStatus = {
   CLEAN: 'clean',
   INFECTED: 'infected',
   ERROR: 'error',
+  /** Over the webhook's scan size cap (`MAX_WEBHOOK_SCAN_SIZE_BYTES`), so never scanned; refused like an unknown status. */
+  TOO_LARGE: 'too-large',
 } as const;
 
 export type ScanStatus = (typeof ScanStatus)[keyof typeof ScanStatus];

@@ -97,6 +97,7 @@ const REFUSALS: [string, number, StorageErrorCode][] = [
   [ScanStatus.SCANNING, StatusCodes.TOO_EARLY, StorageErrorCode.SCAN_PENDING],
   [ScanStatus.INFECTED, StatusCodes.GONE, StorageErrorCode.SCAN_INFECTED],
   [ScanStatus.ERROR, StatusCodes.INTERNAL_SERVER_ERROR, StorageErrorCode.SCAN_FAILED],
+  [ScanStatus.TOO_LARGE, StatusCodes.FORBIDDEN, StorageErrorCode.SCAN_REFUSED],
   ['quarantined', StatusCodes.FORBIDDEN, StorageErrorCode.SCAN_REFUSED],
 ];
 
