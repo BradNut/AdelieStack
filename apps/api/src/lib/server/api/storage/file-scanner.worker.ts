@@ -14,9 +14,10 @@ export type StorageScanJob = {
 
 /**
  * Scans objects reported by the storage webhook. This is defense-in-depth that
- * confirms the scan verdict for objects after they land in storage (including any
- * that bypass the synchronous upload path). Infected objects are tagged and deleted;
- * the outcome is recorded as object tags so reads can trust it without re-scanning.
+ * confirms or overturns the upload's verdict after an object lands in storage (including
+ * any that bypass the synchronous upload path). Infected objects are tagged and deleted;
+ * the outcome is recorded as the object's Scan Status, which `StorageService` reads check
+ * before serving it (ADR 0016). A Presigned URL issued earlier is not re-checked.
  */
 @injectable()
 export class FileScannerWorker {

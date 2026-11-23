@@ -9,7 +9,8 @@ import {
   S3Client,
 } from '@aws-sdk/client-s3';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { buildEndpoint, S3StorageClient } from '#lib/server/api/storage/s3-storage.client';
+import type { ConfigService } from '#lib/server/api/common/configs/config.service';
+import { buildEndpoint, S3Presigner, S3StorageClient, S3StorageClientProvider } from '#lib/server/api/storage/s3-storage.client';
 
 const createClient = () =>
   new S3StorageClient({
@@ -107,6 +108,28 @@ describe('S3StorageClient', () => {
       });
     });
 
+    it('sends the tags URL-encoded in the same request', async () => {
+      const client = createClient();
+      const send = spySend().mockResolvedValue({} as never);
+
+      await client.putObject('my-bucket', 'key.png', Buffer.from('hello'), 'image/png', {
+        'scan-status': 'clean',
+        'scan-timestamp': '20261121T070809Z',
+      });
+
+      expect(send).toHaveBeenCalledOnce();
+      expect(send.mock.calls[0][0].input).toMatchObject({ Tagging: 'scan-status=clean&scan-timestamp=20261121T070809Z' });
+    });
+
+    it('sends no tagging when no tags are given', async () => {
+      const client = createClient();
+      const send = spySend().mockResolvedValue({} as never);
+
+      await client.putObject('my-bucket', 'key.png', Buffer.from('hello'), 'image/png');
+
+      expect(send.mock.calls[0][0].input).not.toHaveProperty('Tagging');
+    });
+
     it('omits the content type when none is given', async () => {
       const client = createClient();
       const send = spySend().mockResolvedValue({} as never);
@@ -147,6 +170,43 @@ describe('S3StorageClient', () => {
     });
   });
 
+  describe('getObjectStream', () => {
+    const webStream = () => new ReadableStream<Uint8Array>();
+
+    it('returns the body as a stream with its content type and length', async () => {
+      const client = createClient();
+      const stream = webStream();
+      const send = spySend().mockResolvedValue({
+        Body: { transformToWebStream: () => stream },
+        ContentType: 'image/png',
+        ContentLength: 42,
+      } as never);
+
+      const result = await client.getObjectStream('my-bucket', 'key.png');
+
+      expect(send.mock.calls[0][0]).toBeInstanceOf(GetObjectCommand);
+      expect(send.mock.calls[0][0].input).toEqual({ Bucket: 'my-bucket', Key: 'key.png' });
+      expect(result).toEqual({ stream, contentType: 'image/png', contentLength: 42 });
+    });
+
+    it('leaves out a type and length the response does not give', async () => {
+      const client = createClient();
+      spySend().mockResolvedValue({ Body: { transformToWebStream: webStream } } as never);
+
+      const result = await client.getObjectStream('my-bucket', 'key.png');
+
+      expect(result.contentType).toBeUndefined();
+      expect(result.contentLength).toBeUndefined();
+    });
+
+    it('throws when the response has no body', async () => {
+      const client = createClient();
+      spySend().mockResolvedValue({} as never);
+
+      await expect(client.getObjectStream('my-bucket', 'key.txt')).rejects.toThrow('my-bucket/key.txt has no body');
+    });
+  });
+
   describe('removeObject', () => {
     it('sends DeleteObject', async () => {
       const client = createClient();
@@ -157,5 +217,65 @@ describe('S3StorageClient', () => {
       expect(send.mock.calls[0][0]).toBeInstanceOf(DeleteObjectCommand);
       expect(send.mock.calls[0][0].input).toEqual({ Bucket: 'my-bucket', Key: 'key.txt' });
     });
+  });
+});
+
+describe('S3Presigner', () => {
+  const presigner = () => new S3Presigner({ endpoint: 'https://files.example.com', accessKey: 'test-key', secretKey: 'test-secret' });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('signs a GET of the object against its own endpoint, offline', async () => {
+    const send = spySend();
+
+    const url = new URL(await presigner().presignedGetObject('my-bucket', 'images/photo.png', 600));
+
+    expect(url.origin).toBe('https://files.example.com');
+    expect(url.pathname).toBe('/my-bucket/images/photo.png');
+    expect(url.searchParams.get('X-Amz-Expires')).toBe('600');
+    expect(url.searchParams.get('X-Amz-Credential')).toMatch(/^test-key\//);
+    expect(url.searchParams.get('X-Amz-Signature')).toMatch(/^[0-9a-f]{64}$/);
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it('is built from STORAGE_URL, the address browsers reach storage on', async () => {
+    const fromEnv = S3Presigner.fromEnv({ STORAGE_URL: 'http://localhost:8333', STORAGE_ACCESS_KEY: 'key', STORAGE_SECRET_KEY: 'secret' });
+
+    const url = new URL(await fromEnv.presignedGetObject('my-bucket', 'k', 1));
+
+    expect(url.origin).toBe('http://localhost:8333');
+  });
+});
+
+describe('S3StorageClientProvider', () => {
+  const envs = {
+    STORAGE_HOST: 'seaweedfs',
+    STORAGE_PORT: 8333,
+    STORAGE_SSL: false,
+    STORAGE_ACCESS_KEY: 'key',
+    STORAGE_SECRET_KEY: 'secret',
+    STORAGE_URL: 'https://files.example.com',
+  };
+  const provider = () => new S3StorageClientProvider({ envs } as unknown as ConfigService);
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('creates the presigner on first use only, once', () => {
+    const fromEnv = vi.spyOn(S3Presigner, 'fromEnv');
+    const subject = provider();
+
+    expect(fromEnv).not.toHaveBeenCalled();
+    expect(subject.presigner).toBe(subject.presigner);
+    expect(fromEnv).toHaveBeenCalledOnce();
+  });
+
+  it('signs against STORAGE_URL, not the internal STORAGE_HOST and STORAGE_PORT', async () => {
+    const url = new URL(await provider().presigner.presignedGetObject('my-bucket', 'k', 1));
+
+    expect(url.origin).toBe('https://files.example.com');
   });
 });

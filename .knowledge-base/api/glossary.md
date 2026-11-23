@@ -179,6 +179,10 @@ Temporary URL that grants access to a private S3 object.
 **ClamAV**
 Antivirus engine that scans the final bytes of an upload before they reach storage, reached through the `clamscan` client. Gated by `ANTIVIRUS_ENABLED`; when on, the upload fails closed if the scanner errors.
 
+**Scan Status**
+The verdict recorded on a stored object while antivirus is on: pending (stored but not yet scanned), scanning, clean, infected or error. Only an object whose bytes passed a scan is clean, and only a clean object may be read. An object with no Scan Status is refused like a pending one. While antivirus is off, objects carry none and reads do not ask for one.
+_Avoid_: scan result (that is one scan's outcome), scan tag
+
 ## Monitoring & Operations
 
 **Audit Event**

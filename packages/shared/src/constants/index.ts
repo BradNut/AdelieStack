@@ -19,5 +19,6 @@ export * from './reauth';
 export * from './security-headers';
 export * from './social-providers';
 export * from './status-codes';
+export * from './storage-errors';
 export * from './storage-paths';
 export * from './validation-messages';

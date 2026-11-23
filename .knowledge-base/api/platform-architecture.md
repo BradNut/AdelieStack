@@ -49,7 +49,11 @@
 - **Features**: S3 API on `:8333`; public-read granted via `docker/seaweedfs/s3-config.json`;
   server-side image resizing via `sharp` (`storage/images.service.ts`)
 - **Security**: uploads are scanned before they reach storage when `ANTIVIRUS_ENABLED` is on —
-  see ClamAV below
+  see ClamAV below. With antivirus on, every `StorageService` read checks the object's Scan Status
+  first and serves only a clean object (ADR 0016); see Read check below
+- **Addresses**: the API reaches storage on `STORAGE_HOST`/`STORAGE_PORT`. `STORAGE_URL` is the
+  address browsers reach storage on, so Presigned URLs are signed against it (by a second client,
+  created on first use). `PUBLIC_IMAGE_URI` is the public bucket's browser-facing base
 
 #### Mailpit
 - **Purpose**: Email testing and delivery in development
@@ -61,7 +65,19 @@
 - **Integration**: `clamscan` client talking to a clamd daemon over TCP
   (`storage/virus-scanner.service.ts`); the connection opens on the first scan
 - **Configuration**: `ANTIVIRUS_ENABLED` (default `false`), `CLAMAV_HOST`, `CLAMAV_PORT`. When
-  disabled, scans report clean without contacting clamd and objects get no scan tags
+  disabled, scans report clean without contacting clamd, objects get no Scan Status and reads
+  check none
+- **Read check** (ADR 0016): with antivirus on, `get`, `getObjectStream`, `getPresignedUrl` and
+  `getFileUrl` read the object's Scan Status before fetching any bytes, for both buckets. `clean`
+  is served; no Scan Status, `pending` or `scanning` is a 425 (`SCAN_PENDING`); `infected` a 410
+  (`SCAN_INFECTED`); `error` a 500 (`SCAN_FAILED`); any other value a 403 (`SCAN_REFUSED`). The
+  codes are `StorageErrorCode` in `@adelie/shared`. A failure to read the tags (an outage, a
+  missing key) propagates as it is, never as pending
+- **What the check does not cover**: a Presigned URL is checked once, when issued, and works until
+  it expires (default one hour, 1 second to 7 days) even if a later scan marks the object `error`;
+  an infected object is deleted, so its URL stops working. A public object read straight from
+  storage (the bucket is anonymously readable) is not checked at all: its only protection is the
+  scan at upload
 - **Failure mode**: the upload path fails closed. If the scanner errors, for example because clamd
   is unreachable, the upload is refused and nothing is stored
 - **Known gap**: on a clamd read timeout or a reply it cannot parse, `clamscan` resolves with
@@ -148,7 +164,8 @@
 4. Scan the final bytes with ClamAV, when `ANTIVIRUS_ENABLED` is on, so resized output is what
    gets checked. Infected files are rejected with 422; if the scanner errors the upload fails
    closed with 503. Either way nothing reaches storage
-5. Upload to the storage bucket and, when scanning is on, tag the object `scan-status=clean`
+5. Upload to the storage bucket. When scanning is on, the object is stored already tagged
+   `scan-status=clean` in the same `PutObject` call, since its bytes passed the scan
 6. Store metadata in PostgreSQL
 7. Return file URL to client
 

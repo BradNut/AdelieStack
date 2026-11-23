@@ -9,10 +9,11 @@ import {
   S3Client,
   type Tag,
 } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { inject, injectable } from '@needle-di/core';
 import { ConfigService } from '#lib/server/api/common/configs/config.service';
 import type { EnvsDto } from '#lib/server/api/common/configs/dtos/env.dto';
-import type { StorageClientConfig, StoredObject } from './storage.types';
+import type { PresignerConfig, StorageClientConfig, StorageCredentials, StoredObject, StoredObjectStream } from './storage.types';
 
 // SeaweedFS ignores the region, but the AWS SDK requires one to sign requests.
 const DEFAULT_REGION = 'us-east-1';
@@ -23,6 +24,15 @@ const isMissingBucketError = (error: unknown): boolean => error instanceof Error
 
 export const buildEndpoint = ({ host, port, useSSL }: Pick<StorageClientConfig, 'host' | 'port' | 'useSSL'>): string =>
   `${useSSL ? 'https' : 'http'}://${host}:${port}`;
+
+/** An SDK client for `endpoint`, with path-style addressing. Creating one opens no connection. */
+const createS3Client = (endpoint: string, { accessKey, secretKey }: StorageCredentials): S3Client =>
+  new S3Client({
+    endpoint,
+    region: DEFAULT_REGION,
+    credentials: { accessKeyId: accessKey, secretAccessKey: secretKey },
+    forcePathStyle: true,
+  });
 
 /**
  * Thin S3-compatible client used against SeaweedFS locally and any S3 provider in production.
@@ -42,15 +52,7 @@ export class S3StorageClient {
   }
 
   constructor(config: StorageClientConfig) {
-    this.s3Client = new S3Client({
-      endpoint: buildEndpoint(config),
-      region: DEFAULT_REGION,
-      credentials: {
-        accessKeyId: config.accessKey,
-        secretAccessKey: config.secretKey,
-      },
-      forcePathStyle: true,
-    });
+    this.s3Client = createS3Client(buildEndpoint(config), config);
   }
 
   async bucketExists(bucket: string): Promise<boolean> {
@@ -67,7 +69,8 @@ export class S3StorageClient {
     await this.s3Client.send(new CreateBucketCommand({ Bucket: bucket }));
   }
 
-  async putObject(bucket: string, key: string, body: Buffer, contentType?: string): Promise<void> {
+  /** Stores `body`; `tags` are written in the same request, so the object never exists without them. */
+  async putObject(bucket: string, key: string, body: Buffer, contentType?: string, tags?: Record<string, string>): Promise<void> {
     await this.s3Client.send(
       new PutObjectCommand({
         Bucket: bucket,
@@ -75,6 +78,7 @@ export class S3StorageClient {
         Body: body,
         ContentLength: body.byteLength,
         ...(contentType ? { ContentType: contentType } : {}),
+        ...(tags ? { Tagging: new URLSearchParams(tags).toString() } : {}),
       }),
     );
   }
@@ -87,6 +91,19 @@ export class S3StorageClient {
     return {
       body: Buffer.from(await result.Body.transformToByteArray()),
       contentType: result.ContentType,
+    };
+  }
+
+  /** Opens the object's body as a stream, without buffering it. */
+  async getObjectStream(bucket: string, key: string): Promise<StoredObjectStream> {
+    const result = await this.s3Client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+    if (!result.Body) {
+      throw new Error(`Object ${bucket}/${key} has no body`);
+    }
+    return {
+      stream: result.Body.transformToWebStream(),
+      contentType: result.ContentType,
+      contentLength: result.ContentLength,
     };
   }
 
@@ -115,15 +132,43 @@ export class S3StorageClient {
   }
 }
 
-/** The one client over the configured storage, created on first use so resolving a service never touches storage. */
+/**
+ * Signs Presigned URLs, offline. Its endpoint is the one browsers reach storage on (`STORAGE_URL`), which is not
+ * the internal address the API itself uses: a signature covers the host, so a URL signed for the internal address
+ * would not work from a browser.
+ */
+export class S3Presigner {
+  private readonly s3Client: S3Client;
+
+  static fromEnv(env: Pick<EnvsDto, 'STORAGE_URL' | 'STORAGE_ACCESS_KEY' | 'STORAGE_SECRET_KEY'>): S3Presigner {
+    return new S3Presigner({ endpoint: env.STORAGE_URL, accessKey: env.STORAGE_ACCESS_KEY, secretKey: env.STORAGE_SECRET_KEY });
+  }
+
+  constructor(config: PresignerConfig) {
+    this.s3Client = createS3Client(config.endpoint, config);
+  }
+
+  /** A URL that lets its holder GET the object until `expiresInSeconds` from now. Sends no request. */
+  async presignedGetObject(bucket: string, key: string, expiresInSeconds: number): Promise<string> {
+    return getSignedUrl(this.s3Client, new GetObjectCommand({ Bucket: bucket, Key: key }), { expiresIn: expiresInSeconds });
+  }
+}
+
+/** The client and presigner over the configured storage, each created on first use so resolving a service never touches storage. */
 @injectable()
 export class S3StorageClientProvider {
   private instance: S3StorageClient | undefined;
+  private presignerInstance: S3Presigner | undefined;
 
   constructor(private readonly configService = inject(ConfigService)) {}
 
   get client(): S3StorageClient {
     this.instance ??= S3StorageClient.fromEnv(this.configService.envs);
     return this.instance;
+  }
+
+  get presigner(): S3Presigner {
+    this.presignerInstance ??= S3Presigner.fromEnv(this.configService.envs);
+    return this.presignerInstance;
   }
 }

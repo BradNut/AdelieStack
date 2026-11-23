@@ -26,6 +26,9 @@ const buildWorker = (opts: { enabled?: boolean; scan: ScanResponse }) => {
   return { worker: container.get(FileScannerWorker), scanBuffer };
 };
 
+/** ISO 8601 basic format, e.g. `20261121T070809Z`. */
+const ISO_BASIC_TIMESTAMP = /^\d{8}T\d{6}Z$/;
+
 const JOB = { bucket: 'adelie-public-development', key: 'images/photo.png' };
 
 describe('FileScannerWorker', () => {
@@ -53,6 +56,19 @@ describe('FileScannerWorker', () => {
 
     expect(removeObject).not.toHaveBeenCalled();
     expect(setObjectTagging).toHaveBeenLastCalledWith(JOB.bucket, JOB.key, expect.objectContaining({ [ScanTag.STATUS]: ScanStatus.CLEAN }));
+  });
+
+  it('stamps every tag it writes with an ISO basic timestamp', async () => {
+    vi.spyOn(S3StorageClient.prototype, 'getObject').mockResolvedValue({ body: Buffer.from('ok'), contentType: 'image/png' });
+    const setObjectTagging = vi.spyOn(S3StorageClient.prototype, 'setObjectTagging').mockResolvedValue();
+    const { worker } = buildWorker({ scan: { result: ScanResult.CLEAN } });
+
+    await worker.handleScanJobs([JOB]);
+
+    expect(setObjectTagging).toHaveBeenCalledTimes(2);
+    for (const [, , tags] of setObjectTagging.mock.calls) {
+      expect(tags[ScanTag.TIMESTAMP]).toMatch(ISO_BASIC_TIMESTAMP);
+    }
   });
 
   it('tags and deletes an infected object', async () => {

@@ -1,16 +1,31 @@
-import { StatusCodes } from '@adelie/shared';
+import { BINARY_CONTENT_TYPE, CONTENT_LENGTH_HEADER, CONTENT_TYPE_HEADER, StatusCodes, StorageErrorCode } from '@adelie/shared';
 import { inject, injectable } from '@needle-di/core';
 import { HTTPException } from 'hono/http-exception';
 import { ConfigService } from '#lib/server/api/common/configs/config.service';
 import { m } from '#lib/server/api/common/i18n/index';
 import { publicId } from '#lib/server/api/common/utils/crypto';
-import { InternalError, PayloadTooLarge, UnprocessableEntity, UnsupportedMediaType } from '#lib/server/api/common/utils/exceptions';
+import {
+  BadRequest,
+  Forbidden,
+  Gone,
+  InternalError,
+  PayloadTooLarge,
+  TooEarly,
+  UnprocessableEntity,
+  UnsupportedMediaType,
+} from '#lib/server/api/common/utils/exceptions';
 import { CONTENT_SNIFF_BYTES, detectContentType } from './content-type';
 import { ImagesService } from './images.service';
 import { S3StorageClientProvider } from './s3-storage.client';
 import { BucketVisibility, buildBucketName } from './storage.buckets';
-import { ScanStatus, type StoredObject, scanTags, type Upload } from './storage.types';
+import { type ObjectStream, PresignedUrlLifetime, ScanStatus, ScanTag, type StoredObject, scanTags, type Upload } from './storage.types';
 import { ScanResult, VirusScannerService } from './virus-scanner.service';
+
+const isPresignedUrlLifetime = (seconds: number): boolean =>
+  Number.isInteger(seconds) && seconds >= PresignedUrlLifetime.MIN_SECONDS && seconds <= PresignedUrlLifetime.MAX_SECONDS;
+
+/** A key as a URL path: each folder segment encoded, the `/` between them kept. */
+const encodeKeyPath = (key: string): string => key.split('/').map(encodeURIComponent).join('/');
 
 @injectable()
 export class StorageService {
@@ -64,12 +79,10 @@ export class StorageService {
 
     const bucket = this.bucketFor(visibility);
     const fileKey = key || publicId();
-    await this.storage.client.putObject(bucket, fileKey, buffer, contentType);
-
-    // Record the clean verdict so later webhook/read checks can trust it without re-scanning.
-    if (this.virusScanner.isEnabled) {
-      await this.storage.client.setObjectTagging(bucket, fileKey, scanTags(ScanStatus.CLEAN));
-    }
+    // The bytes passed the scan above, so with antivirus on the object is stored already clean, in the same write:
+    // reads refuse it until then (ADR 0016). With antivirus off nothing was scanned, so no Scan Status is written.
+    const tags = this.virusScanner.isEnabled ? scanTags(ScanStatus.CLEAN) : undefined;
+    await this.storage.client.putObject(bucket, fileKey, buffer, contentType, tags);
 
     return { key: fileKey };
   }
@@ -123,8 +136,96 @@ export class StorageService {
     }
   }
 
+  /** Reads an object into memory. With antivirus on, only a clean object is read (see `assertReadable`). */
   async get(key: string, visibility: BucketVisibility): Promise<StoredObject> {
-    return this.storage.client.getObject(this.bucketFor(visibility), key);
+    return this.storage.client.getObject(await this.readableBucket(key, visibility), key);
+  }
+
+  /**
+   * Streams an object's body without buffering it, with the headers to send it under. A body of unknown type is
+   * labelled binary; an unknown length is left out. With antivirus on, only a clean object is streamed.
+   */
+  async getObjectStream(key: string, visibility: BucketVisibility): Promise<ObjectStream> {
+    const bucket = await this.readableBucket(key, visibility);
+    const { stream, contentType, contentLength } = await this.storage.client.getObjectStream(bucket, key);
+    return {
+      stream,
+      headers: {
+        [CONTENT_TYPE_HEADER]: contentType ?? BINARY_CONTENT_TYPE,
+        ...(contentLength === undefined ? {} : { [CONTENT_LENGTH_HEADER]: String(contentLength) }),
+      },
+    };
+  }
+
+  /**
+   * A Presigned URL that lets its holder GET the object straight from storage, on `STORAGE_URL`, for
+   * `expiresInSeconds` (one hour by default; a whole number of seconds from 1 second to 7 days, else a 400). With
+   * antivirus on, the object must be clean when the URL is issued; that is the only check, so the URL keeps working
+   * until it expires even if a later scan marks the object error (ADR 0016).
+   */
+  async getPresignedUrl(key: string, visibility: BucketVisibility, expiresInSeconds: number = PresignedUrlLifetime.DEFAULT_SECONDS): Promise<string> {
+    if (!isPresignedUrlLifetime(expiresInSeconds)) {
+      throw BadRequest(m.storage_presigned_url_lifetime_invalid());
+    }
+    return this.storage.presigner.presignedGetObject(await this.readableBucket(key, visibility), key, expiresInSeconds);
+  }
+
+  /**
+   * The URL a browser loads the object from. A public object's is its address under `PUBLIC_IMAGE_URI`; a private
+   * object gets a Presigned URL (see `getPresignedUrl`). Either way, with antivirus on, the object must be clean now.
+   * A public object fetched straight from storage later is not checked again: its only protection is the scan at upload.
+   */
+  async getFileUrl(key: string, visibility: BucketVisibility, expiresInSeconds?: number): Promise<string> {
+    if (visibility === BucketVisibility.PRIVATE) {
+      return this.getPresignedUrl(key, visibility, expiresInSeconds);
+    }
+    await this.readableBucket(key, visibility);
+    return `${this.configService.envs.PUBLIC_IMAGE_URI.replace(/\/+$/, '')}/${encodeKeyPath(key)}`;
+  }
+
+  /**
+   * The object's Scan Status as recorded, or `null` when it has none. A value outside `ScanStatus` is returned as it
+   * is, so a caller sees what is stored. A failure to read the tags (an outage, a missing key) propagates.
+   */
+  async getScanStatus(key: string, visibility: BucketVisibility): Promise<string | null> {
+    return this.scanStatusOf(this.bucketFor(visibility), key);
+  }
+
+  private async scanStatusOf(bucket: string, key: string): Promise<string | null> {
+    const tags = await this.storage.client.getObjectTagging(bucket, key);
+    return tags[ScanTag.STATUS] || null;
+  }
+
+  /** The bucket a read of `key` goes to, once `assertReadable` lets the read through. */
+  private async readableBucket(key: string, visibility: BucketVisibility): Promise<string> {
+    const bucket = this.bucketFor(visibility);
+    await this.assertReadable(bucket, key);
+    return bucket;
+  }
+
+  /**
+   * With antivirus on, refuses a read unless the object's Scan Status is clean (ADR 0016); with it off, nothing is
+   * checked. Runs before any bytes are fetched. An object with no Scan Status counts as pending, never as clean, and a
+   * failure to read the tags propagates as it is rather than being reported as pending.
+   */
+  private async assertReadable(bucket: string, key: string): Promise<void> {
+    if (!this.virusScanner.isEnabled) return;
+
+    const status = await this.scanStatusOf(bucket, key);
+    switch (status) {
+      case ScanStatus.CLEAN:
+        return;
+      case null:
+      case ScanStatus.PENDING:
+      case ScanStatus.SCANNING:
+        throw TooEarly(m.storage_scan_pending(), StorageErrorCode.SCAN_PENDING);
+      case ScanStatus.INFECTED:
+        throw Gone(m.storage_scan_infected(), StorageErrorCode.SCAN_INFECTED);
+      case ScanStatus.ERROR:
+        throw InternalError(m.storage_scan_failed(), StorageErrorCode.SCAN_FAILED);
+      default:
+        throw Forbidden(m.storage_scan_refused(), StorageErrorCode.SCAN_REFUSED);
+    }
   }
 
   async remove(key: string, visibility: BucketVisibility): Promise<void> {

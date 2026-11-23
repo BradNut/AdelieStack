@@ -31,13 +31,23 @@ a `code` beside the message:
 { "message": "...", "code": "SECOND_FACTOR_REQUIRED", "requestId": "..." }
 ```
 
-The code is typed `AuthErrorCode`, never a free string. Add a new code here only with an ADR that needs it.
+Storage reads refused for their Scan Status are the other case
+([ADR 0016](../../../docs/adr/0016-reads-require-a-clean-scan-status.md)): a scan that reached no verdict answers `500`,
+which by status alone looks like a real fault, so each refusal carries a `StorageErrorCode`. They go through the
+helpers too: `TooEarly`, `Gone`, `InternalError` and `Forbidden` each take an optional code.
+
+```typescript
+throw TooEarly(m.storage_scan_pending(), StorageErrorCode.SCAN_PENDING);
+```
+
+The code is typed `ErrorCode` (`AuthErrorCode | StorageErrorCode`), never a free string. Add a new code, or a new set
+of codes to that union, only with an ADR that needs it. Throw through the helpers, not `new CodedHTTPException`.
 
 ### Deliberate errors (`HTTPException`)
 
 A route or service that means to refuse a request throws an `HTTPException`, using the helpers in
 `common/utils/exceptions.ts` (`BadRequest`, `Unauthorized`, `Forbidden`, `NotFound`, `UnprocessableEntity`,
-`TooManyRequests`, ...). The status and message go to the client as thrown, in every environment, and nothing is
+`TooManyRequests`, `TooEarly`, `Gone`, ...). The status and message go to the client as thrown, in every environment, and nothing is
 logged as a failure. So the message is written for the client: localise it with `m.*()`, and never put internal
 detail in it.
 
