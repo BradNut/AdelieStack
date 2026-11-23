@@ -42,7 +42,9 @@ export class FileScannerWorker {
   /**
    * Accepts every object referenced by a webhook notification for scanning, and returns a promise that settles once
    * they are all scanned. Returns `null`, accepting none of them, when that would leave more than
-   * `MAX_PENDING_WEBHOOK_SCANS` pending; the caller refuses the notification so the provider can retry.
+   * `MAX_PENDING_WEBHOOK_SCANS` pending; the caller refuses the notification so the provider can retry. A notification
+   * larger than the cap on its own is accepted once nothing is pending, so its retry is not refused forever; the
+   * request body limit bounds its size, and it still runs only `MAX_CONCURRENT_WEBHOOK_SCANS` at a time.
    */
   handleScanJobs(jobs: StorageScanJob[]): Promise<void> | null {
     if (!this.virusScanner.isEnabled) {
@@ -50,7 +52,7 @@ export class FileScannerWorker {
       return Promise.resolve();
     }
 
-    if (this.pending + jobs.length > MAX_PENDING_WEBHOOK_SCANS) {
+    if (this.pending > 0 && this.pending + jobs.length > MAX_PENDING_WEBHOOK_SCANS) {
       this.loggerService.log.warn({ pending: this.pending, refused: jobs.length }, 'Webhook scan queue is full; refusing notification');
       return null;
     }

@@ -214,6 +214,29 @@ describe('FileScannerWorker', () => {
       expect(scanStream).toHaveBeenCalledTimes(MAX_PENDING_WEBHOOK_SCANS - 1);
     });
 
+    it(`accepts a notification of more than ${MAX_PENDING_WEBHOOK_SCANS} objects when nothing is pending, so a retry of it is not refused forever`, async () => {
+      const { worker, scanStream, releaseAll, mostAtOnce, running } = blockedWorker();
+
+      const oversized = worker.handleScanJobs(jobs(MAX_PENDING_WEBHOOK_SCANS + 1, 'big'));
+      expect(oversized).not.toBeNull();
+      expect(worker.handleScanJobs(jobs(1, 'late'))).toBeNull();
+      await vi.waitFor(() => expect(running()).toBe(MAX_CONCURRENT_WEBHOOK_SCANS));
+      releaseAll();
+      await oversized;
+
+      expect(scanStream).toHaveBeenCalledTimes(MAX_PENDING_WEBHOOK_SCANS + 1);
+      expect(mostAtOnce()).toBe(MAX_CONCURRENT_WEBHOOK_SCANS);
+    });
+
+    it(`still refuses a notification of more than ${MAX_PENDING_WEBHOOK_SCANS} objects while other scans are pending`, async () => {
+      const { worker, releaseAll } = blockedWorker();
+
+      const accepted = worker.handleScanJobs(jobs(1, 'a'));
+      expect(worker.handleScanJobs(jobs(MAX_PENDING_WEBHOOK_SCANS + 1, 'big'))).toBeNull();
+      releaseAll();
+      await accepted;
+    });
+
     it('accepts notifications again once pending scans finish', async () => {
       const { worker, releaseAll } = blockedWorker();
 

@@ -65,7 +65,8 @@ and live beside it in `storage/storage.constants.ts`:
   `too-large` and logged, never read
 - `MAX_CONCURRENT_WEBHOOK_SCANS`: scans running at once, across all requests; the rest wait for a slot
 - `MAX_PENDING_WEBHOOK_SCANS`: scans accepted and not yet finished. A notification that would pass it is
-  refused with a 503, scanning none of it, so the provider can retry
+  refused with a 503, scanning none of it, so the provider can retry. One larger than the cap on its own is
+  accepted once nothing is pending, so its retries are not refused forever
 
 ### Upload keys and disposition
 
