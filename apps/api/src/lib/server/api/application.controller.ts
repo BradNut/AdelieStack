@@ -1,7 +1,6 @@
 import { API_BASE_PATH, AUTH_ROUTE, isDevelopmentEnvironment, STORAGE_ROUTE } from '@adelie/shared';
 import { inject, injectable } from '@needle-di/core';
 import { contextStorage } from 'hono/context-storage';
-import { requestId } from 'hono/request-id';
 import { notFound, serveEmojiFavicon } from 'stoker/middlewares';
 import { AdminExampleController } from './admin/admin-example.controller';
 import { AuthService } from './auth/auth.service';
@@ -12,11 +11,11 @@ import { browserSessions } from './common/middleware/browser-session.middleware'
 import { errorHandler } from './common/middleware/error-handler.middleware';
 import { requestLocale } from './common/middleware/locale.middleware';
 import { otelInstrumentation } from './common/middleware/otel.middleware';
+import { serverRequestId } from './common/middleware/request-id.middleware';
 import { requestLogger } from './common/middleware/request-logger.middleware';
 import { securityHeaders } from './common/middleware/security-headers.middleware';
 import { LoggerService } from './common/services/logger.service';
 import { createClientAddressResolver } from './common/utils/client-address-warning';
-import { publicId } from './common/utils/crypto';
 import { clientIpOptionsFromEnvs } from './common/utils/ip';
 import { ConfigController } from './config/config.controller';
 import configureOpenAPI from './configure-open-api';
@@ -53,7 +52,7 @@ export class ApplicationController extends RootController {
       .basePath(API_BASE_PATH)
       .use(otelInstrumentation())
       .use(securityHeaders(clientIpOptionsFromEnvs(this.configService.envs)))
-      .use(requestId({ generator: () => publicId() }))
+      .use(serverRequestId())
       .use(contextStorage())
       .use(requestLocale)
       .use(browserSessions(this.configService.envs))

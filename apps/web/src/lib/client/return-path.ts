@@ -1,8 +1,39 @@
 import { AppRoute, RETURN_TO_PARAM, SOCIAL_ERROR_PARAM } from '@adelie/shared';
 
-/** True for a same-origin relative path; protocol-relative (`//host`) and backslash forms are refused. */
+/** Stands in for the app's origin when resolving a path; any origin works, since only a change of origin matters. */
+const RESOLUTION_ORIGIN = 'http://app.invalid';
+
+/** C0 controls, DEL and C1 controls: URL parsing strips some of them, so they can change where a value resolves. */
+function hasControlCharacter(value: string): boolean {
+  for (const char of value) {
+    const code = char.charCodeAt(0);
+    if (code <= 0x1f || (code >= 0x7f && code <= 0x9f)) return true;
+  }
+  return false;
+}
+
+/** The value decoded once, or null when its percent-encoding is malformed. */
+function decoded(value: string): string | null {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return null;
+  }
+}
+
+/** True for a control-free value starting with `/` that the browser resolves on the app's own origin. */
+function resolvesInternally(value: string): boolean {
+  if (!value.startsWith('/') || hasControlCharacter(value)) return false;
+  return new URL(value, RESOLUTION_ORIGIN).origin === RESOLUTION_ORIGIN;
+}
+
+/**
+ * True for a page of this app: the value, raw and percent-decoded, holds no control character and resolves on the
+ * app's origin, so protocol-relative (`//host`), backslash and encoded forms of either are refused.
+ */
 export function isInternalPath(path: string): boolean {
-  return path.startsWith('/') && !path.startsWith('//') && !path.includes('\\');
+  const decodedPath = decoded(path);
+  return decodedPath !== null && resolvesInternally(path) && resolvesInternally(decodedPath);
 }
 
 /** The path and query of the current page without a provider `?error=`, always an app-internal relative path. */
