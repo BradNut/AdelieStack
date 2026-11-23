@@ -3,6 +3,7 @@ import type { ReadableStream as NodeReadableStream } from 'node:stream/web';
 import { inject, injectable } from '@needle-di/core';
 import { LoggerService } from '#lib/server/api/common/services/logger.service';
 import { S3StorageClientProvider } from './s3-storage.client';
+import { ScanLimiter } from './scan-limiter';
 import { MAX_CONCURRENT_WEBHOOK_SCANS, MAX_PENDING_WEBHOOK_SCANS, MAX_WEBHOOK_SCAN_SIZE_BYTES } from './storage.constants';
 import { ScanStatus, scanTags } from './storage.types';
 import { ScanResult, VirusScannerService } from './virus-scanner.service';
@@ -27,11 +28,7 @@ export type StorageScanJob = {
  */
 @injectable()
 export class FileScannerWorker {
-  /** Scans accepted and not yet finished, running or waiting. */
-  private pending = 0;
-  private running = 0;
-  /** Scans waiting for a slot; each is started when a running scan hands its slot over. */
-  private readonly waiting: (() => void)[] = [];
+  private readonly limiter = new ScanLimiter(MAX_CONCURRENT_WEBHOOK_SCANS, MAX_PENDING_WEBHOOK_SCANS);
 
   constructor(
     private readonly loggerService = inject(LoggerService),
@@ -52,30 +49,11 @@ export class FileScannerWorker {
       return Promise.resolve();
     }
 
-    if (this.pending > 0 && this.pending + jobs.length > MAX_PENDING_WEBHOOK_SCANS) {
-      this.loggerService.log.warn({ pending: this.pending, refused: jobs.length }, 'Webhook scan queue is full; refusing notification');
-      return null;
+    const accepted = this.limiter.runAll(jobs.map((job) => () => this.scanObject(job)));
+    if (!accepted) {
+      this.loggerService.log.warn({ pending: this.limiter.pendingCount, refused: jobs.length }, 'Webhook scan queue is full; refusing notification');
     }
-
-    this.pending += jobs.length;
-    return Promise.all(jobs.map((job) => this.inSlot(() => this.scanObject(job)).finally(() => (this.pending -= 1)))).then(() => undefined);
-  }
-
-  /** Runs `task` once one of the `MAX_CONCURRENT_WEBHOOK_SCANS` slots is free; its slot passes straight to the next waiting scan. */
-  private async inSlot(task: () => Promise<void>): Promise<void> {
-    if (this.running < MAX_CONCURRENT_WEBHOOK_SCANS) {
-      this.running += 1;
-    } else {
-      await new Promise<void>((resolve) => this.waiting.push(resolve));
-    }
-
-    try {
-      await task();
-    } finally {
-      const next = this.waiting.shift();
-      if (next) next();
-      else this.running -= 1;
-    }
+    return accepted;
   }
 
   private async scanObject({ bucket, key }: StorageScanJob): Promise<void> {
