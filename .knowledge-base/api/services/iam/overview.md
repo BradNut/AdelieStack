@@ -72,6 +72,7 @@ apps/api/src/lib/server/api/auth/
 ├── auth.permissions.ts, roles.ts # permission table and Role Policy
 ├── auth.role-guard.ts            # before-hook: several roles on admin role writes only with ALLOW_MULTIPLE_ROLES
 ├── auth.second-factor.ts         # before-hook: admin endpoints need a Second Factor; the last one cannot be removed (ADR 0014)
+├── auth.fresh-session.ts         # before-hook: change email and admin writes need a fresh session
 ├── auth.replaced-session.ts      # after-hook: a sign-in ends the session the browser held before
 ├── auth.social.ts                # GitHub / Google from env
 ├── auth.social-two-factor.ts     # raises the Two-factor Challenge after a social sign-in (ADR 0012)
