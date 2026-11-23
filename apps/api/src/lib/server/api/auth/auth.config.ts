@@ -18,6 +18,7 @@ import { type BetterAuthOptions, betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { admin, lastLoginMethod, openAPI, twoFactor } from 'better-auth/plugins';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
+import { usesSecureCookies } from '#lib/server/api/common/utils/cookies';
 import { uuidv7 } from '#lib/server/api/common/utils/crypto';
 import type { ClientIpOptions } from '#lib/server/api/common/utils/ip';
 import type * as drizzleSchema from '#lib/server/api/databases/postgres/drizzle-schema';
@@ -154,11 +155,6 @@ function chainUserCreateBefore(...hooks: UserCreateBefore[]): UserCreateBefore {
     }
     return { data: current };
   };
-}
-
-/** Cookies are `Secure` whenever the API is served over https. */
-function isSecureCookies(baseURL: string): boolean {
-  return baseURL.startsWith('https://');
 }
 
 /**
@@ -334,7 +330,7 @@ export function createAuth({
     onAPIError: { throw: true },
     advanced: {
       ipAddress: { ipAddressHeaders: clientIp.trustProxy ? [AUTH_CLIENT_IP_HEADER] : [], trustedProxies: clientIp.trustedProxies },
-      useSecureCookies: isSecureCookies(baseURL),
+      useSecureCookies: usesSecureCookies(baseURL),
       defaultCookieAttributes: { ...DEFAULT_COOKIE_ATTRIBUTES },
       database: {
         generateId: generateAuthId,
