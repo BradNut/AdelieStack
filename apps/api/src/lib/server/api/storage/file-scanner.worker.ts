@@ -1,9 +1,9 @@
 import { Readable } from 'node:stream';
 import type { ReadableStream as NodeReadableStream } from 'node:stream/web';
-import { MAX_CONCURRENT_WEBHOOK_SCANS, MAX_PENDING_WEBHOOK_SCANS, MAX_WEBHOOK_SCAN_SIZE_BYTES } from '@adelie/shared';
 import { inject, injectable } from '@needle-di/core';
 import { LoggerService } from '#lib/server/api/common/services/logger.service';
 import { S3StorageClientProvider } from './s3-storage.client';
+import { MAX_CONCURRENT_WEBHOOK_SCANS, MAX_PENDING_WEBHOOK_SCANS, MAX_WEBHOOK_SCAN_SIZE_BYTES } from './storage.constants';
 import { ScanStatus, scanTags } from './storage.types';
 import { ScanResult, VirusScannerService } from './virus-scanner.service';
 

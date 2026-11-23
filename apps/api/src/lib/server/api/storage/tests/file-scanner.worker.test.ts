@@ -1,11 +1,11 @@
 import type { Readable } from 'node:stream';
-import { MAX_CONCURRENT_WEBHOOK_SCANS, MAX_PENDING_WEBHOOK_SCANS, MAX_WEBHOOK_SCAN_SIZE_BYTES } from '@adelie/shared';
 import { Container } from '@needle-di/core';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ConfigService } from '#lib/server/api/common/configs/config.service';
 import { LoggerService } from '#lib/server/api/common/services/logger.service';
 import { FileScannerWorker } from '#lib/server/api/storage/file-scanner.worker';
 import { S3StorageClient } from '#lib/server/api/storage/s3-storage.client';
+import { MAX_CONCURRENT_WEBHOOK_SCANS, MAX_PENDING_WEBHOOK_SCANS, MAX_WEBHOOK_SCAN_SIZE_BYTES } from '#lib/server/api/storage/storage.constants';
 import { ScanStatus, ScanTag } from '#lib/server/api/storage/storage.types';
 import { type ScanResponse, ScanResult, VirusScannerService } from '#lib/server/api/storage/virus-scanner.service';
 
