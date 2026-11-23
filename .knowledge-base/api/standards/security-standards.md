@@ -178,6 +178,11 @@ function sanitizeForLogging(user: User) {
 - Minimize data collection
 - Secure data transmission
 
+### Request Body Size
+- Every route, Better Auth's and the storage webhook's included, refuses a body over `MAX_REQUEST_BODY_BYTES` (`@adelie/shared`) with a localised 413 carrying the request id (`requestBodyLimit`, `common/middleware/body-limit.middleware.ts`). A body with no `Content-Length` (chunked) is counted as it streams and cut off at the limit, so no more than the limit is ever held.
+- The default matches the web proxy's own cap (adapter-node's `BODY_SIZE_LIMIT`, 512K). Raise one together with the other.
+- A route that takes larger bodies, such as an upload, declares its own limit with `declareBodyLimit(maxBytes)` before its handler, sized from its upload limit (`MAX_UPLOAD_SIZE_BYTES`) plus room for the multipart framing.
+
 ## File Upload Security
 
 ### File Validation
