@@ -1,6 +1,7 @@
 import { AUTH_CLIENT_IP_HEADER, FORWARDED_PROTO_HEADER, notFoundMessage, STORAGE_WEBHOOK_PATH, StatusCodes } from '@adelie/shared';
 import type { RequestEvent, RequestHandler } from '@sveltejs/kit';
 import { getPath } from 'hono/utils/url';
+import { building } from '$app/env';
 import { API_PROXY_BASE_URL } from '$app/env/private';
 
 const DEFAULT_API_PROXY_BASE_URL = 'http://127.0.0.1:3001';
@@ -18,6 +19,20 @@ const HOP_BY_HOP_REQUEST_HEADERS = [
   'upgrade',
   'content-length',
 ] as const;
+
+// Client-supplied claims about who and where the client is. The proxy speaks for the client itself (address and scheme
+// below), so none of these reach the API, whatever it trusts now or later.
+const CLIENT_FORWARDING_HEADERS = [
+  AUTH_CLIENT_IP_HEADER,
+  'forwarded',
+  'x-real-ip',
+  'cf-connecting-ip',
+  'x-forwarded-host',
+  'x-forwarded-port',
+] as const;
+
+// What the API sees for requests SvelteKit makes to itself while prerendering; `apiClient` in hooks.server.ts sends the same.
+const PRERENDER_CLIENT_ADDRESS = '127.0.0.1';
 
 const METHODS_WITHOUT_BODY = new Set(['GET', 'HEAD']);
 
@@ -66,22 +81,23 @@ function getUpstreamUrl(requestUrl: URL): URL {
   return upstreamUrl;
 }
 
+/** `null` when adapter-node cannot resolve one, e.g. `ADDRESS_HEADER` names a header the request lacks. */
 function getClientAddress(event: RequestEvent): string | null {
+  if (building) return PRERENDER_CLIENT_ADDRESS;
   try {
     return event.getClientAddress();
   } catch {
-    // Not available during prerendering.
     return null;
   }
 }
 
 function getUpstreamHeaders(event: RequestEvent): Headers {
   const headers = new Headers(event.request.headers);
-  for (const header of HOP_BY_HOP_REQUEST_HEADERS) {
+  for (const header of [...HOP_BY_HOP_REQUEST_HEADERS, ...CLIENT_FORWARDING_HEADERS]) {
     headers.delete(header);
   }
 
-  // Overwrite rather than trust any client-supplied value; the API rate limiter keys on it.
+  // Only an address the web server resolved, never the client's own; both API rate limiters key on it.
   const clientAddress = getClientAddress(event);
   if (clientAddress) {
     headers.set(AUTH_CLIENT_IP_HEADER, clientAddress);
