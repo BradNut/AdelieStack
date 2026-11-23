@@ -1,8 +1,8 @@
 import { APP_NAME, CAPTCHA_PROVIDERS, ENVIRONMENTS, isDevelopmentEnvironment, NODE_ENVS, NodeEnv, SocialProvider } from '@adelie/shared';
 import { z } from 'zod/v4';
 import { DEVELOPMENT_DEFAULT_NAMES, DevelopmentDefault } from '#lib/server/api/common/configs/development-defaults.constant';
-import { isHttpsUrl } from '#lib/server/api/common/utils/cookies';
 import { findInvalidTrustedProxies } from '#lib/server/api/common/utils/ip';
+import { isHttpsUrl } from '#lib/server/api/common/utils/url';
 import { POSTGRES_SSL_MODES, PostgresSslMode } from '#lib/server/api/databases/postgres/postgres-ssl';
 import { MailerTransport } from '#lib/server/api/mail/mailer-transport.constant';
 
