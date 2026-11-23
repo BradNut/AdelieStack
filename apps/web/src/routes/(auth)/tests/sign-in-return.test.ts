@@ -63,6 +63,7 @@ describe('login page', () => {
     ['the return path', 'http://localhost/login?returnTo=%2Fsettings%2Fconnected-accounts%3Ftab%3D1', '/settings/connected-accounts?tab=1'],
     ['home for a return path to another site', 'http://localhost/login?returnTo=%2F%2Fevil.example', '/'],
     ['home for an absolute return URL', 'http://localhost/login?returnTo=https%3A%2F%2Fevil.example', '/'],
+    ['home for a return path hiding a tab', 'http://localhost/login?returnTo=%2F%09%2Fevil.example', '/'],
   ])('finishes a password sign-in on %s', async (_name, url, target) => {
     page.url = new URL(url);
     authClient.signIn.email.mockResolvedValue(OK);

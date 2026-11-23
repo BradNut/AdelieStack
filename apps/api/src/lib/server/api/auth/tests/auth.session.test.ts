@@ -47,6 +47,15 @@ describe('session settings', () => {
     expect(token).toMatch(/SameSite=Lax/i);
     expect(token).not.toContain('Secure');
   });
+
+  it.each([
+    ['https://app.example.com', true],
+    ['http://localhost:5173', false],
+  ])('makes the session cookie Secure exactly when the base URL is https (%s)', async (baseURL, secure) => {
+    const { auth } = createTestAuth({ baseURL, trustedOrigins: [baseURL] });
+    const { authCookies } = await auth.$context;
+    expect(authCookies.sessionToken.attributes.secure).toBe(secure);
+  });
 });
 
 describe('fresh vs stale sessions', () => {

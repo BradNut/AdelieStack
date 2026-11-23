@@ -1,4 +1,13 @@
-import { AUTH_CLIENT_IP_HEADER, Environment, NodeEnv, notFoundMessage, RoleName, STORAGE_WEBHOOK_ROUTE, StatusCodes } from '@adelie/shared';
+import {
+  AUTH_CLIENT_IP_HEADER,
+  Environment,
+  MAX_REQUEST_BODY_BYTES,
+  NodeEnv,
+  notFoundMessage,
+  RoleName,
+  STORAGE_WEBHOOK_ROUTE,
+  StatusCodes,
+} from '@adelie/shared';
 import { Hono } from 'hono';
 import { TrieRouter } from 'hono/router/trie-router';
 import pino from 'pino';
@@ -253,6 +262,103 @@ describe('request logging', () => {
 
     expect(entries()[0].req).toEqual({ method: 'GET', url: '/api/does-not-exist' });
     expect(entries()[0].res).toEqual({ status: 404 });
+  });
+});
+
+describe('request id', () => {
+  const PRODUCTION_ENVS = { ENVIRONMENT: Environment.PRODUCTION, NODE_ENV: NodeEnv.PRODUCTION };
+  const CLIENT_ID = 'client-chosen-id';
+  const PUBLIC_ID_PATTERN = /^[0-9A-Za-z]{21}$/;
+
+  it('generates the id when the request sends none', async () => {
+    const { log, entries } = captureLog();
+
+    const res = await buildApp({}, log).request('/api/healthz');
+
+    const id = res.headers.get('x-request-id');
+    expect(id).toMatch(PUBLIC_ID_PATTERN);
+    expect(requestEntries(entries())[0].reqId).toBe(id);
+  });
+
+  it('generates a fresh id for each request', async () => {
+    const app = buildApp();
+
+    const [first, second] = await Promise.all([app.request('/api/healthz'), app.request('/api/healthz')]);
+
+    expect(first.headers.get('x-request-id')).not.toBe(second.headers.get('x-request-id'));
+  });
+
+  it('ignores a client-sent id in the response header and the log', async () => {
+    const { log, output, entries } = captureLog();
+
+    const res = await buildApp({}, log).request('/api/healthz', { headers: { 'X-Request-Id': CLIENT_ID } });
+
+    const id = res.headers.get('x-request-id');
+    expect(id).toMatch(PUBLIC_ID_PATTERN);
+    expect(requestEntries(entries())[0].reqId).toBe(id);
+    expect(output()).not.toContain(CLIENT_ID);
+  });
+
+  it('ignores a client-sent id in an error response and its log entry', async () => {
+    const { log, output, entries } = captureLog();
+    getSession.mockRejectedValue(new Error('boom'));
+
+    const res = await buildApp(PRODUCTION_ENVS, log).request('/api/users/me', { headers: { 'X-Request-Id': CLIENT_ID } });
+
+    const id = res.headers.get('x-request-id');
+    expect(id).toMatch(PUBLIC_ID_PATTERN);
+    expect(((await res.json()) as { requestId: string }).requestId).toBe(id);
+    expect(errorEntries(entries())[0]).toMatchObject({ msg: 'Unexpected error', reqId: id });
+    expect(output()).not.toContain(CLIENT_ID);
+  });
+});
+
+describe('request body limit', () => {
+  const overLimit = () => 'x'.repeat(MAX_REQUEST_BODY_BYTES + 1);
+
+  it('refuses a body over the limit to the auth endpoints with a 413 and the request id, before Better Auth sees it', async () => {
+    const res = await buildApp().request('/api/auth/sign-in/email', { method: 'POST', body: overLimit() });
+
+    expect(res.status).toBe(StatusCodes.REQUEST_TOO_LONG);
+    expect(await res.json()).toEqual({
+      message: 'The request body is larger than this endpoint accepts.',
+      requestId: res.headers.get('x-request-id'),
+    });
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it('passes a body exactly at the limit through to Better Auth whole', async () => {
+    handler.mockImplementation(async (request: Request) => new Response(String((await request.text()).length)));
+
+    const res = await buildApp().request('/api/auth/sign-in/email', { method: 'POST', body: 'x'.repeat(MAX_REQUEST_BODY_BYTES) });
+
+    expect(res.status).toBe(StatusCodes.OK);
+    expect(await res.text()).toBe(String(MAX_REQUEST_BODY_BYTES));
+  });
+
+  it('refuses a chunked body over the limit to the storage webhook, though it declares no length', async () => {
+    const chunk = new TextEncoder().encode('x'.repeat(64 * 1024));
+    let pulled = 0;
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pulled += chunk.length;
+        controller.enqueue(chunk);
+      },
+    });
+
+    const res = await buildApp().request('/api/storage/webhook', { method: 'POST', body, duplex: 'half' } as RequestInit);
+
+    expect(res.status).toBe(StatusCodes.REQUEST_TOO_LONG);
+    expect(await res.text()).not.toContain('from-storage-webhook');
+    // An endless stream: it is cut off just past the limit instead of read to the end.
+    expect(pulled).toBeLessThanOrEqual(MAX_REQUEST_BODY_BYTES + 2 * chunk.length);
+  });
+
+  it('localises the refusal to the request language', async () => {
+    const res = await buildApp().request('/api/users/me', { method: 'PATCH', body: overLimit(), headers: { 'Accept-Language': 'de' } });
+
+    expect(res.status).toBe(StatusCodes.REQUEST_TOO_LONG);
+    expect(((await res.json()) as { message: string }).message).toBe('Der Anfrageinhalt ist größer, als dieser Endpunkt annimmt.');
   });
 });
 
@@ -659,18 +765,17 @@ describe('browser session cookie', () => {
     return res.headers.getSetCookie().find((cookie) => cookie.startsWith('_id='));
   }
 
-  it('is not Secure in development, so plain-http localhost keeps it', async () => {
-    const cookie = await browserSessionCookie({ ENVIRONMENT: Environment.DEVELOPMENT });
+  it('is not Secure over http, so plain-http localhost development keeps it', async () => {
+    const cookie = await browserSessionCookie({ ENVIRONMENT: Environment.DEVELOPMENT, BETTER_AUTH_URL: 'http://localhost:5173' });
 
     expect(cookie).toBeDefined();
     expect(cookie).not.toMatch(/;\s*Secure/i);
   });
 
-  it.each([
-    ['staging', { ENVIRONMENT: Environment.STAGING }],
-    ['production', { ENVIRONMENT: Environment.PRODUCTION }],
-    ['unset', {}],
-  ])('is Secure when the Environment is %s', async (_case, envs) => {
-    expect(await browserSessionCookie(envs)).toMatch(/;\s*Secure/i);
-  });
+  it.each([Environment.DEVELOPMENT, Environment.STAGING, Environment.PRODUCTION])(
+    'is Secure over https, as the auth cookies are, whatever the Environment (%s)',
+    async (environment) => {
+      expect(await browserSessionCookie({ ENVIRONMENT: environment, BETTER_AUTH_URL: 'https://app.example.com' })).toMatch(/;\s*Secure/i);
+    },
+  );
 });

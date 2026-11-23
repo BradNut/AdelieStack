@@ -14,7 +14,7 @@ Every protection is on unless `ENVIRONMENT` is exactly `development` (`isDevelop
 
 | Protection | `development` | `staging`, `production` |
 |---|---|---|
-| Session cookie (`_id`) | not `Secure` | `Secure` |
+| Cookies (`_id` and the auth cookies) | `Secure` only over https | `Secure` (https is required) |
 | Logs | pretty | JSON |
 | SQL logging | on | off |
 | API references (`/api/reference`, `/api/doc`, the auth schema) | served | not served |
@@ -37,12 +37,14 @@ Every deployment changes its variables once, before it runs this release:
 1. **Remove `ENV`** from the deploy platform's variables. The API refuses to start while it is set.
 2. **Set `ENVIRONMENT`** to `production` or `staging`. It has no default, so a deploy without it does not start.
 3. **Keep `NODE_ENV=production`.** The images already set it; a deploy outside them must set it, or the API refuses to start.
-4. **Staging only**: staging that ran on `ENV=dev` now gets production's protections and [startup refusals](#startup-refusals). Replace its development-default credentials, switch `MAILER_TRANSPORT` to `unsend`, serve `BETTER_AUTH_URL` over https, set `STORAGE_WEBHOOK_SECRET` and `TRUST_PROXY` (or `DISABLE_RATE_LIMIT`), and stop seeding it.
+4. **Staging only**: staging that ran on `ENV=dev` now gets production's protections and [startup refusals](#startup-refusals). Replace its development-default credentials, switch `MAILER_TRANSPORT` to `unsend`, serve `BETTER_AUTH_URL` and `ORIGIN` over https, set `STORAGE_WEBHOOK_SECRET` and `TRUST_PROXY` (or `DISABLE_RATE_LIMIT`), and stop seeding it.
 5. **Local clones**: run `pnpm initialize` again, or add `ENVIRONMENT=development` to `apps/api/.env`, and remove `ENV` from `apps/api/.env` and `apps/api/.env.local`.
 
 ## Gotchas
-- `ORIGIN` is the allowed CORS / session origin; `DOMAIN` (hostname only) is the session cookie
-  domain.
+- `ORIGIN` is the allowed CORS / session origin and must be a URL in every Environment; `DOMAIN` (hostname only) is the
+  session cookie domain.
+- Every cookie the API sets (the `_id` browser-session cookie and Better Auth's) is `Secure` exactly when
+  `BETTER_AUTH_URL` is https, from one rule (`usesSecureCookies`). Local development over http gets cookies without it.
 - `DB_MIGRATING` and `DB_SEEDING` are for the `db:migrate` and `db:seed` scripts only: each script
   refuses to run unless its flag resolves to true (varlock normalizes `TRUE`, `1` and `yes` to
   `true` first; `false` refuses), and both default to `false`. The seed also refuses unless
@@ -67,6 +69,7 @@ The schema's defaults make a fresh clone run locally, and every one of them is p
 | `STORAGE_SECRET_KEY` | `adelie-local-secret-key`, the local SeaweedFS secret | Set the provider's secret key. |
 | `MAILER_TRANSPORT` | `mailpit`, also as the default when unset | Set `unsend` with `USESEND_API_KEY` and `MAIL_FROM` (see [Email](#email)). |
 | `BETTER_AUTH_URL` | Any URL not on `https` | Serve the web origin over TLS and set its `https://` URL. |
+| `ORIGIN` | Any URL not on `https` | Set the web origin's `https://` URL; it is the one trusted origin for auth requests and the passkey origin. |
 
 Two more checks have their own sections: `TRUST_PROXY` off with rate limiting on (see [Auth rate limiting](#auth-rate-limiting)) and a missing `STORAGE_WEBHOOK_SECRET` (see `.env.schema`). In every Environment, the API also refuses a set `ENV` (see [The Environment switch](#the-environment-switch)) and an unset or unknown `ENVIRONMENT`.
 
@@ -125,13 +128,13 @@ Optional. A provider is registered with Better Auth only when **both** its clien
 Better Auth's own limiter guards every `/api/auth/*` request, keyed by client IP and path. Counters live in Redis (key prefix `auth-rate-limit:`), so limits hold across API instances; sessions stay in Postgres. Decision: `docs/adr/0006-better-auth-owns-auth-rate-limiting.md`. The app's own `rateLimit()` middleware is not applied to auth routes.
 
 - **Rules**: `AUTH_RATE_LIMIT_DEFAULT` (100 a minute) and the per-path `AUTH_RATE_LIMIT_RULES` in `packages/shared/src/constants/auth-rate-limits.ts`. Change limits there, not in `auth.config.ts`.
-  - **Strict** (`AUTH_RATE_LIMIT_STRICT`, 5 a minute): email sign-in; the two-factor verify endpoints (TOTP, OTP, backup code); and the password-checking two-factor endpoints (disable, get TOTP URI, generate backup codes).
+  - **Strict** (`AUTH_RATE_LIMIT_STRICT`, 5 a minute): every endpoint that checks a password or a code, listed in `AUTH_RATE_LIMIT_CREDENTIAL_PATHS`: email sign-in; the two-factor verify endpoints (TOTP, OTP, backup code); the password-checking two-factor endpoints (enable, disable, get TOTP URI, generate backup codes); changing the password; verifying the password; and deleting the account.
   - **Email** (`AUTH_RATE_LIMIT_EMAIL`, 3 per 5 minutes): the endpoints that send an email: emailing a two-factor code, requesting a password reset and resending the verification email. Without its own rule, the verification email would fall back to Better Auth's built-in 3 a minute. The window is derived from `TWO_FACTOR_OTP_PERIOD_MINUTES`, how long an emailed code stays valid.
     - Counted per client IP, like every auth rule: it stops one client flooding an inbox, not many IPs sending to the same account. There is no per-account cap.
   - **Own rules**: email sign-up (`AUTH_RATE_LIMIT_SIGN_UP`, 10 an hour), resetting a password and passkey. Sign-up only matters once sign-up is open; the limit is against bulk account creation and sending verification emails to many addresses. It is not the email rule: a sign-up with an existing address is refused (422) with no email, so sign-up cannot flood one inbox, and a tighter per-IP limit would block people signing up together from a shared IP. Duplicate-address attempts still count toward it.
-  - **Default**: social sign-in starts and enabling two-factor. The rule table pins `/sign-in/*` and `/two-factor/*` to the default, because Better Auth's own built-in limit for those paths is much tighter and applies otherwise.
-  - **Better Auth's built-in limit** (3 per 10 seconds) applies, unless a rule matches, to every path starting with `/sign-in`, `/sign-up`, `/change-password` or `/change-email`, and (via the two-factor plugin) `/two-factor/`. These paths never fall back to `AUTH_RATE_LIMIT_DEFAULT` on their own. `/change-password` and `/change-email` have no rule of ours and stay on the built-in limit.
-  - **New endpoints**: a new credential or code-guessing endpoint needs its own exact entry, above the wildcards. Tests fail when an exact entry comes after a wildcard that matches it, when an endpoint starting with `/sign-in`, `/sign-up` or `/two-factor` (with or without a slash) has no exact entry and is not deliberately on the default, and when a deliberately-default path no longer exists or has gained an exact entry. That allow-list is `AUTH_RATE_LIMIT_DEFAULT_PATHS`, next to the rules.
+  - **Default**: social sign-in starts. The rule table pins `/sign-in/*` to the default, because Better Auth's own built-in limit for those paths is much tighter and applies otherwise. Every two-factor endpoint has an exact rule, so `/two-factor/*` needs no pin.
+  - **Better Auth's built-in limit** (3 per 10 seconds) applies, unless a rule matches, to every path starting with `/sign-in`, `/sign-up`, `/change-password` or `/change-email`, and (via the two-factor plugin) `/two-factor/`. These paths never fall back to `AUTH_RATE_LIMIT_DEFAULT` on their own. `/change-email` has no rule of ours and stays on the built-in limit; `/change-password` checks the current password, so it is strict.
+  - **New endpoints**: a new endpoint that checks a password or a code needs its own exact strict entry, above the wildcards, and a place in `AUTH_RATE_LIMIT_CREDENTIAL_PATHS`. Tests fail when an endpoint whose body takes a `password`, `currentPassword` or `code` has no rule at least as tight as the strict one or is missing from that list, when an exact entry comes after a wildcard that matches it, when an endpoint starting with `/sign-in`, `/sign-up` or `/two-factor` (with or without a slash) has no exact entry and is not deliberately on the default, and when a deliberately-default path no longer exists or has gained an exact entry. That allow-list is `AUTH_RATE_LIMIT_DEFAULT_PATHS`, next to the rules.
 - **Throttled response**: `429` with an `X-Retry-After` header (seconds).
 - **`DISABLE_RATE_LIMIT=true`**: auth rate limiting is off and Redis is not touched by auth. Restart the API after changing it. Use it for tests and controlled environments only.
 - **Client IP and `TRUST_PROXY`**: the limiter reads the client IP from `X-Forwarded-For` only when `TRUST_PROXY=true`; otherwise it reads no header, and every client shares one bucket per path (for example 5 sign-in attempts a minute for the whole site). The web app's `/api` proxy always sets `X-Forwarded-For`, so set `TRUST_PROXY=true` whenever the API is reachable only through the web proxy or another trusted proxy, and make sure that proxy either overwrites the header or is declared in `TRUSTED_PROXIES`. Leave it off only when the API is exposed directly.

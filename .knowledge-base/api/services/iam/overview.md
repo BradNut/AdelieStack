@@ -43,7 +43,7 @@ Our own routes only read the session: `GET /api/users/me` (Users service) and an
   (`AUTH_SESSION_UPDATE_AGE`), and counts as fresh for 5 minutes after sign-in
   (`AUTH_SESSION_FRESH_AGE`). Sensitive actions refuse a session that is not fresh; the web then
   re-authenticates (see the web glossary's Fresh Session and Re-authentication).
-- Cookies are `Secure` when `BETTER_AUTH_URL` is https; attributes come from `DEFAULT_COOKIE_ATTRIBUTES`.
+- Cookies, the `_id` browser-session cookie included, are `Secure` when `BETTER_AUTH_URL` is https (`usesSecureCookies`); attributes come from `DEFAULT_COOKIE_ATTRIBUTES`.
 
 ### Roles
 Stored on `users.role` by the admin plugin (`admin`, `support`, `user`); see the
@@ -72,6 +72,7 @@ apps/api/src/lib/server/api/auth/
 ├── auth.permissions.ts, roles.ts # permission table and Role Policy
 ├── auth.role-guard.ts            # before-hook: several roles on admin role writes only with ALLOW_MULTIPLE_ROLES
 ├── auth.second-factor.ts         # before-hook: admin endpoints need a Second Factor; the last one cannot be removed (ADR 0014)
+├── auth.fresh-session.ts         # before-hook: change email and admin writes need a fresh session
 ├── auth.replaced-session.ts      # after-hook: a sign-in ends the session the browser held before
 ├── auth.social.ts                # GitHub / Google from env
 ├── auth.social-two-factor.ts     # raises the Two-factor Challenge after a social sign-in (ADR 0012)
