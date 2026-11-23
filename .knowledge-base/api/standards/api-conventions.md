@@ -176,6 +176,18 @@ Every auth request is limited by Better Auth's built-in limiter, keyed by client
 ### Allowed Headers
 - Content-Type, Authorization, Cookie
 
+## Request Ids
+
+Every request gets an id from the API (`serverRequestId` in
+`apps/api/src/lib/server/api/common/middleware/request-id.middleware.ts`): a fresh Public Id, sent back in the
+`X-Request-Id` response header and used in the log and in error bodies. An incoming `X-Request-Id` is ignored, and
+the web app's `/api` proxy drops it before forwarding, so no caller chooses, repeats or reuses the id logs are
+correlated by.
+
+If a trusted upstream id is wanted later (a load balancer's trace id, say), accept it only behind `TRUST_PROXY`, like
+`x-forwarded-for`, under its own header, and log it as a separate field such as `upstreamRequestId`. The API's own id
+stays the one used for correlation.
+
 ## Content Negotiation
 
 ### Request Content-Type

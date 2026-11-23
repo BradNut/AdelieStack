@@ -28,7 +28,7 @@ env:
 
 jobs:
   # Repo-wide, not per package: covers the root config, scripts and web files too (#149),
-  # plus the pinned actions/images guard (#235).
+  # plus the pinned actions/images guard (#235) and the workflow least-privilege guard (#269).
   lint:
     name: Lint (Biome)
     runs-on: ubuntu-latest
@@ -38,6 +38,7 @@ jobs:
       - uses: ./.github/actions/setup
       - run: pnpm exec biome check .
       - run: pnpm check:pinned-refs
+      - run: pnpm check:workflow-permissions
       - run: pnpm test:scripts
 
   # Fails on any high or critical production advisory. Moderates and lows stay visible in the output but

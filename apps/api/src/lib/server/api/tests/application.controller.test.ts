@@ -256,6 +256,54 @@ describe('request logging', () => {
   });
 });
 
+describe('request id', () => {
+  const PRODUCTION_ENVS = { ENVIRONMENT: Environment.PRODUCTION, NODE_ENV: NodeEnv.PRODUCTION };
+  const CLIENT_ID = 'client-chosen-id';
+  const PUBLIC_ID_PATTERN = /^[0-9A-Za-z]{21}$/;
+
+  it('generates the id when the request sends none', async () => {
+    const { log, entries } = captureLog();
+
+    const res = await buildApp({}, log).request('/api/healthz');
+
+    const id = res.headers.get('x-request-id');
+    expect(id).toMatch(PUBLIC_ID_PATTERN);
+    expect(requestEntries(entries())[0].reqId).toBe(id);
+  });
+
+  it('generates a fresh id for each request', async () => {
+    const app = buildApp();
+
+    const [first, second] = await Promise.all([app.request('/api/healthz'), app.request('/api/healthz')]);
+
+    expect(first.headers.get('x-request-id')).not.toBe(second.headers.get('x-request-id'));
+  });
+
+  it('ignores a client-sent id in the response header and the log', async () => {
+    const { log, output, entries } = captureLog();
+
+    const res = await buildApp({}, log).request('/api/healthz', { headers: { 'X-Request-Id': CLIENT_ID } });
+
+    const id = res.headers.get('x-request-id');
+    expect(id).toMatch(PUBLIC_ID_PATTERN);
+    expect(requestEntries(entries())[0].reqId).toBe(id);
+    expect(output()).not.toContain(CLIENT_ID);
+  });
+
+  it('ignores a client-sent id in an error response and its log entry', async () => {
+    const { log, output, entries } = captureLog();
+    getSession.mockRejectedValue(new Error('boom'));
+
+    const res = await buildApp(PRODUCTION_ENVS, log).request('/api/users/me', { headers: { 'X-Request-Id': CLIENT_ID } });
+
+    const id = res.headers.get('x-request-id');
+    expect(id).toMatch(PUBLIC_ID_PATTERN);
+    expect(((await res.json()) as { requestId: string }).requestId).toBe(id);
+    expect(errorEntries(entries())[0]).toMatchObject({ msg: 'Unexpected error', reqId: id });
+    expect(output()).not.toContain(CLIENT_ID);
+  });
+});
+
 describe('auth handler mount', () => {
   it('routes /api/auth/* to Better Auth before the session middleware runs', async () => {
     const res = await buildApp().request('/api/auth/sign-in/email', { method: 'POST' });

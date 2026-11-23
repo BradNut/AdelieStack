@@ -229,7 +229,7 @@ export function createAuth({
     user: {
       // The confirmation link goes to the new address (through `sendVerificationEmail`); the old
       // address is told afterwards by `emailVerification.afterEmailVerification`. Starting a change
-      // needs a fresh session (`freshSessionGuard`).
+      // needs a fresh session (`freshSessionGuard`), as do the admin actions that change a user.
       changeEmail: { enabled: true },
       // Needs the account password (or a fresh session). Sessions, accounts, two-factor and passkey
       // rows go with the user: the foreign keys cascade (see auth.delete-user.test.ts).
