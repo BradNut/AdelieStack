@@ -220,6 +220,17 @@ describe('envsDto production refuses development defaults', () => {
     expect(result.error?.issues[0].message).not.toContain(url);
   });
 
+  it.each(['http://app.example.com', 'http://localhost:5173'])('refuses a non-https ORIGIN (%s) without printing it', (url) => {
+    const result = parseProduction({ ORIGIN: url });
+    expect(result.error?.issues.map((issue) => issue.path[0])).toEqual(['ORIGIN']);
+    expect(result.error?.issues[0].message).toContain('ORIGIN');
+    expect(result.error?.issues[0].message).not.toContain(url);
+  });
+
+  it('refuses a non-https ORIGIN in staging too', () => {
+    expect(refusedPaths({ ENVIRONMENT: Environment.STAGING, ORIGIN: 'http://app.example.com' })).toEqual(['ORIGIN']);
+  });
+
   it('names every development default at once', () => {
     expect(
       refusedPaths({
@@ -382,6 +393,16 @@ describe('envsDto Better Auth variables', () => {
 
   it('rejects a non-url BETTER_AUTH_URL', () => {
     expect(() => envsDto.parse({ ...validEnvs, BETTER_AUTH_URL: 'not-a-url' })).toThrow();
+  });
+
+  it.each([Environment.DEVELOPMENT, Environment.STAGING, Environment.PRODUCTION])('rejects a non-url ORIGIN in %s', (environment) => {
+    const base = environment === Environment.DEVELOPMENT ? validEnvs : { ...validEnvs, ...productionEnvOverrides };
+    const result = envsDto.safeParse({ ...base, ENVIRONMENT: environment, ORIGIN: 'not-a-url' });
+    expect(result.error?.issues.map((issue) => issue.path[0])).toContain('ORIGIN');
+  });
+
+  it('accepts an http ORIGIN in development', () => {
+    expect(envsDto.parse({ ...validEnvs, ORIGIN: 'http://localhost:5173' }).ORIGIN).toBe('http://localhost:5173');
   });
 });
 

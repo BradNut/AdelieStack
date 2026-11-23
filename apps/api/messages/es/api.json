@@ -38,6 +38,8 @@
   "storage_upload_too_large": "Archivo rechazado: es más grande de lo que permite esta subida.",
   "storage_upload_type_not_accepted": "Archivo rechazado: este tipo de archivo no se acepta.",
   "storage_upload_unrecognized": "Archivo rechazado: no se pudo reconocer su tipo.",
+  "storage_upload_key_invalid": "Archivo rechazado: su clave de almacenamiento no es válida.",
+  "storage_upload_key_taken": "Archivo rechazado: ya existe un archivo con esta clave de almacenamiento.",
   "storage_image_too_many_pixels": "Archivo rechazado: la imagen tiene demasiados píxeles.",
   "storage_image_output_too_large": "El tamaño de imagen solicitado es demasiado grande.",
   "storage_scan_pending": "Todavía se está comprobando si este archivo tiene virus. Inténtelo de nuevo en unos momentos.",
@@ -45,5 +47,6 @@
   "storage_scan_failed": "No se pudo comprobar si este archivo tiene virus, por lo que no se puede abrir.",
   "storage_scan_refused": "Este archivo no se puede abrir.",
   "storage_presigned_url_lifetime_invalid": "La duración del enlace debe ser un número entero de segundos entre 1 segundo y 7 días.",
-  "server_unexpected_error": "Algo salió mal por nuestra parte. Inténtalo de nuevo más tarde."
+  "server_unexpected_error": "Algo salió mal por nuestra parte. Inténtalo de nuevo más tarde.",
+  "request_body_too_large": "El cuerpo de la solicitud es más grande de lo que acepta este punto de acceso."
 }

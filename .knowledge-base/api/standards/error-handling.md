@@ -7,6 +7,7 @@ Every error that leaves a route goes through one handler, `errorHandler` in
 ## Error Response Format
 
 The body is always a message and the request id; the same id is in the `X-Request-Id` response header and in the log.
+The API always generates it; a client-sent `X-Request-Id` is ignored (see [Request Ids](./api-conventions.md#request-ids)).
 
 ```typescript
 {

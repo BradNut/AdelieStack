@@ -4,6 +4,7 @@ import {
   GetObjectCommand,
   GetObjectTaggingCommand,
   HeadBucketCommand,
+  HeadObjectCommand,
   PutObjectCommand,
   PutObjectTaggingCommand,
   S3Client,
@@ -13,7 +14,7 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { inject, injectable } from '@needle-di/core';
 import { ConfigService } from '#lib/server/api/common/configs/config.service';
 import type { EnvsDto } from '#lib/server/api/common/configs/dtos/env.dto';
-import type { PresignerConfig, StorageClientConfig, StorageCredentials, StoredObject, StoredObjectStream } from './storage.types';
+import type { PresignerConfig, PutObjectOptions, StorageClientConfig, StorageCredentials, StoredObject, StoredObjectStream } from './storage.types';
 
 // SeaweedFS ignores the region, but the AWS SDK requires one to sign requests.
 const DEFAULT_REGION = 'us-east-1';
@@ -21,6 +22,23 @@ const DEFAULT_REGION = 'us-east-1';
 const MISSING_BUCKET_ERROR_NAMES = new Set(['NotFound', 'NoSuchBucket']);
 
 const isMissingBucketError = (error: unknown): boolean => error instanceof Error && MISSING_BUCKET_ERROR_NAMES.has(error.name);
+
+const MISSING_OBJECT_ERROR_NAMES = new Set(['NotFound', 'NoSuchKey']);
+
+const isMissingObjectError = (error: unknown): boolean => error instanceof Error && MISSING_OBJECT_ERROR_NAMES.has(error.name);
+
+/** How S3 refuses an `If-None-Match: *` write because the key is taken: 412, or 409 when another write to it is in flight. */
+const KEY_TAKEN_ERROR_NAMES = new Set(['PreconditionFailed', 'ConditionalRequestConflict']);
+
+const isKeyTakenError = (error: unknown): boolean => error instanceof Error && KEY_TAKEN_ERROR_NAMES.has(error.name);
+
+/** A write asked to store an object only if its key was free, and an object already had it. Nothing was written. */
+export class ObjectAlreadyExistsError extends Error {
+  constructor(bucket: string, key: string, options?: ErrorOptions) {
+    super(`Object ${bucket}/${key} already exists`, options);
+    this.name = 'ObjectAlreadyExistsError';
+  }
+}
 
 export const buildEndpoint = ({ host, port, useSSL }: Pick<StorageClientConfig, 'host' | 'port' | 'useSSL'>): string =>
   `${useSSL ? 'https' : 'http'}://${host}:${port}`;
@@ -69,18 +87,45 @@ export class S3StorageClient {
     await this.s3Client.send(new CreateBucketCommand({ Bucket: bucket }));
   }
 
-  /** Stores `body`; `tags` are written in the same request, so the object never exists without them. */
-  async putObject(bucket: string, key: string, body: Buffer, contentType?: string, tags?: Record<string, string>): Promise<void> {
-    await this.s3Client.send(
-      new PutObjectCommand({
-        Bucket: bucket,
-        Key: key,
-        Body: body,
-        ContentLength: body.byteLength,
-        ...(contentType ? { ContentType: contentType } : {}),
-        ...(tags ? { Tagging: new URLSearchParams(tags).toString() } : {}),
-      }),
-    );
+  /**
+   * Stores `body`; `tags` are written in the same request, so the object never exists without them. With
+   * `onlyIfAbsent`, the write is conditional (`If-None-Match: *`) and throws `ObjectAlreadyExistsError` when the key is
+   * taken. A provider that ignores the condition (SeaweedFS 3.79 does) overwrites regardless; see `objectExists`.
+   */
+  async putObject(
+    bucket: string,
+    key: string,
+    body: Buffer,
+    { contentType, tags, contentDisposition, onlyIfAbsent }: PutObjectOptions = {},
+  ): Promise<void> {
+    try {
+      await this.s3Client.send(
+        new PutObjectCommand({
+          Bucket: bucket,
+          Key: key,
+          Body: body,
+          ContentLength: body.byteLength,
+          ...(contentType ? { ContentType: contentType } : {}),
+          ...(contentDisposition ? { ContentDisposition: contentDisposition } : {}),
+          ...(tags ? { Tagging: new URLSearchParams(tags).toString() } : {}),
+          ...(onlyIfAbsent ? { IfNoneMatch: '*' } : {}),
+        }),
+      );
+    } catch (error) {
+      if (onlyIfAbsent && isKeyTakenError(error)) throw new ObjectAlreadyExistsError(bucket, key, { cause: error });
+      throw error;
+    }
+  }
+
+  /** Whether an object has `key`. A failure other than a missing key propagates. */
+  async objectExists(bucket: string, key: string): Promise<boolean> {
+    try {
+      await this.s3Client.send(new HeadObjectCommand({ Bucket: bucket, Key: key }));
+      return true;
+    } catch (error) {
+      if (isMissingObjectError(error)) return false;
+      throw error;
+    }
   }
 
   async getObject(bucket: string, key: string): Promise<StoredObject> {
@@ -104,6 +149,7 @@ export class S3StorageClient {
       stream: result.Body.transformToWebStream(),
       contentType: result.ContentType,
       contentLength: result.ContentLength,
+      ...(result.ContentDisposition ? { contentDisposition: result.ContentDisposition } : {}),
     };
   }
 

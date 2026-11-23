@@ -32,7 +32,8 @@ With `ANTIVIRUS_ENABLED` on, each object carries a [Scan Status](../../glossary.
 
 - `upload` scans the bytes before storing them, so it stores the object already tagged `clean`, in
   the same `PutObject` call. The webhook re-scan (`file-scanner.worker.ts`) writes `scanning`, then
-  `clean`, `error`, or `infected` (and deletes the object). Nothing writes `pending` today
+  `clean`, `error`, or `infected` (and deletes the object), or `too-large` for an object over
+  `MAX_WEBHOOK_SCAN_SIZE_BYTES`, which it never reads. Nothing writes `pending` today
 - `scan-timestamp` is ISO 8601 basic format (`20261121T070809Z`): SeaweedFS stores `PutObject` tag
   values without URL-decoding them, so tag values must need no encoding
 - Every read (`get`, `getObjectStream`, `getPresignedUrl`, `getFileUrl`) checks the Scan Status before
@@ -43,7 +44,7 @@ With `ANTIVIRUS_ENABLED` on, each object carries a [Scan Status](../../glossary.
   | none, `pending`, `scanning` | 425 | `SCAN_PENDING` |
   | `infected` | 410 | `SCAN_INFECTED` |
   | `error` | 500 | `SCAN_FAILED` |
-  | any other value | 403 | `SCAN_REFUSED` |
+  | `too-large`, any other value | 403 | `SCAN_REFUSED` |
   | `clean` | the object | none |
 
 - A failure to read the tags (an outage, a missing key) propagates unchanged; it is not reported as pending
@@ -54,6 +55,30 @@ The check has two limits. A Presigned URL is checked only when issued: it works 
 even if a later scan marks the object `error` (an infected object is deleted, so its URL stops
 working). A public object read straight from storage through `PUBLIC_IMAGE_URI` is not checked at
 all, because the bucket is anonymously readable: its only protection is the scan at upload.
+
+### Webhook scan bounds
+
+The webhook re-scan streams each object to clamd rather than reading it into memory. Its limits are server-only
+and live beside it in `storage/storage.constants.ts`:
+
+- `MAX_WEBHOOK_SCAN_SIZE_BYTES`: a larger object, or one whose length storage does not report, is tagged
+  `too-large` and logged, never read
+- `MAX_CONCURRENT_WEBHOOK_SCANS`: scans running at once, across all requests; the rest wait for a slot
+- `MAX_PENDING_WEBHOOK_SCANS`: scans accepted and not yet finished. A notification that would pass it is
+  refused with a 503, scanning none of it, so the provider can retry. One larger than the cap on its own is
+  accepted once nothing is pending, so its retries are not refused forever
+
+### Upload keys and disposition
+
+- A caller-supplied `key` must match `OBJECT_KEY_PATTERN` (`/`-separated segments of ASCII letters, digits,
+  `.`, `_`, `-`; none empty or starting with `.`) and be at most `MAX_OBJECT_KEY_LENGTH`, else a 400
+- An upload never replaces an object unless the caller passes `overwrite: true`; a taken key gets a 409. The
+  write is conditional (`If-None-Match: *`), and a caller-supplied key is also checked with `HeadObject` first
+  because SeaweedFS 3.79 ignores the condition. On such a provider two uploads racing for one key can still
+  both write
+- HTML, SVG and XML (types a browser runs script from) are stored with `Content-Disposition: attachment`, so a
+  browser downloads them, unless the caller passes `inlineActiveContent: true`. `getObjectStream` sends the
+  stored disposition on
 
 ### Addresses and URLs
 
@@ -80,7 +105,7 @@ all, because the bucket is anonymously readable: its only protection is the scan
 - `storage/images.service.ts` - `ImagesService`, the one home for image processing (`resize`, using `sharp`); forks can inject it directly. Bytes or options it cannot use are refused with a 422; failures of the server itself stay 500s, with the `sharp` error logged rather than returned
 - `storage/content-type.ts` - identifies an upload from its leading bytes
 - `storage/storage.buckets.ts` - `BucketVisibility` and `buildBucketName`
-- `storage/storage.types.ts` - client config, upload types, `ScanStatus`, `scanTags`, `PresignedUrlLifetime`
+- `storage/storage.types.ts` - client config, upload types, `OBJECT_KEY_PATTERN`, `ScanStatus`, `scanTags`, `PresignedUrlLifetime`
 - `storage/tests/` - client, service, and `s3-config.json` tests
 
 ## Configuration
