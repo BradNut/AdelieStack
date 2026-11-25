@@ -11,7 +11,7 @@ updates:
     groups:
       github-actions:
         patterns:
-          - '*'
+          - "*"
     commit-message:
       prefix: ci
 

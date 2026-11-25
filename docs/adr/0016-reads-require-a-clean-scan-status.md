@@ -1,6 +1,6 @@
 ---
-status: accepted
----
+
+## status: accepted
 
 # Reads require a clean Scan Status
 

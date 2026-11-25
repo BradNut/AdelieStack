@@ -1,6 +1,6 @@
 ---
-status: accepted
----
+
+## status: accepted
 
 # Social sign-in by a two-factor user requires the Second Factor
 

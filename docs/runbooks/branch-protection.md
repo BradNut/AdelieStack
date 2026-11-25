@@ -14,16 +14,16 @@ reviewer later, set `required_approving_review_count` to 1 and re-run the comman
 Matched by job name, so renaming a job in a workflow silently removes it from the gate. Update this list and the
 branch rules together.
 
-| Job name | Workflow |
-| --- | --- |
-| `Lint (Biome)` | `ci.yml` |
-| `Type check (web + API + shared boundaries)` | `ci.yml` |
-| `Unit tests (web + API)` | `ci.yml` |
-| `API rate-limit tests (Redis)` | `ci.yml` |
-| `End-to-end tests (Chromium)` | `ci.yml` |
-| `Dependency audit (production)` | `ci.yml` |
-| `CodeQL (javascript-typescript)` | `codeql.yml` |
-| `CodeQL (actions)` | `codeql.yml` |
+| Job name                                     | Workflow     |
+| -------------------------------------------- | ------------ |
+| `Lint (Biome)`                               | `ci.yml`     |
+| `Type check (web + API + shared boundaries)` | `ci.yml`     |
+| `Unit tests (web + API)`                     | `ci.yml`     |
+| `API rate-limit tests (Redis)`               | `ci.yml`     |
+| `End-to-end tests (Chromium)`                | `ci.yml`     |
+| `Dependency audit (production)`              | `ci.yml`     |
+| `CodeQL (javascript-typescript)`             | `codeql.yml` |
+| `CodeQL (actions)`                           | `codeql.yml` |
 
 CodeQL is one required job per language, so the seven checks in the spec are eight contexts. `ci.yml` has no
 `paths-ignore` on `pull_request` for the same reason: a required check that never runs would leave a docs-only PR
@@ -93,11 +93,11 @@ versions by `overrides` in `pnpm-workspace.yaml`. If a future high is judged not
 
 Moderate and low advisories stay visible in the output without blocking. What remains, and why:
 
-| Package | Advisory | Path | Disposition |
-| --- | --- | --- | --- |
-| `esbuild` 0.18.20 (moderate) | GHSA-67mh-4wv8-2f99 | `better-auth > drizzle-kit > @esbuild-kit/*` | Dev-server request issue in a build tool; the fix is a 0.x minor jump inside a deprecated `drizzle-kit` dependency. Not loaded at runtime. |
-| `glob` 10.5.0, 13.0.6 (moderate) | GHSA-3g3m-2fjr-6pw4 | `@opentelemetry/auto-instrumentations-node > resource-detector-gcp > gcp-metadata > gaxios > rimraf` | Abort-signal bypass in `glob`; needs glob 14, a major bump inside an upstream's cleanup helper. The app never passes request data to it. |
-| `minimatch` 9.0.9, 10.2.6 (moderate) | GHSA-g3hv-75wg-m249 | same path as `glob` | Pattern-amplification DoS; patterns come from the upstream package, not from requests. Fixed with the `glob` bump. |
-| `deepmerge` 4.3.1 (low) | GHSA-gcqx-w48m-w2h4 | `better-auth > @sveltejs/kit > @sveltejs/vite-plugin-svelte` | Prototype poisoning in `mergeObject()`; no patched version exists. Reached only through the Vite plugin at build time. |
+| Package                              | Advisory            | Path                                                                                                 | Disposition                                                                                                                                |
+| ------------------------------------ | ------------------- | ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `esbuild` 0.18.20 (moderate)         | GHSA-67mh-4wv8-2f99 | `better-auth > drizzle-kit > @esbuild-kit/*`                                                         | Dev-server request issue in a build tool; the fix is a 0.x minor jump inside a deprecated `drizzle-kit` dependency. Not loaded at runtime. |
+| `glob` 10.5.0, 13.0.6 (moderate)     | GHSA-3g3m-2fjr-6pw4 | `@opentelemetry/auto-instrumentations-node > resource-detector-gcp > gcp-metadata > gaxios > rimraf` | Abort-signal bypass in `glob`; needs glob 14, a major bump inside an upstream's cleanup helper. The app never passes request data to it.   |
+| `minimatch` 9.0.9, 10.2.6 (moderate) | GHSA-g3hv-75wg-m249 | same path as `glob`                                                                                  | Pattern-amplification DoS; patterns come from the upstream package, not from requests. Fixed with the `glob` bump.                         |
+| `deepmerge` 4.3.1 (low)              | GHSA-gcqx-w48m-w2h4 | `better-auth > @sveltejs/kit > @sveltejs/vite-plugin-svelte`                                         | Prototype poisoning in `mergeObject()`; no patched version exists. Reached only through the Vite plugin at build time.                     |
 
 Revisit the table when the upstream packages above publish fixes; `pnpm audit --prod` is the source of truth.

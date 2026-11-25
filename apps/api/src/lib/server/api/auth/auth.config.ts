@@ -33,7 +33,7 @@ import { createHibpHealth } from './auth.hibp-status';
 import { type AuthMailLogger, createAuthMail, toMailRecipient } from './auth.mail';
 import { passwordAccountGuard } from './auth.password-account-guard';
 import { createPasswordHasher, type PasswordHasher } from './auth.password-hash';
-import { createPasswordPolicyHook, hibpScreening } from './auth.password-policy';
+import { hibpScreening, passwordPolicyHook } from './auth.password-policy';
 import { passwordRehash } from './auth.password-rehash';
 import { ac, roles } from './auth.permissions';
 import { mailLocale, preferredLanguageField, seedPreferredLanguage } from './auth.preferred-language';
@@ -263,7 +263,7 @@ export function createAuth({
       session: { update: { before: capSessionLifetime } },
     },
     hooks: {
-      before: createPasswordPolicyHook(hibpStatus),
+      before: passwordPolicyHook,
       after: authMail.afterHook,
     },
     plugins: [
