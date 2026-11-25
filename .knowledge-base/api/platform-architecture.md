@@ -83,11 +83,10 @@
   an infected object is deleted, so its URL stops working. A public object read straight from
   storage (the bucket is anonymously readable) is not checked at all: its only protection is the
   scan at upload
-- **Failure mode**: the upload path fails closed. If the scanner errors, for example because clamd
-  is unreachable, the upload is refused and nothing is stored
-- **Known gap**: on a clamd read timeout or a reply it cannot parse, `clamscan` resolves with
-  `isInfected: null` instead of erroring. `VirusScannerService.scanStream` counts that as clean, so
-  those files are stored and tagged clean
+- **Failure mode**: the upload path fails closed. A scan reports clean only when clamd explicitly
+  says the file is not infected. If the scanner errors or gets no verdict, for example because clamd
+  is unreachable, times out, or sends a reply `clamscan` cannot parse, the upload is refused and
+  nothing is stored
 - **Webhook re-scan**: as defense-in-depth, objects are re-scanned after they land when the storage
   provider is configured to send object-created notifications to the storage webhook
   (`storage/file-scanner.worker.ts`); nothing in the local stack sets that up. The webhook lives at

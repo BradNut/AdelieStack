@@ -21,6 +21,8 @@ export type ScanResponse = {
 // ClamAV's clamd daemon listens on this TCP port by default.
 const DEFAULT_CLAMAV_PORT = 3310;
 const SCAN_TIMEOUT_MS = 60_000;
+/** The error a scan reports when clamd answers without a verdict. */
+export const NO_VERDICT_ERROR = 'Scanner returned no verdict';
 
 /**
  * Wraps the `clamscan` client and talks to a clamd daemon over TCP.
@@ -87,8 +89,9 @@ export class VirusScannerService {
 
   /**
    * Scans a readable stream for viruses. When scanning is disabled this resolves to
-   * CLEAN without contacting the daemon. Transport/daemon failures resolve to ERROR
-   * rather than throwing so callers can decide how to fail closed.
+   * CLEAN without contacting the daemon. CLEAN is reported only when clamd explicitly
+   * says the file is not infected; transport/daemon failures and a missing verdict
+   * resolve to ERROR rather than throwing so callers can decide how to fail closed.
    */
   async scanStream(stream: Readable): Promise<ScanResponse> {
     if (!this.isEnabled) {
@@ -99,12 +102,20 @@ export class VirusScannerService {
       const clamScan = await this.getClient();
       const { isInfected, viruses } = await clamScan.scanStream(stream);
 
-      if (isInfected) {
+      if (isInfected === true) {
         this.loggerService.log.warn({ viruses }, 'Virus detected during scan');
         return { result: ScanResult.INFECTED, viruses: viruses ?? [] };
       }
 
-      return { result: ScanResult.CLEAN };
+      if (isInfected === false) {
+        return { result: ScanResult.CLEAN };
+      }
+
+      // clamscan 2.4.0 resolves with a null verdict on a clamd read timeout or a reply
+      // it cannot parse, although its types say boolean. Only an explicit "not
+      // infected" counts as clean; anything else fails closed.
+      this.loggerService.log.error({ isInfected }, 'Virus scan returned no verdict');
+      return { result: ScanResult.ERROR, error: NO_VERDICT_ERROR };
     } catch (error) {
       this.loggerService.log.error({ error }, 'Error scanning stream');
       return { result: ScanResult.ERROR, error: error instanceof Error ? error.message : 'Unknown error' };

@@ -69,9 +69,8 @@ Uploads are scanned on their final bytes, after any resize and before they reach
 `CLAMAV_HOST`:`CLAMAV_PORT`, and the connection opens on the first scan. Locally, clamd is the
 `clamav` service in `docker-compose.yaml`.
 
-The upload path fails closed: while scanning is on, an upload is refused if the scanner errors, so a
-clamd outage stops uploads. See the known gap in
-[Platform Architecture](../platform-architecture.md#clamav) for the one case that does not.
+The upload path fails closed: while scanning is on, an upload is refused if the scanner errors or
+returns no verdict (for example a clamd read timeout), so a clamd outage stops uploads.
 
 ### Symptoms
 

@@ -2,12 +2,15 @@ import type { Readable } from 'node:stream';
 import { Container } from '@needle-di/core';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ConfigService } from '#lib/server/api/common/configs/config.service';
+import type { EnvsDto } from '#lib/server/api/common/configs/dtos/env.dto';
 import { LoggerService } from '#lib/server/api/common/services/logger.service';
 import { FileScannerWorker } from '#lib/server/api/storage/file-scanner.worker';
 import { S3StorageClient } from '#lib/server/api/storage/s3-storage.client';
 import { MAX_CONCURRENT_WEBHOOK_SCANS, MAX_PENDING_WEBHOOK_SCANS, MAX_WEBHOOK_SCAN_SIZE_BYTES } from '#lib/server/api/storage/storage.constants';
 import { ScanStatus, ScanTag } from '#lib/server/api/storage/storage.types';
 import { type ScanResponse, ScanResult, VirusScannerService } from '#lib/server/api/storage/virus-scanner.service';
+import { createConfigServiceMock } from '../../../../../test/mocks/config.mock';
+import { stubClamd } from './storage-test.helpers';
 
 const loggerStub = { log: { info: vi.fn(), warn: vi.fn(), debug: vi.fn(), error: vi.fn() } } as unknown as LoggerService;
 
@@ -19,15 +22,21 @@ const envs = {
   STORAGE_SECRET_KEY: 'secret',
 };
 
+/** A container holding the worker's config (the shared mock plus storage envs) and logger. */
+const createContainer = (envOverrides: Partial<EnvsDto> = {}) => {
+  const container = new Container();
+  container.bind({ provide: ConfigService, useValue: createConfigServiceMock({ ...envs, ...envOverrides }) as unknown as ConfigService });
+  container.bind({ provide: LoggerService, useValue: loggerStub });
+  return container;
+};
+
 const buildWorker = (opts: { enabled?: boolean; scan: ScanResponse }) => {
   const scanStream = vi.fn(async (stream: Readable) => {
     // Drain what the worker hands over, as clamd would.
     for await (const _chunk of stream);
     return opts.scan;
   });
-  const container = new Container();
-  container.bind({ provide: ConfigService, useValue: { envs } as unknown as ConfigService });
-  container.bind({ provide: LoggerService, useValue: loggerStub });
+  const container = createContainer();
   container.bind({ provide: VirusScannerService, useValue: { isEnabled: opts.enabled ?? true, scanStream } as unknown as VirusScannerService });
   return { worker: container.get(FileScannerWorker), scanStream };
 };
@@ -102,6 +111,20 @@ describe('FileScannerWorker', () => {
       expect.objectContaining({ [ScanTag.STATUS]: ScanStatus.INFECTED, [ScanTag.VIRUSES]: 'Eicar-Test-Signature' }),
     );
     expect(removeObject).toHaveBeenCalledWith(JOB.bucket, JOB.key);
+  });
+
+  it('tags an object clamd gave no verdict for as errored and leaves it in place', async () => {
+    vi.spyOn(S3StorageClient.prototype, 'getObjectStream').mockResolvedValue(storedStream('?'));
+    const setObjectTagging = vi.spyOn(S3StorageClient.prototype, 'setObjectTagging').mockResolvedValue();
+    const removeObject = vi.spyOn(S3StorageClient.prototype, 'removeObject').mockResolvedValue();
+    const { scanStream } = stubClamd({ isInfected: null, viruses: [] });
+    const container = createContainer({ ANTIVIRUS_ENABLED: true });
+
+    await container.get(FileScannerWorker).handleScanJobs([JOB]);
+
+    expect(scanStream).toHaveBeenCalledOnce();
+    expect(removeObject).not.toHaveBeenCalled();
+    expect(setObjectTagging).toHaveBeenLastCalledWith(JOB.bucket, JOB.key, expect.objectContaining({ [ScanTag.STATUS]: ScanStatus.ERROR }));
   });
 
   describe('an object over the scan size cap', () => {
