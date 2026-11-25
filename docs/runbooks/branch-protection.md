@@ -27,7 +27,9 @@ branch rules together.
 
 CodeQL is one required job per language, so the seven checks in the spec are eight contexts. `ci.yml` has no
 `paths-ignore` on `pull_request` for the same reason: a required check that never runs would leave a docs-only PR
-unmergeable.
+unmergeable. The e2e job skips itself instead (a skipped job passes its required check) when the `changes` job finds
+only files that cannot affect it (Markdown, `docs/`, `.knowledge-base/`, Dependabot and CodeQL config). If that
+filter fails, e2e runs.
 
 ## Workflow privileges
 
