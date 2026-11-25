@@ -8,9 +8,9 @@ on:
   push:
     branches: [main]
     paths-ignore:
-      - '**.md'
-      - '.knowledge-base/**'
-      - 'docs/**'
+      - "**.md"
+      - ".knowledge-base/**"
+      - "docs/**"
   workflow_dispatch:
 
 concurrency:
@@ -28,7 +28,7 @@ env:
 
 jobs:
   # Repo-wide, not per package: covers the root config, scripts and web files too (#149),
-  # plus the pinned actions/images guard (#235).
+  # plus the pinned actions/images guard (#235) and the workflow least-privilege guard (#269).
   lint:
     name: Lint (Biome)
     runs-on: ubuntu-latest
@@ -38,6 +38,7 @@ jobs:
       - uses: ./.github/actions/setup
       - run: pnpm exec biome check .
       - run: pnpm check:pinned-refs
+      - run: pnpm check:workflow-permissions
       - run: pnpm test:scripts
 
   # Fails on any high or critical production advisory. Moderates and lows stay visible in the output but
@@ -102,7 +103,7 @@ jobs:
       BETTER_AUTH_SECRET: ci-only-not-a-secret-better-auth-key
       ADMIN_PASSWORD: ci-only-not-a-secret-admin-password
       # Playwright turns this off for the servers it starts; the seed runs outside Playwright.
-      HIBP_ENABLED: 'false'
+      HIBP_ENABLED: "false"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/setup

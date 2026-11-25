@@ -1,6 +1,6 @@
 ---
-status: accepted
----
+
+## status: accepted
 
 # Better Auth owns rate limiting of `/api/auth/*`, with counters in Redis
 

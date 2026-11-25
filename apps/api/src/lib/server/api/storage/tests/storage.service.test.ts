@@ -1,4 +1,4 @@
-import { ACCEPTED_IMAGE_TYPES, MAX_UPLOAD_SIZE_BYTES, StatusCodes } from '@adelie/shared';
+import { ACCEPTED_IMAGE_TYPES, MAX_OBJECT_KEY_LENGTH, MAX_UPLOAD_SIZE_BYTES, StatusCodes, StorageErrorCode } from '@adelie/shared';
 import { Container } from '@needle-di/core';
 import NodeClam from 'clamscan';
 import type { HTTPException } from 'hono/http-exception';
@@ -7,9 +7,10 @@ import { beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
 import { ConfigService } from '#lib/server/api/common/configs/config.service';
 import type { EnvsDto } from '#lib/server/api/common/configs/dtos/env.dto';
 import { LoggerService } from '#lib/server/api/common/services/logger.service';
+import { CodedHTTPException } from '#lib/server/api/common/utils/exceptions';
 import { ActiveContentType, CONTENT_SNIFF_BYTES } from '#lib/server/api/storage/content-type';
 import { ImagesService } from '#lib/server/api/storage/images.service';
-import { S3StorageClient } from '#lib/server/api/storage/s3-storage.client';
+import { ObjectAlreadyExistsError, S3Presigner, S3StorageClient } from '#lib/server/api/storage/s3-storage.client';
 import { BucketVisibility } from '#lib/server/api/storage/storage.buckets';
 import { StorageService } from '#lib/server/api/storage/storage.service';
 import { ScanStatus, ScanTag, type Upload } from '#lib/server/api/storage/storage.types';
@@ -27,6 +28,8 @@ const envs: Partial<EnvsDto> = {
   STORAGE_SSL: false,
   STORAGE_ACCESS_KEY: 'key',
   STORAGE_SECRET_KEY: 'secret',
+  STORAGE_URL: 'https://files.example.com',
+  PUBLIC_IMAGE_URI: 'https://files.example.com/adelie-public-development',
 };
 
 /** A Public Id: 21 characters from 0-9A-Za-z. */
@@ -38,6 +41,14 @@ const PRIVATE_BUCKET = 'adelie-private-development';
 const IMAGE_KEY = 'img';
 const PNG_CONTENT_TYPE = 'image/png';
 const PDF_CONTENT_TYPE = 'application/pdf';
+/** What `upload` tags its object with when antivirus is off: nothing. */
+const UNTAGGED = undefined;
+/** ISO 8601 basic format, e.g. `20261121T070809Z`. */
+const ISO_BASIC_TIMESTAMP = /^\d{8}T\d{6}Z$/;
+/** The tags of an upload that passed its scan: clean, stamped with the time of the scan. */
+const CLEAN_TAGS = { [ScanTag.STATUS]: ScanStatus.CLEAN, [ScanTag.TIMESTAMP]: expect.stringMatching(ISO_BASIC_TIMESTAMP) };
+/** How `upload` asks storage to store an object of `contentType` with `tags`. */
+const storedAs = (contentType: string, tags: Record<string, unknown> | undefined) => expect.objectContaining({ contentType, tags });
 const UNUSED_RESIZE_RESULT = Buffer.from('should-not-be-stored');
 
 /** What every upload has to state: the limits it is held to and the bucket it goes to. */
@@ -66,6 +77,33 @@ const scanStub = (scanBuffer: () => Promise<ScanResponse>): Partial<VirusScanner
 
 const pngFile = (bytes: Buffer) => new File([new Uint8Array(bytes)], 'image.png', { type: PNG_CONTENT_TYPE });
 
+const OBJECT_KEY = 'object-key';
+const STORED = { body: Buffer.from('data'), contentType: 'text/plain' };
+const STORED_STREAM = { stream: new ReadableStream<Uint8Array>(), contentType: 'text/plain', contentLength: 4 };
+const VISIBILITIES = Object.values(BucketVisibility);
+const BUCKET_OF: Record<BucketVisibility, string> = { [BucketVisibility.PUBLIC]: PUBLIC_BUCKET, [BucketVisibility.PRIVATE]: PRIVATE_BUCKET };
+
+/** Every read of a stored object; each one has to honour the Scan Status. */
+const READS: [string, (service: StorageService, visibility: BucketVisibility) => Promise<unknown>][] = [
+  ['get', (service, visibility) => service.get(OBJECT_KEY, visibility)],
+  ['getObjectStream', (service, visibility) => service.getObjectStream(OBJECT_KEY, visibility)],
+  ['getPresignedUrl', (service, visibility) => service.getPresignedUrl(OBJECT_KEY, visibility)],
+  ['getFileUrl', (service, visibility) => service.getFileUrl(OBJECT_KEY, visibility)],
+];
+
+const ONE_HOUR_SECONDS = 3600;
+const SEVEN_DAYS_SECONDS = 604800;
+
+/** How a read answers each Scan Status other than clean (ADR 0016). */
+const REFUSALS: [string, number, StorageErrorCode][] = [
+  [ScanStatus.PENDING, StatusCodes.TOO_EARLY, StorageErrorCode.SCAN_PENDING],
+  [ScanStatus.SCANNING, StatusCodes.TOO_EARLY, StorageErrorCode.SCAN_PENDING],
+  [ScanStatus.INFECTED, StatusCodes.GONE, StorageErrorCode.SCAN_INFECTED],
+  [ScanStatus.ERROR, StatusCodes.INTERNAL_SERVER_ERROR, StorageErrorCode.SCAN_FAILED],
+  [ScanStatus.TOO_LARGE, StatusCodes.FORBIDDEN, StorageErrorCode.SCAN_REFUSED],
+  ['quarantined', StatusCodes.FORBIDDEN, StorageErrorCode.SCAN_REFUSED],
+];
+
 const dimensionsOf = async (bytes: Buffer) => {
   const { width, height } = await sharp(bytes).metadata();
   return { width, height };
@@ -74,6 +112,8 @@ const dimensionsOf = async (bytes: Buffer) => {
 describe('StorageService', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    // Storage holds no object under any key unless a test says otherwise.
+    vi.spyOn(S3StorageClient.prototype, 'objectExists').mockResolvedValue(false);
   });
 
   it('does not create a storage client until first use', () => {
@@ -155,7 +195,7 @@ describe('StorageService', () => {
       const result = await createService().upload({ ...IMAGE_UPLOAD, file: pngFile(png), key: 'my-key' });
 
       expect(result).toEqual({ key: 'my-key' });
-      expect(putObject).toHaveBeenCalledWith(PUBLIC_BUCKET, 'my-key', png, PNG_CONTENT_TYPE);
+      expect(putObject).toHaveBeenCalledWith(PUBLIC_BUCKET, 'my-key', png, storedAs(PNG_CONTENT_TYPE, UNTAGGED));
     });
 
     it('generates a key and targets the private bucket when requested', async () => {
@@ -165,13 +205,150 @@ describe('StorageService', () => {
       const result = await createService().upload({ ...IMAGE_UPLOAD, file: pngFile(png), visibility: BucketVisibility.PRIVATE });
 
       expect(result.key).toMatch(PUBLIC_ID_PATTERN);
-      expect(putObject).toHaveBeenCalledWith(PRIVATE_BUCKET, result.key, png, PNG_CONTENT_TYPE);
+      expect(putObject).toHaveBeenCalledWith(PRIVATE_BUCKET, result.key, png, storedAs(PNG_CONTENT_TYPE, UNTAGGED));
     });
 
     it('propagates upload failures', async () => {
       vi.spyOn(S3StorageClient.prototype, 'putObject').mockRejectedValue(new Error('upload failed'));
 
       await expect(createService().upload({ ...IMAGE_UPLOAD, file: pngFile(await createPng(4, 4)) })).rejects.toThrow('upload failed');
+    });
+  });
+
+  describe('upload keys', () => {
+    const storing = () => vi.spyOn(S3StorageClient.prototype, 'putObject').mockResolvedValue();
+    const uploadAs = async (key: string) => createService().upload({ ...IMAGE_UPLOAD, file: pngFile(await createPng(4, 4)), key });
+
+    it.each([
+      ['a path that climbs out of its folder', '../escape.png'],
+      ['a folder that climbs out', 'avatars/../escape.png'],
+      ['a leading slash', '/root.png'],
+      ['an empty folder', 'avatars//photo.png'],
+      ['a trailing slash', 'avatars/'],
+      ['a current-folder segment', 'avatars/./photo.png'],
+      ['a hidden segment', '.env'],
+      ['whitespace', 'my photo.png'],
+      ['a backslash', 'avatars\\photo.png'],
+      ['a non-ASCII character', 'fotó.png'],
+      ['a control character', 'photo\n.png'],
+      ['nothing', ''],
+      ['one character too many', 'k'.repeat(MAX_OBJECT_KEY_LENGTH + 1)],
+    ])('refuses a key with %s with a 400, storing nothing', async (_label, key) => {
+      const putObject = storing();
+
+      const error = await failureOf(uploadAs(key));
+
+      expect(error.status).toBe(StatusCodes.BAD_REQUEST);
+      expect(putObject).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['a nested key', 'avatars/user_1/photo-2.v1.png'],
+      ['a key of exactly the longest length', 'k'.repeat(MAX_OBJECT_KEY_LENGTH)],
+    ])('accepts %s', async (_label, key) => {
+      const putObject = storing();
+
+      await expect(uploadAs(key)).resolves.toEqual({ key });
+      expect(putObject).toHaveBeenCalledWith(PUBLIC_BUCKET, key, expect.any(Buffer), expect.anything());
+    });
+
+    it('refuses with a 409 to replace an object that already has the key, storing nothing', async () => {
+      vi.spyOn(S3StorageClient.prototype, 'objectExists').mockResolvedValue(true);
+      const putObject = storing();
+
+      const error = await failureOf(uploadAs('taken.png'));
+
+      expect(error.status).toBe(StatusCodes.CONFLICT);
+      expect(putObject).not.toHaveBeenCalled();
+    });
+
+    it('writes only if the key is still free, refusing with a 409 when storage reports it taken', async () => {
+      const putObject = vi.spyOn(S3StorageClient.prototype, 'putObject').mockRejectedValue(new ObjectAlreadyExistsError(PUBLIC_BUCKET, 'raced.png'));
+
+      const error = await failureOf(uploadAs('raced.png'));
+
+      expect(error.status).toBe(StatusCodes.CONFLICT);
+      expect(putObject).toHaveBeenCalledWith(PUBLIC_BUCKET, 'raced.png', expect.any(Buffer), expect.objectContaining({ onlyIfAbsent: true }));
+    });
+
+    it('replaces an existing object when the caller asks to, writing unconditionally', async () => {
+      const objectExists = vi.spyOn(S3StorageClient.prototype, 'objectExists').mockResolvedValue(true);
+      const putObject = storing();
+
+      await createService().upload({ ...IMAGE_UPLOAD, file: pngFile(await createPng(4, 4)), key: 'taken.png', overwrite: true });
+
+      expect(objectExists).not.toHaveBeenCalled();
+      expect(putObject).toHaveBeenCalledWith(PUBLIC_BUCKET, 'taken.png', expect.any(Buffer), expect.objectContaining({ onlyIfAbsent: false }));
+    });
+
+    it('writes a generated key only if it is free too', async () => {
+      const putObject = storing();
+
+      await createService().upload({ ...IMAGE_UPLOAD, file: pngFile(await createPng(4, 4)) });
+
+      expect(putObject).toHaveBeenCalledWith(
+        PUBLIC_BUCKET,
+        expect.stringMatching(PUBLIC_ID_PATTERN),
+        expect.any(Buffer),
+        expect.objectContaining({ onlyIfAbsent: true }),
+      );
+    });
+  });
+
+  describe('upload disposition', () => {
+    const HTML = '<!doctype html><html><body><script>alert(1)</script></body></html>';
+    const SVG = '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>';
+    const XML = '<?xml version="1.0"?><note>hi</note>';
+    const fileOf = (content: string) => new File([content], 'upload', { type: '' });
+    const storing = () => vi.spyOn(S3StorageClient.prototype, 'putObject').mockResolvedValue();
+
+    it.each([
+      ['HTML', HTML, ActiveContentType.HTML],
+      ['SVG', SVG, ActiveContentType.SVG],
+      ['XML', XML, 'application/xml'],
+    ])('stores %s, a type a browser runs script from, as a download', async (_label, content, type) => {
+      const putObject = storing();
+
+      await createService().upload({ ...IMAGE_UPLOAD, file: fileOf(content), key: IMAGE_KEY, acceptedTypes: [type] });
+
+      expect(putObject).toHaveBeenCalledWith(
+        PUBLIC_BUCKET,
+        IMAGE_KEY,
+        expect.any(Buffer),
+        expect.objectContaining({ contentType: type, contentDisposition: 'attachment' }),
+      );
+    });
+
+    it('stores a script-capable type for inline display only when the caller opts out explicitly', async () => {
+      const putObject = storing();
+
+      await createService().upload({
+        ...IMAGE_UPLOAD,
+        file: fileOf(SVG),
+        key: IMAGE_KEY,
+        acceptedTypes: [ActiveContentType.SVG],
+        inlineActiveContent: true,
+      });
+
+      expect(putObject).toHaveBeenCalledWith(
+        PUBLIC_BUCKET,
+        IMAGE_KEY,
+        expect.any(Buffer),
+        expect.objectContaining({ contentDisposition: undefined }),
+      );
+    });
+
+    it('stores an image for inline display', async () => {
+      const putObject = storing();
+
+      await createService().upload({ ...IMAGE_UPLOAD, file: pngFile(await createPng(4, 4)), key: IMAGE_KEY });
+
+      expect(putObject).toHaveBeenCalledWith(
+        PUBLIC_BUCKET,
+        IMAGE_KEY,
+        expect.any(Buffer),
+        expect.objectContaining({ contentDisposition: undefined }),
+      );
     });
   });
 
@@ -244,7 +421,7 @@ describe('StorageService', () => {
 
       await createService().upload({ ...IMAGE_UPLOAD, file: fileOf(jpeg, PNG_CONTENT_TYPE), key: IMAGE_KEY });
 
-      expect(putObject).toHaveBeenCalledWith(PUBLIC_BUCKET, IMAGE_KEY, jpeg, 'image/jpeg');
+      expect(putObject).toHaveBeenCalledWith(PUBLIC_BUCKET, IMAGE_KEY, jpeg, storedAs('image/jpeg', UNTAGGED));
     });
 
     it('stores the detected type when the client claimed none', async () => {
@@ -253,7 +430,7 @@ describe('StorageService', () => {
 
       await createService().upload({ ...IMAGE_UPLOAD, file: fileOf(png, ''), key: IMAGE_KEY });
 
-      expect(putObject).toHaveBeenCalledWith(PUBLIC_BUCKET, IMAGE_KEY, png, PNG_CONTENT_TYPE);
+      expect(putObject).toHaveBeenCalledWith(PUBLIC_BUCKET, IMAGE_KEY, png, storedAs(PNG_CONTENT_TYPE, UNTAGGED));
     });
 
     it('accepts a non-image type when the caller lists it', async () => {
@@ -261,7 +438,7 @@ describe('StorageService', () => {
 
       await createService().upload({ ...IMAGE_UPLOAD, file: fileOf(PDF, ''), key: IMAGE_KEY, acceptedTypes: [PDF_CONTENT_TYPE] });
 
-      expect(putObject).toHaveBeenCalledWith(PUBLIC_BUCKET, IMAGE_KEY, Buffer.from(PDF), PDF_CONTENT_TYPE);
+      expect(putObject).toHaveBeenCalledWith(PUBLIC_BUCKET, IMAGE_KEY, Buffer.from(PDF), storedAs(PDF_CONTENT_TYPE, UNTAGGED));
     });
 
     it.each([
@@ -298,7 +475,7 @@ describe('StorageService', () => {
 
       await createService().upload({ ...IMAGE_UPLOAD, file: fileOf(content, ''), key: IMAGE_KEY, acceptedTypes: [type] });
 
-      expect(putObject).toHaveBeenCalledWith(PUBLIC_BUCKET, IMAGE_KEY, Buffer.from(content), type);
+      expect(putObject).toHaveBeenCalledWith(PUBLIC_BUCKET, IMAGE_KEY, Buffer.from(content), storedAs(type, UNTAGGED));
     });
 
     it('refuses markup whose root lies beyond what is read, even when the caller accepts XML', async () => {
@@ -319,7 +496,7 @@ describe('StorageService', () => {
 
       await createService().upload({ ...IMAGE_UPLOAD, file: fileOf(xml, ''), key: IMAGE_KEY, acceptedTypes: ['application/xml'] });
 
-      expect(putObject).toHaveBeenCalledWith(PUBLIC_BUCKET, IMAGE_KEY, Buffer.from(xml), 'application/xml');
+      expect(putObject).toHaveBeenCalledWith(PUBLIC_BUCKET, IMAGE_KEY, Buffer.from(xml), storedAs('application/xml', UNTAGGED));
     });
 
     it('classifies a document embedding SVG as HTML', async () => {
@@ -359,7 +536,6 @@ describe('StorageService', () => {
 
       it.each(EVERY_RESIZE_REQUEST)('refuses an upload %s as empty, with nothing resized, scanned or stored', async (_label, resizeOptions) => {
         const putObject = storing();
-        const setObjectTagging = vi.spyOn(S3StorageClient.prototype, 'setObjectTagging').mockResolvedValue();
         const scanner = scanStub(async () => ({ result: ScanResult.CLEAN }));
         const resize = vi.fn(async () => UNUSED_RESIZE_RESULT);
         const file = fileOf('', PNG_CONTENT_TYPE);
@@ -370,7 +546,6 @@ describe('StorageService', () => {
         expect(resize).not.toHaveBeenCalled();
         expect(scanner.scanBuffer).not.toHaveBeenCalled();
         expect(putObject).not.toHaveBeenCalled();
-        expect(setObjectTagging).not.toHaveBeenCalled();
       });
 
       it.each([
@@ -388,7 +563,6 @@ describe('StorageService', () => {
 
     it('still scans and stores a file that is not empty', async () => {
       const putObject = storing();
-      vi.spyOn(S3StorageClient.prototype, 'setObjectTagging').mockResolvedValue();
       const scanner = scanStub(async () => ({ result: ScanResult.CLEAN }));
 
       await createService({ scanner }).upload({ ...IMAGE_UPLOAD, file: pngFile(await createPng(4, 4)) });
@@ -435,7 +609,7 @@ describe('StorageService', () => {
       await createService({ images: { resize } }).upload({ ...IMAGE_UPLOAD, file: pngFile(original), key: IMAGE_KEY, resizeOptions: { width: 10 } });
 
       expect(resize).toHaveBeenCalledWith(original, { width: 10 }, undefined);
-      expect(putObject).toHaveBeenCalledWith(PUBLIC_BUCKET, IMAGE_KEY, resizedBytes, 'image/jpeg');
+      expect(putObject).toHaveBeenCalledWith(PUBLIC_BUCKET, IMAGE_KEY, resizedBytes, storedAs('image/jpeg', UNTAGGED));
     });
 
     it('stores a resized SVG as the PNG the image library made of it', async () => {
@@ -452,7 +626,7 @@ describe('StorageService', () => {
 
       const stored = putObject.mock.calls[0]?.[2] as Buffer;
       expect((await sharp(stored).metadata()).format).toBe('png');
-      expect(putObject).toHaveBeenCalledWith(PUBLIC_BUCKET, IMAGE_KEY, stored, PNG_CONTENT_TYPE);
+      expect(putObject).toHaveBeenCalledWith(PUBLIC_BUCKET, IMAGE_KEY, stored, storedAs(PNG_CONTENT_TYPE, UNTAGGED));
     });
 
     it('reports a server error and stores nothing when the resized bytes are of no known type', async () => {
@@ -488,7 +662,7 @@ describe('StorageService', () => {
 
       await createService().upload({ ...IMAGE_UPLOAD, file: pngFile(original), key: IMAGE_KEY });
 
-      expect(putObject).toHaveBeenCalledWith(PUBLIC_BUCKET, IMAGE_KEY, original, PNG_CONTENT_TYPE);
+      expect(putObject).toHaveBeenCalledWith(PUBLIC_BUCKET, IMAGE_KEY, original, storedAs(PNG_CONTENT_TYPE, UNTAGGED));
     });
 
     it('stores an upload with empty resize options byte-identical to the file received', async () => {
@@ -498,7 +672,7 @@ describe('StorageService', () => {
 
       await createService().upload({ ...IMAGE_UPLOAD, file: pngFile(original), key: IMAGE_KEY, resizeOptions: {} });
 
-      expect(putObject).toHaveBeenCalledWith(PUBLIC_BUCKET, IMAGE_KEY, original, PNG_CONTENT_TYPE);
+      expect(putObject).toHaveBeenCalledWith(PUBLIC_BUCKET, IMAGE_KEY, original, storedAs(PNG_CONTENT_TYPE, UNTAGGED));
     });
 
     it('does not send an upload with empty resize options through image processing', async () => {
@@ -528,7 +702,7 @@ describe('StorageService', () => {
       await createService({ images: { resize } }).upload({ ...IMAGE_UPLOAD, file: pngFile(original), key: IMAGE_KEY, resizeOptions });
 
       expect(resize).not.toHaveBeenCalled();
-      expect(putObject).toHaveBeenCalledWith(PUBLIC_BUCKET, IMAGE_KEY, original, PNG_CONTENT_TYPE);
+      expect(putObject).toHaveBeenCalledWith(PUBLIC_BUCKET, IMAGE_KEY, original, storedAs(PNG_CONTENT_TYPE, UNTAGGED));
     });
 
     it('still resizes when only a height is requested', async () => {
@@ -556,7 +730,6 @@ describe('StorageService', () => {
 
     it('scans an upload with empty resize options before anything reaches storage', async () => {
       const putObject = vi.spyOn(S3StorageClient.prototype, 'putObject').mockResolvedValue();
-      vi.spyOn(S3StorageClient.prototype, 'setObjectTagging').mockResolvedValue();
       const scanner = scanStub(async () => ({ result: ScanResult.CLEAN }));
       const scanBuffer = vi.mocked(scanner.scanBuffer as VirusScannerService['scanBuffer']);
       const original = await createPng(40, 20, { compressionLevel: 0 });
@@ -646,7 +819,6 @@ describe('StorageService', () => {
 
     it('scans the resized bytes before anything reaches storage', async () => {
       const putObject = vi.spyOn(S3StorageClient.prototype, 'putObject').mockResolvedValue();
-      vi.spyOn(S3StorageClient.prototype, 'setObjectTagging').mockResolvedValue();
       const scanner = scanStub(async () => ({ result: ScanResult.CLEAN }));
       const scanBuffer = vi.mocked(scanner.scanBuffer as VirusScannerService['scanBuffer']);
 
@@ -659,7 +831,7 @@ describe('StorageService', () => {
 
       const scanned = scanBuffer.mock.calls[0]?.[0] as Buffer;
       await expect(dimensionsOf(scanned)).resolves.toEqual({ width: 10, height: 5 });
-      expect(putObject).toHaveBeenCalledWith(PUBLIC_BUCKET, IMAGE_KEY, scanned, PNG_CONTENT_TYPE);
+      expect(putObject).toHaveBeenCalledWith(PUBLIC_BUCKET, IMAGE_KEY, scanned, storedAs(PNG_CONTENT_TYPE, CLEAN_TAGS));
       expect(scanBuffer.mock.invocationCallOrder[0]).toBeLessThan(putObject.mock.invocationCallOrder[0] as number);
     });
 
@@ -677,7 +849,7 @@ describe('StorageService', () => {
   });
 
   describe('upload virus scanning', () => {
-    it('stores a clean file and tags it as scanned clean when antivirus is enabled', async () => {
+    it('stores a clean file already tagged clean, in the one write, when antivirus is enabled', async () => {
       const putObject = vi.spyOn(S3StorageClient.prototype, 'putObject').mockResolvedValue();
       const setObjectTagging = vi.spyOn(S3StorageClient.prototype, 'setObjectTagging').mockResolvedValue();
       const scanner = scanStub(async () => ({ result: ScanResult.CLEAN }));
@@ -688,8 +860,9 @@ describe('StorageService', () => {
 
       expect(result).toEqual({ key: 'clean-key' });
       expect(scanner.scanBuffer).toHaveBeenCalledWith(png);
-      expect(putObject).toHaveBeenCalledWith(PUBLIC_BUCKET, 'clean-key', png, PNG_CONTENT_TYPE);
-      expect(setObjectTagging).toHaveBeenCalledWith(PUBLIC_BUCKET, 'clean-key', expect.objectContaining({ [ScanTag.STATUS]: ScanStatus.CLEAN }));
+      expect(putObject).toHaveBeenCalledOnce();
+      expect(putObject).toHaveBeenCalledWith(PUBLIC_BUCKET, 'clean-key', png, storedAs(PNG_CONTENT_TYPE, CLEAN_TAGS));
+      expect(setObjectTagging).not.toHaveBeenCalled();
     });
 
     it('rejects an infected file and never persists it', async () => {
@@ -735,7 +908,6 @@ describe('StorageService', () => {
 
     it('skips scanning entirely when antivirus is disabled', async () => {
       const putObject = vi.spyOn(S3StorageClient.prototype, 'putObject').mockResolvedValue();
-      const setObjectTagging = vi.spyOn(S3StorageClient.prototype, 'setObjectTagging').mockResolvedValue();
       const initClamAv = vi.spyOn(NodeClam.prototype, 'init');
       const png = await createPng(4, 4);
       const file = pngFile(png);
@@ -744,8 +916,7 @@ describe('StorageService', () => {
 
       expect(result).toEqual({ key: 'skip-key' });
       expect(initClamAv).not.toHaveBeenCalled();
-      expect(putObject).toHaveBeenCalledWith(PUBLIC_BUCKET, 'skip-key', png, PNG_CONTENT_TYPE);
-      expect(setObjectTagging).not.toHaveBeenCalled();
+      expect(putObject).toHaveBeenCalledWith(PUBLIC_BUCKET, 'skip-key', png, storedAs(PNG_CONTENT_TYPE, UNTAGGED));
     });
   });
 
@@ -762,6 +933,227 @@ describe('StorageService', () => {
       vi.spyOn(S3StorageClient.prototype, 'getObject').mockRejectedValue(Object.assign(new Error('missing'), { name: 'NoSuchKey' }));
 
       await expect(createService().get('nope', BucketVisibility.PUBLIC)).rejects.toThrow('missing');
+    });
+  });
+
+  describe('getObjectStream', () => {
+    it('streams the body from the requested bucket with its Content-Type and Content-Length', async () => {
+      const getObjectStream = vi.spyOn(S3StorageClient.prototype, 'getObjectStream').mockResolvedValue(STORED_STREAM);
+
+      const result = await createService().getObjectStream(OBJECT_KEY, BucketVisibility.PRIVATE);
+
+      expect(getObjectStream).toHaveBeenCalledWith(PRIVATE_BUCKET, OBJECT_KEY);
+      expect(result).toEqual({ stream: STORED_STREAM.stream, headers: { 'content-type': 'text/plain', 'content-length': '4' } });
+    });
+
+    it('sends the object as a download when it was stored as one', async () => {
+      vi.spyOn(S3StorageClient.prototype, 'getObjectStream').mockResolvedValue({
+        ...STORED_STREAM,
+        contentType: 'text/html',
+        contentDisposition: 'attachment',
+      });
+
+      const { headers } = await createService().getObjectStream(OBJECT_KEY, BucketVisibility.PUBLIC);
+
+      expect(headers).toEqual({ 'content-type': 'text/html', 'content-length': '4', 'content-disposition': 'attachment' });
+    });
+
+    it('labels a body of unknown type as binary and leaves out an unknown length', async () => {
+      vi.spyOn(S3StorageClient.prototype, 'getObjectStream').mockResolvedValue({
+        ...STORED_STREAM,
+        contentType: undefined,
+        contentLength: undefined,
+      });
+
+      const { headers } = await createService().getObjectStream(OBJECT_KEY, BucketVisibility.PUBLIC);
+
+      expect(headers).toEqual({ 'content-type': 'application/octet-stream' });
+    });
+
+    it('propagates a failure to open the stream', async () => {
+      vi.spyOn(S3StorageClient.prototype, 'getObjectStream').mockRejectedValue(new Error('missing'));
+
+      await expect(createService().getObjectStream(OBJECT_KEY, BucketVisibility.PUBLIC)).rejects.toThrow('missing');
+    });
+  });
+
+  describe('getPresignedUrl', () => {
+    const presignedUrl = async (visibility: BucketVisibility, expiresInSeconds?: number) =>
+      new URL(await createService().getPresignedUrl(OBJECT_KEY, visibility, expiresInSeconds));
+
+    it('signs a GET of the object on STORAGE_URL, the address browsers reach storage on', async () => {
+      const url = await presignedUrl(BucketVisibility.PRIVATE);
+
+      expect(url.origin).toBe('https://files.example.com');
+      expect(url.pathname).toBe(`/${PRIVATE_BUCKET}/${OBJECT_KEY}`);
+      expect(url.searchParams.get('X-Amz-Signature')).toMatch(/^[0-9a-f]{64}$/);
+    });
+
+    it('lasts one hour by default', async () => {
+      const url = await presignedUrl(BucketVisibility.PRIVATE);
+
+      expect(url.searchParams.get('X-Amz-Expires')).toBe(String(ONE_HOUR_SECONDS));
+    });
+
+    it.each([1, 600, SEVEN_DAYS_SECONDS])('lasts the %i seconds asked for', async (seconds) => {
+      const url = await presignedUrl(BucketVisibility.PUBLIC, seconds);
+
+      expect(url.searchParams.get('X-Amz-Expires')).toBe(String(seconds));
+    });
+
+    it.each([
+      ['zero', 0],
+      ['negative', -1],
+      ['over seven days', SEVEN_DAYS_SECONDS + 1],
+      ['fractional', 1.5],
+      ['not a number', Number.NaN],
+      ['infinite', Number.POSITIVE_INFINITY],
+    ])('refuses a %s lifetime with a 400, before checking or signing anything', async (_label, seconds) => {
+      const getObjectTagging = vi.spyOn(S3StorageClient.prototype, 'getObjectTagging');
+      const presign = vi.spyOn(S3Presigner.prototype, 'presignedGetObject');
+
+      const error = await failureOf(createService({ scanner: { isEnabled: true } }).getPresignedUrl(OBJECT_KEY, BucketVisibility.PRIVATE, seconds));
+
+      expect(error.status).toBe(StatusCodes.BAD_REQUEST);
+      expect(error.message).not.toBe('');
+      expect(getObjectTagging).not.toHaveBeenCalled();
+      expect(presign).not.toHaveBeenCalled();
+    });
+
+    it('does not create the presigner until a URL is signed', async () => {
+      const fromEnv = vi.spyOn(S3Presigner, 'fromEnv');
+      vi.spyOn(S3StorageClient.prototype, 'getObject').mockResolvedValue(STORED);
+
+      const service = createService();
+      await service.get(OBJECT_KEY, BucketVisibility.PRIVATE);
+      expect(fromEnv).not.toHaveBeenCalled();
+
+      await service.getPresignedUrl(OBJECT_KEY, BucketVisibility.PRIVATE);
+      expect(fromEnv).toHaveBeenCalledOnce();
+    });
+  });
+
+  describe('getFileUrl', () => {
+    it('gives a public object its address under PUBLIC_IMAGE_URI', async () => {
+      await expect(createService().getFileUrl('avatars/abc.png', BucketVisibility.PUBLIC)).resolves.toBe(
+        'https://files.example.com/adelie-public-development/avatars/abc.png',
+      );
+    });
+
+    it('encodes a key that is not URL-safe, keeping its folders', async () => {
+      await expect(createService().getFileUrl('my files/a#1.png', BucketVisibility.PUBLIC)).resolves.toBe(
+        'https://files.example.com/adelie-public-development/my%20files/a%231.png',
+      );
+    });
+
+    it('gives a private object a Presigned URL, lasting as long as asked', async () => {
+      const url = new URL(await createService().getFileUrl(OBJECT_KEY, BucketVisibility.PRIVATE, 600));
+
+      expect(url.origin).toBe('https://files.example.com');
+      expect(url.pathname).toBe(`/${PRIVATE_BUCKET}/${OBJECT_KEY}`);
+      expect(url.searchParams.get('X-Amz-Expires')).toBe('600');
+    });
+
+    it('refuses an out-of-range lifetime for a private object', async () => {
+      const error = await failureOf(createService().getFileUrl(OBJECT_KEY, BucketVisibility.PRIVATE, 0));
+
+      expect(error.status).toBe(StatusCodes.BAD_REQUEST);
+    });
+  });
+
+  describe('getScanStatus', () => {
+    it('returns the Scan Status recorded on the object', async () => {
+      const getObjectTagging = vi.spyOn(S3StorageClient.prototype, 'getObjectTagging').mockResolvedValue({ [ScanTag.STATUS]: ScanStatus.SCANNING });
+
+      await expect(createService().getScanStatus(OBJECT_KEY, BucketVisibility.PRIVATE)).resolves.toBe(ScanStatus.SCANNING);
+      expect(getObjectTagging).toHaveBeenCalledWith(PRIVATE_BUCKET, OBJECT_KEY);
+    });
+
+    it('returns null for an object with no Scan Status', async () => {
+      vi.spyOn(S3StorageClient.prototype, 'getObjectTagging').mockResolvedValue({ other: 'tag' });
+
+      await expect(createService().getScanStatus(OBJECT_KEY, BucketVisibility.PUBLIC)).resolves.toBeNull();
+    });
+
+    it('returns an unrecognised value as it is recorded', async () => {
+      vi.spyOn(S3StorageClient.prototype, 'getObjectTagging').mockResolvedValue({ [ScanTag.STATUS]: 'quarantined' });
+
+      await expect(createService().getScanStatus(OBJECT_KEY, BucketVisibility.PUBLIC)).resolves.toBe('quarantined');
+    });
+
+    it('propagates a failure to read the tags', async () => {
+      const outage = new Error('connection refused');
+      vi.spyOn(S3StorageClient.prototype, 'getObjectTagging').mockRejectedValue(outage);
+
+      await expect(createService().getScanStatus(OBJECT_KEY, BucketVisibility.PUBLIC)).rejects.toBe(outage);
+    });
+  });
+
+  describe('reads with antivirus on', () => {
+    const scanner: Partial<VirusScannerService> = { isEnabled: true };
+    /** Stubs every way of fetching the bytes; the returned spies are asserted untouched when a read is refused. */
+    const reading = () => [
+      vi.spyOn(S3StorageClient.prototype, 'getObject').mockResolvedValue(STORED),
+      vi.spyOn(S3StorageClient.prototype, 'getObjectStream').mockResolvedValue(STORED_STREAM),
+      vi.spyOn(S3Presigner.prototype, 'presignedGetObject'),
+    ];
+    const taggedWith = (tags: Record<string, string>) => vi.spyOn(S3StorageClient.prototype, 'getObjectTagging').mockResolvedValue(tags);
+
+    describe.each(READS)('%s', (_name, read) => {
+      it.each(VISIBILITIES)('serves a clean object from the %s bucket', async (visibility) => {
+        reading();
+        const getObjectTagging = taggedWith({ [ScanTag.STATUS]: ScanStatus.CLEAN });
+
+        await expect(read(createService({ scanner }), visibility)).resolves.toBeDefined();
+        expect(getObjectTagging).toHaveBeenCalledWith(BUCKET_OF[visibility], OBJECT_KEY);
+      });
+
+      it.each(REFUSALS)('refuses an object whose Scan Status is %s with %i %s, before reading its bytes', async (status, httpStatus, code) => {
+        const byteReads = reading();
+        taggedWith({ [ScanTag.STATUS]: status });
+
+        for (const visibility of VISIBILITIES) {
+          const error = await failureOf(read(createService({ scanner }), visibility));
+
+          expect(error).toBeInstanceOf(CodedHTTPException);
+          expect(error.status).toBe(httpStatus);
+          expect((error as CodedHTTPException).code).toBe(code);
+          expect(error.message).not.toBe('');
+        }
+        for (const byteRead of byteReads) expect(byteRead).not.toHaveBeenCalled();
+      });
+
+      it('refuses an object with no Scan Status as pending', async () => {
+        reading();
+        taggedWith({});
+
+        const error = (await failureOf(read(createService({ scanner }), BucketVisibility.PRIVATE))) as CodedHTTPException;
+
+        expect(error.status).toBe(StatusCodes.TOO_EARLY);
+        expect(error.code).toBe(StorageErrorCode.SCAN_PENDING);
+      });
+
+      it('propagates a failure to read the tags unchanged, without reading the bytes', async () => {
+        const byteReads = reading();
+        const missing = Object.assign(new Error('missing'), { name: 'NoSuchKey' });
+        vi.spyOn(S3StorageClient.prototype, 'getObjectTagging').mockRejectedValue(missing);
+
+        await expect(read(createService({ scanner }), BucketVisibility.PUBLIC)).rejects.toBe(missing);
+        for (const byteRead of byteReads) expect(byteRead).not.toHaveBeenCalled();
+      });
+    });
+  });
+
+  describe('reads with antivirus off', () => {
+    describe.each(READS)('%s', (_name, read) => {
+      it.each(VISIBILITIES)('serves an object from the %s bucket without asking for a Scan Status', async (visibility) => {
+        vi.spyOn(S3StorageClient.prototype, 'getObject').mockResolvedValue(STORED);
+        vi.spyOn(S3StorageClient.prototype, 'getObjectStream').mockResolvedValue(STORED_STREAM);
+        const getObjectTagging = vi.spyOn(S3StorageClient.prototype, 'getObjectTagging');
+
+        await expect(read(createService(), visibility)).resolves.toBeDefined();
+        expect(getObjectTagging).not.toHaveBeenCalled();
+      });
     });
   });
 

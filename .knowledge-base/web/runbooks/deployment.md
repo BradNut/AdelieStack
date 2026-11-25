@@ -57,11 +57,11 @@ adapter-node 6 no longer reads the `ORIGIN` env var, so setting it for the web s
 
 Which to use:
 
-| Deployment | Setup |
-|---|---|
-| Behind a TLS-terminating proxy that keeps the `Host` header (Coolify/Traefik, most load balancers) | Nothing. The default `https://<host>` is right. |
-| Behind a proxy that rewrites `Host` or changes the scheme | Runtime `PROTOCOL_HEADER=x-forwarded-proto` and `HOST_HEADER=x-forwarded-host` (add `PORT_HEADER=x-forwarded-port` for a non-standard port). Only behind a trusted proxy: clients can spoof these headers otherwise. |
-| Plain HTTP with no proxy (local `node build`, a bare Docker run) | Build with `WEB_ORIGIN=http://localhost:3000` (or your URL). Header variables cannot help: with no proxy nothing sends the protocol. |
+| Deployment                                                                                         | Setup                                                                                                                                                                                                                |
+| -------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Behind a TLS-terminating proxy that keeps the `Host` header (Coolify/Traefik, most load balancers) | Nothing. The default `https://<host>` is right.                                                                                                                                                                      |
+| Behind a proxy that rewrites `Host` or changes the scheme                                          | Runtime `PROTOCOL_HEADER=x-forwarded-proto` and `HOST_HEADER=x-forwarded-host` (add `PORT_HEADER=x-forwarded-port` for a non-standard port). Only behind a trusted proxy: clients can spoof these headers otherwise. |
+| Plain HTTP with no proxy (local `node build`, a bare Docker run)                                   | Build with `WEB_ORIGIN=http://localhost:3000` (or your URL). Header variables cannot help: with no proxy nothing sends the protocol.                                                                                 |
 
 Symptom of a wrong origin: `Cross-site POST form submissions are forbidden` (403) on form actions. Plain `fetch` JSON calls such as the Better Auth client are not covered by this check. `e2e/csrf-origin.test.ts` runs the real `node build` server to guard this.
 
@@ -81,17 +81,17 @@ adapter-node serves built assets (`_app/immutable/*`), `static/` files and prere
 
 By default adapter-node takes the client address from the socket, which behind a proxy is the proxy itself. Every client then reaches the API with the same address and shares one rate-limit bucket, so clients can lock each other out. Behind a proxy, set these at runtime:
 
-| Proxy | `ADDRESS_HEADER` | `XFF_DEPTH` |
-|---|---|---|
-| Appends to `X-Forwarded-For` (Coolify/Traefik, nginx `$proxy_add_x_forwarded_for`, most load balancers) | `x-forwarded-for` | How many trusted proxies are in front of the web app: `1` for a single proxy such as Coolify/Traefik, `2` when two proxies each append, such as a CDN in front of nginx |
-| Sets `X-Real-IP` | `x-real-ip` | Not read; leave unset |
-| Sets `CF-Connecting-IP` | `cf-connecting-ip` | Not read; leave unset |
+| Proxy                                                                                                   | `ADDRESS_HEADER`   | `XFF_DEPTH`                                                                                                                                                             |
+| ------------------------------------------------------------------------------------------------------- | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Appends to `X-Forwarded-For` (Coolify/Traefik, nginx `$proxy_add_x_forwarded_for`, most load balancers) | `x-forwarded-for`  | How many trusted proxies are in front of the web app: `1` for a single proxy such as Coolify/Traefik, `2` when two proxies each append, such as a CDN in front of nginx |
+| Sets `X-Real-IP`                                                                                        | `x-real-ip`        | Not read; leave unset                                                                                                                                                   |
+| Sets `CF-Connecting-IP`                                                                                 | `cf-connecting-ip` | Not read; leave unset                                                                                                                                                   |
 
 Default Traefik strips an `X-Forwarded-For` from peers it does not trust, so a CDN in front of Coolify usually yields one address: `XFF_DEPTH=2` then returns a 500 and `XFF_DEPTH=1` gives the CDN edge address.
 
 **Set these only behind a proxy that controls the header**, since a client could otherwise supply it and choose its own address. For `x-real-ip` and `cf-connecting-ip`, the proxy must overwrite any value the client sent, and the web app must be reachable only through that proxy. For `x-forwarded-for`, `XFF_DEPTH` counts from the right, so addresses a client prepends are ignored as long as every counted hop is yours.
 
-The web tier sends the API this one address in `X-Forwarded-For`, replacing whatever arrived, so the proxy does not need changing for traffic through the web app. The API must have `TRUST_PROXY=true` to read it (see the [API environment runbook](../../api/runbooks/environment-config.md)).
+The web tier sends the API this one address in `X-Forwarded-For`, replacing whatever arrived, so the proxy does not need changing for traffic through the web app. When it cannot resolve an address it sends no `X-Forwarded-For` at all, and it never passes on a client's `Forwarded`, `X-Real-IP`, `CF-Connecting-IP`, `X-Forwarded-Host` or `X-Forwarded-Port`. The API must have `TRUST_PROXY=true` to read it (see the [API environment runbook](../../api/runbooks/environment-config.md)).
 
 Requests that lack the configured header fail with a 500, because adapter-node throws when asked for the address. So does an `XFF_DEPTH` larger than the number of addresses in the header. That includes a health check sent straight to the container: send it through the proxy, or have it set the header.
 

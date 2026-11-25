@@ -1,4 +1,11 @@
-import { MIN_PASSWORD_LENGTH, PASSWORD_COMPROMISED, PASSWORD_POLICY_RULES, PASSWORD_POLICY_VIOLATION } from '@adelie/shared';
+import {
+  MIN_PASSWORD_LENGTH,
+  PASSWORD_CHECK_UNAVAILABLE,
+  PASSWORD_COMPROMISED,
+  PASSWORD_POLICY_RULES,
+  PASSWORD_POLICY_VIOLATION,
+} from '@adelie/shared';
+import { BASE_ERROR_CODES } from '@better-auth/core/error';
 import { hashPassword } from 'better-auth/crypto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Auth } from '#lib/server/api/auth/auth.config';
@@ -304,7 +311,17 @@ describe('password policy hook: admin paths', () => {
   it('fails closed on create-user when HIBP is unavailable and leaves no user row', async () => {
     mockHibp([], 503);
 
-    await expect(adminCreate(OTHER_PASSWORD)).rejects.toMatchObject({ status: 'SERVICE_UNAVAILABLE' });
+    await expect(adminCreate(OTHER_PASSWORD)).rejects.toMatchObject({ status: 'SERVICE_UNAVAILABLE', body: { code: PASSWORD_CHECK_UNAVAILABLE } });
+    expect(await (await auth.$context).internalAdapter.findUserByEmail('admin-created@example.com')).toBeNull();
+  });
+
+  it('refuses create-user without an admin session before calling HIBP', async () => {
+    const fetchMock = mockHibp([PWNED_PASSWORD]);
+
+    const res = await post('/admin/create-user', { email: 'admin-created@example.com', name: 'Created', password: OTHER_PASSWORD, role: 'user' });
+
+    expect(res.status).toBe(401);
+    expect(fetchMock).not.toHaveBeenCalled();
     expect(await (await auth.$context).internalAdapter.findUserByEmail('admin-created@example.com')).toBeNull();
   });
 
@@ -422,6 +439,16 @@ describe('breached password screening (haveIBeenPwned, mocked)', () => {
 
     expect(rejected.status).toBe(503);
     expect(accepted.status).toBe(200);
+  });
+
+  it('rejects an invalid reset token before calling HIBP', async () => {
+    const fetchMock = mockHibp([PWNED_PASSWORD]);
+
+    const res = await post('/reset-password', { newPassword: PWNED_PASSWORD, token: 'not-a-real-token' });
+
+    expect(res.status).toBe(400);
+    expect(((await res.json()) as { code: string }).code).toBe(BASE_ERROR_CODES.INVALID_TOKEN.code);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('does not call HIBP on reset-password when the switch is off', async () => {

@@ -11,7 +11,9 @@ session operations.
 **Scenario:** A user reports they cannot sign in.
 
 **Steps:**
+
 1. Check the user and how they can sign in:
+
    ```sql
    SELECT id, email, email_verified, role, banned, ban_reason, ban_expires, two_factor_enabled
    FROM users WHERE email = 'user@example.com';
@@ -19,6 +21,7 @@ session operations.
    SELECT provider_id, created_at FROM accounts WHERE user_id = '<user_id>';  -- 'credential' = password
    SELECT name, device_type, created_at FROM passkeys WHERE user_id = '<user_id>';
    ```
+
    - `banned` → they are refused until unbanned (`/admin/unban-user`) or `ban_expires` passes.
    - No `credential` account → they have no password; they sign in with a social provider or a
      passkey, or set a password through password reset.
@@ -31,6 +34,7 @@ session operations.
      The lock is a hashed `auth-rate-limit:account-locked:<sha256 of the lowercased address>` key.
    - With `ACCOUNT_TEMPORARILY_LOCKED` on a two-factor step: 10 wrong codes locked their second
      factor for 15 minutes.
+
      ```sql
      SELECT failed_verification_count, locked_until FROM two_factors WHERE user_id = '<user_id>';
      ```
@@ -45,6 +49,7 @@ A ban is lifted through the admin endpoint.
 **Scenario:** A user's password may be compromised.
 
 **Steps:**
+
 1. Revoke their sessions: `POST /api/auth/admin/revoke-user-sessions` with `{ userId }` as an admin.
    A password reset alone does **not** revoke existing sessions.
 2. Either have the user request a reset link (`/request-password-reset`), or set a password as an
@@ -58,9 +63,11 @@ A ban is lifted through the admin endpoint.
   `/admin/revoke-user-session` with the session token.
 - **All of a user's sessions**: `/admin/revoke-user-sessions` with `{ userId }`.
 - **Directly in the database** (when the API is unavailable):
+
   ```sql
   DELETE FROM sessions WHERE user_id = '<user_id>';
   ```
+
   The cookie cache is off, so a deleted row signs the user out on their next request.
 
 ---
@@ -72,6 +79,7 @@ A ban is lifted through the admin endpoint.
 **Symptoms:** sign-in fails for everyone, or every request looks signed out.
 
 **Diagnosis:**
+
 1. `curl http://localhost:3001/api/healthz` (the API must be up).
 2. Postgres: `psql "$DATABASE_URL" -c "SELECT 1;"`. Sessions are read from Postgres on every request.
 3. Redis: `redis-cli -u "$REDIS_URL" ping`. With auth rate limiting on, an unreachable Redis fails
@@ -90,12 +98,15 @@ A ban is lifted through the admin endpoint.
 ### Verification, Reset or Two-factor Emails Not Arriving
 
 **Diagnosis:**
+
 1. `MAILER_TRANSPORT=mailpit` (the default): check Mailpit at `http://localhost:8025`.
 2. `MAILER_TRANSPORT=unsend`: logs hold no addresses, so find the account's id and search the logs for it as
    `userId`:
+
    ```sql
    SELECT id FROM users WHERE email = '<address>';
    ```
+
    Each attempt writes one entry: `useSend email sent`, or `useSend email failed` with `attempt` and `error`
    (`code: message`, any address shown as `[email]`). `template` names the email.
    Three failures in a row mean the send was given up on. No entry at all means nothing tried to send.
@@ -111,6 +122,7 @@ A ban is lifted through the admin endpoint.
 4. Too many requests from one client → `429` on the email endpoints (3 per 5 minutes per IP).
 
 **What the user sees when a send is given up on:**
+
 - **Success, and no email, with one `AUTH_LINK_EMAIL_FAILED` entry**: Link Emails, which leave the request so that
   neither the response nor its timing shows which addresses have accounts.
   - Sign-up and verification resend (signed out or signed in): `EmailVerificationEmail`.
@@ -128,6 +140,7 @@ A restart can lose an in-flight Link Email with nothing logged: the send is held
 an `AUTH_LINK_EMAIL_FAILED` entry does not prove it was delivered. The user can request it again.
 
 **Resolution:**
+
 - Dev: restart Mailpit and retry.
 - Prod: act on the logged `error`. A refused key or sender: fix `USESEND_API_KEY`, or put `MAIL_FROM`
   on a domain verified in useSend, then restart. `fetch failed` or a server error: check
@@ -140,12 +153,15 @@ an `AUTH_LINK_EMAIL_FAILED` entry does not prove it was delivered. The user can 
 ### Sessions Ending Unexpectedly
 
 **Diagnosis:**
+
 1. A session lasts 7 days after its last refresh and is refreshed at most once a day of activity, so
    a week without a request signs the user out.
 2. Check whether the row still exists:
+
    ```sql
    SELECT id, expires_at, updated_at FROM sessions WHERE user_id = '<user_id>';
    ```
+
    A missing row means sign-out, revocation (user or admin), a ban or account deletion.
 3. A changed `BETTER_AUTH_SECRET` signs everyone out at once.
 

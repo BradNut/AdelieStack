@@ -13,9 +13,11 @@
 ## Key Concepts
 
 ### [Concept 1]
+
 [Explanation]
 
 ### [Concept 2]
+
 [Explanation]
 
 ## Technology Stack
@@ -51,10 +53,12 @@
 ## Dependencies
 
 ### Internal
+
 - [Internal dependency 1]
 - [Internal dependency 2]
 
 ### External
+
 - [External package 1]
 - [External package 2]
 

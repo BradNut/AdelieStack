@@ -1,6 +1,6 @@
 ---
-status: accepted
----
+
+## status: accepted
 
 # Captcha uses Better Auth's captcha plugin, with the provider chosen by the deployer
 

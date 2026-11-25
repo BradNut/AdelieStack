@@ -18,6 +18,7 @@ import { type BetterAuthOptions, betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { admin, lastLoginMethod, openAPI, twoFactor } from 'better-auth/plugins';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
+import { usesSecureCookies } from '#lib/server/api/common/utils/cookies';
 import { uuidv7 } from '#lib/server/api/common/utils/crypto';
 import type { ClientIpOptions } from '#lib/server/api/common/utils/ip';
 import type * as drizzleSchema from '#lib/server/api/databases/postgres/drizzle-schema';
@@ -32,7 +33,7 @@ import { createHibpHealth } from './auth.hibp-status';
 import { type AuthMailLogger, createAuthMail, toMailRecipient } from './auth.mail';
 import { passwordAccountGuard } from './auth.password-account-guard';
 import { createPasswordHasher, type PasswordHasher } from './auth.password-hash';
-import { createPasswordPolicyHook, hibpScreening } from './auth.password-policy';
+import { hibpScreening, passwordPolicyHook } from './auth.password-policy';
 import { passwordRehash } from './auth.password-rehash';
 import { ac, roles } from './auth.permissions';
 import { mailLocale, preferredLanguageField, seedPreferredLanguage } from './auth.preferred-language';
@@ -156,11 +157,6 @@ function chainUserCreateBefore(...hooks: UserCreateBefore[]): UserCreateBefore {
   };
 }
 
-/** Cookies are `Secure` whenever the API is served over https. */
-function isSecureCookies(baseURL: string): boolean {
-  return baseURL.startsWith('https://');
-}
-
 /**
  * Builds the Better Auth instance. Pure: it opens no connections, so callers control when
  * it is created (lazily at runtime via {@link AuthService}, with a mock db for the CLI, or
@@ -233,7 +229,7 @@ export function createAuth({
     user: {
       // The confirmation link goes to the new address (through `sendVerificationEmail`); the old
       // address is told afterwards by `emailVerification.afterEmailVerification`. Starting a change
-      // needs a fresh session (`freshSessionGuard`).
+      // needs a fresh session (`freshSessionGuard`), as do the admin actions that change a user.
       changeEmail: { enabled: true },
       // Needs the account password (or a fresh session). Sessions, accounts, two-factor and passkey
       // rows go with the user: the foreign keys cascade (see auth.delete-user.test.ts).
@@ -267,7 +263,7 @@ export function createAuth({
       session: { update: { before: capSessionLifetime } },
     },
     hooks: {
-      before: createPasswordPolicyHook(hibpStatus),
+      before: passwordPolicyHook,
       after: authMail.afterHook,
     },
     plugins: [
@@ -334,7 +330,7 @@ export function createAuth({
     onAPIError: { throw: true },
     advanced: {
       ipAddress: { ipAddressHeaders: clientIp.trustProxy ? [AUTH_CLIENT_IP_HEADER] : [], trustedProxies: clientIp.trustedProxies },
-      useSecureCookies: isSecureCookies(baseURL),
+      useSecureCookies: usesSecureCookies(baseURL),
       defaultCookieAttributes: { ...DEFAULT_COOKIE_ATTRIBUTES },
       database: {
         generateId: generateAuthId,
