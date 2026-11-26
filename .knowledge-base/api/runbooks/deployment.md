@@ -114,15 +114,29 @@ so it must be on that private network too.
 
 ### Coolify
 
-- **No published port**: leave **Ports Mappings** empty on the API. **Ports Exposes** (`3001`) only tells
-  Coolify's proxy where to route and publishes nothing on the host.
+The same rules apply whichever build pack builds the API: Nixpacks, Railpack or Dockerfile.
+
+- **No published port**: leave **Ports Mappings** empty on the API. A mapping publishes the port on the server
+  for anyone who can reach it, bypassing the proxy. **Ports Exposes** (`3001`) only tells Coolify's proxy where
+  to route and publishes nothing.
 - **Domains**: with the web app's `/api` proxy, give the API **no domain**. A domain on the API makes Coolify's
   Traefik the reverse proxy of the second layout, with everything that layout needs: Traefik appends to
   `X-Forwarded-For`, and its container address is not stable.
-- **Private network**: resources deployed to the same destination share its Docker network (the default is
-  `coolify`), whatever project they are in. Put the web app and the API on the same destination and set
-  `API_PROXY_BASE_URL` to the API's container name or network alias on it. Every resource on that destination,
-  Coolify's Traefik included, can reach port 3001, so deploy workloads you do not trust to another destination.
+- **Private network, Applications** (Nixpacks, Railpack, Dockerfile): Coolify attaches them to their
+  destination's Docker network (the default is `coolify`), whatever project they are in. Put the web app and the
+  API on the same destination. The API's generated container name changes on every deploy, so give it a
+  **Network Alias** (such as `api.internal`) and set `API_PROXY_BASE_URL=http://api.internal:3001`.
+- **Private network, Docker Compose**: a Compose resource gets its own network and does not join the destination's.
+  Services in one stack reach each other by service name. To reach an Application or another stack, enable
+  **Connect to predefined network**. Service names can then be prefixed and are shared with preview deployments,
+  so check the resolved name, or use the `SERVICE_NAME_*` variable for the service. Do not give the API `ports:`.
+- **Who else can connect**: every resource on that network, Coolify's Traefik included, can reach port 3001.
+  Deploy workloads you do not trust to another destination.
+
+Sources: Coolify's [networking](https://coolify.io/docs/core/networking-in-coolify),
+[application network settings](https://coolify.io/docs/applications/configuration/general),
+[Docker Compose](https://coolify.io/docs/applications/builds/docker-compose) and
+[firewall](https://coolify.io/docs/core/infrastructure/servers/firewall) docs.
 
 ### Docker
 
