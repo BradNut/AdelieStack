@@ -97,6 +97,10 @@ Requests that lack the configured header fail with a 500, because adapter-node t
 
 **Symptom of it being missing:** clients get 429s they did not earn, and the web logs say `ADDRESS_HEADER is unset`, once per process, when a request carries `X-Forwarded-For`, `X-Real-IP` or `CF-Connecting-IP`. The warning goes to the logs only; no endpoint reports it.
 
+## Reaching the API
+
+The web app reaches the API through `API_PROXY_BASE_URL`, which must be the API's private address (for example `http://api:3001` on the shared Coolify or Docker network), never a public URL. Because the API runs with `TRUST_PROXY=true` and believes the `X-Forwarded-For` the web tier sends, it must accept connections only from the web app or another trusted proxy: no public domain or published port. See [Network Boundary](../../api/runbooks/deployment.md#network-boundary) in the API deployment runbook for how to set that up and check it.
+
 ## Post-Deploy Check
 
 ```bash

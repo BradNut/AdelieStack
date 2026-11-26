@@ -78,13 +78,81 @@ must keep them longer. An interrupted run is safe: the delete either completes o
 `ORIGIN`, `DOMAIN`, `DATABASE_*`, `REDIS_URL`, `SIGNING_SECRET`, `STORAGE_*`, `PROJECT_NAME`.
 Set `DATABASE_SSL_MODE=verify-full` unless Postgres shares the host or a private network with the API
 (see [Database TLS](./environment-config.md#database-tls)); the default `disable` sends queries in the clear.
+With `TRUST_PROXY=true`, keep the API port reachable only from the trusted proxy (see [Network Boundary](#network-boundary)).
 Keep Redis on the API's private network and use `rediss://` or a password in `REDIS_URL` when anything else shares
 it or it is reached over a network (see [Redis access and TLS](./environment-config.md#redis-access-and-tls)).
 
 See [Environment Configuration](./environment-config.md) for the full variable list (matches
 `apps/api/.env.schema` exactly).
 
+## Network Boundary
+
+With `TRUST_PROXY=true`, the API port (3001) must accept connections **only from the trusted proxy**. The API
+believes `X-Forwarded-For` and `X-Forwarded-Proto` from whoever connects; it does not check who that is. A client
+that reaches the port directly can write any address into `X-Forwarded-For` and get a fresh rate-limit bucket on
+every request, which defeats auth rate limiting (sign-in, two-factor codes, password reset) and the `rateLimit()`
+middleware. `TRUSTED_PROXIES` does not prevent this: it decides which addresses in a forwarded chain are trusted,
+and a client that connects directly writes the whole chain. So the network in front of the API is the protection,
+and keeping it is the deployer's job.
+
+### Supported layouts
+
+- **The web app's `/api` proxy** (the default): the web app is the API's only client. Point `API_PROXY_BASE_URL`
+  at the API's private address, such as `http://api:3001`, never at a public URL. The web tier overwrites
+  `X-Forwarded-For` (see [Auth rate limiting](./environment-config.md#auth-rate-limiting)).
+- **A reverse proxy in front of the API** (Traefik, nginx, a load balancer): the proxy is the only public way in,
+  and it talks to the API over the private network. If it appends to `X-Forwarded-For`, declare it in
+  `TRUSTED_PROXIES`.
+
+Both layouts can run together; each proxy must reach the API over the private network. The storage provider
+calls the webhook on the API directly (see the [web API connection runbook](../../web/runbooks/api-connection.md)),
+so it must be on that private network too.
+
+### Coolify
+
+- **No published port**: leave **Ports Mappings** empty on the API. **Ports Exposes** (`3001`) only tells
+  Coolify's proxy where to route and publishes nothing on the host.
+- **Domains**: with the web app's `/api` proxy, give the API **no domain**. With a reverse proxy in front of the
+  API, the only domain is the one that proxy serves. A domain on the API itself makes Coolify's Traefik that
+  proxy; Traefik appends to `X-Forwarded-For`, so declare its address on the private network in `TRUSTED_PROXIES`.
+- **Private network**: put the web app (or the proxy) and the API in the same Coolify project and destination so
+  they share its Docker network, and reach the API by its service name. Resources in separate projects need
+  **Connect To Predefined Network** to share one.
+
+### Docker
+
+- **No published port**: run the API without `-p` / `ports:`. Docker's published ports bypass host firewalls
+  such as `ufw`, so a firewall rule does not make up for one. If a proxy on the host itself must reach the
+  container, publish it on loopback only: `-p 127.0.0.1:3001:3001`.
+- **Private network**: create a user-defined network (`docker network create adelie-internal`), attach the API
+  and the web app or proxy to it (`--network adelie-internal`), and set `API_PROXY_BASE_URL=http://<api-container-name>:3001`.
+- Outside a container (a bare `tsx src/server.ts`), the API listens on `HOST`, `0.0.0.0` by default. With the
+  proxy on the same host, set `HOST=127.0.0.1`.
+
+### Check the boundary
+
+From a machine **outside** the private network, the API port must not answer, on every public address of the
+host (IPv4 and IPv6):
+
+```bash
+curl -sS --max-time 5 http://<public-ip>:3001/api/healthz
+curl -sS --max-time 5 'http://[<public-ipv6>]:3001/api/healthz'
+# Expect a refused connection or a timeout, never an HTTP response
+```
+
+With the web app's `/api` proxy, also check that no API domain answers: `curl -sS --max-time 5 https://<api-domain>/api/healthz`
+should fail to resolve or connect. From **inside** (the web container, or the proxy), the same request must work:
+
+```bash
+curl -sS http://api:3001/api/healthz
+# Expect 200
+```
+
+Repeat the outside check after changing ports, domains or networks.
+
 ## Post-Deploy Check
+
+Run from inside the private network (see [Network Boundary](#network-boundary)):
 
 ```bash
 curl -I http://<api-host>:3001/
