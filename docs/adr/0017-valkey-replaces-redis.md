@@ -9,7 +9,7 @@ The key-value store behind rate-limit counters (our Hono `rateLimit()` and Bette
 ## Consequences
 
 - `REDIS_URL` becomes `VALKEY_URL`; deployments must rename the variable.
-- Compose and CI pin the same Valkey major version instead of drifting between `latest` and a pinned tag.
+- Compose and CI pin the same exact Valkey 8 release (`valkey/valkey:8.1.12`), not the floating `:8` tag, which `scripts/check-pinned-refs.mjs` rejects; bump both together.
 - `ioredis` remaining a dependency is deliberate, not a missed rename.
 
 ## Considered options

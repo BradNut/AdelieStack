@@ -38,13 +38,18 @@ export class ValkeyService {
    * without an expiry. Returns the count so far and the seconds left in the window.
    */
   async incrementWithExpiry(data: { prefix: string; key: string; expiry: number }): Promise<{ count: number; ttl: number }> {
-    const valkeyKey = `${data.prefix}:${data.key}`;
-    const replies = await this.client.multi().set(valkeyKey, 0, 'EX', Math.floor(data.expiry), 'NX').incr(valkeyKey).ttl(valkeyKey).exec();
+    const namespacedKey = `${data.prefix}:${data.key}`;
+    const replies = await this.client
+      .multi()
+      .set(namespacedKey, 0, 'EX', Math.floor(data.expiry), 'NX')
+      .incr(namespacedKey)
+      .ttl(namespacedKey)
+      .exec();
     const failure = replies?.find(([error]) => error)?.[0];
-    if (!replies || failure) throw failure ?? new Error(`Valkey transaction for ${valkeyKey} was discarded`);
+    if (!replies || failure) throw failure ?? new Error(`Valkey transaction for ${namespacedKey} was discarded`);
 
     const [count, ttl] = [replies[1][1], replies[2][1]];
-    if (typeof count !== 'number' || typeof ttl !== 'number') throw new Error(`Unexpected Valkey reply counting ${valkeyKey}`);
+    if (typeof count !== 'number' || typeof ttl !== 'number') throw new Error(`Unexpected Valkey reply counting ${namespacedKey}`);
     return { count, ttl };
   }
 
@@ -53,13 +58,13 @@ export class ValkeyService {
    * hit. Both commands run as one transaction, so a crash cannot leave a counter without an expiry. Returns the count.
    */
   async incrementWithIdleExpiry(data: { prefix: string; key: string; expiry: number }): Promise<number> {
-    const valkeyKey = `${data.prefix}:${data.key}`;
-    const replies = await this.client.multi().incr(valkeyKey).expire(valkeyKey, Math.floor(data.expiry)).exec();
+    const namespacedKey = `${data.prefix}:${data.key}`;
+    const replies = await this.client.multi().incr(namespacedKey).expire(namespacedKey, Math.floor(data.expiry)).exec();
     const failure = replies?.find(([error]) => error)?.[0];
-    if (!replies || failure) throw failure ?? new Error(`Valkey transaction for ${valkeyKey} was discarded`);
+    if (!replies || failure) throw failure ?? new Error(`Valkey transaction for ${namespacedKey} was discarded`);
 
     const count = replies[0][1];
-    if (typeof count !== 'number') throw new Error(`Unexpected Valkey reply counting ${valkeyKey}`);
+    if (typeof count !== 'number') throw new Error(`Unexpected Valkey reply counting ${namespacedKey}`);
     return count;
   }
 

@@ -11,10 +11,10 @@ export function createValkeyServiceMock() {
   const store = new Map<string, { value: string; expiresAt?: number }>();
   const expiresAt = (seconds: number) => Date.now() + Math.floor(seconds) * MS_PER_SECOND;
   /** The live entry at `prefix:key`, dropping it once expired, as Valkey does. */
-  const read = (valkeyKey: string) => {
-    const entry = store.get(valkeyKey);
+  const read = (namespacedKey: string) => {
+    const entry = store.get(namespacedKey);
     if (entry?.expiresAt !== undefined && entry.expiresAt <= Date.now()) {
-      store.delete(valkeyKey);
+      store.delete(namespacedKey);
       return undefined;
     }
     return entry;
@@ -34,16 +34,16 @@ export function createValkeyServiceMock() {
   });
   // Simplified: every hit reports the whole window as left, so rate-limit tests can expect it exactly.
   const incrementWithExpiry = vi.fn<ValkeyService['incrementWithExpiry']>(async ({ prefix, key, expiry }) => {
-    const valkeyKey = `${prefix}:${key}`;
-    const count = Number(read(valkeyKey)?.value ?? 0) + 1;
-    store.set(valkeyKey, { value: String(count), expiresAt: expiresAt(expiry) });
+    const namespacedKey = `${prefix}:${key}`;
+    const count = Number(read(namespacedKey)?.value ?? 0) + 1;
+    store.set(namespacedKey, { value: String(count), expiresAt: expiresAt(expiry) });
     return { count, ttl: expiry };
   });
   // Every hit restarts the expiry.
   const incrementWithIdleExpiry = vi.fn<ValkeyService['incrementWithIdleExpiry']>(async ({ prefix, key, expiry }) => {
-    const valkeyKey = `${prefix}:${key}`;
-    const count = Number(read(valkeyKey)?.value ?? 0) + 1;
-    store.set(valkeyKey, { value: String(count), expiresAt: expiresAt(expiry) });
+    const namespacedKey = `${prefix}:${key}`;
+    const count = Number(read(namespacedKey)?.value ?? 0) + 1;
+    store.set(namespacedKey, { value: String(count), expiresAt: expiresAt(expiry) });
     return count;
   });
   const ttl = vi.fn<ValkeyService['ttl']>(async ({ prefix, key }) => {
