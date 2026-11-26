@@ -99,7 +99,7 @@ Requests that lack the configured header fail with a 500, because adapter-node t
 
 ## Reaching the API
 
-The web app reaches the API through `API_PROXY_BASE_URL`, which must be the API's private address (for example `http://api:3001` on the shared Coolify or Docker network), never a public URL. Because the API runs with `TRUST_PROXY=true` and believes the `X-Forwarded-For` the web tier sends, it must accept connections only from the web app or another trusted proxy: no public domain or published port. See [Network Boundary](../../api/runbooks/deployment.md#network-boundary) in the API deployment runbook for how to set that up and check it.
+Set `API_PROXY_BASE_URL` to the API's private address (for example `http://api:3001` on the shared Coolify or Docker network), never a public URL. With `TRUST_PROXY=true` the API must accept connections only from the web app or another trusted proxy: see [Network Boundary](../../api/runbooks/deployment.md#network-boundary) in the API deployment runbook for how to set that up and check it.
 
 ## Post-Deploy Check
 

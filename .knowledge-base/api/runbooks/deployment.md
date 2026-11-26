@@ -78,7 +78,8 @@ must keep them longer. An interrupted run is safe: the delete either completes o
 `ORIGIN`, `DOMAIN`, `DATABASE_*`, `REDIS_URL`, `SIGNING_SECRET`, `STORAGE_*`, `PROJECT_NAME`.
 Set `DATABASE_SSL_MODE=verify-full` unless Postgres shares the host or a private network with the API
 (see [Database TLS](./environment-config.md#database-tls)); the default `disable` sends queries in the clear.
-With `TRUST_PROXY=true`, keep the API port reachable only from the trusted proxy (see [Network Boundary](#network-boundary)).
+With `TRUST_PROXY=true`, keep the API port reachable only from the trusted proxy
+(see [Network Boundary](#network-boundary)).
 Keep Redis on the API's private network and use `rediss://` or a password in `REDIS_URL` when anything else shares
 it or it is reached over a network (see [Redis access and TLS](./environment-config.md#redis-access-and-tls)).
 
@@ -97,12 +98,15 @@ and keeping it is the deployer's job.
 
 ### Supported layouts
 
-- **The web app's `/api` proxy** (the default): the web app is the API's only client. Point `API_PROXY_BASE_URL`
-  at the API's private address, such as `http://api:3001`, never at a public URL. The web tier overwrites
-  `X-Forwarded-For` (see [Auth rate limiting](./environment-config.md#auth-rate-limiting)).
+- **The web app's `/api` proxy** (the default): the web app is the API's only client, and the API has no public
+  domain. Point `API_PROXY_BASE_URL` at the API's private address, such as `http://api:3001`, never at a public
+  URL. The web tier overwrites `X-Forwarded-For`
+  (see [Auth rate limiting](./environment-config.md#auth-rate-limiting)).
 - **A reverse proxy in front of the API** (Traefik, nginx, a load balancer): the proxy is the only public way in,
-  and it talks to the API over the private network. If it appends to `X-Forwarded-For`, declare it in
-  `TRUSTED_PROXIES`.
+  its domain is the API's only public domain, and it talks to the API over the private network. If it appends to
+  `X-Forwarded-For`, declare it in `TRUSTED_PROXIES`; when its address can change (a container), declare the
+  private network's subnet as a CIDR range. The web proxy refuses `/api/storage/webhook` so that provider-only
+  route stays private; this proxy does not, so block that path on it.
 
 Both layouts can run together; each proxy must reach the API over the private network. The storage provider
 calls the webhook on the API directly (see the [web API connection runbook](../../web/runbooks/api-connection.md)),
@@ -112,20 +116,22 @@ so it must be on that private network too.
 
 - **No published port**: leave **Ports Mappings** empty on the API. **Ports Exposes** (`3001`) only tells
   Coolify's proxy where to route and publishes nothing on the host.
-- **Domains**: with the web app's `/api` proxy, give the API **no domain**. With a reverse proxy in front of the
-  API, the only domain is the one that proxy serves. A domain on the API itself makes Coolify's Traefik that
-  proxy; Traefik appends to `X-Forwarded-For`, so declare its address on the private network in `TRUSTED_PROXIES`.
-- **Private network**: put the web app (or the proxy) and the API in the same Coolify project and destination so
-  they share its Docker network, and reach the API by its service name. Resources in separate projects need
-  **Connect To Predefined Network** to share one.
+- **Domains**: with the web app's `/api` proxy, give the API **no domain**. A domain on the API makes Coolify's
+  Traefik the reverse proxy of the second layout, with everything that layout needs: Traefik appends to
+  `X-Forwarded-For`, and its container address is not stable.
+- **Private network**: resources deployed to the same destination share its Docker network (the default is
+  `coolify`), whatever project they are in. Put the web app and the API on the same destination and set
+  `API_PROXY_BASE_URL` to the API's container name or network alias on it. Every resource on that destination,
+  Coolify's Traefik included, can reach port 3001, so deploy workloads you do not trust to another destination.
 
 ### Docker
 
 - **No published port**: run the API without `-p` / `ports:`. Docker's published ports bypass host firewalls
   such as `ufw`, so a firewall rule does not make up for one. If a proxy on the host itself must reach the
   container, publish it on loopback only: `-p 127.0.0.1:3001:3001`.
-- **Private network**: create a user-defined network (`docker network create adelie-internal`), attach the API
-  and the web app or proxy to it (`--network adelie-internal`), and set `API_PROXY_BASE_URL=http://<api-container-name>:3001`.
+- **Private network**: create a user-defined network (`docker network create <network>`), attach the API and the
+  web app or proxy to it (`--network <network>`), and set
+  `API_PROXY_BASE_URL=http://<api-container-name>:3001`.
 - Outside a container (a bare `tsx src/server.ts`), the API listens on `HOST`, `0.0.0.0` by default. With the
   proxy on the same host, set `HOST=127.0.0.1`.
 
@@ -140,23 +146,33 @@ curl -sS --max-time 5 'http://[<public-ipv6>]:3001/api/healthz'
 # Expect a refused connection or a timeout, never an HTTP response
 ```
 
-With the web app's `/api` proxy, also check that no API domain answers: `curl -sS --max-time 5 https://<api-domain>/api/healthz`
-should fail to resolve or connect. From **inside** (the web container, or the proxy), the same request must work:
+Then check the domains. With the web app's `/api` proxy, no domain other than the web app's may reach the API;
+with a reverse proxy, only that proxy's domain may, and the webhook must be blocked on it:
 
 ```bash
-curl -sS http://api:3001/api/healthz
+curl -sS --max-time 5 https://<other-domain>/api/healthz
+# Web /api proxy layout, any domain pointing at the host other than the web app's:
+# expect a failure or the proxy's own 404, never the API's {"status":"ok"}
+curl -sS --max-time 5 -o /dev/null -w '%{http_code}\n' -X POST https://<proxy-domain>/api/storage/webhook
+# Reverse proxy layout: expect the status your block returns (such as 403 or 404), never one from the API
+```
+
+From **inside** the private network (the web container, or the proxy), the API must answer:
+
+```bash
+curl -sS http://<api-host>:3001/api/healthz
 # Expect 200
 ```
 
-Repeat the outside check after changing ports, domains or networks.
+Repeat the outside checks after changing ports, domains or networks.
 
 ## Post-Deploy Check
 
 Run from inside the private network (see [Network Boundary](#network-boundary)):
 
 ```bash
-curl -I http://<api-host>:3001/
-# Expect 200 or 404 (Hono default)
+curl -I http://<api-host>:3001/api/healthz
+# Expect 200
 ```
 
 If migrations were expected, check that the separate migrate step (see above) ran and succeeded
