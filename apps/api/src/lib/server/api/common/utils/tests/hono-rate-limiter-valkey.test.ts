@@ -2,55 +2,55 @@ import { Hono } from 'hono';
 import { rateLimiter } from 'hono-rate-limiter';
 import type Redis from 'ioredis';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { adaptIoredisForHonoRateLimiter, createLazyRedisStore } from '#lib/server/api/common/utils/hono-rate-limiter-redis';
+import { adaptIoredisForHonoRateLimiter, createLazyValkeyStore } from '#lib/server/api/common/utils/hono-rate-limiter-valkey';
 import {
-  createFakeRedis,
-  type FakeRedis,
+  createFakeValkey,
+  type FakeValkey,
   LIMIT,
   PATH,
   requestPastLimit,
-  requestWhileRedisDown,
+  requestWhileValkeyDown,
   WINDOW_MS,
-} from './hono-rate-limiter-redis-test.helpers';
+} from './hono-rate-limiter-valkey-test.helpers';
 
 const KEY = 'client';
 
-function limitedApp(redis: FakeRedis) {
-  const store = createLazyRedisStore(() => ({ call: redis.call }) as unknown as Redis);
+function limitedApp(valkey: FakeValkey) {
+  const store = createLazyValkeyStore(() => ({ call: valkey.call }) as unknown as Redis);
   const app = new Hono().get(PATH, rateLimiter({ windowMs: WINDOW_MS, limit: LIMIT, keyGenerator: () => KEY, store }), (c) => c.text('ok'));
   return { app, store };
 }
 
 async function scriptLoadsOfOneFirstRequest() {
-  const redis = createFakeRedis();
-  await limitedApp(redis).app.request(PATH);
-  return redis.scriptLoads();
+  const valkey = createFakeValkey();
+  await limitedApp(valkey).app.request(PATH);
+  return valkey.scriptLoads();
 }
 
-describe('createLazyRedisStore after a Redis failure on first use', () => {
-  let redis: FakeRedis;
+describe('createLazyValkeyStore after a Valkey failure on first use', () => {
+  let valkey: FakeValkey;
   let store: ReturnType<typeof limitedApp>['store'];
   let app: ReturnType<typeof limitedApp>['app'];
 
   beforeEach(() => {
-    redis = createFakeRedis();
-    ({ app, store } = limitedApp(redis));
+    valkey = createFakeValkey();
+    ({ app, store } = limitedApp(valkey));
   });
 
-  it('does not let a request through while Redis is down', async () => {
-    const response = await requestWhileRedisDown(redis, app);
+  it('does not let a request through while Valkey is down', async () => {
+    const response = await requestWhileValkeyDown(valkey, app);
 
     expect(response.status).toBe(500);
   });
 
-  it('enforces limits again once Redis is back', async () => {
-    await requestWhileRedisDown(redis, app);
+  it('enforces limits again once Valkey is back', async () => {
+    await requestWhileValkeyDown(valkey, app);
 
     expect(await requestPastLimit(app)).toEqual([200, 200, 429]);
   });
 
-  it('reads a hit count once Redis is back', async () => {
-    await requestWhileRedisDown(redis, app);
+  it('reads a hit count once Valkey is back', async () => {
+    await requestWhileValkeyDown(valkey, app);
 
     await app.request(PATH);
 
@@ -58,9 +58,9 @@ describe('createLazyRedisStore after a Redis failure on first use', () => {
   });
 
   it('recovers when only one script failed to load', async () => {
-    redis.refuseScript = (script) => !script.includes('INCR') && !script.includes('DECR');
+    valkey.refuseScript = (script) => !script.includes('INCR') && !script.includes('DECR');
     expect((await app.request(PATH)).status).toBe(200);
-    redis.refuseScript = () => false;
+    valkey.refuseScript = () => false;
 
     await app.request(PATH);
 
@@ -69,24 +69,24 @@ describe('createLazyRedisStore after a Redis failure on first use', () => {
 
   it('shares one new store between concurrent requests after the failure', async () => {
     const oneStore = await scriptLoadsOfOneFirstRequest();
-    await requestWhileRedisDown(redis, app);
-    redis.commands.length = 0;
+    await requestWhileValkeyDown(valkey, app);
+    valkey.commands.length = 0;
 
     await Promise.all(Array.from({ length: 5 }, () => app.request(PATH)));
 
-    expect(redis.scriptLoads()).toBe(oneStore);
+    expect(valkey.scriptLoads()).toBe(oneStore);
   });
 
-  it('keeps a working store when Redis fails after its scripts loaded', async () => {
+  it('keeps a working store when Valkey fails after its scripts loaded', async () => {
     const oneStore = await scriptLoadsOfOneFirstRequest();
     await app.request(PATH);
-    expect((await requestWhileRedisDown(redis, app)).status).toBe(500);
-    redis.commands.length = 0;
+    expect((await requestWhileValkeyDown(valkey, app)).status).toBe(500);
+    valkey.commands.length = 0;
 
     await app.request(PATH);
 
     // A rebuilt store would load every script again.
-    expect(redis.scriptLoads()).toBeLessThan(oneStore);
+    expect(valkey.scriptLoads()).toBeLessThan(oneStore);
   });
 });
 

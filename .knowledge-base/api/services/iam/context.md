@@ -27,10 +27,10 @@
 - **Failure Impact**: no sign-in, and every request that resolves a session fails
 - **Fallback**: none
 
-#### Redis (`RedisService`, through `AuthRateLimitRepository`)
+#### Valkey (`ValkeyService`, through `AuthRateLimitRepository`)
 
-- **Purpose**: auth rate-limit counters only (per client IP and path, and failed password sign-ins per email address, hashed); sessions are not in Redis
-- **Failure Impact**: a request whose limit check cannot reach Redis fails rather than skipping the limit
+- **Purpose**: auth rate-limit counters only (per client IP and path, and failed password sign-ins per email address, hashed); sessions are not in Valkey
+- **Failure Impact**: a request whose limit check cannot reach Valkey fails rather than skipping the limit
 - **Fallback**: none; `DISABLE_RATE_LIMIT=true` turns auth rate limiting and the sign-in count off
 
 #### Mailer (`MailerService`)

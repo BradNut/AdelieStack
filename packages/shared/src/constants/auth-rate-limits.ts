@@ -113,7 +113,7 @@ export const AUTH_ACCOUNT_SIGN_IN_LOCKOUT = {
 } as const satisfies AccountLockoutPolicy;
 
 /**
- * Seconds a failed sign-in count is kept after its latest failure. Only so idle counts are dropped from Redis; it is
+ * Seconds a failed sign-in count is kept after its latest failure. Only so idle counts are dropped from Valkey; it is
  * far longer than the lock, so a slow guesser is still stopped.
  */
 export const AUTH_ACCOUNT_SIGN_IN_FAILURES_IDLE_EXPIRY = SECONDS_PER_DAY;

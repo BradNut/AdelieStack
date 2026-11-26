@@ -32,7 +32,7 @@ cannot say.
   Docker build arg (see Deployment) and kept equal to the API's value.
 - Sentry source-map upload is opt-in: `SENTRY_*` vars only matter when
   `ENABLE_SENTRY_BUILD_PLUGIN` is `true`.
-- Redis is API-side only (see [Session Issues](./session-issues.md)); the web app reads only what
+- Valkey is API-side only (see [Session Issues](./session-issues.md)); the web app reads only what
   `.env.schema` declares.
 
 ## Captcha

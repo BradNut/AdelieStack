@@ -19,7 +19,7 @@ branch rules together.
 | `Lint (Biome)`                               | `ci.yml`     |
 | `Type check (web + API + shared boundaries)` | `ci.yml`     |
 | `Unit tests (web + API)`                     | `ci.yml`     |
-| `API rate-limit tests (Redis)`               | `ci.yml`     |
+| `API rate-limit tests (Valkey)`              | `ci.yml`     |
 | `End-to-end tests (Chromium)`                | `ci.yml`     |
 | `Dependency audit (production)`              | `ci.yml`     |
 | `CodeQL (javascript-typescript)`             | `codeql.yml` |
@@ -53,7 +53,7 @@ for branch in main development; do
       "Lint (Biome)",
       "Type check (web + API + shared boundaries)",
       "Unit tests (web + API)",
-      "API rate-limit tests (Redis)",
+      "API rate-limit tests (Valkey)",
       "End-to-end tests (Chromium)",
       "Dependency audit (production)",
       "CodeQL (javascript-typescript)",

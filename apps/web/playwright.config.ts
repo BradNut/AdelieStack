@@ -21,7 +21,7 @@ export const SOCIAL_WEB_ORIGIN = `http://localhost:${SOCIAL_WEB_PORT}`;
  * jobs are off because no flow needs them.
  *
  * The API refuses to boot without its storage, so SeaweedFS must be running along with Postgres
- * and Redis (`docker compose up -d`).
+ * and Valkey (`docker compose up -d`).
  *
  * Email arrives in Mailpit on :8025. Global setup starts a small stand-in when nothing is
  * listening there; with a real Mailpit running, that is used instead.

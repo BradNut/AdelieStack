@@ -26,7 +26,7 @@ const ENV_WITHOUT_TRANSPORT = {
   DATABASE_DB: 'postgres',
   ORIGIN: 'http://localhost:5173',
   DOMAIN: 'localhost',
-  REDIS_URL: 'redis://localhost:6379',
+  VALKEY_URL: 'redis://localhost:6379',
   SIGNING_SECRET: TEST_SIGNING_SECRET,
   BETTER_AUTH_SECRET: 'better-auth-secret-at-least-32-chars',
   BETTER_AUTH_URL: 'http://localhost:5173',

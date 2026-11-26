@@ -13,7 +13,7 @@ No detailed API ADR files exist yet. Use current rules/docs as active decisions.
 
 Decisions too small or reversible for an ADR.
 
-- **Production does not require Redis credentials or TLS** (#272). Production refuses development values this repo publishes (#226) and auth served without TLS. Transport to internal services, such as a passwordless or plain `redis://` Redis on a private network, is the deployer's call, as with `DATABASE_SSL_MODE=disable`. `REDIS_URL` is declared sensitive, and the [Redis access and TLS](../runbooks/environment-config.md#redis-access-and-tls) runbook states the network boundary. Easy to reverse: a startup check can be added later; a test pins the current behaviour.
+- **Production does not require Valkey credentials or TLS** (#272). Production refuses development values this repo publishes (#226) and auth served without TLS. Transport to internal services, such as a passwordless or plain `redis://` Valkey on a private network, is the deployer's call, as with `DATABASE_SSL_MODE=disable`. `VALKEY_URL` is declared sensitive, and the [Valkey access and TLS](../runbooks/environment-config.md#valkey-access-and-tls) runbook states the network boundary. Easy to reverse: a startup check can be added later; a test pins the current behaviour.
 
 ## ADR Template
 

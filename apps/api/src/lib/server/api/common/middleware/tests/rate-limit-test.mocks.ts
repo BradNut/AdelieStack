@@ -26,8 +26,8 @@ function resetRateLimitMocks() {
 function createRateLimitContainerClass(mocks: RateLimitContainerMocks) {
   return class {
     get(token: { name?: string }) {
-      if (token?.name?.includes('RedisService')) {
-        return { redis: { call: mocks.callMock } };
+      if (token?.name?.includes('ValkeyService')) {
+        return { client: { call: mocks.callMock } };
       }
 
       if (token?.name?.includes('LoggerService')) {

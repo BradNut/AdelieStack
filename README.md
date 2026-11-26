@@ -34,7 +34,7 @@ It is deliberately not an "all batteries included" boilerplate. See [How to Use]
 - **Auth**: Better Auth owns the core (email and password, cookie sessions, two-factor, passkeys, roles `admin` / `support` / `user`), mounted at `/api/auth/*`. Routes declare the permission they need, never a role name ([ADR](./docs/adr/0002-authorization-delegates-to-better-auth.md)).
 - **Sign-up is closed by default**; set `SIGN_UP_ENABLED=true` to open it ([ADR](./docs/adr/0003-sign-up-closed-by-default.md)).
 - **Captcha** is optional and provider-agnostic, via Better Auth's captcha plugin ([ADR](./docs/adr/0004-captcha-via-better-auth-plugin.md)).
-- **Data**: PostgreSQL via Drizzle, Redis for cache and rate limiting. Migrations are generated with Drizzle tooling, never hand-edited.
+- **Data**: PostgreSQL via Drizzle, Valkey for rate limiting, account lockout and job queues. Migrations are generated with Drizzle tooling, never hand-edited.
 - **Storage**: S3-compatible SeaweedFS buckets, with uploads scanned by ClamAV.
 - **Mail**: `MAILER_TRANSPORT=mailpit` posts to the local Mailpit inbox in development; `unsend` sends for real.
 - **Observability**: OpenTelemetry, Sentry, and Spotlight/Jaeger in development.

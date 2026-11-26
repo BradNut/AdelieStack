@@ -70,26 +70,26 @@ jobs:
       - uses: ./.github/actions/setup
       - run: pnpm test
 
-  redis:
-    name: API rate-limit tests (Redis)
+  valkey:
+    name: API rate-limit tests (Valkey)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     services:
-      redis:
-        image: redis:7.4.12
+      valkey:
+        image: valkey/valkey:8.1.12
         ports:
           - 6379:6379
         options: >-
-          --health-cmd "redis-cli ping"
+          --health-cmd "valkey-cli ping"
           --health-interval 5s
           --health-timeout 3s
           --health-retries 10
     env:
-      REDIS_URL: redis://localhost:6379
+      VALKEY_URL: redis://localhost:6379
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/setup
-      - run: pnpm --filter @adelie/api test:redis
+      - run: pnpm --filter @adelie/api test:valkey
 
   # Decides whether a pull request can affect the e2e run. Only files that cannot reach the app, its build or this
   # workflow are skippable; anything else (including a file nobody listed) runs e2e. Pushes and manual runs always do.
@@ -147,7 +147,7 @@ jobs:
 
       # First, so the containers boot (and SeaweedFS warms up) while dependencies and the browser install.
       - name: Start services
-        run: docker compose up -d postgres redis seaweedfs mailpit
+        run: docker compose up -d postgres valkey seaweedfs mailpit
 
       - uses: ./.github/actions/setup
 
@@ -176,7 +176,7 @@ jobs:
             timeout 60 bash -c "until $2; do sleep 1; done" || { echo "::error::$1 was not ready within 60 seconds"; exit 1; }
           }
           wait_for Postgres 'docker compose exec -T postgres pg_isready -h localhost -U postgres -q'
-          wait_for Redis 'docker compose exec -T redis redis-cli ping | grep -q PONG'
+          wait_for Valkey 'docker compose exec -T valkey valkey-cli ping | grep -q PONG'
           wait_for Mailpit 'curl -fs -o /dev/null http://localhost:8025/api/v1/info'
           pnpm storage:setup
 

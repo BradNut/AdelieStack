@@ -6,8 +6,8 @@ import { buildAuthSession } from './factories';
 
 /**
  * Shared HTTP route-test harness. Importing this module (before the controller under test)
- * replaces the rate-limit middleware (which reaches Redis) with a pass-through double, so a
- * controller's routes can be driven with `app.request(...)` without a live Redis/auth stack.
+ * replaces the rate-limit middleware (which reaches Valkey) with a pass-through double, so a
+ * controller's routes can be driven with `app.request(...)` without a live Valkey/auth stack.
  *
  * Call `resetRouteTestMocks()` in `beforeEach`, then override the exported mocks per test to
  * simulate a tripped rate limit. Pass `user` to `buildRouteApp` to

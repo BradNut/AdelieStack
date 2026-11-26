@@ -42,9 +42,9 @@ const baseEnvsDto = z.object({
   MAIL_FROM: z.preprocess(emptyAsUndefined, z.string().optional()),
   // The server's address only: the library appends /api/v1 itself. Unset uses https://app.usesend.com.
   USESEND_BASE_URL: z.preprocess(emptyAsUndefined, z.string().optional()),
-  REDIS_URL: z.string(),
+  VALKEY_URL: z.string(),
   // Background jobs: register BullMQ queues/workers on startup. Disable in tests/CI
-  // or one-off processes that must not open a Redis worker connection.
+  // or one-off processes that must not open a Valkey worker connection.
   JOBS_ENABLED: z.stringbool().default(true),
   SIGNING_SECRET: z.string().min(SECRET_MIN_LENGTH, `SIGNING_SECRET must be at least ${SECRET_MIN_LENGTH} characters`),
   // Better Auth: secret for signing/encrypting auth cookies and tokens, and the public base URL

@@ -20,7 +20,7 @@
     "preview": "tsx src/server.ts",
     "test:unit": "vitest",
     "test": "pnpm test:unit -- --run",
-    "test:redis": "vitest run --config vitest.redis.config.ts",
+    "test:valkey": "vitest run --config vitest.valkey.config.ts",
     "check": "pnpm paraglide:compile && tsc --noEmit -p tsconfig.json",
     "initialize": "pnpm install",
     "lint": "biome check .",

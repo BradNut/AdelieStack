@@ -102,7 +102,7 @@ res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 
 
 ## Rate Limiting
 
-### Redis-Based Rate Limiting
+### Valkey-Based Rate Limiting
 
 - Per-IP rate limits
 - Per-user rate limits

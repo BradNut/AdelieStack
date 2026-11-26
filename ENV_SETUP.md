@@ -33,7 +33,7 @@ echo "ENVIRONMENT=development" >> apps/api/.env
   echo "BETTER_AUTH_SECRET=$(openssl rand -base64 32)"
 } > apps/api/.env.local
 
-# Start infrastructure (Postgres, Redis, SeaweedFS, Mailpit, ...)
+# Start infrastructure (Postgres, Valkey, SeaweedFS, Mailpit, ...)
 docker compose up -d
 pnpm storage:setup
 
