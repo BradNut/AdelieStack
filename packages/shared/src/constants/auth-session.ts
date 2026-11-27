@@ -2,6 +2,8 @@
 export const MS_PER_SECOND = 1000;
 /** Seconds in a minute, for durations Better Auth takes in seconds. */
 export const SECONDS_PER_MINUTE = 60;
+/** Seconds in an hour. */
+export const SECONDS_PER_HOUR = 60 * SECONDS_PER_MINUTE;
 /** Seconds in a day. */
 export const SECONDS_PER_DAY = 24 * 60 * 60;
 

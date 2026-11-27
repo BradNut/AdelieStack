@@ -1,4 +1,4 @@
-import { type AccountLockoutPolicy, AUTH_ACCOUNT_SIGN_IN_LOCKOUT, AuthErrorCode, RETRY_AFTER_HEADER } from '@adelie/shared';
+import { AUTH_ACCOUNT_SIGN_IN_LOCKOUT, AuthErrorCode, type EscalatingLockoutPolicy, RETRY_AFTER_HEADER } from '@adelie/shared';
 import { BASE_ERROR_CODES } from '@better-auth/core/error';
 import type { BetterAuthPlugin } from 'better-auth';
 import { APIError, createAuthMiddleware, isAPIError } from 'better-auth/api';
@@ -17,10 +17,12 @@ export interface AccountLockoutStorage {
   /** Seconds until the address may sign in with a password again, or null while it is not locked. */
   lockedFor(email: string): Promise<number | null>;
   /**
-   * Counts one wrong password (or unknown address). The failure that reaches `policy.maxFailedAttempts` locks the
-   * address for `policy.durationSeconds` and starts the count again.
+   * Counts one wrong password (or unknown address). Every failure that reaches a multiple of `policy.maxFailedAttempts`
+   * locks the address for `lockDurationAfter` (`auth.lockout-policy.ts`) that many failures. The count is kept through the lock, so it is
+   * also the lock history.
    */
-  recordFailure(email: string, policy: AccountLockoutPolicy): Promise<void>;
+  recordFailure(email: string, policy: EscalatingLockoutPolicy): Promise<void>;
+  /** Clears the count, and with it the lock history, so the next lock is the shortest. */
   clearFailures(email: string): Promise<void>;
 }
 
@@ -36,13 +38,14 @@ function signInAddress(body: unknown): string | null {
  * Limits password guesses against one email address however many client addresses they come from. Better Auth's
  * `rateLimit` counts per client IP and path only (ADR 0006), so it never slows a distributed attacker.
  *
- * Failures count consecutively until a correct password clears them, however slowly they come. The failure that
- * reaches the maximum locks the address for the policy's duration; refused attempts are not counted and never extend
- * it, and the count starts again when it ends, so a lockout is never permanent. Wrong passwords and unknown addresses
+ * Failures count consecutively until a correct password clears them, however slowly they come. Every `maxFailedAttempts`
+ * failures lock the address, each lock longer than the last up to the policy's longest; refused attempts are not
+ * counted and never extend a lock, and every lock ends, so a lockout is never permanent. A correct password, or a count
+ * left idle long enough to expire, starts the escalation again from the shortest lock. Wrong passwords and unknown addresses
  * both count, keyed by the address, so the refusal says nothing about whether an account has it. A correct password
  * clears the count also when a Second Factor follows: Better Auth's own two-factor lockout covers the codes.
  */
-export const accountLockout = (storage: AccountLockoutStorage, policy: AccountLockoutPolicy = AUTH_ACCOUNT_SIGN_IN_LOCKOUT): BetterAuthPlugin => ({
+export const accountLockout = (storage: AccountLockoutStorage, policy: EscalatingLockoutPolicy = AUTH_ACCOUNT_SIGN_IN_LOCKOUT): BetterAuthPlugin => ({
   id: ACCOUNT_LOCKOUT_PLUGIN_ID,
   hooks: {
     before: [

@@ -132,6 +132,10 @@ Restricting the number of requests a client can make in a time window. The API h
 **Auth Rate Limiting**
 The limits on every auth request, owned by Better Auth, with stricter limits for sign-in, two-factor, password reset and passkey requests. See [ADR 0006](../../docs/adr/0006-better-auth-owns-auth-rate-limiting.md).
 
+**Account Lockout**
+Password sign-in refused for one email address, from any client, after too many consecutive wrong passwords: every 30 failures lock it, for 15 minutes, then 1 hour, then 4 hours, staying at 4 hours. A correct password or a day without failures starts again at 15 minutes; a lock always ends on its own. Unknown addresses are counted and refused the same way. Within NIST SP 800-63B and OWASP ASVS (at most 100 failures an hour per account). Second-factor codes have their own, fixed lockout (Better Auth's). See `AUTH_ACCOUNT_SIGN_IN_LOCKOUT`.
+_Avoid_: account lock
+
 **Route Rate Limiting**
 An optional limit a developer adds to one of their own routes, keyed on the signed-in user or else the client IP. No route uses it out of the box; it never covers auth requests.
 

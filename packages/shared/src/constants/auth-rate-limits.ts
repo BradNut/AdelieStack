@@ -1,4 +1,4 @@
-import { SECONDS_PER_DAY, SECONDS_PER_MINUTE } from './auth-session';
+import { SECONDS_PER_DAY, SECONDS_PER_HOUR, SECONDS_PER_MINUTE } from './auth-session';
 import { TWO_FACTOR_OTP_PERIOD_MINUTES } from './mfa-limits';
 
 /** A rate-limit rule: at most `max` requests per client and path in a window of `window` seconds. */
@@ -103,18 +103,34 @@ export interface AccountLockoutPolicy {
 }
 
 /**
- * Failed password sign-ins per email address, counted across every client address; NIST SP 800-63B allows at most 100
- * consecutive failures. Counted until a correct password, not in a window, so waiting does not reset it. Counted by
- * email address whether or not an account has it, so the refusal reveals nothing.
+ * An escalating account lockout, as in Keycloak's brute-force detection: every `maxFailedAttempts` consecutive failures
+ * lock the account, each lock for the next entry of `lockDurationsSeconds` from the failure that reached the threshold,
+ * staying at the last entry once reached. Refused attempts are not counted and never extend a lock. A success clears
+ * the count and with it the lock history, as does a count left idle for {@link AUTH_ACCOUNT_SIGN_IN_FAILURES_IDLE_EXPIRY};
+ * the next lock is then the first again. Never permanent and never needs an admin.
  */
-export const AUTH_ACCOUNT_SIGN_IN_LOCKOUT = {
-  maxFailedAttempts: 100,
-  durationSeconds: 15 * SECONDS_PER_MINUTE,
-} as const satisfies AccountLockoutPolicy;
+export interface EscalatingLockoutPolicy {
+  maxFailedAttempts: number;
+  /** Each lock's length in seconds, shortest first; the last one repeats. */
+  lockDurationsSeconds: readonly [number, ...number[]];
+}
 
 /**
- * Seconds a failed sign-in count is kept after its latest failure. Only so idle counts are dropped from Valkey; it is
- * far longer than the lock, so a slow guesser is still stopped.
+ * Failed password sign-ins per email address, counted across every client address: 30 consecutive failures (Keycloak's
+ * default) lock it for 15 minutes, then 1 hour, then 4 hours. Within NIST SP 800-63B (at most 100 consecutive failures)
+ * and OWASP ASVS (at most 100 failed attempts an hour per account). Counted until a correct password, not in a window,
+ * so waiting out a lock does not reset it. Counted by email address whether or not an account has it, so the refusal
+ * reveals nothing.
+ */
+export const AUTH_ACCOUNT_SIGN_IN_LOCKOUT = {
+  maxFailedAttempts: 30,
+  lockDurationsSeconds: [15 * SECONDS_PER_MINUTE, SECONDS_PER_HOUR, 4 * SECONDS_PER_HOUR],
+} as const satisfies EscalatingLockoutPolicy;
+
+/**
+ * Seconds a failed sign-in count is kept after its latest failure. It drops idle counts from Valkey and, with them, the
+ * lock history, so an address left alone this long starts again at the shortest lock. Far longer than the longest lock,
+ * so a slow guesser is still stopped and escalated.
  */
 export const AUTH_ACCOUNT_SIGN_IN_FAILURES_IDLE_EXPIRY = SECONDS_PER_DAY;
 
