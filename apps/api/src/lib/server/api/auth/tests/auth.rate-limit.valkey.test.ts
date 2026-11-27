@@ -123,18 +123,18 @@ describe('account lockout counts against real Valkey', () => {
 
   it('locks an address once it reaches the maximum, for the full duration', async () => {
     const email = uniqueEmail();
-    const policy = { maxFailedAttempts: 2, durationSeconds: 30 };
+    const policy = { maxFailedAttempts: 2, lockDurationsSeconds: [30] } as const;
 
     await repository.recordFailure(email, policy);
     expect(await repository.lockedFor(email)).toBeNull();
     await repository.recordFailure(email, policy);
 
-    expect(await repository.lockedFor(email)).toBe(policy.durationSeconds);
+    expect(await repository.lockedFor(email)).toBe(policy.lockDurationsSeconds[0]);
   });
 
   it('keeps the count with an idle expiry far longer than the lock, refreshed by every failure', async () => {
     const email = uniqueEmail();
-    const policy = { maxFailedAttempts: 10, durationSeconds: 30 };
+    const policy = { maxFailedAttempts: 10, lockDurationsSeconds: [30] } as const;
 
     await repository.recordFailure(email, policy);
     await repository.recordFailure(email, policy);
@@ -145,7 +145,7 @@ describe('account lockout counts against real Valkey', () => {
 
   it('clears the count', async () => {
     const email = uniqueEmail();
-    const policy = { maxFailedAttempts: 2, durationSeconds: 30 };
+    const policy = { maxFailedAttempts: 2, lockDurationsSeconds: [30] } as const;
 
     await repository.recordFailure(email, policy);
     await repository.clearFailures(email);
@@ -154,9 +154,9 @@ describe('account lockout counts against real Valkey', () => {
     expect(await repository.lockedFor(email)).toBeNull();
   });
 
-  it('unlocks when the lock ends, with the count started again', async () => {
+  it('unlocks when the lock ends, keeping the count so the next lock is longer', async () => {
     const email = uniqueEmail();
-    const policy = { maxFailedAttempts: 1, durationSeconds: 1 };
+    const policy = { maxFailedAttempts: 1, lockDurationsSeconds: [1, 30] } as const;
 
     await repository.recordFailure(email, policy);
     expect(await repository.lockedFor(email)).not.toBeNull();
@@ -164,6 +164,9 @@ describe('account lockout counts against real Valkey', () => {
     await sleep(1500);
 
     expect(await repository.lockedFor(email)).toBeNull();
-    expect(await valkeyService.get({ prefix: AUTH_RATE_LIMIT_VALKEY_PREFIX, key: accountLockoutKeys(email).failures })).toBeNull();
+    expect(await valkeyService.get({ prefix: AUTH_RATE_LIMIT_VALKEY_PREFIX, key: accountLockoutKeys(email).failures })).toBe('1');
+
+    await repository.recordFailure(email, policy);
+    expect(await repository.lockedFor(email)).toBe(policy.lockDurationsSeconds[1]);
   });
 });

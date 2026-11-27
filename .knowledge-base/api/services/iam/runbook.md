@@ -29,9 +29,12 @@ session operations.
 2. If they get `429`:
    - With `X-Retry-After`: a rate limit; the header says how long to wait. Counters are in Valkey
      under `auth-rate-limit:`.
-   - With `SIGN_IN_TEMPORARILY_LOCKED` on password sign-in: 100 consecutive wrong passwords for that
-     email address, from any client, locked it for 15 minutes; `X-Retry-After` says how long is left.
-     The lock is a hashed `auth-rate-limit:account-locked:<sha256 of the lowercased address>` key.
+   - With `SIGN_IN_TEMPORARILY_LOCKED` on password sign-in: every 30 consecutive wrong passwords for
+     that email address, from any client, lock it, for 15 minutes, then 1 hour, then 4 hours (staying
+     at 4 hours); `X-Retry-After` says how long is left. A correct password, or a day without failures,
+     starts again at 15 minutes. The lock is a hashed
+     `auth-rate-limit:account-locked:<sha256 of the lowercased address>` key; deleting it releases the
+     address early, and deleting `auth-rate-limit:account:<same hash>` also resets the escalation.
    - With `ACCOUNT_TEMPORARILY_LOCKED` on a two-factor step: 10 wrong codes locked their second
      factor for 15 minutes.
 

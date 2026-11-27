@@ -1,9 +1,9 @@
 import { createHash } from 'node:crypto';
-import { type AccountLockoutPolicy, AUTH_ACCOUNT_SIGN_IN_FAILURES_IDLE_EXPIRY, type AuthRateLimitRule } from '@adelie/shared';
+import { AUTH_ACCOUNT_SIGN_IN_FAILURES_IDLE_EXPIRY, type AuthRateLimitRule, type EscalatingLockoutPolicy } from '@adelie/shared';
 import { inject, injectable } from '@needle-di/core';
 import { ValkeyRepository } from '#lib/server/api/common/factories/valkey-repository.factory';
 import { ValkeyService } from '#lib/server/api/databases/valkey/valkey.service';
-import type { AccountLockoutStorage } from './auth.account-lockout';
+import { type AccountLockoutStorage, lockDurationAfter } from './auth.account-lockout';
 import type { AuthRateLimitStorage } from './auth.rate-limit';
 
 /** Namespaces the auth rate-limit counters among everything else in Valkey. */
@@ -11,7 +11,7 @@ export const AUTH_RATE_LIMIT_VALKEY_PREFIX = 'auth-rate-limit' as const;
 
 /** The Valkey keys of one email address's account lockout. */
 export interface AccountLockoutKeys {
-  /** Consecutive failed sign-ins since the last success or lock. */
+  /** Consecutive failed sign-ins since the last success, kept through locks so it also counts them. */
   failures: string;
   /** Present while the address is locked; expires when the lock ends. */
   lock: string;
@@ -29,7 +29,7 @@ export function accountLockoutKeys(email: string): AccountLockoutKeys {
 /**
  * Auth throttling state in Valkey, shared by every API instance. One class for two concerns that share the prefix and
  * the connection: Better Auth's rate-limit storage (fixed-window counters per client IP and path) and the account
- * lockout (consecutive failed password sign-ins per email address, across clients).
+ * lockout (consecutive failed password sign-ins per email address, across clients, with escalating locks).
  */
 @injectable()
 export class AuthRateLimitRepository
@@ -52,18 +52,19 @@ export class AuthRateLimitRepository
     return ttl > 0 ? ttl : null;
   }
 
-  async recordFailure(email: string, policy: AccountLockoutPolicy): Promise<void> {
+  async recordFailure(email: string, policy: EscalatingLockoutPolicy): Promise<void> {
     const keys = accountLockoutKeys(email);
-    // Far longer than the lock, so the count resets only on a success or a lock; the expiry just drops idle counts.
+    // Far longer than the longest lock, so the count (and the lock history it holds) resets only on a success or a
+    // day without failures.
     const failures = await this.valkey.incrementWithIdleExpiry({
       prefix: this.prefix,
       key: keys.failures,
       expiry: AUTH_ACCOUNT_SIGN_IN_FAILURES_IDLE_EXPIRY,
     });
-    if (failures < policy.maxFailedAttempts) return;
-    // Locked for the full duration from this failure; the count then starts again, as in Better Auth's two-factor lockout.
-    await this.valkey.setWithExpiry({ prefix: this.prefix, key: keys.lock, value: String(failures), expiry: policy.durationSeconds });
-    await this.valkey.delete({ prefix: this.prefix, key: keys.failures });
+    const lockSeconds = lockDurationAfter(policy, failures);
+    if (lockSeconds === null) return;
+    // Locked for the full duration from this failure.
+    await this.valkey.setWithExpiry({ prefix: this.prefix, key: keys.lock, value: String(failures), expiry: lockSeconds });
   }
 
   async clearFailures(email: string): Promise<void> {

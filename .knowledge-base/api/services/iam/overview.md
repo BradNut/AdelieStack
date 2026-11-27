@@ -98,12 +98,16 @@ apps/api/src/lib/server/api/auth/
 - Admins must have a Second Factor to use admin capabilities, and cannot remove their last one
   ([ADR 0014](../../../../docs/adr/0014-admin-capabilities-require-a-second-factor.md)).
 - Security Events (password changed, Recovery Codes used or regenerated, email changed) email the user.
-- Password sign-in locks per email address, across clients, after 100 consecutive failures, for 15
-  minutes from the failure that reached it (`AUTH_ACCOUNT_SIGN_IN_LOCKOUT`; our `account-lockout` plugin,
-  hashed keys in Valkey). Second-factor verification locks per account after 10 failed attempts for 15
-  minutes (Better Auth's `accountLockout`, pinned to `TWO_FACTOR_ACCOUNT_LOCKOUT`;
-  `two_factors.failed_verification_count`, `locked_until`). Both counts clear on a success and start
-  again when the lock ends.
+- Password sign-in locks per email address, across clients, after every 30 consecutive failures
+  (Keycloak's default), each lock longer than the last: 15 minutes, then 1 hour, then 4 hours, staying
+  at 4 hours, from the failure that reached it (`AUTH_ACCOUNT_SIGN_IN_LOCKOUT`; our `account-lockout`
+  plugin, hashed keys in Valkey). A correct password, or a day without failures, starts again at 15
+  minutes; locks never become permanent or need an admin. That stays within NIST SP 800-63B (at most
+  100 consecutive failures) and OWASP ASVS (at most 100 failed attempts an hour per account): at most
+  60 guesses in any hour, then 30 every 4 hours. Unknown addresses are counted and refused the same way.
+- Second-factor verification locks per account after 10 failed attempts for 15 minutes (Better Auth's
+  `accountLockout`, pinned to `TWO_FACTOR_ACCOUNT_LOCKOUT`; `two_factors.failed_verification_count`,
+  `locked_until`). The count clears on a success and starts again when the lock ends.
 
 Operational details for each of these are in the
 [environment config runbook](../../runbooks/environment-config.md).
