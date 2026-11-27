@@ -22,6 +22,9 @@ inside a service.
 
 ## Quick start
 
+Use Node.js 24.15 or newer (`nvm install` picks up `.nvmrc`). `.npmrc` sets `engine-strict=true`, so an older Node
+fails `pnpm install`.
+
 ```bash
 # The schemas already carry working local defaults for everything except secrets and the API's
 # Environment, which has no default (`pnpm initialize` writes it for you; see ADR 0015).

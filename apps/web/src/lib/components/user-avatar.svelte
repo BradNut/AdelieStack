@@ -10,8 +10,10 @@
 </script>
 
 <script lang="ts">
-	import { Avatar } from "@dicebear/core";
-	import funEmoji from "@dicebear/styles/fun-emoji.json" with { type: "json" };
+	import { Avatar, Style } from "@dicebear/core";
+	import funEmojiDefinition from "@dicebear/styles/fun-emoji.json" with { type: "json" };
+
+	const funEmoji = new Style(funEmojiDefinition);
 
 	const { user, ...props }: Props = $props();
 	const avatar = $derived(
