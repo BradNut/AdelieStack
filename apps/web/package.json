@@ -19,7 +19,7 @@
     "test:e2e:dev": "playwright test --config=playwright.config.dev.ts",
     "test:ui": "svelte-kit sync && playwright test --ui",
     "test:ui:dev": "svelte-kit sync && playwright test --ui --config=playwright.config.dev.ts",
-    "paraglide:compile": "paraglide-js compile --project ./project.inlang --outdir ./src/lib/paraglide --strategy cookie preferredLanguage baseLocale --emit-ts-declarations --silent",
+    "paraglide:compile": "paraglide-js compile --project ./project.inlang --outdir ./src/lib/paraglide --output-structure message-modules --strategy cookie preferredLanguage baseLocale --emit-ts-declarations --silent",
     "check": "pnpm paraglide:compile && svelte-kit sync && svelte-check --tsconfig ./tsconfig.json && pnpm check:shared-boundaries",
     "check:shared-boundaries": "node ../../scripts/check-shared-boundaries.mjs",
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",

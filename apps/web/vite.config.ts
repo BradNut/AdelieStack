@@ -46,8 +46,8 @@ export default defineConfig(({ mode }) => {
       // The shared Request Locale order (cookie, Accept-Language, base locale), also followed by the API. Imported by subpath
       // because Node loads this config and the constants barrel uses extensionless imports.
       strategy: [...REQUEST_LOCALE_ORDER],
-      // Physical files, as `pnpm paraglide:compile` writes into the same outdir for check and tests. Paraglide 3 defaults the
-      // Vite plugin to "virtual-modules", which would leave the plugin and the CLI writing different layouts.
+      // Physical files, matching `--output-structure` in the `paraglide:compile` scripts, which write into the same outdir for
+      // check and tests. Paraglide 3 defaults the Vite plugin to "virtual-modules", which would split the two layouts.
       outputStructure: 'message-modules',
     }),
   ];
