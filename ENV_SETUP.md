@@ -22,8 +22,8 @@ inside a service.
 
 ## Quick start
 
-Use Node.js 24.15 or newer (`nvm install` picks up `.nvmrc`). `.npmrc` sets `engine-strict=true`, so an older Node
-fails `pnpm install`.
+Use Node.js 24.15 or newer. `.nvmrc` names the major (`24`), and `nvm use` accepts any 24.x already installed, so run
+`nvm install 24` to get the latest. `.npmrc` sets `engine-strict=true`, so an older Node fails `pnpm install`.
 
 ```bash
 # The schemas already carry working local defaults for everything except secrets and the API's
