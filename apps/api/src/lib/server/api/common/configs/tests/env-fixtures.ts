@@ -51,6 +51,7 @@ export const productionEnvOverrides: Record<string, string> = {
   USESEND_API_KEY: 'us_production_key',
   MAIL_FROM: 'noreply@example.com',
   BETTER_AUTH_URL: 'https://app.example.com',
+  ORIGIN: 'https://app.example.com',
 };
 
 const envKeys = new Set(Object.keys(validEnvs));

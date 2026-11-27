@@ -21,12 +21,12 @@ redis-cli -u $REDIS_URL ping
 
 ### Fixes
 
-| Problem | Fix |
-|---|---|
-| Wrong `REDIS_URL` | Update in Coolify env → redeploy |
-| Redis container down | Restart Redis service in Coolify |
-| Container network mismatch | Put API and Redis on same Coolify network |
-| Import-time connection | Move `ioredis` client init to lazy getter — never connect at import (see `apps/api/src/lib/server/api/databases/redis/redis.service.ts`, which already lazily instantiates the client on first `.redis` access) |
+| Problem                    | Fix                                                                                                                                                                                                             |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Wrong `REDIS_URL`          | Update in Coolify env → redeploy                                                                                                                                                                                |
+| Redis container down       | Restart Redis service in Coolify                                                                                                                                                                                |
+| Container network mismatch | Put API and Redis on same Coolify network                                                                                                                                                                       |
+| Import-time connection     | Move `ioredis` client init to lazy getter — never connect at import (see `apps/api/src/lib/server/api/databases/redis/redis.service.ts`, which already lazily instantiates the client on first `.redis` access) |
 
 ---
 
@@ -52,13 +52,13 @@ Check both buckets exist and `PROJECT_NAME` / `ENVIRONMENT` match the bucket nam
 
 ### Fixes
 
-| Problem | Fix |
-|---|---|
-| Wrong `STORAGE_*` vars | Verify `STORAGE_HOST`, `STORAGE_PORT`, `STORAGE_ACCESS_KEY`, `STORAGE_SECRET_KEY` |
-| API exits at startup with a storage error | Storage is unreachable or the credentials cannot create or read the buckets. The API does not serve until storage answers |
-| Bucket not found | Restart the API, or run `pnpm storage:setup` (either creates `<PROJECT_NAME>-public-<ENVIRONMENT>` and `<PROJECT_NAME>-private-<ENVIRONMENT>`) |
-| Public files return 403 | Grant `Read:<public-bucket>` to the `anonymous` identity in `docker/seaweedfs/s3-config.json`, then restart SeaweedFS |
-| `STORAGE_SSL=false` in prod | If storage is behind HTTPS, set `STORAGE_SSL=true` |
+| Problem                                   | Fix                                                                                                                                            |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| Wrong `STORAGE_*` vars                    | Verify `STORAGE_HOST`, `STORAGE_PORT`, `STORAGE_ACCESS_KEY`, `STORAGE_SECRET_KEY`                                                              |
+| API exits at startup with a storage error | Storage is unreachable or the credentials cannot create or read the buckets. The API does not serve until storage answers                      |
+| Bucket not found                          | Restart the API, or run `pnpm storage:setup` (either creates `<PROJECT_NAME>-public-<ENVIRONMENT>` and `<PROJECT_NAME>-private-<ENVIRONMENT>`) |
+| Public files return 403                   | Grant `Read:<public-bucket>` to the `anonymous` identity in `docker/seaweedfs/s3-config.json`, then restart SeaweedFS                          |
+| `STORAGE_SSL=false` in prod               | If storage is behind HTTPS, set `STORAGE_SSL=true`                                                                                             |
 
 ---
 
@@ -69,9 +69,8 @@ Uploads are scanned on their final bytes, after any resize and before they reach
 `CLAMAV_HOST`:`CLAMAV_PORT`, and the connection opens on the first scan. Locally, clamd is the
 `clamav` service in `docker-compose.yaml`.
 
-The upload path fails closed: while scanning is on, an upload is refused if the scanner errors, so a
-clamd outage stops uploads. See the known gap in
-[Platform Architecture](../platform-architecture.md#clamav) for the one case that does not.
+The upload path fails closed: while scanning is on, an upload is refused if the scanner errors or
+returns no verdict (for example a clamd read timeout), so a clamd outage stops uploads.
 
 ### Symptoms
 
@@ -89,12 +88,12 @@ printf 'nPING\n' | nc -w 2 "$CLAMAV_HOST" "$CLAMAV_PORT"
 
 ### Fixes
 
-| Problem | Fix |
-|---|---|
-| 503 on every upload | clamd is down or unreachable. Check `CLAMAV_HOST` / `CLAMAV_PORT` and the clamd container. A freshly started clamd takes a while to load its signatures before it answers |
-| 422 on an upload | Working as intended: clamd flagged the file, and the signature name is in the response and the logs. Nothing was stored |
+| Problem                           | Fix                                                                                                                                                                                                                    |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 503 on every upload               | clamd is down or unreachable. Check `CLAMAV_HOST` / `CLAMAV_PORT` and the clamd container. A freshly started clamd takes a while to load its signatures before it answers                                              |
+| 422 on an upload                  | Working as intended: clamd flagged the file, and the signature name is in the response and the logs. Nothing was stored                                                                                                |
 | Objects have no `scan-status` tag | `ANTIVIRUS_ENABLED` is off, or was when the object was stored. Set it to `true` and redeploy; objects already stored are not backfilled. Tagging can also fail after the write, which leaves a scanned object untagged |
-| Object tagged `scan-status=error` | The storage webhook re-scan could not reach a verdict. Unlike the upload path, it leaves the object in place, so check clamd and review the object |
+| Object tagged `scan-status=error` | The storage webhook re-scan could not reach a verdict. Unlike the upload path, it leaves the object in place, so check clamd and review the object                                                                     |
 
 ---
 

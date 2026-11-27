@@ -11,7 +11,7 @@ updates:
     groups:
       github-actions:
         patterns:
-          - '*'
+          - "*"
     commit-message:
       prefix: ci
 
@@ -20,6 +20,9 @@ updates:
   - package-ecosystem: npm
     directory: /
     target-branch: development
+    # Required on every entry; with the zero PR limit it opens nothing.
+    schedule:
+      interval: weekly
     open-pull-requests-limit: 0
     commit-message:
       prefix: fix

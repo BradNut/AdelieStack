@@ -38,7 +38,15 @@
   "storage_upload_too_large": "File rejected: it is larger than this upload allows.",
   "storage_upload_type_not_accepted": "File rejected: this file type is not accepted.",
   "storage_upload_unrecognized": "File rejected: its type could not be recognised.",
+  "storage_upload_key_invalid": "File rejected: its storage key is not valid.",
+  "storage_upload_key_taken": "File rejected: a file with this storage key already exists.",
   "storage_image_too_many_pixels": "File rejected: the image has too many pixels.",
   "storage_image_output_too_large": "The requested image size is too large.",
-  "server_unexpected_error": "Something went wrong on our side. Please try again later."
+  "storage_scan_pending": "This file is still being checked for viruses. Please try again shortly.",
+  "storage_scan_infected": "This file has been removed because a virus was found in it.",
+  "storage_scan_failed": "This file could not be checked for viruses, so it cannot be opened.",
+  "storage_scan_refused": "This file cannot be opened.",
+  "storage_presigned_url_lifetime_invalid": "The link lifetime must be a whole number of seconds from 1 second to 7 days.",
+  "server_unexpected_error": "Something went wrong on our side. Please try again later.",
+  "request_body_too_large": "The request body is larger than this endpoint accepts."
 }

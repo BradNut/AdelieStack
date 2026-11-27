@@ -59,12 +59,12 @@ currently broken — see the known bug above.)
 
 ## Common Failures
 
-| Symptom | Likely cause |
-|---|---|
-| `net::ERR_CONNECTION_REFUSED` | Dev server not running or wrong `baseURL` in config |
-| Login test fails | Test user not seeded or password changed |
-| Flaky on CI | Add `--retries=2` or increase timeouts in `playwright.config.ts` |
-| Screenshots differ | Playwright version or OS font rendering diff — use `--update-snapshots` |
+| Symptom                       | Likely cause                                                            |
+| ----------------------------- | ----------------------------------------------------------------------- |
+| `net::ERR_CONNECTION_REFUSED` | Dev server not running or wrong `baseURL` in config                     |
+| Login test fails              | Test user not seeded or password changed                                |
+| Flaky on CI                   | Add `--retries=2` or increase timeouts in `playwright.config.ts`        |
+| Screenshots differ            | Playwright version or OS font rendering diff — use `--update-snapshots` |
 
 ## Config Files
 

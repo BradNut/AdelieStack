@@ -31,7 +31,7 @@ _Avoid_: credential account, email account
 A temporary password that changes every 30 seconds, used for multi-factor authentication.
 
 **Second Factor**
-An extra proof of identity asked after the password or a social provider sign-in on an account with two-factor enabled: a TOTP code, an emailed one-time code or a Recovery Code. Asking for it is the Two-factor Challenge (web glossary). An account *has a Second Factor* when two-factor is enabled or a passkey is registered; admin capabilities need one (ADR 0014).
+An extra proof of identity asked after the password or a social provider sign-in on an account with two-factor enabled: a TOTP code, an emailed one-time code or a Recovery Code. Asking for it is the Two-factor Challenge (web glossary). An account _has a Second Factor_ when two-factor is enabled or a passkey is registered; admin capabilities need one (ADR 0014).
 _Avoid_: MFA step, 2FA token
 
 **Recovery Code**
@@ -178,6 +178,10 @@ Temporary URL that grants access to a private S3 object.
 
 **ClamAV**
 Antivirus engine that scans the final bytes of an upload before they reach storage, reached through the `clamscan` client. Gated by `ANTIVIRUS_ENABLED`; when on, the upload fails closed if the scanner errors.
+
+**Scan Status**
+The verdict recorded on a stored object while antivirus is on: pending (stored but not yet scanned), scanning, clean, infected, error, or too-large (over the webhook scan size cap, so never scanned). Only an object whose bytes passed a scan is clean, and only a clean object may be read. An object with no Scan Status is refused like a pending one. While antivirus is off, objects carry none and reads do not ask for one.
+_Avoid_: scan result (that is one scan's outcome), scan tag
 
 ## Monitoring & Operations
 

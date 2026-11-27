@@ -28,13 +28,13 @@ DB_MIGRATING=true pnpm --filter @adelie/api db:migrate
 
 ## Commands
 
-| Command | What it does |
-|---|---|
-| `pnpm db:generate` | Generate migration SQL from schema diff |
-| `pnpm db:migrate` | Apply pending migrations to DB (refuses unless `DB_MIGRATING=true`) |
-| `pnpm db:push` | Push schema directly to DB (dev only, no migration file) |
-| `pnpm db:seed` | Seed initial data (refuses unless `DB_SEEDING=true`, and always in production) |
-| `pnpm db:studio` | Open Drizzle Studio GUI |
+| Command            | What it does                                                                   |
+| ------------------ | ------------------------------------------------------------------------------ |
+| `pnpm db:generate` | Generate migration SQL from schema diff                                        |
+| `pnpm db:migrate`  | Apply pending migrations to DB (refuses unless `DB_MIGRATING=true`)            |
+| `pnpm db:push`     | Push schema directly to DB (dev only, no migration file)                       |
+| `pnpm db:seed`     | Seed initial data (refuses unless `DB_SEEDING=true`, and always in production) |
+| `pnpm db:studio`   | Open Drizzle Studio GUI                                                        |
 
 ## Seeding
 

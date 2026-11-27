@@ -2,7 +2,7 @@
 
 ## Runbooks
 
-- [Deployment](./deployment.md) — Coolify, Nixpacks, Docker, rollback
+- [Deployment](./deployment.md) — Coolify, Nixpacks, Docker, network boundary, rollback
 - [Environment Configuration](./environment-config.md) — all env vars, local dev setup, database TLS, auth rate limiting, HIBP, captcha
 - [Build Troubleshooting](./build-troubleshooting.md) — startup failures, native deps, import-time connections
 - [Database Migrations](./database-migrations.md) — generate, apply, seed, troubleshoot

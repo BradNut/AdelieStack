@@ -86,7 +86,7 @@ Signed in with an already-verified email, the request is a `400 EMAIL_ALREADY_VE
    ↓
 2. Link opens the web reset page with a token
    ↓
-3. POST /reset-password { token, newPassword }  (own rate limit, password policy)
+3. POST /reset-password { token, newPassword }  (own rate limit, password policy; then token check, then HIBP screening)
    ↓
 4. Password updated and every session the account held is ended; "password changed" Security Event email sent
 ```
@@ -119,7 +119,11 @@ sessions; admins can list and revoke anyone's (`/admin/list-user-sessions`, `/ad
 Sensitive actions (delete user, change email, unlink an account, list sessions, ...) refuse a session
 older than `AUTH_SESSION_FRESH_AGE` (5 minutes) with `403 SESSION_NOT_FRESH`. Better Auth only accepts
 any live session for change email, so `freshSessionGuard` (`auth.fresh-session.ts`) adds the check before
-the confirmation is sent. The web re-authenticates in a dialog and retries;
+the confirmation is sent. It does the same for every admin action that changes a user (create, update, set
+role, set password, ban, unban, remove, impersonate, revoke sessions), which Better Auth otherwise gates on
+the role alone. Admin reads and stopping an impersonation work on an older session, and a server call with no
+session (the seed) is left to the admin plugin. `auth.admin-fresh-session.test.ts` fails when a new admin
+endpoint is neither guarded nor listed as needing no fresh session. The web re-authenticates in a dialog and retries;
 see ADRs [0007](../../../../docs/adr/0007-social-reauthentication-replays-a-persisted-action.md) and
 [0008](../../../../docs/adr/0008-two-factor-reauthentication-requires-every-factor.md).
 

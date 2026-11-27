@@ -9,24 +9,28 @@ settings area for managing profile, email, password, and account deletion.
 ## Technology Stack
 
 ### Core Framework
+
 - **SvelteKit 3.x** - Full-stack framework with SSR and SSG
 - **Svelte 5** - Reactive UI framework with runes
 - **TypeScript** - Type-safe development
 - **Vite** - Fast build tool and dev server
 
 ### UI & Styling
+
 - **Tailwind CSS v4** - Utility-first CSS framework
 - **Shadcn/UI** - Accessible component library
 - **Lucide Icons** - Icon library
 - **Embla Carousel** - Carousel component
 
 ### Data & State
+
 - **Svelte Runes** - Reactive state management ($state, $derived, $effect)
 - **SvelteKit Stores** - Global state management
 - **Form Actions** - Server-side form handling
 - **Load Functions** - Data fetching
 
 ### Development Tools
+
 - **Vitest** - Testing framework
 - **Playwright** - E2E testing
 - **Biome** - Linting and formatting
@@ -76,11 +80,13 @@ src/
 ## Key Features
 
 ### Public Features
+
 - **Root page** (`/`) - Landing page
 - **Privacy Policy** and **Terms** - Static informational pages
 - **Authentication** - Login (incl. Google OAuth), signup, password reset
 
 ### Authenticated Features
+
 - **Settings** - Update profile, update email, update password
 - **Account** - Delete account
 

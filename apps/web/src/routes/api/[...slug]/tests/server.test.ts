@@ -1,9 +1,16 @@
 import { STORAGE_WEBHOOK_PATH, StatusCodes } from '@adelie/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { envMock, fetchMock } = vi.hoisted(() => ({
+const { appEnvMock, envMock, fetchMock } = vi.hoisted(() => ({
+  appEnvMock: { building: false },
   envMock: { API_PROXY_BASE_URL: '' },
   fetchMock: vi.fn<typeof fetch>(),
+}));
+
+vi.mock('$app/env', () => ({
+  get building() {
+    return appEnvMock.building;
+  },
 }));
 
 vi.mock('$app/env/private', () => ({
@@ -44,6 +51,7 @@ describe('routes/api/[...slug]/+server', () => {
     vi.clearAllMocks();
     vi.stubGlobal('fetch', fetchMock);
     envMock.API_PROXY_BASE_URL = 'http://127.0.0.1:3001';
+    appEnvMock.building = false;
   });
 
   afterEach(() => {
@@ -204,17 +212,74 @@ describe('routes/api/[...slug]/+server', () => {
       expect(lastUpstreamCall().headers.get('x-forwarded-proto')).toBe(proto);
     });
 
-    it('keeps the existing x-forwarded-for when the client address is unavailable', async () => {
+    it('forwards no x-forwarded-for when the client address cannot be resolved', async () => {
       fetchMock.mockResolvedValue(new Response('ok'));
 
       await GET(
         createEvent(
-          new Request('http://localhost:5173/api/users', { headers: { 'x-forwarded-for': '127.0.0.1' } }),
+          new Request('http://localhost:5173/api/users', { headers: { 'x-forwarded-for': '198.51.100.9' } }),
+          new Error('Address header was requested to be x-real-ip but the header was not present'),
+        ),
+      );
+
+      expect(lastUpstreamCall().headers.has('x-forwarded-for')).toBe(false);
+    });
+
+    it('tells the API the request came from loopback while prerendering', async () => {
+      appEnvMock.building = true;
+      fetchMock.mockResolvedValue(new Response('ok'));
+
+      await GET(
+        createEvent(
+          new Request('http://sveltekit-prerender/api/users', { headers: { 'x-forwarded-for': '198.51.100.9' } }),
           new Error('Cannot call getClientAddress() during prerendering'),
         ),
       );
 
       expect(lastUpstreamCall().headers.get('x-forwarded-for')).toBe('127.0.0.1');
+    });
+
+    it('does not forward a client-sent x-request-id, so the API always generates the id', async () => {
+      fetchMock.mockResolvedValue(new Response('ok'));
+
+      await GET(createEvent(new Request('http://localhost:5173/api/users', { headers: { 'x-request-id': 'client-chosen-id' } })));
+
+      expect(lastUpstreamCall().headers.has('x-request-id')).toBe(false);
+    });
+
+    it('returns the API-generated x-request-id to the browser', async () => {
+      fetchMock.mockResolvedValue(new Response('ok', { headers: { 'x-request-id': 'api-generated-id' } }));
+
+      const response = await GET(createEvent(new Request('http://localhost:5173/api/users', { headers: { 'x-request-id': 'client-chosen-id' } })));
+
+      expect(response.headers.get('x-request-id')).toBe('api-generated-id');
+    });
+
+    it.each([
+      ['a resolved', CLIENT_ADDRESS],
+      ['an unresolved', new Error('Address header was requested to be x-real-ip but the header was not present')],
+    ] as const)('drops client-supplied forwarding headers for %s client address', async (_case, clientAddress) => {
+      fetchMock.mockResolvedValue(new Response('ok'));
+
+      await GET(
+        createEvent(
+          new Request('http://localhost:5173/api/users', {
+            headers: {
+              forwarded: 'for=198.51.100.9;host=evil.example;proto=https',
+              'x-real-ip': '198.51.100.9',
+              'cf-connecting-ip': '198.51.100.9',
+              'x-forwarded-host': 'evil.example',
+              'x-forwarded-port': '8443',
+            },
+          }),
+          clientAddress,
+        ),
+      );
+
+      const { headers } = lastUpstreamCall();
+      for (const header of ['forwarded', 'x-real-ip', 'cf-connecting-ip', 'x-forwarded-host', 'x-forwarded-port']) {
+        expect(headers.has(header), header).toBe(false);
+      }
     });
 
     it('strips hop-by-hop request headers', async () => {

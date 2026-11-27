@@ -3,6 +3,7 @@
 ## REST Principles
 
 ### HTTP Methods
+
 - **GET** - Retrieve resources (idempotent, safe)
 - **POST** - Create new resources
 - **PUT** - Update entire resource (idempotent)
@@ -20,6 +21,7 @@ Routes are **not versioned**. Each controller is mounted at a fixed base path un
 ```
 
 Examples (from `iam/iam.controller.ts`, `users/users.controller.ts`, `signup/signup.controller.ts`):
+
 - `POST /api/iam/login` - Sign in with email/password
 - `POST /api/iam/logout` - Sign out
 - `POST /api/iam/password/reset/request` - Request a password reset code
@@ -37,6 +39,7 @@ returned directly; error responses are `c.json({ error: string }, statusCode)` w
 status from the shared `StatusCodes` constant (`@adelie/shared`).
 
 ### Success Response
+
 ```typescript
 // GET /api/users/me -> c.json(user)
 {
@@ -47,6 +50,7 @@ status from the shared `StatusCodes` constant (`@adelie/shared`).
 ```
 
 ### Acknowledgement Response
+
 ```typescript
 // POST /api/iam/logout -> c.json({ message: 'logout' })
 {
@@ -55,6 +59,7 @@ status from the shared `StatusCodes` constant (`@adelie/shared`).
 ```
 
 ### Error Response
+
 ```typescript
 // c.json({ error: 'Passwords do not match' }, StatusCodes.UNPROCESSABLE_ENTITY)
 {
@@ -65,11 +70,13 @@ status from the shared `StatusCodes` constant (`@adelie/shared`).
 ## Status Codes
 
 ### Success Codes
+
 - **200 OK** - Successful GET, PATCH, DELETE
 - **201 Created** - Successful POST
 - **204 No Content** - Successful DELETE with no response body
 
 ### Client Error Codes
+
 - **400 Bad Request** - Invalid request data
 - **401 Unauthorized** - Missing or invalid authentication
 - **403 Forbidden** - Insufficient permissions
@@ -79,6 +86,7 @@ status from the shared `StatusCodes` constant (`@adelie/shared`).
 - **429 Too Many Requests** - Rate limit exceeded
 
 ### Server Error Codes
+
 - **500 Internal Server Error** - Unexpected server error
 - **502 Bad Gateway** - Upstream service error
 - **503 Service Unavailable** - Service temporarily unavailable
@@ -99,6 +107,7 @@ contract.
 ## Request Validation
 
 ### Zod Schema Validation
+
 All request bodies must be validated using Zod schemas:
 
 ```typescript
@@ -107,7 +116,7 @@ import { z } from 'zod';
 const createUserSchema = z.object({
   email: z.string().email(),
   name: z.string().min(1).max(100),
-  password: z.string().min(8)
+  password: z.string().min(8),
 });
 
 // In route handler
@@ -115,31 +124,35 @@ const validated = createUserSchema.parse(await req.json());
 ```
 
 ### Query Parameter Validation
+
 ```typescript
 const querySchema = z.object({
   page: z.coerce.number().int().positive().default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
-  sortBy: z.enum(['name', 'createdAt']).optional()
+  sortBy: z.enum(['name', 'createdAt']).optional(),
 });
 ```
 
 ## Authentication & Authorization
 
 ### Session-Based Authentication
+
 ```typescript
 // Request with session cookie
-GET /api/users/me
-Cookie: session=abc123xyz
+GET / api / users / me;
+Cookie: session = abc123xyz;
 ```
 
 ### Authorization Header (Future)
+
 ```typescript
 // Request with bearer token
-GET /api/users/me
-Authorization: Bearer <token>
+GET / api / users / me;
+Authorization: Bearer<token>;
 ```
 
 ### Permission Checks
+
 ```typescript
 // Check user has required role
 if (!user.roles.includes('admin')) {
@@ -167,23 +180,40 @@ Every auth request is limited by Better Auth's built-in limiter, keyed by client
 ## CORS
 
 ### Allowed Origins
+
 - Configured via the `ORIGIN` environment variable (see `apps/api/.env.schema`)
 - Development default: `http://localhost:5173`
 
 ### Allowed Methods
+
 - GET, POST, PATCH, DELETE, OPTIONS
 
 ### Allowed Headers
+
 - Content-Type, Authorization, Cookie
+
+## Request Ids
+
+Every request gets an id from the API (`serverRequestId` in
+`apps/api/src/lib/server/api/common/middleware/request-id.middleware.ts`): a fresh Public Id, sent back in the
+`X-Request-Id` response header and used in the log and in error bodies. An incoming `X-Request-Id` is ignored, and
+the web app's `/api` proxy drops it before forwarding, so no caller chooses, repeats or reuses the id logs are
+correlated by.
+
+If a trusted upstream id is wanted later (a load balancer's trace id, say), accept it only behind `TRUST_PROXY`, like
+`x-forwarded-for`, under its own header, and log it as a separate field such as `upstreamRequestId`. The API's own id
+stays the one used for correlation.
 
 ## Content Negotiation
 
 ### Request Content-Type
+
 ```
 Content-Type: application/json
 ```
 
 ### Response Content-Type
+
 ```
 Content-Type: application/json; charset=utf-8
 ```
@@ -191,10 +221,12 @@ Content-Type: application/json; charset=utf-8
 ## Idempotency
 
 ### Idempotent Operations
+
 - GET, PUT, PATCH, DELETE should be idempotent
 - Multiple identical requests should have same effect as single request
 
 ### Idempotency Keys (Future)
+
 ```
 POST /api/signup
 Idempotency-Key: unique-key-123
@@ -203,6 +235,7 @@ Idempotency-Key: unique-key-123
 ## Caching
 
 ### Cache-Control Headers
+
 ```typescript
 // Public, cacheable for 1 hour
 res.setHeader('Cache-Control', 'public, max-age=3600');
@@ -212,6 +245,7 @@ res.setHeader('Cache-Control', 'private, no-cache');
 ```
 
 ### ETag Support (Future)
+
 ```typescript
 // Response
 ETag: "abc123"
@@ -224,6 +258,7 @@ If-None-Match: "abc123"
 ## File Uploads
 
 ### Multipart Form Data
+
 The one real example today is the avatar field on the update-profile endpoint
 (`users.controller.ts`), validated with `zValidator('form', updateUserDto)` and stored via
 `StorageService` (SeaweedFS/S3-compatible):
@@ -249,15 +284,17 @@ current or planned without an issue driving it.
 ## API Documentation
 
 ### OpenAPI/Swagger
+
 - Document all endpoints with OpenAPI spec
 - Include request/response examples
 - Document error responses
 
 ### Endpoint Documentation Template
+
 ```typescript
 /**
  * Create a new user
- * 
+ *
  * @route POST /api/users
  * @param {CreateUserInput} body - User creation data
  * @returns {User} 201 - Created user

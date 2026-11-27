@@ -12,16 +12,16 @@ procedures.
 
 Every protection is on unless `ENVIRONMENT` is exactly `development` (`isDevelopmentEnvironment`):
 
-| Protection | `development` | `staging`, `production` |
-|---|---|---|
-| Session cookie (`_id`) | not `Secure` | `Secure` |
-| Logs | pretty | JSON |
-| SQL logging | on | off |
-| API references (`/api/reference`, `/api/doc`, the auth schema) | served | not served |
-| Error detail (message and stack) in 500 responses | shown | generic message only |
-| Sentry PII and Spotlight | on | off |
-| [Startup refusals](#startup-refusals) | none | all |
-| `pnpm db:seed` | runs | refuses |
+| Protection                                                     | `development`            | `staging`, `production`      |
+| -------------------------------------------------------------- | ------------------------ | ---------------------------- |
+| Cookies (`_id` and the auth cookies)                           | `Secure` only over https | `Secure` (https is required) |
+| Logs                                                           | pretty                   | JSON                         |
+| SQL logging                                                    | on                       | off                          |
+| API references (`/api/reference`, `/api/doc`, the auth schema) | served                   | not served                   |
+| Error detail (message and stack) in 500 responses              | shown                    | generic message only         |
+| Sentry PII and Spotlight                                       | on                       | off                          |
+| [Startup refusals](#startup-refusals)                          | none                     | all                          |
+| `pnpm db:seed`                                                 | runs                     | refuses                      |
 
 Staging gets production's protections; it differs only in its bucket names and Sentry tag. Sentry starts before the env is validated, so it fails closed on its own: an unset or unknown `ENVIRONMENT` turns PII and Spotlight off, and the Sentry `environment` tag is whatever `ENVIRONMENT` says, with no fallback.
 
@@ -37,12 +37,15 @@ Every deployment changes its variables once, before it runs this release:
 1. **Remove `ENV`** from the deploy platform's variables. The API refuses to start while it is set.
 2. **Set `ENVIRONMENT`** to `production` or `staging`. It has no default, so a deploy without it does not start.
 3. **Keep `NODE_ENV=production`.** The images already set it; a deploy outside them must set it, or the API refuses to start.
-4. **Staging only**: staging that ran on `ENV=dev` now gets production's protections and [startup refusals](#startup-refusals). Replace its development-default credentials, switch `MAILER_TRANSPORT` to `unsend`, serve `BETTER_AUTH_URL` over https, set `STORAGE_WEBHOOK_SECRET` and `TRUST_PROXY` (or `DISABLE_RATE_LIMIT`), and stop seeding it.
+4. **Staging only**: staging that ran on `ENV=dev` now gets production's protections and [startup refusals](#startup-refusals). Replace its development-default credentials, switch `MAILER_TRANSPORT` to `unsend`, serve `BETTER_AUTH_URL` and `ORIGIN` over https, set `STORAGE_WEBHOOK_SECRET` and `TRUST_PROXY` (or `DISABLE_RATE_LIMIT`), and stop seeding it.
 5. **Local clones**: run `pnpm initialize` again, or add `ENVIRONMENT=development` to `apps/api/.env`, and remove `ENV` from `apps/api/.env` and `apps/api/.env.local`.
 
 ## Gotchas
-- `ORIGIN` is the allowed CORS / session origin; `DOMAIN` (hostname only) is the session cookie
-  domain.
+
+- `ORIGIN` is the allowed CORS / session origin and must be a URL in every Environment; `DOMAIN` (hostname only) is the
+  session cookie domain.
+- Every cookie the API sets (the `_id` browser-session cookie and Better Auth's) is `Secure` exactly when
+  `BETTER_AUTH_URL` is https, from one rule (`usesSecureCookies`). Local development over http gets cookies without it.
 - `DB_MIGRATING` and `DB_SEEDING` are for the `db:migrate` and `db:seed` scripts only: each script
   refuses to run unless its flag resolves to true (varlock normalizes `TRUE`, `1` and `yes` to
   `true` first; `false` refuses), and both default to `false`. The seed also refuses unless
@@ -59,14 +62,15 @@ Every deployment changes its variables once, before it runs this release:
 
 The schema's defaults make a fresh clone run locally, and every one of them is public in this repo. So in every Environment but `development` (staging and production alike), the API refuses to start on the development values below. The error names each variable and never prints its value; it lists every refusal at once. Development, tests and the e2e suite are unaffected. The checks live in `envsDto` (`apps/api/src/lib/server/api/common/configs/dtos/env.dto.ts`); the refused credentials are `DevelopmentDefault` in `common/configs/development-defaults.constant.ts`, which a test keeps in sync with `.env.schema`.
 
-| Variable | Refused outside development | Fix |
-|---|---|---|
-| `NODE_ENV` | Anything but `production`, also when unset | Set `NODE_ENV=production` (the images do). |
-| `DATABASE_PASSWORD` | `postgres`, the local Postgres password | Set the real database password. |
-| `STORAGE_ACCESS_KEY` | `adelie-local-access-key`, the local SeaweedFS key | Set the provider's access key. |
-| `STORAGE_SECRET_KEY` | `adelie-local-secret-key`, the local SeaweedFS secret | Set the provider's secret key. |
-| `MAILER_TRANSPORT` | `mailpit`, also as the default when unset | Set `unsend` with `USESEND_API_KEY` and `MAIL_FROM` (see [Email](#email)). |
-| `BETTER_AUTH_URL` | Any URL not on `https` | Serve the web origin over TLS and set its `https://` URL. |
+| Variable             | Refused outside development                           | Fix                                                                                                         |
+| -------------------- | ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `NODE_ENV`           | Anything but `production`, also when unset            | Set `NODE_ENV=production` (the images do).                                                                  |
+| `DATABASE_PASSWORD`  | `postgres`, the local Postgres password               | Set the real database password.                                                                             |
+| `STORAGE_ACCESS_KEY` | `adelie-local-access-key`, the local SeaweedFS key    | Set the provider's access key.                                                                              |
+| `STORAGE_SECRET_KEY` | `adelie-local-secret-key`, the local SeaweedFS secret | Set the provider's secret key.                                                                              |
+| `MAILER_TRANSPORT`   | `mailpit`, also as the default when unset             | Set `unsend` with `USESEND_API_KEY` and `MAIL_FROM` (see [Email](#email)).                                  |
+| `BETTER_AUTH_URL`    | Any URL not on `https`                                | Serve the web origin over TLS and set its `https://` URL.                                                   |
+| `ORIGIN`             | Any URL not on `https`                                | Set the web origin's `https://` URL; it is the one trusted origin for auth requests and the passkey origin. |
 
 Two more checks have their own sections: `TRUST_PROXY` off with rate limiting on (see [Auth rate limiting](#auth-rate-limiting)) and a missing `STORAGE_WEBHOOK_SECRET` (see `.env.schema`). In every Environment, the API also refuses a set `ENV` (see [The Environment switch](#the-environment-switch)) and an unset or unknown `ENVIRONMENT`.
 
@@ -74,26 +78,26 @@ Two more checks have their own sections: `TRUST_PROXY` off with rate limiting on
 
 `MAILER_TRANSPORT` is `mailpit` (the default, the local inbox) or `unsend` (real sending through useSend, see [Infrastructure](./infrastructure.md#email--usesend-in-production-mailpit-locally)). With `mailpit`, none of the variables below is read. Restart after changing them.
 
-| Variable | Required with `unsend` | Notes |
-|---|---|---|
-| `USESEND_API_KEY` | yes | Sensitive. The API refuses to start without it (the error names it). |
-| `MAIL_FROM` | yes | Sender address; must be on a domain verified in useSend. The API refuses to start without it (the error names it). |
-| `USESEND_BASE_URL` | no | The server's address only, e.g. `https://app.usesend.com` or a self-hosted useSend. The library appends `/api/v1` itself, so do not include `/api` or a trailing slash. Unset or empty means `https://app.usesend.com`. |
+| Variable           | Required with `unsend` | Notes                                                                                                                                                                                                                   |
+| ------------------ | ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `USESEND_API_KEY`  | yes                    | Sensitive. The API refuses to start without it (the error names it).                                                                                                                                                    |
+| `MAIL_FROM`        | yes                    | Sender address; must be on a domain verified in useSend. The API refuses to start without it (the error names it).                                                                                                      |
+| `USESEND_BASE_URL` | no                     | The server's address only, e.g. `https://app.usesend.com` or a self-hosted useSend. The library appends `/api/v1` itself, so do not include `/api` or a trailing slash. Unset or empty means `https://app.usesend.com`. |
 
 ## Registration
 
-| Variable | Default | Notes |
-|---|---|---|
+| Variable          | Default | Notes                                                                                                                                                                                                                                                                                                                |
+| ----------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `SIGN_UP_ENABLED` | `false` | Allow anyone to register. Closed by default: accounts then come from the seeded admin and the admin plugin's create-user. Set `true` for local dev and the e2e suite. Read at startup; the web app learns it from the public `GET /api/config`. See [ADR 0003](../../../docs/adr/0003-sign-up-closed-by-default.md). |
 
 ## Social login (GitHub, Google)
 
 Optional. A provider is registered with Better Auth only when **both** its client id and secret are set; with none set, nothing is registered, `GET /api/config` returns `socialProviders: []` and the login page shows no social buttons. Setting only one half of a pair stops the API at startup (the error names the missing variable). Credentials stay on the API and are never returned by any endpoint. Restart after changing them.
 
-| Variable | Notes |
-|---|---|
+| Variable                                   | Notes                                                               |
+| ------------------------------------------ | ------------------------------------------------------------------- |
 | `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | From a GitHub OAuth App (Settings, Developer settings, OAuth Apps). |
-| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | From a Google Cloud OAuth 2.0 Client ID of type "Web application". |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | From a Google Cloud OAuth 2.0 Client ID of type "Web application".  |
 
 ### Provider setup
 
@@ -110,9 +114,9 @@ Optional. A provider is registered with Better Auth only when **both** its clien
 
 ## Breached-password screening (Have I Been Pwned)
 
-| Variable | Default | Notes |
-|---|---|---|
-| `HIBP_ENABLED` | `true` | Screens new passwords against Have I Been Pwned (Better Auth `haveIBeenPwned` plugin) on sign-up, change-password and admin set-user-password. When on, an unreachable HIBP **rejects** the request (fail closed) and nothing is changed. When `false`, no HIBP request is made on any path, including seeding (`pnpm db:seed` reads the same switch and fails during an outage while it is on; the seed truncates every table first, so a seed that fails this way leaves the database empty). Restart the API after changing it. |
+| Variable       | Default | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| -------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `HIBP_ENABLED` | `true`  | Screens new passwords against Have I Been Pwned (Better Auth `haveIBeenPwned` plugin) on sign-up, change-password, reset-password, admin create-user and admin set-user-password, while the password is hashed. When on, an unreachable HIBP **rejects** the request (fail closed) and nothing is changed. When `false`, no HIBP request is made on any path, including seeding (`pnpm db:seed` reads the same switch and fails during an outage while it is on; the seed truncates every table first, so a seed that fails this way leaves the database empty). Restart the API after changing it. |
 
 ### HIBP outage
 
@@ -125,16 +129,16 @@ Optional. A provider is registered with Better Auth only when **both** its clien
 Better Auth's own limiter guards every `/api/auth/*` request, keyed by client IP and path. Counters live in Redis (key prefix `auth-rate-limit:`), so limits hold across API instances; sessions stay in Postgres. Decision: `docs/adr/0006-better-auth-owns-auth-rate-limiting.md`. The app's own `rateLimit()` middleware is not applied to auth routes.
 
 - **Rules**: `AUTH_RATE_LIMIT_DEFAULT` (100 a minute) and the per-path `AUTH_RATE_LIMIT_RULES` in `packages/shared/src/constants/auth-rate-limits.ts`. Change limits there, not in `auth.config.ts`.
-  - **Strict** (`AUTH_RATE_LIMIT_STRICT`, 5 a minute): email sign-in; the two-factor verify endpoints (TOTP, OTP, backup code); and the password-checking two-factor endpoints (disable, get TOTP URI, generate backup codes).
+  - **Strict** (`AUTH_RATE_LIMIT_STRICT`, 5 a minute): every endpoint that checks a password or a code, listed in `AUTH_RATE_LIMIT_CREDENTIAL_PATHS`: email sign-in; the two-factor verify endpoints (TOTP, OTP, backup code); the password-checking two-factor endpoints (enable, disable, get TOTP URI, generate backup codes); changing the password; verifying the password; and deleting the account.
   - **Email** (`AUTH_RATE_LIMIT_EMAIL`, 3 per 5 minutes): the endpoints that send an email: emailing a two-factor code, requesting a password reset and resending the verification email. Without its own rule, the verification email would fall back to Better Auth's built-in 3 a minute. The window is derived from `TWO_FACTOR_OTP_PERIOD_MINUTES`, how long an emailed code stays valid.
     - Counted per client IP, like every auth rule: it stops one client flooding an inbox, not many IPs sending to the same account. There is no per-account cap.
   - **Own rules**: email sign-up (`AUTH_RATE_LIMIT_SIGN_UP`, 10 an hour), resetting a password and passkey. Sign-up only matters once sign-up is open; the limit is against bulk account creation and sending verification emails to many addresses. It is not the email rule: a sign-up with an existing address is refused (422) with no email, so sign-up cannot flood one inbox, and a tighter per-IP limit would block people signing up together from a shared IP. Duplicate-address attempts still count toward it.
-  - **Default**: social sign-in starts and enabling two-factor. The rule table pins `/sign-in/*` and `/two-factor/*` to the default, because Better Auth's own built-in limit for those paths is much tighter and applies otherwise.
-  - **Better Auth's built-in limit** (3 per 10 seconds) applies, unless a rule matches, to every path starting with `/sign-in`, `/sign-up`, `/change-password` or `/change-email`, and (via the two-factor plugin) `/two-factor/`. These paths never fall back to `AUTH_RATE_LIMIT_DEFAULT` on their own. `/change-password` and `/change-email` have no rule of ours and stay on the built-in limit.
-  - **New endpoints**: a new credential or code-guessing endpoint needs its own exact entry, above the wildcards. Tests fail when an exact entry comes after a wildcard that matches it, when an endpoint starting with `/sign-in`, `/sign-up` or `/two-factor` (with or without a slash) has no exact entry and is not deliberately on the default, and when a deliberately-default path no longer exists or has gained an exact entry. That allow-list is `AUTH_RATE_LIMIT_DEFAULT_PATHS`, next to the rules.
+  - **Default**: social sign-in starts. The rule table pins `/sign-in/*` to the default, because Better Auth's own built-in limit for those paths is much tighter and applies otherwise. Every two-factor endpoint has an exact rule, so `/two-factor/*` needs no pin.
+  - **Better Auth's built-in limit** (3 per 10 seconds) applies, unless a rule matches, to every path starting with `/sign-in`, `/sign-up`, `/change-password` or `/change-email`, and (via the two-factor plugin) `/two-factor/`. These paths never fall back to `AUTH_RATE_LIMIT_DEFAULT` on their own. `/change-email` has no rule of ours and stays on the built-in limit; `/change-password` checks the current password, so it is strict.
+  - **New endpoints**: a new endpoint that checks a password or a code needs its own exact strict entry, above the wildcards, and a place in `AUTH_RATE_LIMIT_CREDENTIAL_PATHS`. Tests fail when an endpoint whose body takes a `password`, `currentPassword` or `code` has no rule at least as tight as the strict one or is missing from that list, when an exact entry comes after a wildcard that matches it, when an endpoint starting with `/sign-in`, `/sign-up` or `/two-factor` (with or without a slash) has no exact entry and is not deliberately on the default, and when a deliberately-default path no longer exists or has gained an exact entry. That allow-list is `AUTH_RATE_LIMIT_DEFAULT_PATHS`, next to the rules.
 - **Throttled response**: `429` with an `X-Retry-After` header (seconds).
 - **`DISABLE_RATE_LIMIT=true`**: auth rate limiting is off and Redis is not touched by auth. Restart the API after changing it. Use it for tests and controlled environments only.
-- **Client IP and `TRUST_PROXY`**: the limiter reads the client IP from `X-Forwarded-For` only when `TRUST_PROXY=true`; otherwise it reads no header, and every client shares one bucket per path (for example 5 sign-in attempts a minute for the whole site). The web app's `/api` proxy always sets `X-Forwarded-For`, so set `TRUST_PROXY=true` whenever the API is reachable only through the web proxy or another trusted proxy, and make sure that proxy either overwrites the header or is declared in `TRUSTED_PROXIES`. Leave it off only when the API is exposed directly.
+- **Client IP and `TRUST_PROXY`**: the limiter reads the client IP from `X-Forwarded-For` only when `TRUST_PROXY=true`; otherwise it reads no header, and every client shares one bucket per path (for example 5 sign-in attempts a minute for the whole site). The web app's `/api` proxy always sets `X-Forwarded-For`, so set `TRUST_PROXY=true` whenever the API is reachable only through the web proxy or another trusted proxy, and make sure that proxy either overwrites the header or is declared in `TRUSTED_PROXIES`. Leave it off only when the API is exposed directly. With it on, the API port must accept connections only from that proxy, or a client that connects directly picks its own address: see [Network Boundary](./deployment.md#network-boundary).
 - **The header a proxy must set**: `X-Forwarded-For` (`AUTH_CLIENT_IP_HEADER`). It is the only header read for the client IP, by this limiter and by the app's own `rateLimit()` middleware, and both resolve it the same way. A proxy has two ways to set it:
   - **Overwrite**: the proxy sets it to exactly one address, the client's, replacing any value the client sent. No further setting is needed. Traffic through the web app is this case and needs no proxy change: the web tier replaces `X-Forwarded-For` with the address it read through `ADDRESS_HEADER` (see the [web deployment runbook](../../web/runbooks/deployment.md#client-address-behind-a-proxy)).
   - **Append** (for example nginx `$proxy_add_x_forwarded_for`, or Traefik and most load balancers in front of the API directly): declare every proxy that appends in `TRUSTED_PROXIES`.
@@ -148,13 +152,13 @@ Better Auth's own limiter guards every `/api/auth/*` request, keyed by client IP
 
 Protects sign-up, sign-in, request-password-reset and send-verification-email (`CAPTCHA_PROTECTED_PATHS`) with Better Auth's `captcha` plugin. Passkey, OAuth and session-bound endpoints are never challenged. Off by default. Decision: `docs/adr/0004-captcha-via-better-auth-plugin.md`.
 
-| Variable | Default | Notes |
-|---|---|---|
-| `CAPTCHA_ENABLED` | `false` | When `true`, the three variables below are required and the API refuses to start without them (the error names the missing one). When `false`, none is read and no provider is contacted. Restart after changing it. |
-| `CAPTCHA_PROVIDER` | — | `cloudflare-turnstile`, `google-recaptcha`, `hcaptcha` or `captchafox`. The web ships widgets for Turnstile and hCaptcha only. |
-| `CAPTCHA_SECRET_KEY` | — | Sensitive. Stays on the API; never returned by any endpoint. |
-| `CAPTCHA_SITE_KEY` | — | Public key. The web reads it, with the provider, from `GET /api/config/captcha`, so the web needs no captcha env. hCaptcha and CaptchaFox also check tokens against it. |
-| `CAPTCHA_MIN_SCORE` | provider default (0.5) | reCAPTCHA v3 only, 0 to 1. |
+| Variable             | Default                | Notes                                                                                                                                                                                                                |
+| -------------------- | ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `CAPTCHA_ENABLED`    | `false`                | When `true`, the three variables below are required and the API refuses to start without them (the error names the missing one). When `false`, none is read and no provider is contacted. Restart after changing it. |
+| `CAPTCHA_PROVIDER`   | —                      | `cloudflare-turnstile`, `google-recaptcha`, `hcaptcha` or `captchafox`. The web ships widgets for Turnstile and hCaptcha only.                                                                                       |
+| `CAPTCHA_SECRET_KEY` | —                      | Sensitive. Stays on the API; never returned by any endpoint.                                                                                                                                                         |
+| `CAPTCHA_SITE_KEY`   | —                      | Public key. The web reads it, with the provider, from `GET /api/config/captcha`, so the web needs no captcha env. hCaptcha and CaptchaFox also check tokens against it.                                              |
+| `CAPTCHA_MIN_SCORE`  | provider default (0.5) | reCAPTCHA v3 only, 0 to 1.                                                                                                                                                                                           |
 
 `GET /api/config/captcha` is public and returns only `{ enabled, provider, siteKey }` (`{ enabled: false }` when off).
 
@@ -164,11 +168,11 @@ The token travels in the `x-captcha-response` header. A missing token is `400 MI
 
 Run CI with captcha disabled, or enable it with a provider's published test keys (they accept any token):
 
-| Provider | Site key | Secret key |
-|---|---|---|
-| Cloudflare Turnstile | `1x00000000000000000000AA` | `1x0000000000000000000000000000000AA` |
-| Google reCAPTCHA v2 | `6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI` | `6LeIxAcTAAAAAGG-vFI1TnRWxMZNFuojJ4WifJWe` |
-| hCaptcha | `10000000-ffff-ffff-ffff-000000000001` | `0x0000000000000000000000000000000000000000` |
+| Provider             | Site key                                   | Secret key                                   |
+| -------------------- | ------------------------------------------ | -------------------------------------------- |
+| Cloudflare Turnstile | `1x00000000000000000000AA`                 | `1x0000000000000000000000000000000AA`        |
+| Google reCAPTCHA v2  | `6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI` | `6LeIxAcTAAAAAGG-vFI1TnRWxMZNFuojJ4WifJWe`   |
+| hCaptcha             | `10000000-ffff-ffff-ffff-000000000001`     | `0x0000000000000000000000000000000000000000` |
 
 The reCAPTCHA keys above are v2 and always pass, so they do not exercise `CAPTCHA_MIN_SCORE`; Google publishes no v3 test keys. CaptchaFox publishes no test keys either: for those two, use a real site from the provider's dashboard.
 
@@ -182,11 +186,11 @@ The reCAPTCHA keys above are v2 and always pass, so they do not exercise `CAPTCH
 
 `DATABASE_SSL_MODE` decides whether Postgres connections use TLS. One setting covers the running API's pool, the `db:migrate` and `db:seed` scripts and drizzle-kit (`db:push`, `db:studio`), so query traffic, session tokens and password hashes never cross the network in the clear while the migration tooling encrypts. The values follow libpq's `sslmode` names:
 
-| Value | Behaviour | Use it for |
-|---|---|---|
-| `disable` (default) | No TLS. | Local development, and a database on the same host or a private Docker network. |
-| `verify-full` | TLS, and the server certificate must chain to a trusted CA and match `DATABASE_HOST`. A bad or self-signed certificate fails the connection. | Any database reached over a network, including managed Postgres. |
-| `require` | TLS without checking the certificate. Traffic is encrypted but anyone on the path can impersonate the server. | Only as an explicit, temporary opt-out when the provider's CA cannot be trusted yet. |
+| Value               | Behaviour                                                                                                                                    | Use it for                                                                           |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `disable` (default) | No TLS.                                                                                                                                      | Local development, and a database on the same host or a private Docker network.      |
+| `verify-full`       | TLS, and the server certificate must chain to a trusted CA and match `DATABASE_HOST`. A bad or self-signed certificate fails the connection. | Any database reached over a network, including managed Postgres.                     |
+| `require`           | TLS without checking the certificate. Traffic is encrypted but anyone on the path can impersonate the server.                                | Only as an explicit, temporary opt-out when the provider's CA cannot be trusted yet. |
 
 - Unset or empty means `disable`, so a fresh clone needs nothing. An unknown value (`true`, `prefer`, a different case) stops the API at startup and makes the scripts and drizzle-kit throw; nothing falls back to plain text.
 - Certificates are checked against Node's bundled CAs. For a provider whose CA is not among them (for example AWS RDS), download its bundle and point `NODE_EXTRA_CA_CERTS` at the PEM file for the API and the scripts rather than switching to `require`.
@@ -213,6 +217,8 @@ The API creates missing buckets at startup and refuses to start if storage is un
 `pnpm storage:setup` provisions them without starting the API. Credentials must match
 `docker/seaweedfs/s3-config.json`. SeaweedFS S3 runs locally; production takes any S3-compatible
 provider. `PUBLIC_IMAGE_URI` is the public bucket base URI and must equal the web app's value.
+`STORAGE_URL` is the address browsers reach storage on; Presigned URLs are signed against it, so it
+must be reachable from a browser, unlike `STORAGE_HOST`/`STORAGE_PORT`.
 
 ## Leak scanner and storage credentials
 

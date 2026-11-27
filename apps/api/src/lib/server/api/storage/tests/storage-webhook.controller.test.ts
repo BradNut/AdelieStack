@@ -17,7 +17,7 @@ const anyBucket = () => true;
 
 const loggerStub = { log: { info: vi.fn(), warn: vi.fn(), debug: vi.fn(), error: vi.fn() } } as unknown as LoggerService;
 
-const buildApp = (opts: { secret?: string; handleScanJobs?: () => Promise<void> } = {}) => {
+const buildApp = (opts: { secret?: string; handleScanJobs?: () => Promise<void> | null } = {}) => {
   const handleScanJobs = vi.fn(opts.handleScanJobs ?? (async () => {}));
   const container = new Container();
   container.bind({
@@ -56,6 +56,16 @@ describe('StorageWebhookController', () => {
     await expect(res.json()).resolves.toEqual({ success: true, scanned: 1 });
     // URL-encoded key is decoded before being handed to the scanner.
     expect(handleScanJobs).toHaveBeenCalledWith([{ bucket: PUBLIC_BUCKET, key: 'images/a b.png' }]);
+  });
+
+  it('refuses with a 503 when the scan queue is full, so the provider can retry', async () => {
+    const { app, handleScanJobs } = buildApp({ handleScanJobs: () => null });
+
+    const res = await postEvent(app, s3Event);
+
+    expect(handleScanJobs).toHaveBeenCalledOnce();
+    expect(res.status).toBe(503);
+    await expect(res.json()).resolves.toEqual({ error: 'Scan queue full' });
   });
 
   it('returns 200 with no scan jobs for an ignored event', async () => {

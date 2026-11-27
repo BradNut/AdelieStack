@@ -1,81 +1,45 @@
-import { PASSWORD_COMPROMISED, PASSWORD_POLICY_VIOLATION, validatePasswordPolicy } from '@adelie/shared';
+import { PASSWORD_POLICY_VIOLATION, validatePasswordPolicy } from '@adelie/shared';
 import type { BetterAuthPlugin } from 'better-auth';
 import { APIError, createAuthMiddleware } from 'better-auth/api';
-import { haveIBeenPwned, isPasswordCompromised } from 'better-auth/plugins';
+import { haveIBeenPwned } from 'better-auth/plugins';
 import { AuthEndpoint } from './auth.endpoints';
-import { hibpMonitor, passwordCheckUnavailable } from './auth.hibp-status';
+import { hibpMonitor } from './auth.hibp-status';
 import type { ProviderHealth } from './auth.provider-health';
 
-/** Where a path's new password is screened against Have I Been Pwned. */
-const HibpScreen = {
-  /** The `haveIBeenPwned` plugin, while hashing. */
-  PLUGIN: 'plugin',
-  /**
-   * The before-hook here, before Better Auth acts, because the plugin screens too late:
-   * - admin create-user inserts the user before hashing, so a rejection would leave an account
-   *   without credentials (better-auth/better-auth#11706);
-   * - reset-password: Better Auth 1.7.8 no longer burns the reset link on a rejected password
-   *   (better-auth/better-auth#10632); it stays here so a breached or unscreenable password is
-   *   rejected with the same codes as the other paths, before any token or session work.
-   */
-  BEFORE_HOOK: 'before-hook',
-} as const;
-
 /**
- * Every Better Auth path that sets a password: the request-body field holding it, and who screens it. To enforce the
- * policy on another path, add it here; a path cannot be left unscreened.
+ * Every Better Auth path that sets a password, with the request-body field holding it. Each is checked against the
+ * policy by {@link passwordPolicyHook} and screened against Have I Been Pwned by {@link hibpScreening}. To enforce
+ * both on another path, add it here; a path cannot be left unscreened.
  */
-const PASSWORD_PATHS: Record<string, { field: string; hibpScreen: (typeof HibpScreen)[keyof typeof HibpScreen] }> = {
-  [AuthEndpoint.SIGN_UP_EMAIL]: { field: 'password', hibpScreen: HibpScreen.PLUGIN },
-  [AuthEndpoint.CHANGE_PASSWORD]: { field: 'newPassword', hibpScreen: HibpScreen.PLUGIN },
-  [AuthEndpoint.ADMIN_SET_USER_PASSWORD]: { field: 'newPassword', hibpScreen: HibpScreen.PLUGIN },
-  [AuthEndpoint.RESET_PASSWORD]: { field: 'newPassword', hibpScreen: HibpScreen.BEFORE_HOOK },
-  [AuthEndpoint.ADMIN_CREATE_USER]: { field: 'password', hibpScreen: HibpScreen.BEFORE_HOOK },
+const PASSWORD_PATHS: Record<string, { field: string }> = {
+  [AuthEndpoint.SIGN_UP_EMAIL]: { field: 'password' },
+  [AuthEndpoint.CHANGE_PASSWORD]: { field: 'newPassword' },
+  [AuthEndpoint.ADMIN_SET_USER_PASSWORD]: { field: 'newPassword' },
+  [AuthEndpoint.RESET_PASSWORD]: { field: 'newPassword' },
+  [AuthEndpoint.ADMIN_CREATE_USER]: { field: 'password' },
 };
-
-/** Paths the `haveIBeenPwned` plugin screens itself. */
-const HIBP_PLUGIN_PATHS = Object.keys(PASSWORD_PATHS).filter((path) => PASSWORD_PATHS[path].hibpScreen === HibpScreen.PLUGIN);
 
 /**
  * Screening while hashing. `haveIBeenPwned` rejects breached passwords (`PASSWORD_COMPROMISED`) and fails closed when
  * HIBP is unreachable; with `enabled: false` it makes no HIBP request on any path. `hibpMonitor` must come after it,
- * because it wraps that plugin's hashing to record each check's outcome. The {@link HibpScreen.BEFORE_HOOK} paths are
- * screened earlier, by {@link createPasswordPolicyHook}.
+ * because it wraps that plugin's hashing to record each check's outcome and turn an outage into a 503.
+ * Better Auth hashes before writing anything: admin create-user creates no user on a rejection (since 1.7.19,
+ * better-auth/better-auth#11706) and reset-password leaves the link usable (since 1.7.8, better-auth/better-auth#10632).
  */
 export const hibpScreening = (status: ProviderHealth): BetterAuthPlugin[] => [
-  haveIBeenPwned({ enabled: status.enabled, paths: HIBP_PLUGIN_PATHS }),
+  haveIBeenPwned({ enabled: status.enabled, paths: Object.keys(PASSWORD_PATHS) }),
   hibpMonitor(status),
 ];
 
-/** Runs the plugin's own check, recording the outcome; an outage becomes a 503 with the stable unavailable code. */
-export async function checkPasswordCompromised(password: string, hibpStatus: ProviderHealth): Promise<boolean> {
-  try {
-    const compromised = await isPasswordCompromised(password);
-    hibpStatus.recordSuccess();
-    return compromised;
-  } catch (error) {
-    hibpStatus.recordFailure(error);
-    throw passwordCheckUnavailable();
+/** Rejects non-compliant passwords with a bad request carrying the stable code and violated rules. */
+export const passwordPolicyHook: ReturnType<typeof createAuthMiddleware> = createAuthMiddleware(async (ctx) => {
+  const passwordPath = Object.hasOwn(PASSWORD_PATHS, ctx.path) ? PASSWORD_PATHS[ctx.path] : undefined;
+  if (!passwordPath) return;
+  const password = (ctx.body as Record<string, unknown> | undefined)?.[passwordPath.field];
+  // A missing or non-string password is Better Auth's own validation to reject.
+  if (typeof password !== 'string') return;
+  const rules = validatePasswordPolicy(password);
+  if (rules.length > 0) {
+    throw new APIError('BAD_REQUEST', { code: PASSWORD_POLICY_VIOLATION, message: PASSWORD_POLICY_VIOLATION, rules });
   }
-}
-
-/**
- * Rejects non-compliant passwords with a bad request carrying the stable code and violated rules.
- * With screening enabled on `hibpStatus`, also screens the {@link HibpScreen.BEFORE_HOOK} paths with the plugin's own check: a breached
- * password is `PASSWORD_COMPROMISED` and an unreachable HIBP rejects the request (fail closed, as a 503 `PASSWORD_CHECK_UNAVAILABLE`).
- */
-export const createPasswordPolicyHook = (hibpStatus: ProviderHealth): ReturnType<typeof createAuthMiddleware> =>
-  createAuthMiddleware(async (ctx) => {
-    const passwordPath = Object.hasOwn(PASSWORD_PATHS, ctx.path) ? PASSWORD_PATHS[ctx.path] : undefined;
-    if (!passwordPath) return;
-    const password = (ctx.body as Record<string, unknown> | undefined)?.[passwordPath.field];
-    // A missing or non-string password is Better Auth's own validation to reject.
-    if (typeof password !== 'string') return;
-    const rules = validatePasswordPolicy(password);
-    if (rules.length > 0) {
-      throw new APIError('BAD_REQUEST', { code: PASSWORD_POLICY_VIOLATION, message: PASSWORD_POLICY_VIOLATION, rules });
-    }
-    if (hibpStatus.enabled && passwordPath.hibpScreen === HibpScreen.BEFORE_HOOK && (await checkPasswordCompromised(password, hibpStatus))) {
-      throw new APIError('BAD_REQUEST', { code: PASSWORD_COMPROMISED, message: PASSWORD_COMPROMISED });
-    }
-  });
+});

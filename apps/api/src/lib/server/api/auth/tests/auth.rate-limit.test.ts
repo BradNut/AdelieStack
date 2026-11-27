@@ -1,4 +1,5 @@
 import {
+  AUTH_RATE_LIMIT_CREDENTIAL_PATHS,
   AUTH_RATE_LIMIT_DEFAULT,
   AUTH_RATE_LIMIT_DEFAULT_PATHS,
   AUTH_RATE_LIMIT_EMAIL,
@@ -12,8 +13,9 @@ import { describe, expect, it } from 'vitest';
 import type { Auth } from '#lib/server/api/auth/auth.config';
 import type { AuthRateLimitStorage } from '#lib/server/api/auth/auth.rate-limit';
 import { AUTH_RATE_LIMIT_REDIS_PREFIX, AuthRateLimitRepository } from '#lib/server/api/auth/auth.rate-limit.repository';
+import { isRecord } from '#lib/server/api/common/utils/is-record';
 import type { RedisService } from '#lib/server/api/databases/redis/redis.service';
-import { type AuthRequest, signUpWithTotp, startTwoFactorSignIn } from '../../../../../test/auth-http';
+import { type AuthRequest, signUpWithEmail, signUpWithTotp, startTwoFactorSignIn } from '../../../../../test/auth-http';
 import { createTestAuth } from '../../../../../test/auth-instance';
 import { createRedisServiceMock } from '../../../../../test/mocks/redis.mock';
 
@@ -25,7 +27,7 @@ const RULES: Readonly<Record<string, AuthRateLimitRule>> = AUTH_RATE_LIMIT_RULES
 const RULE_KEYS = Object.keys(RULES);
 const isWildcard = (key: string) => key.includes(WILDCARD);
 const EXACT_RULE_KEYS = RULE_KEYS.filter((key) => !isWildcard(key));
-/** The wildcard rules pinned to the default (`/sign-in/*`, `/two-factor/*`), keyed to the prefix they cover. */
+/** The wildcard rules pinned to the default (`/sign-in/*`), keyed to the prefix they cover. */
 const WILDCARD_PINS = RULE_KEYS.filter((key) => key.endsWith(`/${WILDCARD}`) && RULES[key] === AUTH_RATE_LIMIT_DEFAULT).map((rule) => ({
   rule,
   prefix: rule.slice(0, -WILDCARD.length),
@@ -67,6 +69,48 @@ function authApiPaths(auth: Auth): string[] {
   return Object.values(auth.api)
     .map((endpoint) => endpoint.path)
     .filter((path): path is string => typeof path === 'string');
+}
+
+/** Request body fields that carry a password or a code the endpoint checks, so each request is a guess. */
+const CHECKED_CREDENTIAL_FIELDS = ['password', 'currentPassword', 'code'] as const;
+/** Endpoints with a `password` field they set rather than check: an admin creating a user. */
+const SETS_A_PASSWORD = ['/admin/create-user'] as const;
+const isCheckedCredentialField = (field: string) => CHECKED_CREDENTIAL_FIELDS.some((checked) => checked === field);
+
+/** The fields of an endpoint's request body schema, or none when it takes no object body. */
+function bodyFields(endpoint: { options?: unknown }): string[] {
+  const body = isRecord(endpoint.options) ? endpoint.options.body : undefined;
+  const shape = isRecord(body) ? body.shape : undefined;
+  return isRecord(shape) ? Object.keys(shape) : [];
+}
+
+/**
+ * Every endpoint of the auth instance whose body takes a password or a code it checks. Relies on Better Auth keeping
+ * each endpoint's zod body schema on `.options.body`; the tests assert known paths are found, so a change there fails
+ * loudly instead of passing empty.
+ */
+function credentialCheckingPaths(auth: Auth): string[] {
+  return Object.values(auth.api)
+    .filter((endpoint) => bodyFields(endpoint).some(isCheckedCredentialField))
+    .map((endpoint) => endpoint.path)
+    .filter((path): path is string => typeof path === 'string' && !SETS_A_PASSWORD.some((sets) => sets === path));
+}
+
+/** The rule Better Auth applies to a path: the first key that matches it, exactly or as a `/prefix/*` wildcard. */
+function ruleFor(path: string): AuthRateLimitRule | undefined {
+  const key = RULE_KEYS.find((candidate) => (isWildcard(candidate) ? path.startsWith(candidate.slice(0, -WILDCARD.length)) : candidate === path));
+  return key === undefined ? undefined : RULES[key];
+}
+
+/** Allows no more requests per second than the strict rule: max / window, compared without division. */
+const isAtLeastStrict = (rule: AuthRateLimitRule) => rule.max * AUTH_RATE_LIMIT_STRICT.window <= AUTH_RATE_LIMIT_STRICT.max * rule.window;
+
+/** Paths that check a password or a code but have no rule of ours at least as tight as the strict one. */
+function credentialPathsWithoutStrictRule(paths: readonly string[]): string[] {
+  return paths.filter((path) => {
+    const rule = ruleFor(path);
+    return rule === undefined || !isAtLeastStrict(rule);
+  });
 }
 
 /** The repository over the shared RedisService mock, so the counters land in its in-memory `store`. */
@@ -142,6 +186,18 @@ describe('auth rate limiting', () => {
 
     expect(res.status).toBe(429);
     expect(Number(res.headers.get(RETRY_AFTER_HEADER))).toBeGreaterThan(0);
+  });
+
+  // The web app sends one request per submit, so a member who mistypes the password a few times still gets through.
+  it.each([
+    ['enables two-factor', '/two-factor/enable'],
+    ['deletes the account', '/delete-user'],
+  ] as const)('%s with the right password after mistyping it up to the strict limit', async (_flow, path) => {
+    const { request } = build();
+    const { cookie } = await signUpWithEmail(request, MEMBER);
+    for (let i = 1; i < STRICT_MAX; i++) expect((await post(request, path, { password: 'Wrong-password-1' }, { cookie })).status).toBe(400);
+
+    expect((await post(request, path, { password: MEMBER.password }, { cookie })).status).toBe(200);
   });
 
   it('emails a two-factor code only up to the email limit, then refuses with a retry time and sends nothing', async () => {
@@ -244,7 +300,6 @@ describe('auth rate limiting', () => {
     }
   });
 
-  // The two-factor path needs a session, so it answers 401 until the limiter refuses it.
   it.each(WILDCARD_PINS.map(({ rule, prefix }) => [rule, DEFAULT_PATHS.find((path) => path.startsWith(prefix))] as const))(
     "applies the default limit, not Better Auth's built-in one, to %s (via %s)",
     async (_rule, path) => {
@@ -259,8 +314,8 @@ describe('auth rate limiting', () => {
     },
   );
 
-  it('pins exactly the sign-in and two-factor wildcards to the default', () => {
-    expect(WILDCARD_PINS.map(({ rule }) => rule)).toEqual(['/sign-in/*', '/two-factor/*']);
+  it('pins exactly the sign-in wildcard to the default', () => {
+    expect(WILDCARD_PINS.map(({ rule }) => rule)).toEqual(['/sign-in/*']);
   });
 
   it('gives every sign-in, sign-up and two-factor endpoint an exact rule unless it is deliberately on the default', () => {
@@ -268,6 +323,29 @@ describe('auth rate limiting', () => {
 
     expect(paths).toEqual(expect.arrayContaining(['/sign-in/email', '/sign-up/email', '/two-factor/verify-totp']));
     expect(unruledBuiltInLimitedPaths(paths)).toEqual([]);
+  });
+
+  it('gives every endpoint that checks a password or a code a rule at least as tight as the strict one', () => {
+    const paths = credentialCheckingPaths(build().auth);
+
+    expect(paths).toEqual(expect.arrayContaining(['/sign-in/email', '/two-factor/verify-totp', '/two-factor/disable']));
+    expect(credentialPathsWithoutStrictRule(paths)).toEqual([]);
+  });
+
+  it('lists exactly the endpoints that check a password or a code', () => {
+    expect([...credentialCheckingPaths(build().auth)].sort()).toEqual([...AUTH_RATE_LIMIT_CREDENTIAL_PATHS].sort());
+  });
+
+  it.each(AUTH_RATE_LIMIT_CREDENTIAL_PATHS)('applies the strict rule to the listed credential endpoint %s', (path) => {
+    expect(RULES[path]).toBe(AUTH_RATE_LIMIT_STRICT);
+  });
+
+  it("flags a password-checking endpoint on the default, on Better Auth's built-in limit, or with no rule", () => {
+    expect(credentialPathsWithoutStrictRule(['/sign-in/email', '/sign-in/social', '/change-email', '/not-ruled', '/reset-password'])).toEqual([
+      '/sign-in/social',
+      '/change-email',
+      '/not-ruled',
+    ]);
   });
 
   it('flags an endpoint under the built-in limit without a slash after the prefix', () => {
