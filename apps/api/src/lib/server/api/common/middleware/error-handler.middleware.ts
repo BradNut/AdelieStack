@@ -1,10 +1,10 @@
-import { type AuthErrorCode, type Environment, isDevelopmentEnvironment, StatusCodes } from '@adelie/shared';
+import { type Environment, isDevelopmentEnvironment, StatusCodes } from '@adelie/shared';
 import { DrizzleQueryError } from 'drizzle-orm';
 import type { ErrorHandler } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import type { Logger } from 'pino';
 import { m } from '#lib/server/api/common/i18n/index';
-import { CodedHTTPException } from '#lib/server/api/common/utils/exceptions';
+import { CodedHTTPException, type ErrorCode } from '#lib/server/api/common/utils/exceptions';
 import { REDACTED } from '#lib/server/api/common/utils/log-redaction';
 
 /** Fixed, so the entry's `msg` never repeats the error's free text. */
@@ -30,7 +30,7 @@ interface ErrorHandlerOptions {
 interface ErrorResponseBody {
   message: string;
   /** A coded deliberate error's stable code, for the client to act on (see `CodedHTTPException`, ADR 0014). */
-  code?: AuthErrorCode;
+  code?: ErrorCode;
   requestId: string;
   stack?: string;
 }

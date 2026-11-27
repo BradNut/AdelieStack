@@ -20,10 +20,10 @@ export const AUDIT_RETENTION_DAYS = 90;
 /** Cron pattern: run once a week at midnight on Sunday. */
 const AUDIT_CLEANUP_SCHEDULE = '0 0 * * 0';
 
-/** How long {@link AuditCleanupJob.register} waits for Redis. BullMQ retries forever when Redis is down, so without this the boot hangs. */
+/** How long {@link AuditCleanupJob.register} waits for Valkey. BullMQ retries forever when Valkey is down, so without this the boot hangs. */
 const JOB_REGISTER_TIMEOUT_MS = 10_000;
 
-/** How long a failed registration waits for its connections to close. BullMQ's graceful close never returns when Redis has gone silent mid-connection. */
+/** How long a failed registration waits for its connections to close. BullMQ's graceful close never returns when Valkey has gone silent mid-connection. */
 const JOB_CLOSE_TIMEOUT_MS = 2_000;
 
 export interface AuditCleanupResult {
@@ -38,7 +38,7 @@ export interface AuditCleanupResult {
  * Example background job: prunes audit-log rows older than
  * {@link AUDIT_RETENTION_DAYS}. Serves as the template for new jobs.
  *
- * Lazy by design — the queue and worker (and their Redis connections) are only
+ * Lazy by design — the queue and worker (and their Valkey connections) are only
  * created when {@link register} runs at application startup, never at import or
  * construction time.
  */
@@ -59,8 +59,8 @@ export class AuditCleanupJob {
 
   /**
    * Schedule the repeatable cleanup and start the worker that runs it. Call
-   * once during application startup. Opens Redis connections, so it must not
-   * run at import time. Fails after {@link JOB_REGISTER_TIMEOUT_MS} if Redis
+   * once during application startup. Opens Valkey connections, so it must not
+   * run at import time. Fails after {@link JOB_REGISTER_TIMEOUT_MS} if Valkey
    * has not answered, closing whatever it opened for at most
    * {@link JOB_CLOSE_TIMEOUT_MS} more.
    */
@@ -68,7 +68,7 @@ export class AuditCleanupJob {
     let registerTimer: NodeJS.Timeout | undefined;
     const registerTimeout = new Promise<never>((_resolve, reject) => {
       registerTimer = setTimeout(
-        () => reject(new Error(`Job registration did not finish within ${JOB_REGISTER_TIMEOUT_MS}ms; check that Redis is reachable at REDIS_URL`)),
+        () => reject(new Error(`Job registration did not finish within ${JOB_REGISTER_TIMEOUT_MS}ms; check that Valkey is reachable at VALKEY_URL`)),
         JOB_REGISTER_TIMEOUT_MS,
       );
     });

@@ -27,6 +27,7 @@ Our own routes only read the session: `GET /api/users/me` (Users service) and an
 ## Key Concepts
 
 ### Request flow
+
 1. `ApplicationController.registerControllers` hands `/api/auth/*` straight to
    `AuthService.auth.handler`, before any other route.
 2. For every other route, the `authSession` middleware calls `auth.api.getSession` and sets
@@ -36,16 +37,18 @@ Our own routes only read the session: `GET /api/users/me` (Users service) and an
    ([ADR 0002](../../../../docs/adr/0002-authorization-delegates-to-better-auth.md)).
 
 ### Sessions
-- Stored in the Postgres `sessions` table, not Redis. The cookie cache is off, so every request
+
+- Stored in the Postgres `sessions` table, not Valkey. The cookie cache is off, so every request
   reads the row and a revoked session or changed role applies at once.
 - Lifetimes come from `packages/shared/src/constants/auth-session.ts`: a session lasts 7 days after
   its last refresh (`AUTH_SESSION_EXPIRES_IN`), is extended at most once a day
   (`AUTH_SESSION_UPDATE_AGE`), and counts as fresh for 5 minutes after sign-in
   (`AUTH_SESSION_FRESH_AGE`). Sensitive actions refuse a session that is not fresh; the web then
   re-authenticates (see the web glossary's Fresh Session and Re-authentication).
-- Cookies are `Secure` when `BETTER_AUTH_URL` is https; attributes come from `DEFAULT_COOKIE_ATTRIBUTES`.
+- Cookies, the `_id` browser-session cookie included, are `Secure` when `BETTER_AUTH_URL` is https (`usesSecureCookies`); attributes come from `DEFAULT_COOKIE_ATTRIBUTES`.
 
 ### Roles
+
 Stored on `users.role` by the admin plugin (`admin`, `support`, `user`); see the
 [data model](./data-model.md) and the glossary's Role and Role Policy. Admin capabilities need a
 Second Factor (two-factor enabled or a passkey); signing in and enrolling do not
@@ -56,7 +59,7 @@ Second Factor (two-factor enabled or a passkey); signing in and enrolling do not
 - **Auth**: Better Auth with the `admin`, `twoFactor`, `passkey`, `haveIBeenPwned`, `lastLoginMethod`
   and (when enabled) `captcha` plugins, plus `openAPI` outside production (reference at `/api/auth/reference`)
 - **Database**: PostgreSQL via Better Auth's Drizzle adapter (`auth/tables/auth.table.ts`, generated)
-- **Rate limiting**: Better Auth's limiter with counters in Redis
+- **Rate limiting**: Better Auth's limiter with counters in Valkey
   ([ADR 0006](../../../../docs/adr/0006-better-auth-owns-auth-rate-limiting.md))
 - **Email**: our `MailerService`, through templates in `mail/templates/`
 
@@ -68,10 +71,11 @@ apps/api/src/lib/server/api/auth/
 ├── auth.config.ts                # createAuth: every Better Auth option and plugin
 ├── auth.cli.ts                   # config for `pnpm --filter @adelie/api auth:generate`
 ├── auth.mail.ts                  # verification, reset and security-event emails
-├── auth.password-policy.ts       # before-hook: password rules and HIBP screening on admin paths
+├── auth.password-policy.ts       # before-hook: password rules; HIBP screening while hashing
 ├── auth.permissions.ts, roles.ts # permission table and Role Policy
 ├── auth.role-guard.ts            # before-hook: several roles on admin role writes only with ALLOW_MULTIPLE_ROLES
 ├── auth.second-factor.ts         # before-hook: admin endpoints need a Second Factor; the last one cannot be removed (ADR 0014)
+├── auth.fresh-session.ts         # before-hook: change email and admin writes need a fresh session
 ├── auth.replaced-session.ts      # after-hook: a sign-in ends the session the browser held before
 ├── auth.social.ts                # GitHub / Google from env
 ├── auth.social-two-factor.ts     # raises the Two-factor Challenge after a social sign-in (ADR 0012)
@@ -96,7 +100,7 @@ apps/api/src/lib/server/api/auth/
 - Security Events (password changed, Recovery Codes used or regenerated, email changed) email the user.
 - Password sign-in locks per email address, across clients, after 100 consecutive failures, for 15
   minutes from the failure that reached it (`AUTH_ACCOUNT_SIGN_IN_LOCKOUT`; our `account-lockout` plugin,
-  hashed keys in Redis). Second-factor verification locks per account after 10 failed attempts for 15
+  hashed keys in Valkey). Second-factor verification locks per account after 10 failed attempts for 15
   minutes (Better Auth's `accountLockout`, pinned to `TWO_FACTOR_ACCOUNT_LOCKOUT`;
   `two_factors.failed_verification_count`, `locked_until`). Both counts clear on a success and start
   again when the lock ends.
@@ -107,11 +111,13 @@ Operational details for each of these are in the
 ## Dependencies
 
 ### Internal
+
 - `ConfigService` (env), `DrizzleService` (Postgres), `MailerService`, `LoggerService`
-- `AuthRateLimitRepository` over `RedisService` (rate-limit counters only)
+- `AuthRateLimitRepository` over `ValkeyService` (rate-limit counters only)
 - `@adelie/shared`: session, cookie, rate-limit, role and password constants
 
 ### External
+
 - `better-auth`, `@better-auth/passkey`
 - Have I Been Pwned and the configured Captcha Provider, when enabled
 

@@ -10,22 +10,26 @@ and role management, and file storage.
 ## Technology Stack
 
 ### Core Framework
+
 - **Hono** - Fast, lightweight web framework for edge computing
 - **TypeScript** - Type-safe development
 - **Node.js** - Runtime environment
 
 ### Data Layer
+
 - **Drizzle ORM** - Type-safe database toolkit
 - **PostgreSQL** - Primary relational database
-- **Redis** - Caching and session storage (via ioredis)
+- **Valkey** - Rate-limit counters, account lockout state and job queues (via ioredis); sessions stay in PostgreSQL
 
 ### Infrastructure Services
+
 - **SeaweedFS** - S3-compatible object storage for file uploads (any S3 provider in production)
 - **Mailpit** - Email testing and delivery
 - **Spotlight** - Error tracking and monitoring
 - **ClamAV** - Virus scanning of uploads before they reach storage (gated by `ANTIVIRUS_ENABLED`)
 
 ### Development Tools
+
 - **Docker Compose** - Local development environment
 - **Vitest** - Testing framework
 - **Biome** - Linting and formatting
@@ -52,8 +56,8 @@ and role management, and file storage.
 - **Role-Based Access Control** - Roles map to permissions checked through Better Auth (see ADR 0002)
 - **File Upload & Image Processing** - SeaweedFS/S3-compatible storage with server-side image
   resizing and ClamAV virus scanning
-- **Rate Limiting** - Redis-based request throttling
-- **Session Management** - Secure session handling with Redis
+- **Rate Limiting** - Valkey-based request throttling
+- **Session Management** - Better Auth sessions stored in PostgreSQL
 
 ## Related Documentation
 

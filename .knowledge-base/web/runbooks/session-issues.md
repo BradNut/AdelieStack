@@ -37,33 +37,33 @@ The web server derives its origin from the request (or the build-time `WEB_ORIGI
 
 `src/routes/(auth)/+layout.server.ts` — redirects authenticated users away from auth pages. Logic inversion here causes redirect loops.
 
-### 5. Redis connectivity (API-side, not web-side)
+### 5. Valkey connectivity (API-side, not web-side)
 
-`apps/web/.env.schema` has no `REDIS_URL` — the web app never talks to Redis directly. Sessions
-are stored and validated by `@adelie/api` (see `apps/api/.env.schema` and
-`apps/api/src/lib/server/api/databases/redis/redis.service.ts`); the web app only ever sees the
+`apps/web/.env.schema` has no `VALKEY_URL` — the web app never talks to Valkey directly. Sessions
+are stored in PostgreSQL and validated by `@adelie/api`; Valkey holds the API's auth rate-limit
+counters and lockout state (see `apps/api/src/lib/server/api/databases/valkey/valkey.service.ts`). The web app only ever sees the
 session cookie and forwards it to the API through the proxy (`src/routes/api/[...slug]/+server.ts`).
 
-If session reads are failing at the storage layer, check Redis from the **API** side, not here:
+If sign-ins fail with server errors from the auth rate limiter, check Valkey from the **API** side, not here:
 
 ```bash
-# Run against the API's REDIS_URL, from an API host/container — not from web.
-redis-cli -u $REDIS_URL ping
+# Run against the API's VALKEY_URL, from an API host/container — not from web.
+valkey-cli -u $VALKEY_URL ping
 # Expect: PONG
 ```
 
 If that's healthy but sessions still fail from the browser, the problem is almost certainly one of
-steps 1-4 above (origin/domain/cookie config), not Redis.
+steps 1-4 above (origin/domain/cookie config), not Valkey.
 
 ## Common Fixes
 
-| Problem | Fix |
-|---|---|
+| Problem                                                                  | Fix                                                                                                                         |
+| ------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------- |
 | Form action returns 403 `Cross-site POST form submissions are forbidden` | Origin derived wrong: set `PROTOCOL_HEADER`/`HOST_HEADER` behind a trusted proxy, or build with `WEB_ORIGIN` for plain HTTP |
-| `DOMAIN` wrong | Hostname only — no `https://`, no path |
-| HTTP in production | Cookies with `Secure` flag dropped over HTTP; enforce HTTPS |
-| Redis down (API-side) | Restart Redis; check API's `REDIS_URL` — not a web-app config |
-| Stale session after password change | API invalidates old sessions; expected behavior |
+| `DOMAIN` wrong                                                           | Hostname only — no `https://`, no path                                                                                      |
+| HTTP in production                                                       | Cookies with `Secure` flag dropped over HTTP; enforce HTTPS                                                                 |
+| Valkey down (API-side)                                                   | Restart Valkey; check API's `VALKEY_URL` — not a web-app config                                                             |
+| Stale session after password change                                      | API invalidates old sessions; expected behavior                                                                             |
 
 ## Related
 

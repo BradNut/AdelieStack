@@ -28,6 +28,7 @@
     "audit:agent-tokens": "node scripts/audit-agent-doc-tokens.mjs",
     "check:shared-boundaries": "node scripts/check-shared-boundaries.mjs",
     "check:pinned-refs": "node scripts/check-pinned-refs.mjs",
+    "check:workflow-permissions": "node scripts/check-workflow-permissions.mjs",
     "test:scripts": "node --test scripts/*.test.mjs",
     "setup:query": "node scripts/setup-tanstack-query.mjs",
     "check:watch": "pnpm --filter @adelie/web check:watch",
@@ -40,9 +41,9 @@
     "machine-translate": "pnpm --filter @adelie/web machine-translate"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.5.15",
-    "turbo": "2.11.7",
+    "@biomejs/biome": "2.6.9",
+    "turbo": "2.11.13",
     "typescript": "^7.0.2"
   },
-  "packageManager": "pnpm@10.26.0"
+  "packageManager": "pnpm@10.34.9"
 }

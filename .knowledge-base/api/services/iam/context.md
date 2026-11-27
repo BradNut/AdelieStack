@@ -3,6 +3,7 @@
 ## Service Boundaries
 
 ### What IAM Owns
+
 - Everything under `/api/auth/*`, served by Better Auth: sign-up, sign-in (password, passkey,
   social), second factors, sessions, email verification and change, password reset and change,
   account deletion, admin user management
@@ -10,6 +11,7 @@
 - Authorization checks for our routes (`requirePermission`, `auth.permissions.ts`, `roles.ts`)
 
 ### What IAM Does NOT Own
+
 - Current-user profile route (`GET /api/users/me`): the Users service (`UsersController`), which
   reads `c.var.user`
 - Email delivery: the Mailer service; IAM only chooses templates and recipients (`auth/auth.mail.ts`)
@@ -20,16 +22,19 @@
 ### Upstream Dependencies (IAM depends on)
 
 #### PostgreSQL (`DrizzleService`)
+
 - **Purpose**: users, sessions, accounts, verifications, two-factor and passkey rows
 - **Failure Impact**: no sign-in, and every request that resolves a session fails
 - **Fallback**: none
 
-#### Redis (`RedisService`, through `AuthRateLimitRepository`)
-- **Purpose**: auth rate-limit counters only (per client IP and path, and failed password sign-ins per email address, hashed); sessions are not in Redis
-- **Failure Impact**: a request whose limit check cannot reach Redis fails rather than skipping the limit
+#### Valkey (`ValkeyService`, through `AuthRateLimitRepository`)
+
+- **Purpose**: auth rate-limit counters only (per client IP and path, and failed password sign-ins per email address, hashed); sessions are not in Valkey
+- **Failure Impact**: a request whose limit check cannot reach Valkey fails rather than skipping the limit
 - **Fallback**: none; `DISABLE_RATE_LIMIT=true` turns auth rate limiting and the sign-in count off
 
 #### Mailer (`MailerService`)
+
 - **Purpose**: verification links, reset links, emailed two-factor codes, Security Events
 - **Usage**: `MAILER_TRANSPORT=mailpit` posts to Mailpit; `unsend` selects `UseSendMailerService`,
   which sends through useSend
@@ -38,6 +43,7 @@
 - **Fallback**: none
 
 #### Have I Been Pwned and the Captcha Provider (optional)
+
 - **Purpose**: breached-password screening; Captcha Token verification
 - **Failure Impact**: HIBP unreachable → password-setting requests fail with
   `503 PASSWORD_CHECK_UNAVAILABLE`; captcha unreachable → protected requests fail with
@@ -54,6 +60,7 @@
 ## Integration Patterns
 
 ### Mounting (`application.controller.ts`)
+
 ```typescript
 // Better Auth owns /api/auth/* and is registered before the session middleware and every other
 // route, outside the api-contract RPC types.
@@ -63,6 +70,7 @@ const app = api.use(authSession(this.authService)).route('/', this.routes()) /* 
 ```
 
 ### Session middleware (`auth/auth-session.middleware.ts`)
+
 ```typescript
 const result = await authService.auth.api.getSession({ headers: c.req.raw.headers });
 c.set('user', result?.user ?? null);
@@ -70,6 +78,7 @@ c.set('session', result?.session ?? null);
 ```
 
 ### Lazy instance (`auth/auth.service.ts`)
+
 `AuthService.auth` builds the Better Auth instance on first use from env, so importing the module
 opens no connection.
 

@@ -15,7 +15,7 @@
 		},
 		{
 			title: 'Batteries for real apps',
-			body: 'PostgreSQL + Drizzle, Redis, SeaweedFS (S3), and Mailpit run locally with no API keys and no sign-ups.'
+			body: 'PostgreSQL + Drizzle, Valkey, SeaweedFS (S3), and Mailpit run locally with no API keys and no sign-ups.'
 		},
 		{
 			title: 'Library-agnostic by design',

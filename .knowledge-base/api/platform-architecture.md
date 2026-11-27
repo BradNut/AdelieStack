@@ -25,48 +25,68 @@
     ┌────┴────┬──────────┬──────────┐
     ▼         ▼          ▼          ▼
 ┌────────┐ ┌──────┐ ┌────────┐ ┌──────┐
-│ Postgres│ │ Redis│ │   S3   │ │ Mail │
+│ Postgres│ │ Valkey│ │   S3   │ │ Mail │
 └─────────┘ └──────┘ └────────┘ └──────┘
 ```
 
 ### Infrastructure Services
 
 #### PostgreSQL Database
+
 - **Purpose**: Primary data store for users, roles, sessions, and account/auth records
 - **ORM**: Drizzle with type-safe queries
 - **Migrations**: Managed via `drizzle-kit`
 - **Connection**: Pooled connections with lazy initialization
 
-#### Redis Cache
-- **Purpose**: Session storage, rate limiting, caching
+#### Valkey
+
+- **Purpose**: Rate-limit counters, account lockout state and BullMQ job queues (sessions stay in PostgreSQL)
 - **Client**: ioredis with `lazyConnect: true`
 - **Configuration**: Lazy getter pattern to prevent build-time connections
-- **Use Cases**: User sessions, API rate limits, temporary data
+- **Use Cases**: Auth and route rate limits, account lockout, background jobs
 
 #### SeaweedFS Object Storage
+
 - **Purpose**: S3-compatible object storage for user-uploaded files
 - **Integration**: AWS SDK v3
 - **Features**: S3 API on `:8333`; public-read granted via `docker/seaweedfs/s3-config.json`;
   server-side image resizing via `sharp` (`storage/images.service.ts`)
 - **Security**: uploads are scanned before they reach storage when `ANTIVIRUS_ENABLED` is on —
-  see ClamAV below
+  see ClamAV below. With antivirus on, every `StorageService` read checks the object's Scan Status
+  first and serves only a clean object (ADR 0016); see Read check below
+- **Addresses**: the API reaches storage on `STORAGE_HOST`/`STORAGE_PORT`. `STORAGE_URL` is the
+  address browsers reach storage on, so Presigned URLs are signed against it (by a second client,
+  created on first use). `PUBLIC_IMAGE_URI` is the public bucket's browser-facing base
 
 #### Mailpit
+
 - **Purpose**: Email testing and delivery in development
 - **Integration**: SMTP transport
 - **Use Cases**: Password reset, verification emails, notifications
 
 #### ClamAV
+
 - **Purpose**: Virus scanning of uploaded files
 - **Integration**: `clamscan` client talking to a clamd daemon over TCP
   (`storage/virus-scanner.service.ts`); the connection opens on the first scan
 - **Configuration**: `ANTIVIRUS_ENABLED` (default `false`), `CLAMAV_HOST`, `CLAMAV_PORT`. When
-  disabled, scans report clean without contacting clamd and objects get no scan tags
-- **Failure mode**: the upload path fails closed. If the scanner errors, for example because clamd
-  is unreachable, the upload is refused and nothing is stored
-- **Known gap**: on a clamd read timeout or a reply it cannot parse, `clamscan` resolves with
-  `isInfected: null` instead of erroring. `VirusScannerService.scanStream` counts that as clean, so
-  those files are stored and tagged clean
+  disabled, scans report clean without contacting clamd, objects get no Scan Status and reads
+  check none
+- **Read check** (ADR 0016): with antivirus on, `get`, `getObjectStream`, `getPresignedUrl` and
+  `getFileUrl` read the object's Scan Status before fetching any bytes, for both buckets. `clean`
+  is served; no Scan Status, `pending` or `scanning` is a 425 (`SCAN_PENDING`); `infected` a 410
+  (`SCAN_INFECTED`); `error` a 500 (`SCAN_FAILED`); any other value a 403 (`SCAN_REFUSED`). The
+  codes are `StorageErrorCode` in `@adelie/shared`. A failure to read the tags (an outage, a
+  missing key) propagates as it is, never as pending
+- **What the check does not cover**: a Presigned URL is checked once, when issued, and works until
+  it expires (default one hour, 1 second to 7 days) even if a later scan marks the object `error`;
+  an infected object is deleted, so its URL stops working. A public object read straight from
+  storage (the bucket is anonymously readable) is not checked at all: its only protection is the
+  scan at upload
+- **Failure mode**: the upload path fails closed. A scan reports clean only when clamd explicitly
+  says the file is not infected. If the scanner errors or gets no verdict, for example because clamd
+  is unreachable, times out, or sends a reply `clamscan` cannot parse, the upload is refused and
+  nothing is stored
 - **Webhook re-scan**: as defense-in-depth, objects are re-scanned after they land when the storage
   provider is configured to send object-created notifications to the storage webhook
   (`storage/file-scanner.worker.ts`); nothing in the local stack sets that up. The webhook lives at
@@ -80,6 +100,7 @@
   counting only records in the project's buckets
 
 #### Spotlight
+
 - **Purpose**: Error tracking and application monitoring
 - **Integration**: Sentry SDK
 - **Features**: Error reporting, performance monitoring, release tracking
@@ -88,6 +109,7 @@
 ## Deployment Architecture
 
 ### Coolify Deployment
+
 - **Platform**: Self-hosted Coolify instance (Nixpacks or Docker build — see
   `apps/api/nixpacks.toml` / `apps/api/Dockerfile`)
 - **Build**: Turbo/pnpm build scoped with `--filter @adelie/api...`
@@ -95,6 +117,7 @@
 - **Environment**: Production environment variables via Coolify secrets. The platform must set `ENVIRONMENT` (`staging` or `production`; the image does not) and keep `NODE_ENV=production` (the image sets it); see the [environment-config runbook](./runbooks/environment-config.md#the-environment-switch)
 
 ### Build Process
+
 1. Install dependencies with pnpm
 2. Run Turbo build for API workspace
 3. Generate Drizzle migrations (if needed)
@@ -103,20 +126,23 @@
 6. Deploy to Coolify with health checks
 
 ### Memory Optimization
+
 - Removed heavy build plugins to reduce memory usage
 - Lazy service initialization prevents OOM during builds
-- Redis lazy connect prevents connection attempts at build time
+- Valkey lazy connect prevents connection attempts at build time
 - Optimized for ~3GB RSS during production builds
 
 ## Network Architecture
 
 ### URL Structure
+
 - **Production**: no fixed public domain is documented in this repo; the API listens on port
   3001 behind Coolify (see [deployment runbook](./runbooks/deployment.md))
 - **Local Development**: `http://localhost:3000`
 - **API Proxy**: Web app proxies `/api/*` to API service
 
 ### CORS & Security
+
 - CORS configured for web domain
 - CSRF protection for state-changing operations
 - Secure headers (HSTS, CSP, X-Frame-Options)
@@ -125,6 +151,7 @@
 ## Data Flow
 
 ### Request Lifecycle
+
 1. **Client Request** → Web app or direct API call
 2. **Proxy/Gateway** → Route to API service
 3. **Middleware Chain** → Auth, rate limit, CORS, logging
@@ -134,21 +161,24 @@
 7. **Response** → Standardized JSON response
 
 ### Authentication Flow
+
 1. User submits credentials
 2. Validate against database (Argon2 hash via `HashingService`)
-3. Create session in Redis
+3. Create session in PostgreSQL
 4. Return session cookie
 5. Subsequent requests include session cookie
-6. Middleware validates session from Redis
+6. Middleware validates session from PostgreSQL
 
 ### File Upload Flow
+
 1. Client uploads file via multipart form
 2. API receives and validates file type/size
 3. Resize via `sharp` if the upload requests a width or height
 4. Scan the final bytes with ClamAV, when `ANTIVIRUS_ENABLED` is on, so resized output is what
    gets checked. Infected files are rejected with 422; if the scanner errors the upload fails
    closed with 503. Either way nothing reaches storage
-5. Upload to the storage bucket and, when scanning is on, tag the object `scan-status=clean`
+5. Upload to the storage bucket. When scanning is on, the object is stored already tagged
+   `scan-status=clean` in the same `PutObject` call, since its bytes passed the scan
 6. Store metadata in PostgreSQL
 7. Return file URL to client
 
@@ -158,35 +188,39 @@
 ## Monitoring & Observability
 
 ### Logging
+
 - Structured JSON logs everywhere but `ENVIRONMENT=development`, which pretty-prints them and logs SQL
 - Request/response logging: pino's standard fields (`level`, `time`, `pid`, `hostname`) plus request id, method, path (reset tokens redacted, no query), status, duration and a fixed `msg` (`Request completed`, or `Request failed` at `error` level when a handler threw) only; never headers or error messages
 - Unexpected errors (`common/middleware/error-handler.middleware.ts`): a separate `Unexpected error` entry at `error` level with the request id and the error's type, message, stack and cause chain under `error`; connection-string credentials and query parameters are redacted, and headers stay out. The client gets a generic localised message (`server_unexpected_error`) and the request id; only the development Environment (`ENVIRONMENT=development`, `isDevelopmentEnvironment`) adds the error text and stack. A thrown `HTTPException` is a deliberate client error: it keeps its status and message and is not logged as a failure
 - Performance metrics
 
 ### Error Tracking
+
 - Spotlight/Sentry integration
 - Automatic error capture
 - Source maps for stack traces
 - Release tracking
 
 ### Health Checks
+
 - `/health` endpoint for liveness
 - Database connection check
-- Redis connection check
+- Valkey connection check
 - Service dependency status
 
 ## Scaling Considerations
 
 ### Horizontal Scaling
-- Stateless API design (sessions in Redis)
+
+- Stateless API design (sessions in PostgreSQL)
 - Load balancer ready
-- Shared Redis for session consistency
+- Shared Valkey so rate limits and lockouts hold across instances
 - Shared PostgreSQL with connection pooling
 
 ### Vertical Scaling
+
 - Memory optimization for build and runtime
 - Efficient database queries with indexes
-- Redis caching for hot data
 - Lazy service initialization
 
 ## Related Documentation

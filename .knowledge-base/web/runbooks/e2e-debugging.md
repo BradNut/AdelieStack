@@ -28,7 +28,7 @@ that actually exists).
 
 ## Prerequisites
 
-`pnpm test:e2e` needs the local infra and a seeded admin: `docker compose up -d`, then `DB_MIGRATING=true pnpm db:migrate && DB_SEEDING=true pnpm db:seed`. The script runs Playwright under the API env (`varlock run --path ../api/`), so the tests sign in with the same `ADMIN_PASSWORD` the seed used. Global setup stops the run with "Infra not running" when Postgres or Redis is unreachable. SeaweedFS must be up as well: without it the API exits at startup and Playwright reports that its web server failed to start. `pnpm test` runs unit tests only.
+`pnpm test:e2e` needs the local infra and a seeded admin: `docker compose up -d`, then `DB_MIGRATING=true pnpm db:migrate && DB_SEEDING=true pnpm db:seed`. The script runs Playwright under the API env (`varlock run --path ../api/`), so the tests sign in with the same `ADMIN_PASSWORD` the seed used. Global setup stops the run with "Infra not running" when Postgres or Valkey is unreachable. SeaweedFS must be up as well: without it the API exits at startup and Playwright reports that its web server failed to start. `pnpm test` runs unit tests only.
 
 ## Run E2E Locally (against dev server or built app)
 
@@ -59,12 +59,12 @@ currently broken — see the known bug above.)
 
 ## Common Failures
 
-| Symptom | Likely cause |
-|---|---|
-| `net::ERR_CONNECTION_REFUSED` | Dev server not running or wrong `baseURL` in config |
-| Login test fails | Test user not seeded or password changed |
-| Flaky on CI | Add `--retries=2` or increase timeouts in `playwright.config.ts` |
-| Screenshots differ | Playwright version or OS font rendering diff — use `--update-snapshots` |
+| Symptom                       | Likely cause                                                            |
+| ----------------------------- | ----------------------------------------------------------------------- |
+| `net::ERR_CONNECTION_REFUSED` | Dev server not running or wrong `baseURL` in config                     |
+| Login test fails              | Test user not seeded or password changed                                |
+| Flaky on CI                   | Add `--retries=2` or increase timeouts in `playwright.config.ts`        |
+| Screenshots differ            | Playwright version or OS font rendering diff — use `--update-snapshots` |
 
 ## Config Files
 

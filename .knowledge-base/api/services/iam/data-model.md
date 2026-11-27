@@ -11,7 +11,7 @@ table or column a configured plugin needs. Read the tables and relations from `a
   (`advanced.database.generateId`), so ids sort roughly by creation time. Domain tables follow the same
   rule; [ADR 0010](../../../../docs/adr/0010-auth-ids-stay-text-uuidv7.md) explains why ids are
   not native `uuid`.
-- Sessions live in PostgreSQL, not Redis.
+- Sessions live in PostgreSQL, not Valkey.
 - For email and password sign-in, `accounts.password` holds the hash Better Auth produced.
 
 ## Roles
@@ -29,6 +29,7 @@ Only the admin endpoints and server-side calls (such as the seed) can set a role
 ## Data Lifecycle
 
 ### Session Lifecycle
+
 1. **Creation**: on sign-in, a `sessions` row is inserted and a signed `httpOnly` cookie is set.
 2. **Active**: the `authSession` middleware resolves the cookie to a session and user on every
    request; Better Auth extends the expiry and re-sets the cookie as it ages.
@@ -36,6 +37,7 @@ Only the admin endpoints and server-side calls (such as the seed) can set a role
 4. **Revocation**: signing out deletes the session row and clears the cookie.
 
 ### Verification Lifecycle
+
 1. **Creation**: sign-up and password reset each insert a `verifications` row and
    email a link through the mailer.
 2. **Consumption**: following the link consumes the token; expired tokens are rejected.

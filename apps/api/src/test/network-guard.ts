@@ -5,8 +5,8 @@ import { Socket, type SocketConnectOpts } from 'node:net';
  *
  * Unit tests must stub every external provider (HIBP, captcha, mail, ...). `fetch` is replaced with a function
  * that rejects naming the method and URL; tests that `vi.stubGlobal('fetch', ...)` replace it as before and get it
- * back on `vi.unstubAllGlobals()`. TCP connects (node:http, database and Redis clients) throw naming host and port.
- * IPC/unix-socket connections are left alone. The real-Redis config (`vitest.redis.config.ts`) does not load this.
+ * back on `vi.unstubAllGlobals()`. TCP connects (node:http, database and Valkey clients) throw naming host and port.
+ * IPC/unix-socket connections are left alone. The real-Valkey config (`vitest.valkey.config.ts`) does not load this.
  *
  * Code under test may swallow the thrown error (Better Auth's HIBP check, client reconnect loops), so every blocked
  * call is also recorded; the setup file's `afterEach` calls `assertNoBlockedNetworkCalls()` to fail the offending test.

@@ -39,12 +39,12 @@ slashes, dot segments).
 
 ## Common Fixes
 
-| Problem | Fix |
-|---|---|
-| Wrong `API_PROXY_BASE_URL` | Update in Coolify env → redeploy |
-| API container not started | Start API service first |
-| Container network mismatch | Put both services on same Coolify network |
-| CORS error on preflight | Only matters for direct browser → API calls; proxy routes bypass CORS |
+| Problem                    | Fix                                                                   |
+| -------------------------- | --------------------------------------------------------------------- |
+| Wrong `API_PROXY_BASE_URL` | Update in Coolify env → redeploy                                      |
+| API container not started  | Start API service first                                               |
+| Container network mismatch | Put both services on same Coolify network                             |
+| CORS error on preflight    | Only matters for direct browser → API calls; proxy routes bypass CORS |
 
 ## Related
 

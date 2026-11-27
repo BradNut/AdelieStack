@@ -17,7 +17,7 @@ export const validEnvs: Record<string, string> = {
   ENVIRONMENT: 'development',
   NODE_ENV: 'development',
   PORT: '3001',
-  REDIS_URL: 'redis://localhost:6379',
+  VALKEY_URL: 'redis://localhost:6379',
   SIGNING_SECRET: TEST_SIGNING_SECRET,
   BETTER_AUTH_SECRET: 'better-auth-secret-at-least-32-chars',
   BETTER_AUTH_URL: 'http://localhost:5173',
@@ -51,6 +51,7 @@ export const productionEnvOverrides: Record<string, string> = {
   USESEND_API_KEY: 'us_production_key',
   MAIL_FROM: 'noreply@example.com',
   BETTER_AUTH_URL: 'https://app.example.com',
+  ORIGIN: 'https://app.example.com',
 };
 
 const envKeys = new Set(Object.keys(validEnvs));

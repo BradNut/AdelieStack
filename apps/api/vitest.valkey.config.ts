@@ -1,9 +1,9 @@
 import { defineConfig } from 'vitest/config';
 
-/** Tests that need a real Redis (REDIS_URL). Run with `pnpm test:redis`; the default config leaves them out. */
+/** Tests that need a real Valkey (VALKEY_URL). Run with `pnpm test:valkey`; the default config leaves them out. */
 export default defineConfig({
   test: {
-    include: ['src/**/*.redis.test.ts'],
+    include: ['src/**/*.valkey.test.ts'],
     environment: 'node',
     restoreMocks: true,
     unstubEnvs: true,

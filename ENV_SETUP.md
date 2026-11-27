@@ -22,6 +22,9 @@ inside a service.
 
 ## Quick start
 
+Use Node.js 24.15 or newer. `.nvmrc` names the major (`24`), and `nvm use` accepts any 24.x already installed, so run
+`nvm install 24` to get the latest. `.npmrc` sets `engine-strict=true`, so an older Node fails `pnpm install`.
+
 ```bash
 # The schemas already carry working local defaults for everything except secrets and the API's
 # Environment, which has no default (`pnpm initialize` writes it for you; see ADR 0015).
@@ -33,7 +36,7 @@ echo "ENVIRONMENT=development" >> apps/api/.env
   echo "BETTER_AUTH_SECRET=$(openssl rand -base64 32)"
 } > apps/api/.env.local
 
-# Start infrastructure (Postgres, Redis, SeaweedFS, Mailpit, ...)
+# Start infrastructure (Postgres, Valkey, SeaweedFS, Mailpit, ...)
 docker compose up -d
 pnpm storage:setup
 

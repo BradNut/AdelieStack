@@ -64,7 +64,7 @@ export class AuthService {
 
   get auth(): Auth {
     if (this.instance) return this.instance;
-    // Per-IP limits and the per-address sign-in count; the Redis connection opens on the first limited request, not here.
+    // Per-IP limits and the per-address sign-in count; the Valkey connection opens on the first limited request, not here.
     const throttleStorage = this.configService.envs.DISABLE_RATE_LIMIT ? undefined : this.rateLimitRepository;
     this.instance = createAuth({
       database: drizzleAuthDatabase(this.drizzleService.db),

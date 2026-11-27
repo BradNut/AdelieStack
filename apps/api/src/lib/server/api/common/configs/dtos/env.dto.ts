@@ -2,6 +2,7 @@ import { APP_NAME, CAPTCHA_PROVIDERS, ENVIRONMENTS, isDevelopmentEnvironment, NO
 import { z } from 'zod/v4';
 import { DEVELOPMENT_DEFAULT_NAMES, DevelopmentDefault } from '#lib/server/api/common/configs/development-defaults.constant';
 import { findInvalidTrustedProxies } from '#lib/server/api/common/utils/ip';
+import { isHttpsUrl } from '#lib/server/api/common/utils/url';
 import { POSTGRES_SSL_MODES, PostgresSslMode } from '#lib/server/api/databases/postgres/postgres-ssl';
 import { MailerTransport } from '#lib/server/api/mail/mailer-transport.constant';
 
@@ -30,7 +31,8 @@ const baseEnvsDto = z.object({
   // TLS to Postgres (libpq sslmode names): disable locally; verify-full checks the certificate, require opts out of that.
   DATABASE_SSL_MODE: z.preprocess(emptyAsUndefined, z.enum(POSTGRES_SSL_MODES).default(PostgresSslMode.DISABLE)),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
-  ORIGIN: z.string(),
+  // The web origin: the one trusted origin for auth requests and the passkey origin. Refused outside development unless https.
+  ORIGIN: z.url(),
   DOMAIN: z.string(),
   HOST: z.string().optional(),
   // Email transport: 'mailpit' for local dev, 'unsend' for real sending.
@@ -40,9 +42,9 @@ const baseEnvsDto = z.object({
   MAIL_FROM: z.preprocess(emptyAsUndefined, z.string().optional()),
   // The server's address only: the library appends /api/v1 itself. Unset uses https://app.usesend.com.
   USESEND_BASE_URL: z.preprocess(emptyAsUndefined, z.string().optional()),
-  REDIS_URL: z.string(),
+  VALKEY_URL: z.string(),
   // Background jobs: register BullMQ queues/workers on startup. Disable in tests/CI
-  // or one-off processes that must not open a Redis worker connection.
+  // or one-off processes that must not open a Valkey worker connection.
   JOBS_ENABLED: z.stringbool().default(true),
   SIGNING_SECRET: z.string().min(SECRET_MIN_LENGTH, `SIGNING_SECRET must be at least ${SECRET_MIN_LENGTH} characters`),
   // Better Auth: secret for signing/encrypting auth cookies and tokens, and the public base URL
@@ -126,6 +128,9 @@ export const SOCIAL_PROVIDER_ENV_NAMES = {
   [SocialProvider.GOOGLE]: { id: 'GOOGLE_CLIENT_ID', secret: 'GOOGLE_CLIENT_SECRET' },
 } as const satisfies Record<SocialProvider, { id: keyof z.infer<typeof baseEnvsDto>; secret: keyof z.infer<typeof baseEnvsDto> }>;
 
+/** URLs a Deployed Environment must serve over TLS: the auth base URL and the web origin it trusts. */
+const HTTPS_REQUIRED_OUTSIDE_DEVELOPMENT = ['BETTER_AUTH_URL', 'ORIGIN'] as const;
+
 /** Suffix of every message refusing a setting that only local development may use. */
 const REFUSED_OUTSIDE_DEVELOPMENT = '(refused outside development)';
 
@@ -148,7 +153,7 @@ export function sharesOneRateLimitBucket(envs: Pick<z.infer<typeof baseEnvsDto>,
 
 /**
  * Refuses a Deployed Environment (staging or production) on settings only fit for local development: a Node or Better
- * Auth development mode, a credential this repo publishes, the local mail inbox, auth served without TLS, one shared
+ * Auth development mode, a credential this repo publishes, the local mail inbox, auth or its origin served without TLS, one shared
  * rate-limit bucket, or an unauthenticated storage webhook. Messages name the variable and never print its value.
  */
 function refuseOutsideDevelopment(envs: z.infer<typeof baseEnvsDto>, ctx: z.RefinementCtx): void {
@@ -171,8 +176,8 @@ function refuseOutsideDevelopment(envs: z.infer<typeof baseEnvsDto>, ctx: z.Refi
       message: `MAILER_TRANSPORT ${MailerTransport.MAILPIT} is the local inbox ${REFUSED_OUTSIDE_DEVELOPMENT}; use ${MailerTransport.UNSEND}`,
     });
   }
-  if (new URL(envs.BETTER_AUTH_URL).protocol !== 'https:') {
-    ctx.addIssue({ code: 'custom', path: ['BETTER_AUTH_URL'], message: `BETTER_AUTH_URL must use https ${REFUSED_OUTSIDE_DEVELOPMENT}` });
+  for (const name of HTTPS_REQUIRED_OUTSIDE_DEVELOPMENT) {
+    if (!isHttpsUrl(envs[name])) ctx.addIssue({ code: 'custom', path: [name], message: `${name} must use https ${REFUSED_OUTSIDE_DEVELOPMENT}` });
   }
   if (sharesOneRateLimitBucket(envs)) {
     ctx.addIssue({ code: 'custom', path: ['TRUST_PROXY'], message: `${SHARED_RATE_LIMIT_BUCKET_MESSAGE} ${REFUSED_OUTSIDE_DEVELOPMENT}` });

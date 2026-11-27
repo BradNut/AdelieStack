@@ -220,6 +220,17 @@ describe('envsDto production refuses development defaults', () => {
     expect(result.error?.issues[0].message).not.toContain(url);
   });
 
+  it.each(['http://app.example.com', 'http://localhost:5173'])('refuses a non-https ORIGIN (%s) without printing it', (url) => {
+    const result = parseProduction({ ORIGIN: url });
+    expect(result.error?.issues.map((issue) => issue.path[0])).toEqual(['ORIGIN']);
+    expect(result.error?.issues[0].message).toContain('ORIGIN');
+    expect(result.error?.issues[0].message).not.toContain(url);
+  });
+
+  it('refuses a non-https ORIGIN in staging too', () => {
+    expect(refusedPaths({ ENVIRONMENT: Environment.STAGING, ORIGIN: 'http://app.example.com' })).toEqual(['ORIGIN']);
+  });
+
   it('names every development default at once', () => {
     expect(
       refusedPaths({
@@ -247,11 +258,11 @@ describe('envsDto production refuses development defaults', () => {
   });
 });
 
-describe('envsDto production Redis URL', () => {
-  // Decision: .knowledge-base/api/decisions/index.md ("Production does not require Redis credentials or TLS", #272).
+describe('envsDto production Valkey URL', () => {
+  // Decision: .knowledge-base/api/decisions/index.md ("Production does not require Valkey credentials or TLS", #272).
   // Transport to internal services is the deployer's call; do not add a refusal here without revisiting that entry.
-  it('accepts production with a passwordless, plain-text REDIS_URL (see the decisions index, #272)', () => {
-    const result = envsDto.safeParse({ ...validEnvs, ...productionEnvOverrides, REDIS_URL: 'redis://redis:6379' });
+  it('accepts production with a passwordless, plain-text VALKEY_URL (see the decisions index, #272)', () => {
+    const result = envsDto.safeParse({ ...validEnvs, ...productionEnvOverrides, VALKEY_URL: 'redis://valkey:6379' });
     expect(result.error?.issues).toBeUndefined();
     expect(result.success).toBe(true);
   });
@@ -335,13 +346,20 @@ describe('envsDto Environment', () => {
 });
 
 describe('envsDto required variables', () => {
-  it.each(['DATABASE_USER', 'REDIS_URL', 'SIGNING_SECRET', 'BETTER_AUTH_SECRET', 'BETTER_AUTH_URL', 'DOMAIN', 'STORAGE_URL', 'PUBLIC_IMAGE_URI'])(
+  it.each(['DATABASE_USER', 'VALKEY_URL', 'SIGNING_SECRET', 'BETTER_AUTH_SECRET', 'BETTER_AUTH_URL', 'DOMAIN', 'STORAGE_URL', 'PUBLIC_IMAGE_URI'])(
     'rejects env missing %s',
     (key) => {
       const { [key]: _omitted, ...rest } = validEnvs as Record<string, unknown>;
       expect(() => envsDto.parse(rest)).toThrow();
     },
   );
+
+  it('rejects a stale REDIS_URL in place of VALKEY_URL, naming VALKEY_URL', () => {
+    const { VALKEY_URL, ...rest } = validEnvs;
+    const result = envsDto.safeParse({ ...rest, REDIS_URL: VALKEY_URL });
+    expect(result.success).toBe(false);
+    expect(result.error?.issues.map((issue) => issue.path.join('.'))).toEqual(['VALKEY_URL']);
+  });
 
   it('rejects an empty SIGNING_SECRET', () => {
     expect(() => envsDto.parse({ ...validEnvs, SIGNING_SECRET: '' })).toThrow();
@@ -382,6 +400,16 @@ describe('envsDto Better Auth variables', () => {
 
   it('rejects a non-url BETTER_AUTH_URL', () => {
     expect(() => envsDto.parse({ ...validEnvs, BETTER_AUTH_URL: 'not-a-url' })).toThrow();
+  });
+
+  it.each([Environment.DEVELOPMENT, Environment.STAGING, Environment.PRODUCTION])('rejects a non-url ORIGIN in %s', (environment) => {
+    const base = environment === Environment.DEVELOPMENT ? validEnvs : { ...validEnvs, ...productionEnvOverrides };
+    const result = envsDto.safeParse({ ...base, ENVIRONMENT: environment, ORIGIN: 'not-a-url' });
+    expect(result.error?.issues.map((issue) => issue.path[0])).toContain('ORIGIN');
+  });
+
+  it('accepts an http ORIGIN in development', () => {
+    expect(envsDto.parse({ ...validEnvs, ORIGIN: 'http://localhost:5173' }).ORIGIN).toBe('http://localhost:5173');
   });
 });
 

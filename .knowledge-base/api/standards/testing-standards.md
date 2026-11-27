@@ -3,6 +3,7 @@
 ## Coverage Requirements
 
 ### Minimum Standards
+
 - **A+ Coverage**: All test suites must achieve comprehensive coverage
 - **Positive Tests**: Happy path scenarios for all features
 - **Negative Tests**: Error cases, edge cases, and boundary conditions
@@ -47,6 +48,7 @@ Every test suite must include:
 ## Test Organization
 
 ### File Structure
+
 ```
 audit/
 ├── audit.repository.ts
@@ -57,12 +59,14 @@ audit/
 ```
 
 ### Test Naming Convention
+
 - Test files: `{name}.test.ts` or `{name}.spec.ts`
 - Keep tests in the module's `tests/` folder
 
 ## Test Structure
 
 ### Describe Blocks
+
 ```typescript
 describe('ServiceName', () => {
   describe('methodName', () => {
@@ -74,15 +78,16 @@ describe('ServiceName', () => {
 ```
 
 ### Test Anatomy (AAA Pattern)
+
 ```typescript
 it('should create user with valid data', async () => {
   // Arrange - Setup test data and mocks
   const input = { email: 'test@example.com', name: 'Test User' };
   const mockRepository = vi.fn().mockResolvedValue({ id: '1', ...input });
-  
+
   // Act - Execute the function under test
   const result = await userService.createUser(input);
-  
+
   // Assert - Verify the outcome
   expect(result).toBeDefined();
   expect(result.email).toBe(input.email);
@@ -93,25 +98,26 @@ it('should create user with valid data', async () => {
 ## Positive Test Examples
 
 ### Service Layer
+
 ```typescript
 describe('UserService', () => {
   describe('createUser', () => {
     it('should create user with valid data', async () => {
       const input = { email: 'new@example.com', name: 'New User', password: 'SecurePass123' };
       const result = await userService.createUser(input);
-      
+
       expect(result.id).toBeDefined();
       expect(result.email).toBe(input.email);
       expect(result.name).toBe(input.name);
       expect(result.password).toBeUndefined(); // Password should not be returned
     });
-    
+
     it('should send welcome email after user creation', async () => {
       const input = { email: 'new@example.com', name: 'New User', password: 'SecurePass123' };
       const emailSpy = vi.spyOn(emailService, 'sendWelcome');
-      
+
       await userService.createUser(input);
-      
+
       expect(emailSpy).toHaveBeenCalledWith(input.email);
     });
   });
@@ -119,17 +125,18 @@ describe('UserService', () => {
 ```
 
 ### Route Layer
+
 ```typescript
 describe('POST /api/users', () => {
   it('should return 201 and user data for valid request', async () => {
     const input = { email: 'test@example.com', name: 'Test', password: 'Pass123' };
-    
+
     const response = await app.request('/api/users', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(input)
+      body: JSON.stringify(input),
     });
-    
+
     expect(response.status).toBe(201);
     const data = await response.json();
     expect(data.email).toBe(input.email);
@@ -140,45 +147,43 @@ describe('POST /api/users', () => {
 ## Negative Test Examples
 
 ### Validation Failures
+
 ```typescript
 describe('createUser', () => {
   it('should throw error for invalid email format', async () => {
     const input = { email: 'invalid-email', name: 'Test', password: 'Pass123' };
-    
-    await expect(userService.createUser(input))
-      .rejects.toThrow('Invalid email format');
+
+    await expect(userService.createUser(input)).rejects.toThrow('Invalid email format');
   });
-  
+
   it('should throw error for missing required fields', async () => {
     const input = { email: 'test@example.com' }; // Missing name and password
-    
-    await expect(userService.createUser(input))
-      .rejects.toThrow('Missing required fields');
+
+    await expect(userService.createUser(input)).rejects.toThrow('Missing required fields');
   });
-  
+
   it('should throw error for password too short', async () => {
     const input = { email: 'test@example.com', name: 'Test', password: '123' };
-    
-    await expect(userService.createUser(input))
-      .rejects.toThrow('Password must be at least 15 characters');
+
+    await expect(userService.createUser(input)).rejects.toThrow('Password must be at least 15 characters');
   });
 });
 ```
 
 ### Resource Not Found
+
 ```typescript
 describe('getUserById', () => {
   it('should throw NotFoundError for non-existent user', async () => {
     const nonExistentId = 'non-existent-id';
-    
-    await expect(userService.getUserById(nonExistentId))
-      .rejects.toThrow(NotFoundError);
+
+    await expect(userService.getUserById(nonExistentId)).rejects.toThrow(NotFoundError);
   });
-  
+
   it('should return 404 for deleted user', async () => {
     const deletedUserId = 'deleted-user-id';
     vi.spyOn(userRepository, 'findById').mockResolvedValue(null);
-    
+
     const response = await app.request(`/api/users/${deletedUserId}`);
     expect(response.status).toBe(404);
   });
@@ -186,90 +191,88 @@ describe('getUserById', () => {
 ```
 
 ### Duplicate & Unique Constraints
+
 ```typescript
 describe('createUser', () => {
   it('should throw error for duplicate email', async () => {
     const existingEmail = 'existing@example.com';
     const input = { email: existingEmail, name: 'Test', password: 'Pass123' };
-    
+
     // First creation succeeds
     await userService.createUser(input);
-    
+
     // Second creation with same email fails
-    await expect(userService.createUser(input))
-      .rejects.toThrow('Email already exists');
+    await expect(userService.createUser(input)).rejects.toThrow('Email already exists');
   });
 });
 ```
 
 ### Authorization Failures
+
 ```typescript
 describe('DELETE /api/users/:id', () => {
   it('should return 401 for unauthenticated request', async () => {
     const response = await app.request('/api/users/123', {
-      method: 'DELETE'
+      method: 'DELETE',
     });
-    
+
     expect(response.status).toBe(401);
   });
-  
+
   it('should return 403 for insufficient permissions', async () => {
     const userSession = createMockSession({ role: 'user' });
-    
+
     const response = await app.request('/api/users/123', {
       method: 'DELETE',
-      headers: { Cookie: `session=${userSession}` }
+      headers: { Cookie: `session=${userSession}` },
     });
-    
+
     expect(response.status).toBe(403);
   });
 });
 ```
 
 ### External Dependency Failures
+
 ```typescript
 describe('sendPasswordResetEmail', () => {
   it('should handle email service failure gracefully', async () => {
     vi.spyOn(emailService, 'send').mockRejectedValue(new Error('SMTP error'));
-    
-    await expect(userService.sendPasswordResetEmail('test@example.com'))
-      .rejects.toThrow('Failed to send password reset email');
+
+    await expect(userService.sendPasswordResetEmail('test@example.com')).rejects.toThrow('Failed to send password reset email');
   });
-  
+
   it('should handle database connection error', async () => {
     vi.spyOn(db, 'query').mockRejectedValue(new Error('Connection refused'));
-    
-    await expect(userService.getUserById('123'))
-      .rejects.toThrow('Database error');
+
+    await expect(userService.getUserById('123')).rejects.toThrow('Database error');
   });
 });
 ```
 
 ### Edge Boundaries
+
 ```typescript
 describe('validation edge cases', () => {
   it('should reject empty string for name', async () => {
     const input = { email: 'test@example.com', name: '', password: 'Pass123' };
-    
-    await expect(userService.createUser(input))
-      .rejects.toThrow('Name cannot be empty');
+
+    await expect(userService.createUser(input)).rejects.toThrow('Name cannot be empty');
   });
-  
+
   it('should reject null values', async () => {
     const input = { email: null, name: 'Test', password: 'Pass123' };
-    
-    await expect(userService.createUser(input))
-      .rejects.toThrow('Email is required');
+
+    await expect(userService.createUser(input)).rejects.toThrow('Email is required');
   });
-  
+
   it('should handle maximum length boundary', async () => {
     const maxLengthName = 'a'.repeat(101); // Assuming max is 100
     const input = { email: 'test@example.com', name: maxLengthName, password: 'Pass123' };
-    
-    await expect(userService.createUser(input))
-      .rejects.toThrow('Name exceeds maximum length');
+
+    await expect(userService.createUser(input)).rejects.toThrow('Name exceeds maximum length');
   });
-  
+
   it('should handle empty array', async () => {
     const result = await userService.getUsersByIds([]);
     expect(result).toEqual([]);
@@ -280,14 +283,15 @@ describe('validation edge cases', () => {
 ## Mocking Guidelines
 
 ### Mock External Services
+
 ```typescript
 import { vi } from 'vitest';
 
 // Mock entire module
 vi.mock('$lib/server/email', () => ({
   EmailService: vi.fn().mockImplementation(() => ({
-    send: vi.fn().mockResolvedValue(true)
-  }))
+    send: vi.fn().mockResolvedValue(true),
+  })),
 }));
 
 // Mock specific function
@@ -296,10 +300,11 @@ vi.spyOn(emailService, 'send').mockImplementation(mockSendEmail);
 ```
 
 ### Don't Mock Internal Logic
+
 ```typescript
 // ❌ Avoid mocking internal business logic
 vi.mock('./user.service', () => ({
-  validateUser: vi.fn().mockReturnValue(true)
+  validateUser: vi.fn().mockReturnValue(true),
 }));
 
 // ✅ Test actual implementation
@@ -313,27 +318,28 @@ Shared helpers live in `apps/api/src/test/`. Reuse them before writing a local s
 
 - **Auth instances**: build every Better Auth instance with `createTestAuth` from [auth-instance.ts](../../../apps/api/src/test/auth-instance.ts), and send requests from `TEST_ORIGIN`. Pass only the options the test changes. Biome (`noRestrictedImports`) bans the memory adapter in API tests; the only exemptions are `auth-instance.ts` itself and `auth.schema.test.ts`, which calls `createAuth` with the CLI placeholder values (`AUTH_PLACEHOLDER`) on purpose so it checks the same plugin tables `pnpm auth:generate` sees.
 - **External providers**: the factory defaults keep providers off (HIBP off, captcha omitted). A test that exercises HIBP or captcha turns it on explicitly in its overrides, with the provider stubbed.
-- **No real network**: the unit-test config loads [network-guard.ts](../../../apps/api/src/test/network-guard.ts), so an unstubbed `fetch` rejects (and TCP connects throw) with a message naming the URL or host. Blocked calls are also recorded, so a test still fails (in the guard's `afterEach`) when the code under test swallows the error. Stub with `vi.stubGlobal('fetch', ...)` and `vi.unstubAllGlobals()` in `afterEach`; mock Redis-backed code (including the rate-limited routes) with the Redis mock below. The real-Redis config skips the guard.
+- **No real network**: the unit-test config loads [network-guard.ts](../../../apps/api/src/test/network-guard.ts), so an unstubbed `fetch` rejects (and TCP connects throw) with a message naming the URL or host. Blocked calls are also recorded, so a test still fails (in the guard's `afterEach`) when the code under test swallows the error. Stub with `vi.stubGlobal('fetch', ...)` and `vi.unstubAllGlobals()` in `afterEach`; mock Valkey-backed code (including the rate-limited routes) with the Valkey mock below. The real-Valkey config skips the guard.
 - **Auth HTTP flows**: use [auth-http.ts](../../../apps/api/src/test/auth-http.ts) for the request type, cookie carry-over (`cookiesFrom`), the default user (`TEST_USER`), email sign-up (`signUpWithEmail`, which verifies the email and then signs in, so it returns a session cookie), the sign-up request alone with the email left unverified (`signUpUnverified`), email verification over the real endpoint (`verifyEmail`), whether a response signed someone in (`hasSessionCookie`) and two-factor sign-up and sign-in (`signUpWithTotp`, `startTwoFactorSignIn`).
-- **Service mocks**: use the mailer, Redis, logger and config mocks in [mocks/](../../../apps/api/src/test/mocks/) (`create*ServiceMock`, `TEST_ENVS`).
+- **Service mocks**: use the mailer, Valkey, logger and config mocks in [mocks/](../../../apps/api/src/test/mocks/) (`create*ServiceMock`, `TEST_ENVS`).
 
 ## Test Isolation
 
 ### Setup and Teardown
+
 ```typescript
 describe('UserService', () => {
   let userService: UserService;
   let mockRepository: MockRepository;
-  
+
   beforeEach(() => {
     mockRepository = createMockRepository();
     userService = new UserService(mockRepository);
   });
-  
+
   afterEach(() => {
     vi.clearAllMocks();
   });
-  
+
   it('should create user', async () => {
     // Test implementation
   });
@@ -341,6 +347,7 @@ describe('UserService', () => {
 ```
 
 ### Database Tests
+
 ```typescript
 // Use test database or in-memory database
 beforeAll(async () => {
@@ -359,12 +366,14 @@ beforeEach(async () => {
 ## Coverage Metrics
 
 ### Scope Expectations
+
 - **Services**: All public methods covered
 - **Routes/API handlers**: Success and failure responses covered
 - **Utilities**: All exported functions covered, including edge cases
 - **Components**: User interactions and edge-state rendering covered
 
 ### Running Coverage
+
 ```bash
 # Run tests with coverage
 pnpm test:coverage

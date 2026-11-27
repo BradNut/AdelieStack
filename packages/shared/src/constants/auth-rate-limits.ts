@@ -31,14 +31,15 @@ export const AUTH_RATE_LIMIT_EMAIL: AuthRateLimitRule = {
 export const AUTH_RATE_LIMIT_SIGN_UP: AuthRateLimitRule = { window: 3600, max: 10 };
 
 /**
- * Per-path rules: strict exact entries for the endpoints that check a credential or a code, email
- * entries for the endpoints that send an email (two-factor code, password reset, verification
- * email), the sign-up entry, two wildcards pinned to the default, and own limits for resetting a
- * password and passkey. Keys are Better Auth paths below the auth base path; `*` matches the rest.
- * The first matching key wins, so exact entries come before the wildcards. Unless a rule matches,
- * Better Auth applies a built-in limit (3 per 10 seconds) to `/sign-in*`, `/sign-up*`,
- * `/change-password*` and `/change-email*`, and its two-factor plugin does the same for
- * `/two-factor/*`: hence the pins, and the exact `/sign-up/email` entry rather than the built-in one.
+ * Per-path rules: strict exact entries for the endpoints that check a password or a code
+ * ({@link AUTH_RATE_LIMIT_CREDENTIAL_PATHS}), email entries for the endpoints that send an email
+ * (two-factor code, password reset, verification email), the sign-up entry, a `/sign-in/*` wildcard
+ * pinned to the default, and own limits for resetting a password and passkey. Keys are Better Auth
+ * paths below the auth base path; `*` matches the rest. The first matching key wins, so exact entries
+ * come before the wildcards. Unless a rule matches, Better Auth applies a built-in limit (3 per 10
+ * seconds) to `/sign-in*`, `/sign-up*`, `/change-password*` and `/change-email*`, and its two-factor
+ * plugin does the same for `/two-factor/*`: hence the pin, and exact entries for every two-factor
+ * endpoint, `/sign-up/email` and `/change-password` rather than the built-in one.
  */
 export const AUTH_RATE_LIMIT_RULES = {
   '/sign-in/email': AUTH_RATE_LIMIT_STRICT,
@@ -48,10 +49,13 @@ export const AUTH_RATE_LIMIT_RULES = {
   '/two-factor/disable': AUTH_RATE_LIMIT_STRICT,
   '/two-factor/get-totp-uri': AUTH_RATE_LIMIT_STRICT,
   '/two-factor/generate-backup-codes': AUTH_RATE_LIMIT_STRICT,
+  '/two-factor/enable': AUTH_RATE_LIMIT_STRICT,
+  '/change-password': AUTH_RATE_LIMIT_STRICT,
+  '/verify-password': AUTH_RATE_LIMIT_STRICT,
+  '/delete-user': AUTH_RATE_LIMIT_STRICT,
   '/two-factor/send-otp': AUTH_RATE_LIMIT_EMAIL,
   '/sign-up/email': AUTH_RATE_LIMIT_SIGN_UP,
   '/sign-in/*': AUTH_RATE_LIMIT_DEFAULT,
-  '/two-factor/*': AUTH_RATE_LIMIT_DEFAULT,
   '/request-password-reset': AUTH_RATE_LIMIT_EMAIL,
   '/send-verification-email': AUTH_RATE_LIMIT_EMAIL,
   '/reset-password': { window: 300, max: 5 },
@@ -59,12 +63,34 @@ export const AUTH_RATE_LIMIT_RULES = {
 } as const satisfies Record<string, AuthRateLimitRule>;
 
 /**
- * Endpoints below the pinned `/sign-in/*` and `/two-factor/*` wildcards that stay on the default on
- * purpose: none of them checks a credential or a code, or sends an email. Each must be a real Better
- * Auth path without an exact rule of its own; a test fails otherwise, and when a new endpoint is
- * neither listed nor ruled.
+ * Every endpoint whose request carries a password or a code it checks, so each request is a guess.
+ * Each has a strict entry in {@link AUTH_RATE_LIMIT_RULES}; a test fails when an endpoint that
+ * checks a password or a code is missing here, or has no rule at least as tight as the strict one.
+ * Endpoints that only set a password (sign-up, resetting a password, an admin creating a user or
+ * setting a password) are not guesses and are not listed.
  */
-export const AUTH_RATE_LIMIT_DEFAULT_PATHS = ['/sign-in/social', '/two-factor/enable'] as const;
+export const AUTH_RATE_LIMIT_CREDENTIAL_PATHS = [
+  '/sign-in/email',
+  '/two-factor/verify-totp',
+  '/two-factor/verify-otp',
+  '/two-factor/verify-backup-code',
+  '/two-factor/disable',
+  '/two-factor/get-totp-uri',
+  '/two-factor/generate-backup-codes',
+  '/two-factor/enable',
+  '/change-password',
+  '/verify-password',
+  '/delete-user',
+] as const satisfies readonly (keyof typeof AUTH_RATE_LIMIT_RULES)[];
+
+/**
+ * Endpoints below the pinned `/sign-in/*` wildcard that stay on the default on purpose: none of them
+ * checks a password or a code, or sends an email. Each must be a real Better Auth path without an
+ * exact rule of its own; a test fails otherwise, and when a new sign-in, sign-up or two-factor
+ * endpoint is neither listed nor ruled. No two-factor endpoint is listed: each has an exact rule,
+ * since all but sending a code check a password or a code.
+ */
+export const AUTH_RATE_LIMIT_DEFAULT_PATHS = ['/sign-in/social'] as const;
 
 /**
  * An account lockout: once `maxFailedAttempts` consecutive failures are counted, the account is locked for
@@ -87,7 +113,7 @@ export const AUTH_ACCOUNT_SIGN_IN_LOCKOUT = {
 } as const satisfies AccountLockoutPolicy;
 
 /**
- * Seconds a failed sign-in count is kept after its latest failure. Only so idle counts are dropped from Redis; it is
+ * Seconds a failed sign-in count is kept after its latest failure. Only so idle counts are dropped from Valkey; it is
  * far longer than the lock, so a slow guesser is still stopped.
  */
 export const AUTH_ACCOUNT_SIGN_IN_FAILURES_IDLE_EXPIRY = SECONDS_PER_DAY;

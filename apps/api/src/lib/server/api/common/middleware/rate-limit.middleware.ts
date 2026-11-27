@@ -6,9 +6,9 @@ import { ConfigService } from '#lib/server/api/common/configs/config.service';
 import { LoggerService } from '#lib/server/api/common/services/logger.service';
 import { createClientAddressResolver } from '#lib/server/api/common/utils/client-address-warning';
 import type { HonoEnv } from '#lib/server/api/common/utils/hono';
-import { createLazyRedisStore } from '#lib/server/api/common/utils/hono-rate-limiter-redis';
+import { createLazyValkeyStore } from '#lib/server/api/common/utils/hono-rate-limiter-valkey';
 import { clientIpOptionsFromEnvs, clientIpOrFallback } from '#lib/server/api/common/utils/ip';
-import { RedisService } from '#lib/server/api/databases/redis/redis.service';
+import { ValkeyService } from '#lib/server/api/databases/valkey/valkey.service';
 
 const container = new Container();
 
@@ -16,8 +16,8 @@ function getConfigService() {
   return container.get(ConfigService);
 }
 
-function getRedisClient() {
-  return container.get(RedisService).redis;
+function getValkeyClient() {
+  return container.get(ValkeyService).client;
 }
 
 function getLog() {
@@ -46,7 +46,7 @@ export function rateLimit({ limit, minutes, key = '' }: { limit: number; minutes
       const pathKey = key || c.req.path;
       return `${clientKey}_${pathKey}`;
     },
-    // Connects Redis on the first request to this route, not while routes are built.
-    store: createLazyRedisStore<HonoEnv>(getRedisClient),
+    // Connects Valkey on the first request to this route, not while routes are built.
+    store: createLazyValkeyStore<HonoEnv>(getValkeyClient),
   });
 }

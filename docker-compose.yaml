@@ -14,12 +14,12 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql
 
-  redis:
-    image: redis:8.10.3
+  valkey:
+    image: valkey/valkey:8.1.12
     ports:
       - "127.0.0.1:6379:6379"
     volumes:
-      - redis_data:/data
+      - valkey_data:/data
 
   seaweedfs:
     image: chrislusf/seaweedfs:3.79
@@ -55,9 +55,9 @@ services:
     environment:
       - COLLECTOR_OTLP_ENABLED=true
     ports:
-      - "127.0.0.1:16686:16686"  # Jaeger UI
-      - "127.0.0.1:4318:4318"    # OTLP HTTP receiver
-      - "127.0.0.1:4317:4317"    # OTLP gRPC receiver
+      - "127.0.0.1:16686:16686" # Jaeger UI
+      - "127.0.0.1:4318:4318" # OTLP HTTP receiver
+      - "127.0.0.1:4317:4317" # OTLP gRPC receiver
 
   clamav:
     image: clamav/clamav:1.5.4
@@ -68,7 +68,7 @@ services:
 
 volumes:
   postgres_data:
-  redis_data:
+  valkey_data:
   mailpit_data:
   seaweedfs_data:
   clamav_data:

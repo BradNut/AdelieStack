@@ -42,7 +42,7 @@ export class ApplicationModule {
     this.configService.validateEnvs();
     // configure storage service
     await this.storageService.configure();
-    // register background jobs (opens Redis connections, hence runtime-only)
+    // register background jobs (opens Valkey connections, hence runtime-only)
     if (this.configService.envs.JOBS_ENABLED) {
       await this.auditCleanupJob.register();
     }

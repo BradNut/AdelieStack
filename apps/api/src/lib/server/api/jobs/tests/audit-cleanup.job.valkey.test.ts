@@ -22,14 +22,14 @@ async function closedPort(): Promise<number> {
 
 /**
  * Runs real BullMQ against a port nobody listens on. BullMQ retries forever there and never rejects, so this is
- * what shows the limit holds for the real client. Needs no running Redis, but it lives in this config because the
+ * what shows the limit holds for the real client. Needs no running Valkey, but it lives in this config because the
  * default one blocks real sockets.
  */
-describe('AuditCleanupJob against an unreachable Redis', () => {
+describe('AuditCleanupJob against an unreachable Valkey', () => {
   it('fails register within the limit', { timeout: REGISTER_LIMIT_MS + CLOSE_MARGIN_MS * 2 }, async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
-    const redisUrl = `redis://127.0.0.1:${await closedPort()}`;
-    const job = createTestContainer(mockProvider(ConfigService, { envs: { REDIS_URL: redisUrl } }), mockProvider(AuditRepository, {})).get(
+    const valkeyUrl = `redis://127.0.0.1:${await closedPort()}`;
+    const job = createTestContainer(mockProvider(ConfigService, { envs: { VALKEY_URL: valkeyUrl } }), mockProvider(AuditRepository, {})).get(
       AuditCleanupJob,
     );
 

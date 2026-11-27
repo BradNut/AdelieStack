@@ -1,6 +1,6 @@
 ---
-status: accepted
----
+
+## status: accepted
 
 # Row ids are app-generated UUIDv7 stored as `text`, not native `uuid`
 

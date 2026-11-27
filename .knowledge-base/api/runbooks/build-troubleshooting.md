@@ -35,16 +35,16 @@ docker run --rm node:24-alpine apk add build-base python3
 
 ### Import-time infrastructure connection
 
-**Rule**: DB, Redis, storage, email, scanners must initialize lazily — never at import time.
+**Rule**: DB, Valkey, storage, email, scanners must initialize lazily — never at import time.
 
-If you see Redis/Postgres connection errors during startup before any request:
+If you see Valkey/Postgres connection errors during startup before any request:
 
 1. Find the service that connects at import time.
 2. Move connection to a lazy getter or factory pattern.
 3. Do not silence the error.
 
-See `apps/api/src/lib/server/api/databases/redis/redis.service.ts` for the Redis lazy init
-pattern — `RedisService.redis` only constructs the `ioredis` client (with `lazyConnect: true`) on
+See `apps/api/src/lib/server/api/databases/valkey/valkey.service.ts` for the Valkey lazy init
+pattern — `ValkeyService.client` only constructs the `ioredis` client (with `lazyConnect: true`) on
 first access, not at import time.
 
 ### Port conflict
