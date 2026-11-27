@@ -9,7 +9,7 @@ import {
 } from '@adelie/shared';
 import { totpCode } from '@adelie/test-utils/totp';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { lockDurationAfter } from '#lib/server/api/auth/auth.account-lockout';
+import { lockDurationAfter } from '#lib/server/api/auth/auth.lockout-policy';
 import { AUTH_RATE_LIMIT_VALKEY_PREFIX, AuthRateLimitRepository, accountLockoutKeys } from '#lib/server/api/auth/auth.rate-limit.repository';
 import type { ValkeyService } from '#lib/server/api/databases/valkey/valkey.service';
 import { type AuthRequest, signUpWithEmail, signUpWithTotp, startTwoFactorSignIn, TEST_USER } from '../../../../../test/auth-http';

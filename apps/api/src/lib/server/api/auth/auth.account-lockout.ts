@@ -18,22 +18,12 @@ export interface AccountLockoutStorage {
   lockedFor(email: string): Promise<number | null>;
   /**
    * Counts one wrong password (or unknown address). Every failure that reaches a multiple of `policy.maxFailedAttempts`
-   * locks the address for {@link lockDurationAfter} that many failures. The count is kept through the lock, so it is
+   * locks the address for `lockDurationAfter` (`auth.lockout-policy.ts`) that many failures. The count is kept through the lock, so it is
    * also the lock history.
    */
   recordFailure(email: string, policy: EscalatingLockoutPolicy): Promise<void>;
   /** Clears the count, and with it the lock history, so the next lock is the shortest. */
   clearFailures(email: string): Promise<void>;
-}
-
-/**
- * Seconds the address is locked for once `failures` consecutive failures are counted, or null when that failure does
- * not lock it. The nth lock lasts the nth of `policy.lockDurationsSeconds`, and the last repeats.
- */
-export function lockDurationAfter(policy: EscalatingLockoutPolicy, failures: number): number | null {
-  if (failures <= 0 || failures % policy.maxFailedAttempts !== 0) return null;
-  const durations = policy.lockDurationsSeconds;
-  return durations[Math.min(failures / policy.maxFailedAttempts, durations.length) - 1] ?? null;
 }
 
 const isSignInEmail = (ctx: { path?: string }) => ctx.path === AuthEndpoint.SIGN_IN_EMAIL;

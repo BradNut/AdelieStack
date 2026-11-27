@@ -3,7 +3,8 @@ import { AUTH_ACCOUNT_SIGN_IN_FAILURES_IDLE_EXPIRY, type AuthRateLimitRule, type
 import { inject, injectable } from '@needle-di/core';
 import { ValkeyRepository } from '#lib/server/api/common/factories/valkey-repository.factory';
 import { ValkeyService } from '#lib/server/api/databases/valkey/valkey.service';
-import { type AccountLockoutStorage, lockDurationAfter } from './auth.account-lockout';
+import type { AccountLockoutStorage } from './auth.account-lockout';
+import { lockDurationAfter } from './auth.lockout-policy';
 import type { AuthRateLimitStorage } from './auth.rate-limit';
 
 /** Namespaces the auth rate-limit counters among everything else in Valkey. */
