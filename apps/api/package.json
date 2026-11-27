@@ -35,7 +35,7 @@
     "@adelie/test-utils": "workspace:*",
     "@biomejs/biome": "2.6.9",
     "@faker-js/faker": "^10.6.0",
-    "@inlang/paraglide-js": "2.29.0",
+    "@inlang/paraglide-js": "3.2.2",
     "@scalar/api-reference": "1.85.0",
     "@types/clamscan": "^2.4.1",
     "@types/node": "^24.19.2",

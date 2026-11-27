@@ -181,8 +181,8 @@ importers:
         specifier: ^10.6.0
         version: 10.6.0
       '@inlang/paraglide-js':
-        specifier: 2.29.0
-        version: 2.29.0(typescript@7.0.2)(vite@8.4.0(@types/node@24.19.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
+        specifier: 3.2.2
+        version: 3.2.2(typescript@7.0.2)(vite@8.4.0(@types/node@24.19.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
       '@scalar/api-reference':
         specifier: 1.85.0
         version: 1.85.0(@oxc-project/types@0.160.0)(lightningcss@1.33.0)(oxc-parser@0.152.0)(rolldown@1.3.4)(rollup@4.60.2)(tailwindcss@4.3.5)(typescript@7.0.2)(vite@8.4.0(@types/node@24.19.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))(zod@4.6.7)
@@ -344,8 +344,8 @@ importers:
         specifier: ^3.7.1
         version: 3.7.1
       '@inlang/paraglide-js':
-        specifier: 2.29.0
-        version: 2.29.0(typescript@6.0.3)(vite@8.4.0(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
+        specifier: 3.2.2
+        version: 3.2.2(typescript@6.0.3)(vite@8.4.0(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
       '@internationalized/date':
         specifier: ^3.12.4
         version: 3.12.4
@@ -1768,27 +1768,20 @@ packages:
     engines: {node: '>=20.3.0'}
     hasBin: true
 
-  '@inlang/paraglide-js@2.29.0':
-    resolution: {integrity: sha512-1yBsi2ycRLRLOsZJRFf4wk6kycUOohoqrVyZye85D1fRHcd6IfhRAQWpGZPSJI5prgslpe3oHE8gOVXZr9aTww==}
+  '@inlang/paraglide-js@3.2.2':
+    resolution: {integrity: sha512-YoQ2aHmzSgC+yfUgKwcJew3F0lFfwLJsriGCbwQHiJfjKGNjhQnbRr0OXoxsy2ulY2/gK8vYpiphuTv2J0wf5Q==}
     hasBin: true
     peerDependencies:
       eslint: ^9.0.0 || ^10.0.0
-      typescript: '>=5.6'
       vite: '>=5.0.0'
     peerDependenciesMeta:
       eslint:
         optional: true
-      typescript:
-        optional: true
       vite:
         optional: true
 
-  '@inlang/recommend-sherlock@0.2.1':
-    resolution: {integrity: sha512-ckv8HvHy/iTqaVAEKrr+gnl+p3XFNwe5D2+6w6wJk2ORV2XkcRkKOJ/XsTUJbPSiyi4PI+p+T3bqbmNx/rDUlg==}
-
-  '@inlang/sdk@4.2.0':
-    resolution: {integrity: sha512-Cmaqvn34wsxiF27318Zw2rg+017HHNJWV5MH8rfyVKVANZNpzlztxzRbFienE/gASMLD8oluYHHolIb/p6Egrw==}
-    engines: {node: '>=20.0.0'}
+  '@inlang/recommend-sherlock@0.2.2':
+    resolution: {integrity: sha512-HKhzE++z+G9ZhiQGChxIB7XJMdVhS93iyNSHWQeMdKrKxqfkLXXQXIV15xB11IvH7qeB00Cca+wtPmFIRwlsrA==}
 
   '@inlang/sdk@4.3.0':
     resolution: {integrity: sha512-ZPX9nqex9DglvMO9URpY6EtpwzUkTeArHZLcHx03hO+v6jsQPOtKgfki2nbgKEysfhJVMy0JDOAiax9zPZuF4w==}
@@ -8585,48 +8578,43 @@ snapshots:
       esbuild-wasm: 0.19.12
       open: 10.2.0
 
-  '@inlang/paraglide-js@2.29.0(typescript@6.0.3)(vite@8.4.0(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))':
+  '@inlang/paraglide-js@3.2.2(typescript@6.0.3)(vite@8.4.0(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))':
     dependencies:
-      '@inlang/recommend-sherlock': 0.2.1
-      '@inlang/sdk': 4.2.0
+      '@inlang/recommend-sherlock': 0.2.2
+      '@inlang/sdk': 4.3.0
       commander: 11.1.0
       consola: 3.4.0
       jiti: 2.7.0
       json5: 2.2.3
-      jsonc-parser: 3.3.1
+      magic-string: 0.30.21
       unplugin: 2.3.11
       urlpattern-polyfill: 10.1.0
       valibot: 1.5.0(typescript@6.0.3)
     optionalDependencies:
-      typescript: 6.0.3
       vite: 8.4.0(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
+    transitivePeerDependencies:
+      - typescript
 
-  '@inlang/paraglide-js@2.29.0(typescript@7.0.2)(vite@8.4.0(@types/node@24.19.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))':
+  '@inlang/paraglide-js@3.2.2(typescript@7.0.2)(vite@8.4.0(@types/node@24.19.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))':
     dependencies:
-      '@inlang/recommend-sherlock': 0.2.1
-      '@inlang/sdk': 4.2.0
+      '@inlang/recommend-sherlock': 0.2.2
+      '@inlang/sdk': 4.3.0
       commander: 11.1.0
       consola: 3.4.0
       jiti: 2.7.0
       json5: 2.2.3
-      jsonc-parser: 3.3.1
+      magic-string: 0.30.21
       unplugin: 2.3.11
       urlpattern-polyfill: 10.1.0
       valibot: 1.5.0(typescript@7.0.2)
     optionalDependencies:
-      typescript: 7.0.2
       vite: 8.4.0(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
+    transitivePeerDependencies:
+      - typescript
 
-  '@inlang/recommend-sherlock@0.2.1':
+  '@inlang/recommend-sherlock@0.2.2':
     dependencies:
       comment-json: 4.6.2
-
-  '@inlang/sdk@4.2.0':
-    dependencies:
-      '@lix-js/sdk': 0.20.1
-      '@sinclair/typebox': 0.31.30
-      kysely: 0.28.20
-      uuid: 14.0.3
 
   '@inlang/sdk@4.3.0':
     dependencies:
