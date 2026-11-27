@@ -6,27 +6,27 @@ export const WINDOW_MS = 60_000;
 type LimitedApp = { request: (path: string) => Response | Promise<Response> };
 
 /**
- * Just enough Redis for the Lua scripts `RedisStore` runs, identified by the commands they contain.
- * Not the shared `createRedisServiceMock()`: its `redis.call` resolves `null`, so `RedisStore` can't run on it.
+ * Just enough Valkey for the Lua scripts `RedisStore` runs, identified by the commands they contain.
+ * Not the shared `createValkeyServiceMock()`: its `client.call` resolves `null`, so `RedisStore` can't run on it.
  */
-export function createFakeRedis() {
+export function createFakeValkey() {
   const hits = new Map<string, number>();
-  const redis = {
+  const valkey = {
     commands: [] as string[],
-    /** While set, every command is refused, as when Redis is unreachable. */
+    /** While set, every command is refused, as when Valkey is unreachable. */
     down: false,
     /** Refuses to load the scripts it matches. */
     refuseScript: (_script: string): boolean => false,
-    scriptLoads: () => redis.commands.filter((command) => command === 'SCRIPT').length,
+    scriptLoads: () => valkey.commands.filter((command) => command === 'SCRIPT').length,
     async call(command: string, ...args: (string | number)[]): Promise<unknown> {
-      redis.commands.push(command);
-      if (redis.down) throw new Error('connect ECONNREFUSED redis');
+      valkey.commands.push(command);
+      if (valkey.down) throw new Error('connect ECONNREFUSED valkey');
       if (command === 'SCRIPT') {
-        if (redis.refuseScript(String(args[1]))) throw new Error('script refused');
+        if (valkey.refuseScript(String(args[1]))) throw new Error('script refused');
         return args[1];
       }
       if (command === 'DEL') return hits.delete(String(args[0])) ? 1 : 0;
-      if (command !== 'EVALSHA') throw new Error(`Unexpected Redis command ${command}`);
+      if (command !== 'EVALSHA') throw new Error(`Unexpected Valkey command ${command}`);
 
       const script = String(args[0]);
       const key = String(args[2]);
@@ -34,10 +34,10 @@ export function createFakeRedis() {
       return [hits.get(key) ?? false, WINDOW_MS];
     },
   };
-  return redis;
+  return valkey;
 }
 
-export type FakeRedis = ReturnType<typeof createFakeRedis>;
+export type FakeValkey = ReturnType<typeof createFakeValkey>;
 
 /** Statuses of one request more than `LIMIT` allows, sent one after another. */
 export async function requestPastLimit(app: LimitedApp): Promise<number[]> {
@@ -46,9 +46,9 @@ export async function requestPastLimit(app: LimitedApp): Promise<number[]> {
   return statuses;
 }
 
-export async function requestWhileRedisDown(redis: FakeRedis, app: LimitedApp): Promise<Response> {
-  redis.down = true;
+export async function requestWhileValkeyDown(valkey: FakeValkey, app: LimitedApp): Promise<Response> {
+  valkey.down = true;
   const response = await app.request(PATH);
-  redis.down = false;
+  valkey.down = false;
   return response;
 }

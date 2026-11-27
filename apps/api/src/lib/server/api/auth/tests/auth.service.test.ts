@@ -10,9 +10,9 @@ import { productionEnvOverrides, validEnvs } from '#lib/server/api/common/config
 import type { LoggerService } from '#lib/server/api/common/services/logger.service';
 import type { DrizzleService } from '#lib/server/api/databases/postgres/drizzle.service';
 import * as drizzleSchema from '#lib/server/api/databases/postgres/drizzle-schema';
-import type { RedisService } from '#lib/server/api/databases/redis/redis.service';
+import type { ValkeyService } from '#lib/server/api/databases/valkey/valkey.service';
 import type { MailerService } from '#lib/server/api/mail/mailer.service';
-import { createRedisServiceMock } from '../../../../../test/mocks/redis.mock';
+import { createValkeyServiceMock } from '../../../../../test/mocks/valkey.mock';
 
 /**
  * `parsedOverrides` are applied after validation, for settings the DTO would refuse together (such as staging with the
@@ -27,15 +27,15 @@ function buildService(envs: Record<string, string> = {}, warn = vi.fn(), parsedO
     },
   } as unknown as DrizzleService;
   const configService = { envs: { ...envsDto.parse({ ...validEnvs, ...envs }), ...parsedOverrides } } as ConfigService;
-  const redis = createRedisServiceMock();
+  const valkey = createValkeyServiceMock();
   const service = new AuthService(
     configService,
     drizzleService,
     { send: async () => {} } as unknown as MailerService,
     { log: { error: vi.fn(), warn } } as unknown as LoggerService,
-    new AuthRateLimitRepository(redis as unknown as RedisService),
+    new AuthRateLimitRepository(valkey as unknown as ValkeyService),
   );
-  return { service, dbRead, redis };
+  return { service, dbRead, valkey };
 }
 
 describe('AuthService', () => {
@@ -117,22 +117,22 @@ describe('AuthService', () => {
     const request = (service: AuthService) =>
       service.auth.handler(new Request('http://localhost:3000/api/auth/ok', { headers: { 'x-forwarded-for': '203.0.113.7' } }));
 
-    it('counts auth requests in Redis', async () => {
-      const { service, redis } = buildService();
+    it('counts auth requests in Valkey', async () => {
+      const { service, valkey } = buildService();
 
       await request(service);
 
-      expect(redis.incrementWithExpiry).toHaveBeenCalledOnce();
+      expect(valkey.incrementWithExpiry).toHaveBeenCalledOnce();
     });
 
     it('does not count anything before an auth request arrives', () => {
-      const { service, redis } = buildService();
+      const { service, valkey } = buildService();
 
       expect(service.auth).toBeDefined();
-      expect(redis.incrementWithExpiry).not.toHaveBeenCalled();
+      expect(valkey.incrementWithExpiry).not.toHaveBeenCalled();
     });
 
-    it('counts failed password sign-ins per account in Redis', () => {
+    it('counts failed password sign-ins per account in Valkey', () => {
       const { service } = buildService();
 
       expect(service.auth.options.plugins?.map((plugin) => plugin.id)).toContain(ACCOUNT_LOCKOUT_PLUGIN_ID);
@@ -144,12 +144,12 @@ describe('AuthService', () => {
       expect(service.auth.options.plugins?.map((plugin) => plugin.id)).not.toContain(ACCOUNT_LOCKOUT_PLUGIN_ID);
     });
 
-    it('does not count or touch Redis when DISABLE_RATE_LIMIT is on', async () => {
-      const { service, redis } = buildService({ DISABLE_RATE_LIMIT: 'true' });
+    it('does not count or touch Valkey when DISABLE_RATE_LIMIT is on', async () => {
+      const { service, valkey } = buildService({ DISABLE_RATE_LIMIT: 'true' });
 
       await request(service);
 
-      expect(redis.incrementWithExpiry).not.toHaveBeenCalled();
+      expect(valkey.incrementWithExpiry).not.toHaveBeenCalled();
     });
   });
 

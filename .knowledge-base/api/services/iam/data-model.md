@@ -11,7 +11,7 @@ table or column a configured plugin needs. Read the tables and relations from `a
   (`advanced.database.generateId`), so ids sort roughly by creation time. Domain tables follow the same
   rule; [ADR 0010](../../../../docs/adr/0010-auth-ids-stay-text-uuidv7.md) explains why ids are
   not native `uuid`.
-- Sessions live in PostgreSQL, not Redis.
+- Sessions live in PostgreSQL, not Valkey.
 - For email and password sign-in, `accounts.password` holds the hash Better Auth produced.
 
 ## Roles

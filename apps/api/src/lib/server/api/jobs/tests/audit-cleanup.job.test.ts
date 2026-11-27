@@ -8,7 +8,7 @@ import { AUDIT_CLEANUP_JOB, AUDIT_CLEANUP_QUEUE, AUDIT_RETENTION_DAYS, AuditClea
 import { JobsService } from '#lib/server/api/jobs/jobs.service';
 
 /**
- * Fake BullMQ seam standing in for a live Redis connection. `createQueue`
+ * Fake BullMQ seam standing in for a live Valkey connection. `createQueue`
  * records every enqueue; `createWorker` captures the processor so the test can
  * invoke it as BullMQ would when a job runs.
  */
@@ -134,7 +134,7 @@ describe('AuditCleanupJob', () => {
     expect(info).toHaveBeenCalledWith(expect.stringContaining('deleted 0 '));
   });
 
-  describe('when Redis does not answer during register', () => {
+  describe('when Valkey does not answer during register', () => {
     /** The real limit from the issue, written out so a changed constant fails here. */
     const REGISTER_LIMIT_MS = 10_000;
     /** How long a failed registration waits for its connections to close, written out for the same reason. */
@@ -179,7 +179,7 @@ describe('AuditCleanupJob', () => {
       expect(stalled.jobsService.closeQueue).toHaveBeenCalledOnce();
       expect(console.error).toHaveBeenCalledWith(
         'Background job registration failed',
-        expect.objectContaining({ message: expect.stringMatching(/Redis/) }),
+        expect.objectContaining({ message: expect.stringMatching(/Valkey/) }),
       );
       expect(stalled.jobsService.processor).toBeNull();
     });
@@ -195,7 +195,7 @@ describe('AuditCleanupJob', () => {
       expect(stalled.jobsService.closeQueue).toHaveBeenCalledOnce();
       expect(console.error).toHaveBeenCalledWith(
         'Background job registration failed',
-        expect.objectContaining({ message: expect.stringMatching(/Redis/) }),
+        expect.objectContaining({ message: expect.stringMatching(/Valkey/) }),
       );
       expect(settled).not.toHaveBeenCalled();
 
@@ -204,7 +204,7 @@ describe('AuditCleanupJob', () => {
       expect(stalled.jobsService.processor).toBeNull();
     });
 
-    it('starts no worker if Redis answers after the limit', async () => {
+    it('starts no worker if Valkey answers after the limit', async () => {
       const failure = expect(stalled.job.register()).rejects.toThrow();
       await vi.advanceTimersByTimeAsync(REGISTER_LIMIT_MS);
       await failure;

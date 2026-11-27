@@ -45,7 +45,7 @@ describe('docker-compose.yaml', () => {
 
   it('keeps the host ports the app and scripts connect to', () => {
     const published = Object.values(compose.services ?? {}).flatMap((service) => (service.ports ?? []).map((port) => String(port)));
-    // Postgres, Redis, SeaweedFS S3, Mailpit SMTP + UI, Spotlight, OTLP HTTP, clamd.
+    // Postgres, Valkey, SeaweedFS S3, Mailpit SMTP + UI, Spotlight, OTLP HTTP, clamd.
     for (const hostPort of ['5432', '6379', '8333', '1025', '8025', '8969', '4318', '3310']) {
       expect(published).toContain(`127.0.0.1:${hostPort}:${hostPort}`);
     }

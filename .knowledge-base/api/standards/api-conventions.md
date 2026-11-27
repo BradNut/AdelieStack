@@ -162,20 +162,20 @@ if (!user.roles.includes('admin')) {
 
 ## Rate Limiting
 
-The API has two limiters. Both return HTTP 429 when a limit is exceeded, keep their counters in Redis (so limits hold across API instances), and are turned off by `DISABLE_RATE_LIMIT`.
+The API has two limiters. Both return HTTP 429 when a limit is exceeded, keep their counters in Valkey (so limits hold across API instances), and are turned off by `DISABLE_RATE_LIMIT`.
 
 ### `/api/auth/*`: Better Auth
 
-Every auth request is limited by Better Auth's built-in limiter, keyed by client IP and path, with stricter rules for sign-in, two-factor verification, password reset and passkey endpoints. Never wrap auth routes in `rateLimit()`. Decision: `docs/adr/0006-better-auth-owns-auth-rate-limiting.md`; operations (client IP, proxies, Redis outage): `.knowledge-base/api/runbooks/environment-config.md`.
+Every auth request is limited by Better Auth's built-in limiter, keyed by client IP and path, with stricter rules for sign-in, two-factor verification, password reset and passkey endpoints. Never wrap auth routes in `rateLimit()`. Decision: `docs/adr/0006-better-auth-owns-auth-rate-limiting.md`; operations (client IP, proxies, Valkey outage): `.knowledge-base/api/runbooks/environment-config.md`.
 
 ### Your own routes: `rateLimit()`
 
-`rateLimit({ limit, minutes, key? })` from `common/middleware/rate-limit.middleware.ts` is `hono-rate-limiter` with a Redis store, applied per route. No route uses it out of the box; it is there for routes you add.
+`rateLimit({ limit, minutes, key? })` from `common/middleware/rate-limit.middleware.ts` is `hono-rate-limiter` with a Valkey store, applied per route. No route uses it out of the box; it is there for routes you add.
 
 - **Key**: the signed-in user's id, otherwise the trusted client IP, plus `key` (or the request path when `key` is empty). Routes that pass the same `key` share one bucket.
 - **Headers**: `standardHeaders: 'draft-6'`, so responses carry `RateLimit-Policy`, `RateLimit-Limit`, `RateLimit-Remaining`, `RateLimit-Reset` and, on a 429, `Retry-After`. There are no `X-RateLimit-*` headers.
 - **Response on limit exceeded**: HTTP 429 with the library's default body.
-- **Redis**: the store connects on the first request to a limited route, never at import. It uses its own Redis connection, separate from the one the rest of the API shares.
+- **Valkey**: the store connects on the first request to a limited route, never at import. It uses its own Valkey connection, separate from the one the rest of the API shares.
 
 ## CORS
 

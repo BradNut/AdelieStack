@@ -23,7 +23,7 @@
     "3001": { "label": "Hono API" },
     "6006": { "label": "Storybook" },
     "5432": { "label": "PostgreSQL" },
-    "6379": { "label": "Redis" },
+    "6379": { "label": "Valkey" },
     "8333": { "label": "SeaweedFS S3 API" },
     "8888": { "label": "SeaweedFS Filer UI" },
     "9333": { "label": "SeaweedFS Master" },

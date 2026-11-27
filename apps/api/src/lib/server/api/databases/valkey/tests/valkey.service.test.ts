@@ -1,11 +1,11 @@
 import type { Redis } from 'ioredis';
 import { describe, expect, it, vi } from 'vitest';
 import type { ConfigService } from '#lib/server/api/common/configs/config.service';
-import { RedisService } from '#lib/server/api/databases/redis/redis.service';
+import { ValkeyService } from '#lib/server/api/databases/valkey/valkey.service';
 
 type Reply = [Error | null, unknown];
 
-/** A Redis double that records the transaction's commands in order and answers `exec` with `replies`. */
+/** A Valkey double that records the transaction's commands in order and answers `exec` with `replies`. */
 function buildService(replies: Reply[] | null) {
   const commands: unknown[][] = [];
   const record =
@@ -15,14 +15,14 @@ function buildService(replies: Reply[] | null) {
       return transaction;
     };
   const transaction = { set: record('set'), incr: record('incr'), ttl: record('ttl'), exec: async () => replies };
-  const service = new RedisService({ envs: { REDIS_URL: 'redis://localhost:6379' } } as ConfigService);
-  const redisGetter = vi.spyOn(service, 'redis', 'get').mockReturnValue({ multi: () => transaction } as unknown as Redis);
-  return { service, commands, redisGetter };
+  const service = new ValkeyService({ envs: { VALKEY_URL: 'redis://localhost:6379' } } as ConfigService);
+  const clientGetter = vi.spyOn(service, 'client', 'get').mockReturnValue({ multi: () => transaction } as unknown as Redis);
+  return { service, commands, clientGetter };
 }
 
 const data = { prefix: 'auth-rate-limit', key: 'ip|/sign-in/email', expiry: 60.9 };
 
-describe('RedisService.incrementWithExpiry', () => {
+describe('ValkeyService.incrementWithExpiry', () => {
   it('starts the expiry only if the key is new, then counts and reads the time left, in one transaction', async () => {
     const { service, commands } = buildService([
       [null, 'OK'],
@@ -49,7 +49,7 @@ describe('RedisService.incrementWithExpiry', () => {
     expect(await service.incrementWithExpiry(data)).toEqual({ count: 4, ttl: 37 });
   });
 
-  it('throws the Redis error when a command in the transaction failed', async () => {
+  it('throws the Valkey error when a command in the transaction failed', async () => {
     const { service } = buildService([
       [null, 'OK'],
       [new Error('WRONGTYPE'), undefined],
@@ -72,12 +72,12 @@ describe('RedisService.incrementWithExpiry', () => {
       [null, 60],
     ]);
 
-    await expect(service.incrementWithExpiry(data)).rejects.toThrow('Unexpected Redis reply');
+    await expect(service.incrementWithExpiry(data)).rejects.toThrow('Unexpected Valkey reply');
   });
 
   it('opens no connection until it is used', () => {
-    const { redisGetter } = buildService([]);
+    const { clientGetter } = buildService([]);
 
-    expect(redisGetter).not.toHaveBeenCalled();
+    expect(clientGetter).not.toHaveBeenCalled();
   });
 });

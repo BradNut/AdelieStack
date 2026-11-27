@@ -54,15 +54,15 @@ describe('findUnpinnedRefs: YAML images', () => {
       '  spotlight:',
       '    image: "ghcr.io/getsentry/spotlight:4.12.1"',
       '  cache:',
-      `    image: redis@sha256:${'a'.repeat(64)}`,
+      `    image: valkey@sha256:${'a'.repeat(64)}`,
     ].join('\n');
     assert.deepEqual(findUnpinnedRefs('docker-compose.yaml', yaml), []);
   });
 
   it('rejects latest, untagged and major-only floating tags', () => {
-    const yaml = ['    image: redis:latest', '    image: axllent/mailpit', '    image: postgres:18', '    image: localhost:5000/app'].join('\n');
+    const yaml = ['    image: valkey:latest', '    image: axllent/mailpit', '    image: postgres:18', '    image: localhost:5000/app'].join('\n');
     assert.deepEqual(findUnpinnedRefs('docker-compose.yaml', yaml), [
-      finding(1, 'redis:latest', 'image uses the "latest" tag'),
+      finding(1, 'valkey:latest', 'image uses the "latest" tag'),
       finding(2, 'axllent/mailpit', 'image has no tag'),
       finding(3, 'postgres:18', 'image tag is not a specific version'),
       finding(4, 'localhost:5000/app', 'image has no tag'),

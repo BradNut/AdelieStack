@@ -13,7 +13,7 @@ The process of verifying a user's identity through credentials (password, passke
 The process of determining what actions an authenticated user is allowed to perform.
 
 **Session**
-A temporary authentication state, stored in the `sessions` table through Better Auth's database adapter (not Redis), that identifies an authenticated user.
+A temporary authentication state, stored in the `sessions` table through Better Auth's database adapter (not Valkey), that identifies an authenticated user.
 
 **Replaced Session**
 The session a browser was holding when it signed in again, whoever signs in. Signing in ends it, including when the sign-in stops at a Two-factor Challenge; the user's sessions on other devices are untouched.
@@ -91,8 +91,9 @@ Type-safe database toolkit for TypeScript used for database queries and migratio
 **SeaweedFS**
 S3-compatible object storage used for file uploads in local development.
 
-**Redis**
-Store for rate-limit counters, account lockout state and background job queues, shared by every API instance. Sessions are not kept here.
+**Valkey**
+Key-value store for rate-limit counters, account lockout state and background job queues, shared by every API instance. Sessions are not kept here. See [ADR 0017](../../docs/adr/0017-valkey-replaces-redis.md).
+_Avoid_: Redis
 
 **Migration**
 Database schema change managed through Drizzle tooling.

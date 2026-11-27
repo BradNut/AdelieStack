@@ -14,12 +14,12 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql
 
-  redis:
-    image: redis:8.10.3
+  valkey:
+    image: valkey/valkey:8.1.12
     ports:
       - "127.0.0.1:6379:6379"
     volumes:
-      - redis_data:/data
+      - valkey_data:/data
 
   seaweedfs:
     image: chrislusf/seaweedfs:3.79
@@ -68,7 +68,7 @@ services:
 
 volumes:
   postgres_data:
-  redis_data:
+  valkey_data:
   mailpit_data:
   seaweedfs_data:
   clamav_data:

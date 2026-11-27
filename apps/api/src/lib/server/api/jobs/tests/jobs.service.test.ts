@@ -4,7 +4,7 @@ import { createTestContainer, mockProvider } from '#lib/server/api/common/testin
 import { JobsService } from '#lib/server/api/jobs/jobs.service';
 
 /**
- * Mock BullMQ so no Redis socket is opened. The constructors record their
+ * Mock BullMQ so no Valkey socket is opened. The constructors record their
  * arguments, letting us assert the connection config without a live broker.
  */
 const queueCtor = vi.fn();
@@ -23,10 +23,10 @@ vi.mock('bullmq', () => ({
   },
 }));
 
-const REDIS_URL = 'redis://localhost:6379';
+const VALKEY_URL = 'redis://localhost:6379';
 
 function build() {
-  const container = createTestContainer(mockProvider(ConfigService, { envs: { REDIS_URL } }));
+  const container = createTestContainer(mockProvider(ConfigService, { envs: { VALKEY_URL } }));
   return container.get(JobsService);
 }
 
@@ -42,17 +42,17 @@ describe('JobsService', () => {
     expect(workerCtor).not.toHaveBeenCalled();
   });
 
-  it('creates a queue bound to the configured Redis url only when asked', () => {
+  it('creates a queue bound to the configured Valkey url only when asked', () => {
     const service = build();
 
     expect(queueCtor).not.toHaveBeenCalled();
     service.createQueue('demo');
 
     expect(queueCtor).toHaveBeenCalledTimes(1);
-    expect(queueCtor).toHaveBeenCalledWith('demo', { connection: { url: REDIS_URL } });
+    expect(queueCtor).toHaveBeenCalledWith('demo', { connection: { url: VALKEY_URL } });
   });
 
-  it('creates a worker bound to the configured Redis url', () => {
+  it('creates a worker bound to the configured Valkey url', () => {
     const service = build();
     const processor = vi.fn();
 
@@ -62,6 +62,6 @@ describe('JobsService', () => {
     const [name, passedProcessor, opts] = workerCtor.mock.calls[0];
     expect(name).toBe('demo');
     expect(passedProcessor).toBe(processor);
-    expect(opts).toMatchObject({ connection: { url: REDIS_URL } });
+    expect(opts).toMatchObject({ connection: { url: VALKEY_URL } });
   });
 });

@@ -12,12 +12,12 @@ import {
 import { describe, expect, it } from 'vitest';
 import type { Auth } from '#lib/server/api/auth/auth.config';
 import type { AuthRateLimitStorage } from '#lib/server/api/auth/auth.rate-limit';
-import { AUTH_RATE_LIMIT_REDIS_PREFIX, AuthRateLimitRepository } from '#lib/server/api/auth/auth.rate-limit.repository';
+import { AUTH_RATE_LIMIT_VALKEY_PREFIX, AuthRateLimitRepository } from '#lib/server/api/auth/auth.rate-limit.repository';
 import { isRecord } from '#lib/server/api/common/utils/is-record';
-import type { RedisService } from '#lib/server/api/databases/redis/redis.service';
+import type { ValkeyService } from '#lib/server/api/databases/valkey/valkey.service';
 import { type AuthRequest, signUpWithEmail, signUpWithTotp, startTwoFactorSignIn } from '../../../../../test/auth-http';
 import { createTestAuth } from '../../../../../test/auth-instance';
-import { createRedisServiceMock } from '../../../../../test/mocks/redis.mock';
+import { createValkeyServiceMock } from '../../../../../test/mocks/valkey.mock';
 
 const CLIENT_IP = '203.0.113.7';
 const STRICT_MAX = AUTH_RATE_LIMIT_STRICT.max;
@@ -113,10 +113,10 @@ function credentialPathsWithoutStrictRule(paths: readonly string[]): string[] {
   });
 }
 
-/** The repository over the shared RedisService mock, so the counters land in its in-memory `store`. */
+/** The repository over the shared ValkeyService mock, so the counters land in its in-memory `store`. */
 function createRepository() {
-  const redis = createRedisServiceMock();
-  return { redis, repository: new AuthRateLimitRepository(redis as unknown as RedisService) };
+  const valkey = createValkeyServiceMock();
+  return { valkey, repository: new AuthRateLimitRepository(valkey as unknown as ValkeyService) };
 }
 
 function build({
@@ -128,7 +128,7 @@ function build({
   override?: AuthRateLimitStorage;
   trustProxy?: boolean;
 } = {}) {
-  const { redis, repository } = createRepository();
+  const { valkey, repository } = createRepository();
   const { auth, db, mailer, request } = createTestAuth({
     clientIp: { trustProxy, trustedProxies: [] },
     ...(withRateLimit ? { rateLimitStorage: override ?? repository } : {}),
@@ -136,7 +136,7 @@ function build({
   /** Every request comes from one client unless the test says otherwise. */
   const fromClient: AuthRequest = (path, options = {}) =>
     request(path, { ...options, headers: { 'x-forwarded-for': CLIENT_IP, ...options.headers } });
-  return { auth, redis, db, send: mailer.send, request: fromClient };
+  return { auth, valkey, db, send: mailer.send, request: fromClient };
 }
 
 const post = (request: AuthRequest, path: string, body: unknown, { ip = CLIENT_IP, cookie }: { ip?: string; cookie?: string } = {}) =>
@@ -233,7 +233,7 @@ describe('auth rate limiting', () => {
     const res = await resend();
 
     expect(res.status).toBe(429);
-    // The email window, not Better Auth's built-in one for this path (3 a minute); the Redis mock reports the full window as time left.
+    // The email window, not Better Auth's built-in one for this path (3 a minute); the Valkey mock reports the full window as time left.
     expect(Number(res.headers.get(RETRY_AFTER_HEADER))).toBe(AUTH_RATE_LIMIT_EMAIL.window);
     expect(send).toHaveBeenCalledTimes(AUTH_RATE_LIMIT_EMAIL.max);
   });
@@ -251,7 +251,7 @@ describe('auth rate limiting', () => {
     const res = await signUp(request, 'one-too-many@example.com');
 
     expect(res.status).toBe(429);
-    // The sign-up window, not Better Auth's built-in one for `/sign-up*` (3 per 10 seconds); the Redis mock reports the full window as time left.
+    // The sign-up window, not Better Auth's built-in one for `/sign-up*` (3 per 10 seconds); the Valkey mock reports the full window as time left.
     expect(Number(res.headers.get(RETRY_AFTER_HEADER))).toBe(AUTH_RATE_LIMIT_SIGN_UP.window);
     expect(db.user).toHaveLength(AUTH_RATE_LIMIT_SIGN_UP.max);
     expect(send).toHaveBeenCalledTimes(AUTH_RATE_LIMIT_SIGN_UP.max);
@@ -381,28 +381,28 @@ describe('auth rate limiting', () => {
   });
 
   it('keeps its counters in the injected storage, not in process memory', async () => {
-    const { request, redis } = build();
+    const { request, valkey } = build();
 
     await signIn(request);
 
-    expect(redis.incrementWithExpiry).toHaveBeenCalled();
+    expect(valkey.incrementWithExpiry).toHaveBeenCalled();
   });
 
   it('keeps sessions in the database and only counters in the rate-limit storage', async () => {
-    const { auth, request, redis, db } = build();
+    const { auth, request, valkey, db } = build();
     await auth.api.createUser({ body: { name: 'Member', email: 'member@example.com', password: 'Correct-horse-9' } });
 
     const res = await post(request, '/sign-in/email', { email: 'member@example.com', password: 'Correct-horse-9' });
 
     expect(res.status).toBe(200);
     expect(db.session).toHaveLength(1);
-    expect([...redis.store.keys()].every((key) => key.startsWith(`${AUTH_RATE_LIMIT_REDIS_PREFIX}:`))).toBe(true);
+    expect([...valkey.store.keys()].every((key) => key.startsWith(`${AUTH_RATE_LIMIT_VALKEY_PREFIX}:`))).toBe(true);
   });
 
   it('fails the request rather than skipping the limit when the storage is unreachable', async () => {
-    const { request } = build({ override: { consume: async () => Promise.reject(new Error('redis down')) } });
+    const { request } = build({ override: { consume: async () => Promise.reject(new Error('valkey down')) } });
 
-    await expect(signIn(request)).rejects.toThrow('redis down');
+    await expect(signIn(request)).rejects.toThrow('valkey down');
   });
 
   it('does not throttle when no rate limit is configured, whatever the environment', async () => {
@@ -451,20 +451,20 @@ describe('AuthRateLimitRepository', () => {
     expect(await repository.consume('b', rule)).toEqual({ allowed: true, retryAfter: null });
   });
 
-  it('falls back to the whole window when Redis reports no time left', async () => {
-    const { redis, repository } = createRepository();
-    redis.incrementWithExpiry.mockResolvedValue({ count: 3, ttl: -1 });
+  it('falls back to the whole window when Valkey reports no time left', async () => {
+    const { valkey, repository } = createRepository();
+    valkey.incrementWithExpiry.mockResolvedValue({ count: 3, ttl: -1 });
 
     expect(await repository.consume('k', rule)).toEqual({ allowed: false, retryAfter: rule.window });
   });
 
   it('counts under its own prefix with the rule window as expiry', async () => {
-    const { redis, repository } = createRepository();
+    const { valkey, repository } = createRepository();
 
     await repository.consume('1.2.3.4|/sign-in/email', rule);
 
-    expect(redis.incrementWithExpiry).toHaveBeenCalledWith({
-      prefix: AUTH_RATE_LIMIT_REDIS_PREFIX,
+    expect(valkey.incrementWithExpiry).toHaveBeenCalledWith({
+      prefix: AUTH_RATE_LIMIT_VALKEY_PREFIX,
       key: '1.2.3.4|/sign-in/email',
       expiry: rule.window,
     });

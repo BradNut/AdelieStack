@@ -258,11 +258,11 @@ describe('envsDto production refuses development defaults', () => {
   });
 });
 
-describe('envsDto production Redis URL', () => {
-  // Decision: .knowledge-base/api/decisions/index.md ("Production does not require Redis credentials or TLS", #272).
+describe('envsDto production Valkey URL', () => {
+  // Decision: .knowledge-base/api/decisions/index.md ("Production does not require Valkey credentials or TLS", #272).
   // Transport to internal services is the deployer's call; do not add a refusal here without revisiting that entry.
-  it('accepts production with a passwordless, plain-text REDIS_URL (see the decisions index, #272)', () => {
-    const result = envsDto.safeParse({ ...validEnvs, ...productionEnvOverrides, REDIS_URL: 'redis://redis:6379' });
+  it('accepts production with a passwordless, plain-text VALKEY_URL (see the decisions index, #272)', () => {
+    const result = envsDto.safeParse({ ...validEnvs, ...productionEnvOverrides, VALKEY_URL: 'redis://valkey:6379' });
     expect(result.error?.issues).toBeUndefined();
     expect(result.success).toBe(true);
   });
@@ -346,13 +346,20 @@ describe('envsDto Environment', () => {
 });
 
 describe('envsDto required variables', () => {
-  it.each(['DATABASE_USER', 'REDIS_URL', 'SIGNING_SECRET', 'BETTER_AUTH_SECRET', 'BETTER_AUTH_URL', 'DOMAIN', 'STORAGE_URL', 'PUBLIC_IMAGE_URI'])(
+  it.each(['DATABASE_USER', 'VALKEY_URL', 'SIGNING_SECRET', 'BETTER_AUTH_SECRET', 'BETTER_AUTH_URL', 'DOMAIN', 'STORAGE_URL', 'PUBLIC_IMAGE_URI'])(
     'rejects env missing %s',
     (key) => {
       const { [key]: _omitted, ...rest } = validEnvs as Record<string, unknown>;
       expect(() => envsDto.parse(rest)).toThrow();
     },
   );
+
+  it('rejects a stale REDIS_URL in place of VALKEY_URL, naming VALKEY_URL', () => {
+    const { VALKEY_URL, ...rest } = validEnvs;
+    const result = envsDto.safeParse({ ...rest, REDIS_URL: VALKEY_URL });
+    expect(result.success).toBe(false);
+    expect(result.error?.issues.map((issue) => issue.path.join('.'))).toEqual(['VALKEY_URL']);
+  });
 
   it('rejects an empty SIGNING_SECRET', () => {
     expect(() => envsDto.parse({ ...validEnvs, SIGNING_SECRET: '' })).toThrow();

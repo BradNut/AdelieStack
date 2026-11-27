@@ -2,19 +2,19 @@ import { randomUUID } from 'node:crypto';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { AUTH_ACCOUNT_SIGN_IN_FAILURES_IDLE_EXPIRY } from '@adelie/shared';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { AUTH_RATE_LIMIT_REDIS_PREFIX, AuthRateLimitRepository, accountLockoutKeys } from '#lib/server/api/auth/auth.rate-limit.repository';
+import { AUTH_RATE_LIMIT_VALKEY_PREFIX, AuthRateLimitRepository, accountLockoutKeys } from '#lib/server/api/auth/auth.rate-limit.repository';
 import type { ConfigService } from '#lib/server/api/common/configs/config.service';
-import { RedisService } from '#lib/server/api/databases/redis/redis.service';
+import { ValkeyService } from '#lib/server/api/databases/valkey/valkey.service';
 
 /**
- * Runs the auth rate-limit storage against a real Redis, so the atomic count-and-expire step is checked
- * outside mocks. Needs REDIS_URL; run with `pnpm test:redis` (excluded from `pnpm test`).
+ * Runs the auth rate-limit storage against a real Valkey, so the atomic count-and-expire step is checked
+ * outside mocks. Needs VALKEY_URL; run with `pnpm test:valkey` (excluded from `pnpm test`).
  */
-const REDIS_URL = process.env.REDIS_URL;
-if (!REDIS_URL) throw new Error('REDIS_URL is required for `pnpm test:redis` (e.g. redis://localhost:6379)');
+const VALKEY_URL = process.env.VALKEY_URL;
+if (!VALKEY_URL) throw new Error('VALKEY_URL is required for `pnpm test:valkey` (e.g. redis://localhost:6379)');
 
-const redisService = new RedisService({ envs: { REDIS_URL } } as ConfigService);
-const repository = new AuthRateLimitRepository(redisService);
+const valkeyService = new ValkeyService({ envs: { VALKEY_URL } } as ConfigService);
+const repository = new AuthRateLimitRepository(valkeyService);
 const createdKeys: string[] = [];
 
 /** A key no other test or run shares, removed afterwards. */
@@ -24,18 +24,18 @@ function uniqueKey() {
   return key;
 }
 
-const ttlOf = (key: string) => redisService.redis.ttl(`${AUTH_RATE_LIMIT_REDIS_PREFIX}:${key}`);
+const ttlOf = (key: string) => valkeyService.client.ttl(`${AUTH_RATE_LIMIT_VALKEY_PREFIX}:${key}`);
 
 beforeAll(async () => {
-  await redisService.redis.connect();
+  await valkeyService.client.connect();
 });
 
 afterAll(async () => {
-  await Promise.all(createdKeys.map((key) => redisService.delete({ prefix: AUTH_RATE_LIMIT_REDIS_PREFIX, key })));
-  redisService.redis.disconnect();
+  await Promise.all(createdKeys.map((key) => valkeyService.delete({ prefix: AUTH_RATE_LIMIT_VALKEY_PREFIX, key })));
+  valkeyService.client.disconnect();
 });
 
-describe('AuthRateLimitRepository against real Redis', () => {
+describe('AuthRateLimitRepository against real Valkey', () => {
   it('allows requests up to the maximum and refuses the next', async () => {
     const key = uniqueKey();
     const rule = { window: 30, max: 3 };
@@ -66,7 +66,7 @@ describe('AuthRateLimitRepository against real Redis', () => {
 
     await sleep(1500);
 
-    expect(await redisService.get({ prefix: AUTH_RATE_LIMIT_REDIS_PREFIX, key })).toBeNull();
+    expect(await valkeyService.get({ prefix: AUTH_RATE_LIMIT_VALKEY_PREFIX, key })).toBeNull();
     expect(await repository.consume(key, rule)).toEqual({ allowed: true, retryAfter: null });
     expect((await repository.consume(key, rule)).allowed).toBe(false);
   });
@@ -112,7 +112,7 @@ describe('AuthRateLimitRepository against real Redis', () => {
   });
 });
 
-describe('account lockout counts against real Redis', () => {
+describe('account lockout counts against real Valkey', () => {
   /** An address no other test or run shares; its keys are removed afterwards. */
   function uniqueEmail() {
     const email = `test-${randomUUID()}@example.com`;
@@ -139,7 +139,7 @@ describe('account lockout counts against real Redis', () => {
     await repository.recordFailure(email, policy);
     await repository.recordFailure(email, policy);
 
-    expect(await redisService.get({ prefix: AUTH_RATE_LIMIT_REDIS_PREFIX, key: accountLockoutKeys(email).failures })).toBe('2');
+    expect(await valkeyService.get({ prefix: AUTH_RATE_LIMIT_VALKEY_PREFIX, key: accountLockoutKeys(email).failures })).toBe('2');
     expect(await ttlOf(accountLockoutKeys(email).failures)).toBe(AUTH_ACCOUNT_SIGN_IN_FAILURES_IDLE_EXPIRY);
   });
 
@@ -164,6 +164,6 @@ describe('account lockout counts against real Redis', () => {
     await sleep(1500);
 
     expect(await repository.lockedFor(email)).toBeNull();
-    expect(await redisService.get({ prefix: AUTH_RATE_LIMIT_REDIS_PREFIX, key: accountLockoutKeys(email).failures })).toBeNull();
+    expect(await valkeyService.get({ prefix: AUTH_RATE_LIMIT_VALKEY_PREFIX, key: accountLockoutKeys(email).failures })).toBeNull();
   });
 });

@@ -38,7 +38,7 @@ Our own routes only read the session: `GET /api/users/me` (Users service) and an
 
 ### Sessions
 
-- Stored in the Postgres `sessions` table, not Redis. The cookie cache is off, so every request
+- Stored in the Postgres `sessions` table, not Valkey. The cookie cache is off, so every request
   reads the row and a revoked session or changed role applies at once.
 - Lifetimes come from `packages/shared/src/constants/auth-session.ts`: a session lasts 7 days after
   its last refresh (`AUTH_SESSION_EXPIRES_IN`), is extended at most once a day
@@ -59,7 +59,7 @@ Second Factor (two-factor enabled or a passkey); signing in and enrolling do not
 - **Auth**: Better Auth with the `admin`, `twoFactor`, `passkey`, `haveIBeenPwned`, `lastLoginMethod`
   and (when enabled) `captcha` plugins, plus `openAPI` outside production (reference at `/api/auth/reference`)
 - **Database**: PostgreSQL via Better Auth's Drizzle adapter (`auth/tables/auth.table.ts`, generated)
-- **Rate limiting**: Better Auth's limiter with counters in Redis
+- **Rate limiting**: Better Auth's limiter with counters in Valkey
   ([ADR 0006](../../../../docs/adr/0006-better-auth-owns-auth-rate-limiting.md))
 - **Email**: our `MailerService`, through templates in `mail/templates/`
 
@@ -100,7 +100,7 @@ apps/api/src/lib/server/api/auth/
 - Security Events (password changed, Recovery Codes used or regenerated, email changed) email the user.
 - Password sign-in locks per email address, across clients, after 100 consecutive failures, for 15
   minutes from the failure that reached it (`AUTH_ACCOUNT_SIGN_IN_LOCKOUT`; our `account-lockout` plugin,
-  hashed keys in Redis). Second-factor verification locks per account after 10 failed attempts for 15
+  hashed keys in Valkey). Second-factor verification locks per account after 10 failed attempts for 15
   minutes (Better Auth's `accountLockout`, pinned to `TWO_FACTOR_ACCOUNT_LOCKOUT`;
   `two_factors.failed_verification_count`, `locked_until`). Both counts clear on a success and start
   again when the lock ends.
@@ -113,7 +113,7 @@ Operational details for each of these are in the
 ### Internal
 
 - `ConfigService` (env), `DrizzleService` (Postgres), `MailerService`, `LoggerService`
-- `AuthRateLimitRepository` over `RedisService` (rate-limit counters only)
+- `AuthRateLimitRepository` over `ValkeyService` (rate-limit counters only)
 - `@adelie/shared`: session, cookie, rate-limit, role and password constants
 
 ### External

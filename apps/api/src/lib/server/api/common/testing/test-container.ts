@@ -11,7 +11,7 @@ export function mockProvider<T>(provide: Token<T>, value: object): Provider<T> {
 /**
  * Fresh needle-di container with the given overrides bound. Anything not overridden resolves
  * to its real `@injectable()` implementation, so only bind mocks for external boundaries
- * (repositories, redis, mail, storage, config) and let internal logic run for real.
+ * (repositories, valkey, mail, storage, config) and let internal logic run for real.
  */
 export function createTestContainer(...providers: Provider<unknown>[]): Container {
   const container = new Container();

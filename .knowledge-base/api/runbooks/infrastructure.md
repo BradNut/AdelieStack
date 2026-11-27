@@ -1,10 +1,10 @@
 # Infrastructure Troubleshooting
 
-Covers Redis, SeaweedFS / S3 (storage), ClamAV (antivirus), and email (unwired).
+Covers Valkey, SeaweedFS / S3 (storage), ClamAV (antivirus), and email (unwired).
 
 Local services in `docker-compose.yaml` run on the Compose bridge network and publish their ports on `127.0.0.1` only, so they are reachable from this machine, not the LAN. Connect through `localhost:<port>`. A stack started before this change (host networking) must be recreated: `docker compose up -d --force-recreate`. `apps/api/src/test/docker-compose.test.ts` fails on `network_mode: host` or a port without the `127.0.0.1` prefix.
 
-## Redis
+## Valkey
 
 ### Symptoms
 
@@ -15,18 +15,18 @@ Local services in `docker-compose.yaml` run on the Compose bridge network and pu
 ### Diagnosis
 
 ```bash
-redis-cli -u $REDIS_URL ping
+valkey-cli -u $VALKEY_URL ping
 # Expect: PONG
 ```
 
 ### Fixes
 
-| Problem                    | Fix                                                                                                                                                                                                             |
-| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Wrong `REDIS_URL`          | Update in Coolify env → redeploy                                                                                                                                                                                |
-| Redis container down       | Restart Redis service in Coolify                                                                                                                                                                                |
-| Container network mismatch | Put API and Redis on same Coolify network                                                                                                                                                                       |
-| Import-time connection     | Move `ioredis` client init to lazy getter — never connect at import (see `apps/api/src/lib/server/api/databases/redis/redis.service.ts`, which already lazily instantiates the client on first `.redis` access) |
+| Problem                    | Fix                                                                                                                                                                                                                |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Wrong `VALKEY_URL`         | Update in Coolify env → redeploy                                                                                                                                                                                   |
+| Valkey container down      | Restart Valkey service in Coolify                                                                                                                                                                                  |
+| Container network mismatch | Put API and Valkey on same Coolify network                                                                                                                                                                         |
+| Import-time connection     | Move `ioredis` client init to lazy getter — never connect at import (see `apps/api/src/lib/server/api/databases/valkey/valkey.service.ts`, which already lazily instantiates the client on first `.valkey` access) |
 
 ---
 

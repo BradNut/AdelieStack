@@ -7,9 +7,9 @@ import { envsDto } from '#lib/server/api/common/configs/dtos/env.dto';
 import { validEnvs } from '#lib/server/api/common/configs/tests/env-fixtures';
 import type { LoggerService } from '#lib/server/api/common/services/logger.service';
 import type { DrizzleService } from '#lib/server/api/databases/postgres/drizzle.service';
-import type { RedisService } from '#lib/server/api/databases/redis/redis.service';
+import type { ValkeyService } from '#lib/server/api/databases/valkey/valkey.service';
 import type { MailerService } from '#lib/server/api/mail/mailer.service';
-import { createRedisServiceMock } from '../../../../../test/mocks/redis.mock';
+import { createValkeyServiceMock } from '../../../../../test/mocks/valkey.mock';
 
 vi.mock('#lib/server/api/auth/auth.config', async (importOriginal) => ({
   ...(await importOriginal<typeof import('#lib/server/api/auth/auth.config')>()),
@@ -25,7 +25,7 @@ describe('AuthService mail logging', () => {
       {} as DrizzleService,
       { send: async () => {} } as unknown as MailerService,
       { log } as unknown as LoggerService,
-      new AuthRateLimitRepository(createRedisServiceMock() as unknown as RedisService),
+      new AuthRateLimitRepository(createValkeyServiceMock() as unknown as ValkeyService),
     );
 
     void service.auth;

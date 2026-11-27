@@ -3,11 +3,11 @@ import { type Processor, Queue, type QueueOptions, Worker, type WorkerOptions } 
 import { ConfigService } from '#lib/server/api/common/configs/config.service';
 
 /**
- * Thin factory over BullMQ that owns the single place a Redis connection is
+ * Thin factory over BullMQ that owns the single place a Valkey connection is
  * configured for background work. Nothing connects at import or construction
- * time: a Queue/Worker (and therefore a Redis socket) is only opened when a
+ * time: a Queue/Worker (and therefore a Valkey socket) is only opened when a
  * caller invokes {@link createQueue} or {@link createWorker}. Reuses the same
- * `REDIS_URL` as sessions and rate limiting.
+ * `VALKEY_URL` as rate limiting.
  */
 @injectable()
 export class JobsService {
@@ -15,7 +15,7 @@ export class JobsService {
 
   /** Connection options shared by every queue and worker this service creates. */
   private get connection(): QueueOptions['connection'] {
-    return { url: this.configService.envs.REDIS_URL };
+    return { url: this.configService.envs.VALKEY_URL };
   }
 
   createQueue<T = unknown>(name: string): Queue<T> {

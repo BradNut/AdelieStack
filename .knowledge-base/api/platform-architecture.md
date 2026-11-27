@@ -25,7 +25,7 @@
     ┌────┴────┬──────────┬──────────┐
     ▼         ▼          ▼          ▼
 ┌────────┐ ┌──────┐ ┌────────┐ ┌──────┐
-│ Postgres│ │ Redis│ │   S3   │ │ Mail │
+│ Postgres│ │ Valkey│ │   S3   │ │ Mail │
 └─────────┘ └──────┘ └────────┘ └──────┘
 ```
 
@@ -38,12 +38,12 @@
 - **Migrations**: Managed via `drizzle-kit`
 - **Connection**: Pooled connections with lazy initialization
 
-#### Redis Cache
+#### Valkey
 
-- **Purpose**: Session storage, rate limiting, caching
+- **Purpose**: Rate-limit counters, account lockout state and BullMQ job queues (sessions stay in PostgreSQL)
 - **Client**: ioredis with `lazyConnect: true`
 - **Configuration**: Lazy getter pattern to prevent build-time connections
-- **Use Cases**: User sessions, API rate limits, temporary data
+- **Use Cases**: Auth and route rate limits, account lockout, background jobs
 
 #### SeaweedFS Object Storage
 
@@ -129,7 +129,7 @@
 
 - Removed heavy build plugins to reduce memory usage
 - Lazy service initialization prevents OOM during builds
-- Redis lazy connect prevents connection attempts at build time
+- Valkey lazy connect prevents connection attempts at build time
 - Optimized for ~3GB RSS during production builds
 
 ## Network Architecture
@@ -164,10 +164,10 @@
 
 1. User submits credentials
 2. Validate against database (Argon2 hash via `HashingService`)
-3. Create session in Redis
+3. Create session in PostgreSQL
 4. Return session cookie
 5. Subsequent requests include session cookie
-6. Middleware validates session from Redis
+6. Middleware validates session from PostgreSQL
 
 ### File Upload Flow
 
@@ -205,23 +205,22 @@
 
 - `/health` endpoint for liveness
 - Database connection check
-- Redis connection check
+- Valkey connection check
 - Service dependency status
 
 ## Scaling Considerations
 
 ### Horizontal Scaling
 
-- Stateless API design (sessions in Redis)
+- Stateless API design (sessions in PostgreSQL)
 - Load balancer ready
-- Shared Redis for session consistency
+- Shared Valkey so rate limits and lockouts hold across instances
 - Shared PostgreSQL with connection pooling
 
 ### Vertical Scaling
 
 - Memory optimization for build and runtime
 - Efficient database queries with indexes
-- Redis caching for hot data
 - Lazy service initialization
 
 ## Related Documentation

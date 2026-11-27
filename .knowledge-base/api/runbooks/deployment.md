@@ -60,7 +60,7 @@ Startup fails the boot when:
 
 - Any storage request errors. Missing buckets are created; a bucket another instance created at the
   same moment is fine.
-- `JOBS_ENABLED` is true and Redis has not answered within 10s.
+- `JOBS_ENABLED` is true and Valkey has not answered within 10s.
 
 On SIGINT or SIGTERM the API logs `Shutting down...`, closes HTTP, closes jobs, flushes telemetry and
 exits. The sequence has 8s overall. A step that errors is logged and later steps still run. The exit
@@ -75,11 +75,15 @@ must keep them longer. An interrupted run is safe: the delete either completes o
 
 ## Required Env Before Deploy
 
-`ORIGIN`, `DOMAIN`, `DATABASE_*`, `REDIS_URL`, `SIGNING_SECRET`, `STORAGE_*`, `PROJECT_NAME`.
+`ORIGIN`, `DOMAIN`, `DATABASE_*`, `VALKEY_URL`, `SIGNING_SECRET`, `STORAGE_*`, `PROJECT_NAME`.
+
+**Breaking: `REDIS_URL` is now `VALKEY_URL`** ([ADR 0017](../../../docs/adr/0017-valkey-replaces-redis.md)). There is no alias: rename the
+variable in every deployment before upgrading, or the API refuses to start with a validation error naming `VALKEY_URL`.
+The value keeps its `redis://` or `rediss://` scheme, and an existing Redis server keeps working until you swap it for Valkey.
 Set `DATABASE_SSL_MODE=verify-full` unless Postgres shares the host or a private network with the API
 (see [Database TLS](./environment-config.md#database-tls)); the default `disable` sends queries in the clear.
-Keep Redis on the API's private network and use `rediss://` or a password in `REDIS_URL` when anything else shares
-it or it is reached over a network (see [Redis access and TLS](./environment-config.md#redis-access-and-tls)).
+Keep Valkey on the API's private network and use `rediss://` or a password in `VALKEY_URL` when anything else shares
+it or it is reached over a network (see [Valkey access and TLS](./environment-config.md#valkey-access-and-tls)).
 
 See [Environment Configuration](./environment-config.md) for the full variable list (matches
 `apps/api/.env.schema` exactly).

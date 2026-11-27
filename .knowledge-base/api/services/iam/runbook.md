@@ -27,7 +27,7 @@ session operations.
      passkey, or set a password through password reset.
    - `two_factor_enabled` → after the password or a social provider they must complete the Two-factor Challenge.
 2. If they get `429`:
-   - With `X-Retry-After`: a rate limit; the header says how long to wait. Counters are in Redis
+   - With `X-Retry-After`: a rate limit; the header says how long to wait. Counters are in Valkey
      under `auth-rate-limit:`.
    - With `SIGN_IN_TEMPORARILY_LOCKED` on password sign-in: 100 consecutive wrong passwords for that
      email address, from any client, locked it for 15 minutes; `X-Retry-After` says how long is left.
@@ -39,7 +39,7 @@ session operations.
      SELECT failed_verification_count, locked_until FROM two_factors WHERE user_id = '<user_id>';
      ```
 
-**Resolution:** A two-factor lock clears itself at `locked_until`, a password lock when its Redis key expires.
+**Resolution:** A two-factor lock clears itself at `locked_until`, a password lock when its Valkey key expires.
 A ban is lifted through the admin endpoint.
 
 ---
@@ -82,7 +82,7 @@ A ban is lifted through the admin endpoint.
 
 1. `curl http://localhost:3001/api/healthz` (the API must be up).
 2. Postgres: `psql "$DATABASE_URL" -c "SELECT 1;"`. Sessions are read from Postgres on every request.
-3. Redis: `redis-cli -u "$REDIS_URL" ping`. With auth rate limiting on, an unreachable Redis fails
+3. Valkey: `valkey-cli -u "$VALKEY_URL" ping`. With auth rate limiting on, an unreachable Valkey fails
    every auth request.
 4. `BETTER_AUTH_SECRET` changed → existing session cookies no longer verify and everyone is signed
    out; secrets Better Auth encrypted with it (TOTP secrets, Recovery Codes, social access and

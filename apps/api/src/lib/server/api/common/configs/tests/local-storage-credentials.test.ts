@@ -24,7 +24,7 @@ const credentialSources = [credentialSource];
 
 describe('local storage credentials', () => {
   it.each(credentialSources)('%s defaults cannot collide with ordinary response text', (file) => {
-    for (const key of ['STORAGE_ACCESS_KEY', 'STORAGE_SECRET_KEY', 'REDIS_URL']) {
+    for (const key of ['STORAGE_ACCESS_KEY', 'STORAGE_SECRET_KEY', 'VALKEY_URL']) {
       const value = envValue(file, key);
       expect(value, `${file} ${key}`).toBeTruthy();
       for (const text of OrdinaryResponseText) {
@@ -33,8 +33,8 @@ describe('local storage credentials', () => {
     }
   });
 
-  it('declares REDIS_URL sensitive, since a real URL embeds the password', () => {
-    expect(read(credentialSource)).toMatch(/^# @type=url @sensitive=true\nREDIS_URL=/m);
+  it('declares VALKEY_URL sensitive, since a real URL embeds the password', () => {
+    expect(read(credentialSource)).toMatch(/^# @type=url @sensitive=true\nVALKEY_URL=/m);
   });
 
   it('match between the env schema and the SeaweedFS identity', () => {

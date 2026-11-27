@@ -7,11 +7,11 @@ import {
 } from '@adelie/shared';
 import { totpCode } from '@adelie/test-utils/totp';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { AUTH_RATE_LIMIT_REDIS_PREFIX, AuthRateLimitRepository, accountLockoutKeys } from '#lib/server/api/auth/auth.rate-limit.repository';
-import type { RedisService } from '#lib/server/api/databases/redis/redis.service';
+import { AUTH_RATE_LIMIT_VALKEY_PREFIX, AuthRateLimitRepository, accountLockoutKeys } from '#lib/server/api/auth/auth.rate-limit.repository';
+import type { ValkeyService } from '#lib/server/api/databases/valkey/valkey.service';
 import { type AuthRequest, signUpWithEmail, signUpWithTotp, startTwoFactorSignIn, TEST_USER } from '../../../../../test/auth-http';
 import { createTestAuth } from '../../../../../test/auth-instance';
-import { createRedisServiceMock } from '../../../../../test/mocks/redis.mock';
+import { createValkeyServiceMock } from '../../../../../test/mocks/valkey.mock';
 
 const { maxFailedAttempts: MAX_FAILURES, durationSeconds: LOCK_SECONDS } = AUTH_ACCOUNT_SIGN_IN_LOCKOUT;
 const WRONG_PASSWORD = 'Wrong-password-1';
@@ -22,15 +22,15 @@ const MS_PER_SECOND = 1000;
 let lastOctet = 0;
 const nextIp = () => `203.0.113.${(lastOctet++ % 250) + 1}`;
 
-/** Freezes the clock (Date only) so a test can move it; the Redis mock's expiries follow it. */
+/** Freezes the clock (Date only) so a test can move it; the Valkey mock's expiries follow it. */
 function freezeClock() {
   vi.useFakeTimers({ toFake: ['Date'] });
   return (seconds: number) => vi.setSystemTime(Date.now() + seconds * MS_PER_SECOND);
 }
 
 function build({ withLockout = true } = {}) {
-  const redis = createRedisServiceMock();
-  const repository = new AuthRateLimitRepository(redis as unknown as RedisService);
+  const valkey = createValkeyServiceMock();
+  const repository = new AuthRateLimitRepository(valkey as unknown as ValkeyService);
   const { request: send } = createTestAuth({
     // Client addresses are read, as behind a trusted proxy, but only the account count is under test here.
     clientIp: { trustProxy: true, trustedProxies: [] },
@@ -40,12 +40,12 @@ function build({ withLockout = true } = {}) {
   const request: AuthRequest = (path, options = {}) => send(path, { ...options, headers: { 'x-forwarded-for': nextIp(), ...options.headers } });
   /** The failures counted for the address since its last success or lock. */
   const failures = async (email: string) =>
-    Number((await redis.get({ prefix: AUTH_RATE_LIMIT_REDIS_PREFIX, key: accountLockoutKeys(email).failures })) ?? 0);
+    Number((await valkey.get({ prefix: AUTH_RATE_LIMIT_VALKEY_PREFIX, key: accountLockoutKeys(email).failures })) ?? 0);
   /** Stands in for `count` failures already made, from anywhere. */
   const seedFailures = async (email: string, count: number) => {
     for (let i = 0; i < count; i++) await repository.recordFailure(email, AUTH_ACCOUNT_SIGN_IN_LOCKOUT);
   };
-  return { request, redis, failures, seedFailures };
+  return { request, valkey, failures, seedFailures };
 }
 
 const signIn = (request: AuthRequest, email: string, password: string) => request('/sign-in/email', { body: { email, password } });
@@ -114,10 +114,10 @@ describe('account lockout for password sign-in', () => {
 
   it('does not count a refused attempt, nor extend the lock with it', async () => {
     const advance = freezeClock();
-    const { request, redis, seedFailures } = build();
+    const { request, valkey, seedFailures } = build();
     await signUpWithEmail(request, TEST_USER);
     await seedFailures(TEST_USER.email, MAX_FAILURES);
-    const countedBefore = redis.incrementWithIdleExpiry.mock.calls.length;
+    const countedBefore = valkey.incrementWithIdleExpiry.mock.calls.length;
     const refusedAttempts = 3;
 
     advance(LOCK_SECONDS / 2);
@@ -126,7 +126,7 @@ describe('account lockout for password sign-in', () => {
       expect(res.status).toBe(429);
       expect(Number(res.headers.get(RETRY_AFTER_HEADER))).toBe(LOCK_SECONDS / 2);
     }
-    expect(redis.incrementWithIdleExpiry).toHaveBeenCalledTimes(countedBefore);
+    expect(valkey.incrementWithIdleExpiry).toHaveBeenCalledTimes(countedBefore);
 
     advance(LOCK_SECONDS / 2);
     expect((await signIn(request, TEST_USER.email, TEST_USER.password)).status).toBe(200);
@@ -210,42 +210,42 @@ describe('account lockout for password sign-in', () => {
   });
 
   it('counts only a refused credential, not a malformed request', async () => {
-    const { request, redis } = build();
+    const { request, valkey } = build();
 
     expect((await signIn(request, 'not-an-email', WRONG_PASSWORD)).status).toBe(400);
     expect((await request('/sign-in/email', { body: { password: WRONG_PASSWORD } })).status).toBe(400);
 
-    expect(redis.incrementWithIdleExpiry).not.toHaveBeenCalled();
+    expect(valkey.incrementWithIdleExpiry).not.toHaveBeenCalled();
   });
 
   it('refuses the sign-in, rather than skipping the limit, when the lock cannot be read', async () => {
-    const { request, redis } = build();
+    const { request, valkey } = build();
     await signUpWithEmail(request, TEST_USER);
     // The helper's own sign-in after verifying cleared the (empty) count; only the refused sign-in below is under test.
-    redis.delete.mockClear();
-    redis.ttl.mockRejectedValueOnce(new Error('Redis is unreachable'));
+    valkey.delete.mockClear();
+    valkey.ttl.mockRejectedValueOnce(new Error('Valkey is unreachable'));
 
     // Better Auth rethrows it, so the app's error handler answers instead of a session being issued.
-    await expect(signIn(request, TEST_USER.email, TEST_USER.password)).rejects.toThrow('Redis is unreachable');
-    expect(redis.incrementWithIdleExpiry).not.toHaveBeenCalled();
-    expect(redis.delete).not.toHaveBeenCalled();
+    await expect(signIn(request, TEST_USER.email, TEST_USER.password)).rejects.toThrow('Valkey is unreachable');
+    expect(valkey.incrementWithIdleExpiry).not.toHaveBeenCalled();
+    expect(valkey.delete).not.toHaveBeenCalled();
   });
 
-  it('keeps no email address in Redis', async () => {
-    const { redis, seedFailures } = build();
+  it('keeps no email address in Valkey', async () => {
+    const { valkey, seedFailures } = build();
 
     await seedFailures(UNKNOWN_EMAIL, MAX_FAILURES);
 
-    expect(redis.store.size).toBeGreaterThan(0);
-    expect([...redis.store.keys()].join()).not.toContain(UNKNOWN_EMAIL);
+    expect(valkey.store.size).toBeGreaterThan(0);
+    expect([...valkey.store.keys()].join()).not.toContain(UNKNOWN_EMAIL);
   });
 
   it('counts nothing without a storage', async () => {
-    const { request, redis } = build({ withLockout: false });
+    const { request, valkey } = build({ withLockout: false });
 
     expect((await signIn(request, UNKNOWN_EMAIL, WRONG_PASSWORD)).status).toBe(401);
 
-    expect(redis.store.size).toBe(0);
+    expect(valkey.store.size).toBe(0);
   });
 });
 

@@ -5,7 +5,7 @@
 		{ name: 'PostgreSQL + Drizzle', note: 'Type-safe queries and migrations' },
 		{ name: 'Better Auth', note: 'Email/password, sessions, roles, 2FA, passkeys' },
 		{ name: 'Tailwind v4 + Shadcn/UI', note: 'Accessible, themeable components' },
-		{ name: 'Redis, SeaweedFS, Mailpit', note: 'Rate limiting, S3 storage, local email' }
+		{ name: 'Valkey, SeaweedFS, Mailpit', note: 'Rate limiting, S3 storage, local email' }
 	];
 
 	const setupSteps = [
