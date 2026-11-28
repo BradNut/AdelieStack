@@ -1,4 +1,4 @@
-import { MIN_PASSWORD_LENGTH } from '@adelie/shared';
+import { AppRoute, MIN_PASSWORD_LENGTH } from '@adelie/shared';
 import { NEW_PASSWORD, newUser, PASSWORD, signIn, signOut, signUp, submitSignUp, VERIFY_EMAIL_SUBJECT, verifyEmail } from './support/auth';
 import { countEmails, firstLink, waitForEmail } from './support/mailbox';
 import { expect, test } from './support/test';
@@ -119,6 +119,33 @@ test.describe('password reset', () => {
     await expect(page).toHaveURL(/\/login$/);
 
     await waitForEmail(user.email, 'Your password was changed');
+    await signIn(page, user.email, NEW_PASSWORD);
+    await expect(page.getByTestId('footer-user')).toHaveText(user.email);
+  });
+
+  test('a signed-in user can reset their password from the emailed link', async ({ page, browser }) => {
+    const user = newUser();
+    await signUp(page, user);
+
+    // Request the link from another, signed-out browser so this one stays signed in.
+    const elsewhere = await browser.newPage();
+    await elsewhere.goto(AppRoute.PASSWORD_RESET, { waitUntil: 'networkidle' });
+    await elsewhere.getByLabel('Email').fill(user.email);
+    await elsewhere.getByRole('button', { name: 'Send reset link' }).click();
+    await expect(elsewhere.getByText('Check your email')).toBeVisible();
+    await elsewhere.close();
+
+    const link = firstLink(await waitForEmail(user.email, 'Reset your password'));
+    await page.goto(link);
+    await expect(page).toHaveURL(/\/password\/reset\?token=/);
+    await expect(page.getByText('Resetting your password signs you out everywhere, including this browser.')).toBeVisible();
+    await page.getByLabel('New password').fill(NEW_PASSWORD);
+    await page.getByLabel('Confirm password').fill(NEW_PASSWORD);
+    await page.getByRole('button', { name: 'Reset password' }).click();
+    await expect(page).toHaveURL(/\/login$/);
+
+    await page.goto(AppRoute.HOME);
+    await expect(page.getByTestId('footer')).toContainText('You are not signed in');
     await signIn(page, user.email, NEW_PASSWORD);
     await expect(page.getByTestId('footer-user')).toHaveText(user.email);
   });
