@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { MIN_PASSWORD_LENGTH, resetPasswordEmailDto, resetPasswordNewPasswordDto } from '@adelie/shared';
+	import { AppRoute, MIN_PASSWORD_LENGTH, resetPasswordEmailDto, resetPasswordNewPasswordDto } from '@adelie/shared';
 	import { toast } from 'svelte-sonner';
 	import { defaults, setError, superForm } from 'sveltekit-superforms';
 	import { zod4, zod4Client } from 'sveltekit-superforms/adapters';
@@ -13,12 +13,12 @@
 	import * as Card from '#lib/components/ui/card/index.ts';
 	import * as Form from '#lib/components/ui/form/index.ts';
 	import { Input } from '#lib/components/ui/input/index.ts';
+	import * as m from '#lib/paraglide/messages.js';
 	import { captchaErrorMessage } from '#lib/utils/captcha-messages.ts';
 	import { goto } from '$app/navigation';
 
 	const { data } = $props();
 
-	const RESET_PATH = '/password/reset';
 	let emailSent = $state(false);
 	const captcha = createCaptchaForm();
 
@@ -32,7 +32,7 @@
 				authClient.requestPasswordReset(
 					{
 						email: form.data.email,
-						redirectTo: RESET_PATH,
+						redirectTo: AppRoute.PASSWORD_RESET,
 					},
 					fetchOptions,
 				),
@@ -54,7 +54,10 @@
 			});
 			if (error) return setError(form, 'password', passwordRejectionCodes(error) ?? authErrorMessage(error, 'Unable to reset your password.'));
 			toast.success('Successfully reset password!');
-			await goto('/login');
+			// The reset ends every session of the link's account, which may not be the one this browser is signed in to.
+			// A failure is ignored: the session may already be gone, and sign-in is where the browser goes either way.
+			await authClient.signOut().catch(() => undefined);
+			await goto(AppRoute.LOGIN, { invalidateAll: true });
 		},
 	});
 
@@ -72,6 +75,11 @@
 	</Card.Header>
 	<Card.Content class="grid gap-4">
 		{#if data.token}
+			{#if data.authedUser}
+				<Alert.Root>
+					<Alert.Description>{m.password_reset_signs_out_everywhere()}</Alert.Description>
+				</Alert.Root>
+			{/if}
 			<form method="POST" use:newPasswordEnhance class="grid gap-2">
 				<Form.Field form={sf_new_password} name="password">
 					<Form.Control>
@@ -125,7 +133,7 @@
 				<CaptchaField bind:this={captcha.field} onchange={captcha.setToken} />
 				<div class="grid grid-cols-2">
 					<Form.Button>Send reset link</Form.Button>
-					<Button variant="link" class="text-secondary-foreground" href="/login">Back to login</Button>
+					<Button variant="link" class="text-secondary-foreground" href={AppRoute.LOGIN}>Back to login</Button>
 				</div>
 			</form>
 		{/if}

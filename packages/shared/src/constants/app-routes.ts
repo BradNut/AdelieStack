@@ -5,6 +5,8 @@ export const AppRoute = {
   /** Where a password or social provider sign-in continues when the account has two-factor enabled. */
   LOGIN_TWO_FACTOR: '/login/two-factor',
   SIGNUP: '/signup',
+  /** Where an emailed password-reset link lands, with `?token=` when valid or `?error=` when not. */
+  PASSWORD_RESET: '/password/reset',
   SETTINGS: '/settings',
   SETTINGS_EMAIL: '/settings/email',
   SETTINGS_PASSWORD: '/settings/password',
