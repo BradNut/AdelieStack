@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { AppRoute } from '@adelie/shared';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/svelte';
+import type { ComponentProps } from 'svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const authClient = vi.hoisted(() => ({ resetPassword: vi.fn(), requestPasswordReset: vi.fn(), signOut: vi.fn() }));
@@ -19,7 +20,7 @@ const SIGN_OUT_NOTE = m.password_reset_signs_out_everywhere();
 const signedOut = { signUpEnabled: true, flash: undefined, authedUser: null, socialProviders: [], token: 'link-token', linkError: null };
 const signedIn = { ...signedOut, authedUser: buildAuthedUser() };
 
-async function submitNewPassword(data: typeof signedOut | typeof signedIn = signedOut) {
+async function submitNewPassword(data: ComponentProps<typeof ResetPage>['data'] = signedOut) {
   render(ResetPage, { data });
   await fireEvent.input(screen.getByLabelText('New password'), { target: { value: NEW_PASSWORD } });
   await fireEvent.input(screen.getByLabelText('Confirm password'), { target: { value: NEW_PASSWORD } });

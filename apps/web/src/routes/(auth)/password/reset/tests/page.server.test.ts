@@ -2,28 +2,14 @@
 // Vitest resolves the browser export condition (vite.config.ts), so Kit 3's redirect() takes its client build, which reads `window`.
 import { AppRoute } from '@adelie/shared';
 import { describe, expect, it, vi } from 'vitest';
+import { buildLoadEvent, catchRedirect } from '#lib/tests/load-event.ts';
 import { alreadySignedInMessage } from '#lib/utils/flashMessages.ts';
 import { load } from '../+page.server';
 
 const SIGNED_IN = { id: 'u1' };
 
 function event({ user = null, search = '' }: { user?: object | null; search?: string }) {
-  const url = new URL(`http://localhost${AppRoute.PASSWORD_RESET}${search}`);
-  return {
-    locals: { user },
-    cookies: { set: vi.fn(), get: vi.fn(), delete: vi.fn(), getAll: vi.fn(() => []) },
-    url,
-    request: new Request(url),
-  } as unknown as Parameters<typeof load>[0];
-}
-
-async function redirectOf(run: () => unknown) {
-  try {
-    await run();
-  } catch (thrown) {
-    return thrown as { status: number; location: string };
-  }
-  return null;
+  return buildLoadEvent<Parameters<typeof load>[0]>({ path: `${AppRoute.PASSWORD_RESET}${search}`, user });
 }
 
 describe('/password/reset load', () => {
@@ -36,7 +22,7 @@ describe('/password/reset load', () => {
   });
 
   it('sends a signed-in visit without a link to change-password settings', async () => {
-    const thrown = await redirectOf(() => load(event({ user: SIGNED_IN })));
+    const thrown = await catchRedirect(() => load(event({ user: SIGNED_IN })));
 
     expect(thrown?.status).toBe(303);
     expect(thrown?.location).toBe(AppRoute.SETTINGS_PASSWORD);
@@ -44,14 +30,14 @@ describe('/password/reset load', () => {
 
   it('flashes "already signed in" on that redirect', async () => {
     const e = event({ user: SIGNED_IN });
-    await redirectOf(() => load(e));
+    await catchRedirect(() => load(e));
 
     const [, value] = vi.mocked(e.cookies.set).mock.calls[0];
     expect(decodeURIComponent(String(value))).toContain(alreadySignedInMessage.message);
   });
 
   it('ignores an empty token on a signed-in visit', async () => {
-    const thrown = await redirectOf(() => load(event({ user: SIGNED_IN, search: '?token=' })));
+    const thrown = await catchRedirect(() => load(event({ user: SIGNED_IN, search: '?token=' })));
 
     expect(thrown?.location).toBe(AppRoute.SETTINGS_PASSWORD);
   });

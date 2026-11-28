@@ -127,7 +127,7 @@
 					<Form.Button>Login</Form.Button>
 					<LastUsedBadge method={LoginMethod.PASSWORD} {lastMethod} />
 				</div>
-				<Button variant="link" class="text-secondary-foreground" href="/password/reset">Forgot Password?</Button>
+				<Button variant="link" class="text-secondary-foreground" href={AppRoute.PASSWORD_RESET}>Forgot Password?</Button>
 			</div>
 		</form>
 		{#if unverifiedEmail}
